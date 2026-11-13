@@ -30,7 +30,7 @@ public final class RouteMonitor: @unchecked Sendable {
     private let tap: AudioObjectID?
     private let micDeviceUIDs: [String]
     private let onEvent: @Sendable (RouteEvent) -> Void
-    private let queue = DispatchQueue(label: "fr.paulmailhes.transcriptor.route-monitor")
+    private let queue = DispatchQueue(label: "fr.paulmailhes.polhub.route-monitor")
 
     // All of this is touched on `queue` only.
     private var listeners: [PropertyListener] = []

@@ -8,7 +8,7 @@ import Foundation
 /// device instead; phase 0 measures whether that is ever needed.
 public final class TapAggregate: @unchecked Sendable {
     /// Every aggregate created here has a UID starting with this, so route monitoring can ignore them.
-    public static let uidPrefix = "fr.paulmailhes.transcriptor.agg."
+    public static let uidPrefix = "fr.paulmailhes.polhub.agg."
 
     public let deviceID: AudioObjectID
     public let uid: String
@@ -19,7 +19,7 @@ public final class TapAggregate: @unchecked Sendable {
     public init(tap: ProcessTap, mainSubDeviceUID: String? = nil) throws {
         let uid = Self.uidPrefix + UUID().uuidString
         var description: [String: Any] = [
-            kAudioAggregateDeviceNameKey: "Transcriptor (capture)",
+            kAudioAggregateDeviceNameKey: "Polhub (capture)",
             kAudioAggregateDeviceUIDKey: uid,
             kAudioAggregateDeviceIsPrivateKey: true,
             kAudioAggregateDeviceIsStackedKey: false,

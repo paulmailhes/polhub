@@ -7,7 +7,7 @@ func sine(seconds: Double, sampleRate: Double = 48_000, amplitude: Float = 0.5, 
 
 func temporaryDirectory() throws -> URL {
     let url = FileManager.default.temporaryDirectory
-        .appending(path: "transcriptor-audio-\(UUID().uuidString)", directoryHint: .isDirectory)
+        .appending(path: "polhub-audio-\(UUID().uuidString)", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     return url
 }

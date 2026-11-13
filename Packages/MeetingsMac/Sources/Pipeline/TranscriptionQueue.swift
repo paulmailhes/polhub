@@ -5,7 +5,7 @@ import Persistence
 import Transcription
 
 /// The work after the meetings. One job at a time, never during a meeting: as soon as a Meet shows, the
-/// running `transcriptor-calcul` is stopped and its job goes back to the queue; the chunks it finished stay
+/// running `polhub-calcul` is stopped and its job goes back to the queue; the chunks it finished stay
 /// on disk and are not done again.
 public actor TranscriptionQueue {
     public static let automaticAttempts = 3

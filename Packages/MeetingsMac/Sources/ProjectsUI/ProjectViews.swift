@@ -103,14 +103,14 @@ public enum ProjectViews {
         [project.lastMeetingImported, appMeeting].compactMap { $0 }.max()
     }
 
-    /// The palette of the pol-pilotage plugin (`PALETTE` in main.js): French names first, English aliases.
+    /// The palette of the vault's own plugin: French names first, English aliases.
     static let palette: [String: String] = [
         "rouge": "#E2453C", "orange": "#F08A24", "jaune": "#E8B923", "vert": "#1FA971", "cyan": "#17A2B8",
         "bleu": "#2F6FED", "violet": "#8E44AD", "rose": "#E0559B", "gris": "#6B7280", "marron": "#8B5E3C", "noir": "#222222",
         "red": "#E2453C", "yellow": "#E8B923", "green": "#1FA971", "blue": "#2F6FED", "purple": "#8E44AD", "pink": "#E0559B",
         "gray": "#6B7280", "grey": "#6B7280",
     ]
-    /// The choices of the « Couleur » field, as in the plugin (`COULEURS`).
+    /// The choices of the « Couleur » field, as in the vault's plugin.
     public static let colorChoices = ["rouge", "orange", "jaune", "vert", "cyan", "bleu", "violet", "rose", "gris", "marron", "noir"]
 
     /// A card's `couleur` as a hex code: a palette name, or a free hex value the note already holds.

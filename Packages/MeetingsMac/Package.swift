@@ -17,8 +17,8 @@ let package = Package(
         .library(name: "VaultImport", targets: ["VaultImport"]),
         .library(name: "ProjectsUI", targets: ["ProjectsUI"]),
         .library(name: "Updates", targets: ["Updates"]),
-        .executable(name: "transcriptor-calcul", targets: ["TranscriptorCalcul"]),
-        .executable(name: "transcriptor", targets: ["TranscriptorCLI"]),
+        .executable(name: "polhub-calcul", targets: ["PolhubCalcul"]),
+        .executable(name: "polhub", targets: ["PolhubCLI"]),
     ],
     dependencies: [
         .package(path: "../Kernel"),
@@ -46,7 +46,7 @@ let package = Package(
             .product(name: "Persistence", package: "Kernel"),
             .product(name: "Yams", package: "Yams"),
         ]),
-        // The models live only in `transcriptor-calcul`: the app never loads them.
+        // The models live only in `polhub-calcul`: the app never loads them.
         .target(name: "Compute", dependencies: [
             "Transcription",
             "Recording",
@@ -54,13 +54,13 @@ let package = Package(
             .product(name: "WhisperKit", package: "WhisperKit"),
             .product(name: "FluidAudio", package: "FluidAudio"),
         ]),
-        .executableTarget(name: "TranscriptorCalcul", dependencies: ["Compute", "Transcription"]),
+        .executableTarget(name: "PolhubCalcul", dependencies: ["Compute", "Transcription"]),
         // Claude Code reads the meetings through these, read-only.
         .target(name: "ReadingKit", dependencies: [
             .product(name: "Domain", package: "Kernel"),
             .product(name: "Persistence", package: "Kernel"),
         ]),
-        .executableTarget(name: "TranscriptorCLI", dependencies: ["ReadingKit", .product(name: "Persistence", package: "Kernel")]),
+        .executableTarget(name: "PolhubCLI", dependencies: ["ReadingKit", .product(name: "Persistence", package: "Kernel")]),
         .target(name: "MeetingDetection", dependencies: ["AudioCapture", .product(name: "Domain", package: "Kernel"), .product(name: "Observability", package: "Kernel")]),
         .target(name: "MeetingsUI", dependencies: [
             "Recording",

@@ -265,10 +265,10 @@ public final class MeetingCoordinator {
             // During a meeting the recording does not need the tabs: a pop-up would only alarm.
             if current != nil {
                 tabsAlertPending = true
-                journal(.alert, "Transcriptor ne lit plus les onglets de Dia (la réunion en cours s'enregistre normalement).")
+                journal(.alert, "Polhub ne lit plus les onglets de Dia (la réunion en cours s'enregistre normalement).")
             } else {
                 presenter?.show(.tabsUnreadable)
-                journal(.alert, "Transcriptor ne lit plus les onglets de Dia : les réunions sont détectées par le micro seul.")
+                journal(.alert, "Polhub ne lit plus les onglets de Dia : les réunions sont détectées par le micro seul.")
             }
 
         case .alert(.tabsReadableAgain):

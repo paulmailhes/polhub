@@ -21,7 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var library: MeetingLibrary?
     /// The projects module (copy of the vault's projects, imported by Paul).
     private var projects: ProjectLibrary?
-    /// Step 2: the transcriptions, run by `transcriptor-calcul` outside meetings.
+    /// Step 2: the transcriptions, run by `polhub-calcul` outside meetings.
     private var transcription: TranscriptionQueue?
     private var transcriptionTimer: Timer?
     /// Updates from GitHub, installed on their own when all is quiet.
@@ -48,9 +48,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var isDevelopment: Bool { AppFlavor.current == .dev }
 
     /// Named after the bundle: the development version never talks to the production one.
-    private static let showWindowNotification = Notification.Name("\(Bundle.main.bundleIdentifier ?? "fr.paulmailhes.transcriptor").show-window")
+    private static let showWindowNotification = Notification.Name("\(Bundle.main.bundleIdentifier ?? "fr.paulmailhes.polhub").show-window")
     /// Sent by the agent's copy to a copy Paul opened: only one copy records.
-    private static let yieldNotification = Notification.Name("\(Bundle.main.bundleIdentifier ?? "fr.paulmailhes.transcriptor").yield")
+    private static let yieldNotification = Notification.Name("\(Bundle.main.bundleIdentifier ?? "fr.paulmailhes.polhub").yield")
 
     private struct LaunchRecord: Encodable, Sendable {
         let origin: LaunchOrigin
@@ -178,7 +178,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     /// The queue starts what a stop or a crash left, then looks for new meetings every minute and at the end of
     /// each meeting.
     private func startTranscription(store: MeetingStore) {
-        let helper = Bundle.main.bundleURL.appending(path: "Contents/Helpers/transcriptor-calcul")
+        let helper = Bundle.main.bundleURL.appending(path: "Contents/Helpers/polhub-calcul")
         let queue = TranscriptionQueue(
             meetings: store, transcripts: TranscriptStore(store.database), paths: paths,
             launcher: LiveCalculLauncher(executable: helper), log: detectionLog
@@ -313,12 +313,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 }
             }
             let window = NSWindow(contentViewController: NSHostingController(rootView: view))
-            window.title = "Transcriptor"
+            window.title = "Polhub"
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
             window.setContentSize(NSSize(width: 1_180, height: 720))
             window.isReleasedWhenClosed = false
             window.delegate = self
-            window.setFrameAutosaveName("Transcriptor.main")
+            window.setFrameAutosaveName("Polhub.main")
             window.center()
             mainWindow = window
         }
@@ -353,7 +353,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 if !on { return RelaunchAgent.disable() }
                 if let problem = RelaunchAgent.enable() { return problem }
                 return LaunchContext.current == .user
-                    ? "Relance activée : Transcriptor passe sous la garde de macOS. Cette fenêtre va se fermer ; rouvre-la par l'icône de la barre des menus."
+                    ? "Relance activée : Polhub passe sous la garde de macOS. Cette fenêtre va se fermer ; rouvre-la par l'icône de la barre des menus."
                     : "Relance activée."
             }
         )
@@ -383,7 +383,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     static func anotherCopyIsRunning() -> Bool {
-        let identifier = Bundle.main.bundleIdentifier ?? "fr.paulmailhes.transcriptor"
+        let identifier = Bundle.main.bundleIdentifier ?? "fr.paulmailhes.polhub"
         return NSRunningApplication.runningApplications(withBundleIdentifier: identifier)
             .contains { $0.processIdentifier != getpid() && !$0.isTerminated }
     }
@@ -411,11 +411,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     static func alertThenExit(_ text: String) -> Never {
-        FileHandle.standardError.write(Data("Transcriptor : \(text)\n".utf8))
+        FileHandle.standardError.write(Data("Polhub : \(text)\n".utf8))
         // In a script there is nobody to click: the alert is only shown in a real session.
-        if ProcessInfo.processInfo.environment["TRANSCRIPTOR_NO_ALERT"] == nil {
+        if ProcessInfo.processInfo.environment["POLHUB_NO_ALERT"] == nil {
             let alert = NSAlert()
-            alert.messageText = "Transcriptor : problème au démarrage"
+            alert.messageText = "Polhub : problème au démarrage"
             alert.informativeText = text
             NSApp.activate()
             alert.runModal()
@@ -426,7 +426,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func showProbeWindow() {
         if probeWindow == nil {
             let window = NSWindow(contentViewController: NSHostingController(rootView: ProbeWindow(runner: runner)))
-            window.title = "Sondes — Transcriptor"
+            window.title = "Sondes — Polhub"
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             window.isReleasedWhenClosed = false
             window.delegate = self

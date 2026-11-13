@@ -3,7 +3,7 @@ import Foundation
 /// Downloads a release, checks its app, and hands over to the swap script.
 public struct Installer: Sendable {
     public static let maxArchiveBytes: Int64 = 200 * 1_024 * 1_024
-    public static let agent = "fr.paulmailhes.transcriptor.relance"
+    public static let agent = "fr.paulmailhes.polhub.relance"
 
     public enum InstallError: Error, CustomStringConvertible {
         case download(String)
@@ -16,7 +16,7 @@ public struct Installer: Sendable {
             switch self {
             case .download(let reason): "le téléchargement a échoué (\(reason))"
             case .tooBig: "l'archive est anormalement grosse"
-            case .noApp: "l'archive ne contient pas Transcriptor.app"
+            case .noApp: "l'archive ne contient pas Polhub.app"
             case .refused(let error): "\(error)"
             case .launch(let reason): "l'installation ne démarre pas (\(reason))"
             }
@@ -27,9 +27,9 @@ public struct Installer: Sendable {
     public let keepOld: URL
     public let log: URL
 
-    public init(installed: URL = URL(fileURLWithPath: "/Applications/Transcriptor.app"),
-                keepOld: URL = URL.applicationSupportDirectory.appending(path: "Transcriptor/Ancienne version", directoryHint: .isDirectory),
-                log: URL = URL.libraryDirectory.appending(path: "Logs/Transcriptor/mise-a-jour.log")) {
+    public init(installed: URL = URL(fileURLWithPath: "/Applications/Polhub.app"),
+                keepOld: URL = URL.applicationSupportDirectory.appending(path: "Polhub/Ancienne version", directoryHint: .isDirectory),
+                log: URL = URL.libraryDirectory.appending(path: "Logs/Polhub/mise-a-jour.log")) {
         self.installed = installed
         self.keepOld = keepOld
         self.log = log
@@ -37,7 +37,7 @@ public struct Installer: Sendable {
 
     /// The release's app, downloaded, unpacked and checked; nothing is changed on the Mac yet.
     public func prepare(_ release: Release) async throws -> URL {
-        let folder = FileManager.default.temporaryDirectory.appending(path: "transcriptor-maj-\(release.version)-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let folder = FileManager.default.temporaryDirectory.appending(path: "polhub-maj-\(release.version)-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let downloaded: URL, response: URLResponse
         do {
@@ -55,7 +55,7 @@ public struct Installer: Sendable {
         guard run("/usr/bin/ditto", ["-x", "-k", archive.path(percentEncoded: false), folder.path(percentEncoded: false)]).status == 0 else {
             throw InstallError.noApp
         }
-        let app = folder.appending(path: "Transcriptor.app", directoryHint: .isDirectory)
+        let app = folder.appending(path: "Polhub.app", directoryHint: .isDirectory)
         guard FileManager.default.fileExists(atPath: app.path(percentEncoded: false)) else { throw InstallError.noApp }
         guard run("/usr/bin/codesign", ["--verify", "--deep", "--strict", app.path(percentEncoded: false)]).status == 0 else {
             throw InstallError.refused(.invalidSignature)

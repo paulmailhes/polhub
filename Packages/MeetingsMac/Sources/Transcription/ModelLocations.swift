@@ -10,7 +10,7 @@ public struct ModelLocations: Sendable {
     }
 
     public static var standard: ModelLocations {
-        ModelLocations(root: URL.applicationSupportDirectory.appending(path: "Transcriptor/Models", directoryHint: .isDirectory))
+        ModelLocations(root: URL.applicationSupportDirectory.appending(path: "Polhub/Models", directoryHint: .isDirectory))
     }
 
     /// WhisperKit's large-v3-turbo (`argmaxinc/whisperkit-coreml`).

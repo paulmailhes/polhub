@@ -28,7 +28,7 @@ public final class MemorySampler: @unchecked Sendable {
     }
 
     public func start() {
-        let queue = DispatchQueue(label: "fr.paulmailhes.transcriptor.memory", qos: .utility)
+        let queue = DispatchQueue(label: "fr.paulmailhes.polhub.memory", qos: .utility)
         let source = DispatchSource.makeMemoryPressureSource(eventMask: [.normal, .warning, .critical], queue: queue)
         source.setEventHandler { [weak self, weak source] in
             guard let self, let event = source?.data else { return }

@@ -14,5 +14,5 @@ Première version publiée.
   au lecteur, recherche, « Retranscrire » et « Réessayer ».
 - **Projets** : kanban, vues Tous, Tableau, À rendre, À surveiller, page de projet, import depuis
   Obsidian, rangement d'une réunion dans un projet.
-- **Claude Code** : la commande `transcriptor` et son serveur MCP, en lecture seule.
+- **Claude Code** : la commande `polhub` et son serveur MCP, en lecture seule.
 - **Mises à jour automatiques** depuis les versions publiées sur GitHub, jamais pendant une réunion.

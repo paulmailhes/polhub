@@ -11,7 +11,7 @@ public struct ImportSummary: Equatable, Sendable {
     public let rawAudioDeleted: Bool
 }
 
-/// Turns what `transcriptor-calcul` wrote into the meeting's dialogue: checks, merge, base, `meeting.json`.
+/// Turns what `polhub-calcul` wrote into the meeting's dialogue: checks, merge, base, `meeting.json`.
 /// The raw audio goes only once the 16 kHz archive is checked.
 public enum TranscriptImport {
     public static func run(

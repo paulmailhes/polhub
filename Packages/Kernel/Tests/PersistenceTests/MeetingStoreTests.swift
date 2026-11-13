@@ -82,9 +82,9 @@ import Testing
     }
 
     @Test func theDevFlavorNeverTouchesTheRealData() {
-        #expect(AppPaths.standard(.dev).database.path.contains("/Application Support/Transcriptor-dev/"))
-        #expect(AppPaths.standard(.prod).meetings.path.hasSuffix("/Application Support/Transcriptor/Reunions"))
+        #expect(AppPaths.standard(.dev).database.path.contains("/Application Support/Polhub-dev/"))
+        #expect(AppPaths.standard(.prod).meetings.path.hasSuffix("/Application Support/Polhub/Reunions"))
         #expect(AppPaths.standard(.dev).database != AppPaths.standard(.prod).database)
-        #expect(AppPaths.standard(.prod).logs.path.hasSuffix("/Library/Logs/Transcriptor"))
+        #expect(AppPaths.standard(.prod).logs.path.hasSuffix("/Library/Logs/Polhub"))
     }
 }

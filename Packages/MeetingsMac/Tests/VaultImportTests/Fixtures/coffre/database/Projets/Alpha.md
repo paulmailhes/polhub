@@ -23,8 +23,8 @@ filters:
 ```
 
 ## Échanges récents
-```pol
-bloc: messages
+```dataview
+LIST
 ```
 
 ## Notes

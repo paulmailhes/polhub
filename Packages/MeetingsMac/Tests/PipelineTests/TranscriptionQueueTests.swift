@@ -7,7 +7,7 @@ import Testing
 import Transcription
 @testable import Pipeline
 
-/// A process whose messages the test writes; it may write result lines first, as `transcriptor-calcul` does.
+/// A process whose messages the test writes; it may write result lines first, as `polhub-calcul` does.
 final class FakeCalcul: CalculProcess, @unchecked Sendable {
     let messages: AsyncStream<CalculMessage>
     private let continuation: AsyncStream<CalculMessage>.Continuation
@@ -91,7 +91,7 @@ func eventually(_ condition: @Sendable () async throws -> Bool) async rethrows -
         return row
     }
 
-    /// What `transcriptor-calcul` would have written for one chunk.
+    /// What `polhub-calcul` would have written for one chunk.
     func writeResult(_ row: MeetingRow, track: Speaker, index: Int, text: String) throws {
         let result = ChunkResult(track: track, chunk: Chunk(index: index, start: Double(index) * 10, end: Double(index) * 10 + 5), segments: [
             EngineSegment(start: Double(index) * 10 + 1, end: Double(index) * 10 + 3, text: text, avgLogprob: -0.2, compressionRatio: 1.1, noSpeechProb: 0.1),

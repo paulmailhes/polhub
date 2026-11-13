@@ -14,7 +14,7 @@ final class FakeInstaller: UpdateInstalling, @unchecked Sendable {
         lock.withLock { prepares += 1 }
         onPrepare?()
         if fails { throw Installer.InstallError.noApp }
-        return URL(fileURLWithPath: "/tmp/Transcriptor.app")
+        return URL(fileURLWithPath: "/tmp/Polhub.app")
     }
 
     func launch(newApp: URL) throws {
@@ -90,7 +90,7 @@ final class Switch: @unchecked Sendable {
         installer.fails = true
         let updates = service(installer: installer, clock: clock)
         await updates.tick()
-        #expect(installer.prepared == 1 && UpdateService.text(updates.state)?.contains("Transcriptor.app") == true)
+        #expect(installer.prepared == 1 && UpdateService.text(updates.state)?.contains("Polhub.app") == true)
         clock.date = start.addingTimeInterval(600)
         await updates.tick()
         #expect(installer.prepared == 1)
@@ -102,11 +102,11 @@ final class Switch: @unchecked Sendable {
     @Test func everyStateHasAFrenchText() {
         #expect(UpdateService.text(.idle) == nil)
         #expect(UpdateService.text(.waitingForIdle) == "La mise à jour s'installera à la fin de la réunion ou de la transcription en cours.")
-        #expect(UpdateService.text(.installing) == "Installation : Transcriptor va se relancer.")
+        #expect(UpdateService.text(.installing) == "Installation : Polhub va se relancer.")
     }
 
     @Test func theJournalSaysWhichVersionCameIn() {
-        #expect(UpdateService.upgradeNote(previous: "0.3.0", current: "0.3.1") == "Transcriptor mis à jour : 0.3.0 → 0.3.1.")
+        #expect(UpdateService.upgradeNote(previous: "0.3.0", current: "0.3.1") == "Polhub mis à jour : 0.3.0 → 0.3.1.")
         #expect(UpdateService.upgradeNote(previous: "0.3.1", current: "0.3.1") == nil)
         #expect(UpdateService.upgradeNote(previous: nil, current: "0.3.1") == nil)
     }

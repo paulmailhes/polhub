@@ -43,7 +43,7 @@ public final class HALInputStream: @unchecked Sendable {
 
     private let operations: Operations
     private let state = State()
-    private let control = DispatchQueue(label: "fr.paulmailhes.transcriptor.hal-control")
+    private let control = DispatchQueue(label: "fr.paulmailhes.polhub.hal-control")
 
     public init(deviceID: AudioObjectID, handler: @escaping Handler) throws {
         self.deviceID = deviceID

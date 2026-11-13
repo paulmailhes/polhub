@@ -1,10 +1,10 @@
 import Foundation
 
 public enum TracePaths {
-    /// `~/Library/Application Support/Transcriptor/Mesures`
+    /// `~/Library/Application Support/Polhub/Mesures`
     public static var root: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appending(path: "Transcriptor/Mesures", directoryHint: .isDirectory)
+            .appending(path: "Polhub/Mesures", directoryHint: .isDirectory)
     }
 
     /// `<root>/<yyyyMMdd-HHmmss>Z-<probe>/`, stamped in UTC.

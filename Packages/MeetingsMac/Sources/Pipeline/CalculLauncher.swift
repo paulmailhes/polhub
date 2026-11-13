@@ -1,7 +1,7 @@
 import Foundation
 import Transcription
 
-/// A running `transcriptor-calcul`: its messages, until it ends; `stop()` ends it at once.
+/// A running `polhub-calcul`: its messages, until it ends; `stop()` ends it at once.
 public protocol CalculProcess: Sendable {
     var messages: AsyncStream<CalculMessage> { get }
     func stop()
@@ -11,7 +11,7 @@ public protocol CalculLaunching: Sendable {
     func start(_ request: CalculRequest) throws -> any CalculProcess
 }
 
-/// Launches the `transcriptor-calcul` embedded in the app, at a low priority so the Mac stays responsive.
+/// Launches the `polhub-calcul` embedded in the app, at a low priority so the Mac stays responsive.
 public struct LiveCalculLauncher: CalculLaunching {
     public let executable: URL
 

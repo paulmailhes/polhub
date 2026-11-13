@@ -81,7 +81,7 @@ public final class TrackRecorder: @unchecked Sendable {
             }
             stopped.signal()
         }
-        thread.name = "fr.paulmailhes.transcriptor.track-writer"
+        thread.name = "fr.paulmailhes.polhub.track-writer"
         thread.qualityOfService = .userInitiated
         thread.start()
     }

@@ -1,8 +1,8 @@
-APP      := build/Transcriptor.app
-PRODUCT  := build/DerivedData/Build/Products/Release/Transcriptor.app
-INSTALL  := /Applications/Transcriptor.app
-AGENT    := fr.paulmailhes.transcriptor.relance
-DB       := $(HOME)/Library/Application Support/Transcriptor/Transcriptor.sqlite
+APP      := build/Polhub.app
+PRODUCT  := build/DerivedData/Build/Products/Release/Polhub.app
+INSTALL  := /Applications/Polhub.app
+AGENT    := fr.paulmailhes.polhub.relance
+DB       := $(HOME)/Library/Application Support/Polhub/Polhub.sqlite
 VERSION  := $(shell cat VERSION)
 
 .PHONY: check gen app app-dev verify install stop release
@@ -17,18 +17,18 @@ gen:
 	xcodegen generate --quiet
 
 app: gen
-	xcodebuild -project Transcriptor.xcodeproj -scheme Transcriptor -configuration Release \
+	xcodebuild -project Polhub.xcodeproj -scheme Polhub -configuration Release \
 		-derivedDataPath build/DerivedData -quiet MARKETING_VERSION=$(VERSION) build
 	rm -rf $(APP)
 	ditto $(PRODUCT) $(APP)
 
 # La version de développement : identifiant .dev, données à part, détection coupée. Jamais installée.
 app-dev: gen
-	xcodebuild -project Transcriptor.xcodeproj -scheme TranscriptorDev -configuration Release \
+	xcodebuild -project Polhub.xcodeproj -scheme PolhubDev -configuration Release \
 		-derivedDataPath build/DerivedData -quiet MARKETING_VERSION=$(VERSION) build
-	rm -rf "build/Transcriptor Dev.app"
-	ditto "build/DerivedData/Build/Products/Release/Transcriptor Dev.app" "build/Transcriptor Dev.app"
-	scripts/verify-bundle.sh "build/Transcriptor Dev.app" fr.paulmailhes.transcriptor.dev
+	rm -rf "build/Polhub Dev.app"
+	ditto "build/DerivedData/Build/Products/Release/Polhub Dev.app" "build/Polhub Dev.app"
+	scripts/verify-bundle.sh "build/Polhub Dev.app" fr.paulmailhes.polhub.dev
 
 verify:
 	scripts/verify-bundle.sh $(APP)
@@ -38,7 +38,7 @@ install:
 	@test "$(CONFIRM)" = "oui" || { echo "Refusé : relancer avec CONFIRM=oui, après accord de Paul."; exit 1; }
 	@n=$$(sqlite3 "$(DB)" "SELECT count(*) FROM meeting WHERE status IN ('pending','recording','presumedEnded') AND deletedAt IS NULL" 2>/dev/null || echo 0); \
 		test "$$n" = "0" || { echo "Refusé : une réunion s'enregistre ($$n). Attendre sa fin."; exit 1; }
-	@! pgrep -x Transcriptor >/dev/null || { echo "Refusé : Transcriptor tourne. Le quitter d'abord (make stop)."; exit 1; }
+	@! pgrep -x Polhub >/dev/null || { echo "Refusé : Polhub tourne. Le quitter d'abord (make stop)."; exit 1; }
 	rm -rf $(INSTALL)
 	ditto $(APP) $(INSTALL)
 	@echo "Installé : $(INSTALL)"
@@ -46,14 +46,14 @@ install:
 	@if launchctl print gui/$$(id -u)/$(AGENT) >/dev/null 2>&1; then \
 		launchctl kickstart gui/$$(id -u)/$(AGENT) && echo "Relancée par l'agent de relance."; \
 	else \
-		echo "Agent de relance absent : ouvrir Transcriptor, puis cocher la relance dans le Diagnostic."; \
+		echo "Agent de relance absent : ouvrir Polhub, puis cocher la relance dans le Diagnostic."; \
 	fi
 
 # Quitte l'app, sauf si une réunion s'enregistre.
 stop:
 	@n=$$(sqlite3 "$(DB)" "SELECT count(*) FROM meeting WHERE status IN ('pending','recording','presumedEnded') AND deletedAt IS NULL" 2>/dev/null || echo 0); \
 		test "$$n" = "0" || { echo "Refusé : une réunion s'enregistre ($$n)."; exit 1; }
-	-pkill -x Transcriptor
+	-pkill -x Polhub
 	@sleep 1
 
 # Publie une version sur GitHub (tests, app signée, archive, notes de CHANGELOG.md) : make release VERSION=0.3.1

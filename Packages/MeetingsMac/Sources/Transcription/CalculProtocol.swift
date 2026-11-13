@@ -33,7 +33,7 @@ public struct ChunkResult: Codable, Equatable, Sendable {
     }
 }
 
-/// The request the app gives `transcriptor-calcul`, as JSON in its first argument.
+/// The request the app gives `polhub-calcul`, as JSON in its first argument.
 public struct CalculRequest: Codable, Equatable, Sendable {
     /// The meeting's folder.
     public let folder: String
@@ -46,7 +46,7 @@ public struct CalculRequest: Codable, Equatable, Sendable {
     }
 }
 
-/// What `transcriptor-calcul` writes on its standard output, one JSON object per line.
+/// What `polhub-calcul` writes on its standard output, one JSON object per line.
 public enum CalculMessage: Codable, Equatable, Sendable {
     case progress(track: Speaker, done: Int, total: Int)
     case chunk(ChunkResult)

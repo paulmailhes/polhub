@@ -7,7 +7,7 @@ import Testing
 
     init() throws {
         tmpDir = FileManager.default.temporaryDirectory
-            .appending(path: "transcriptor-tests-\(UUID().uuidString)", directoryHint: .isDirectory)
+            .appending(path: "polhub-tests-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
     }
 

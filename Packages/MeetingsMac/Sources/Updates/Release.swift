@@ -42,9 +42,9 @@ public struct Release: Equatable, Sendable {
 
 public enum Releases {
     /// The name of the archive every release carries.
-    public static let archiveName = "Transcriptor.zip"
+    public static let archiveName = "Polhub.zip"
     /// The public repository the versions are published on.
-    public static let listURL = URL(string: "https://api.github.com/repos/paulmailhes/transcriptor/releases?per_page=20")!
+    public static let listURL = URL(string: "https://api.github.com/repos/paulmailhes/polhub/releases?per_page=20")!
 
     private struct Payload: Decodable {
         struct Asset: Decodable {

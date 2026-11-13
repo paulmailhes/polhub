@@ -9,7 +9,7 @@ DerivedData/
 xcuserdata/
 *.xcuserstate
 *.xcarchive
-Transcriptor.xcodeproj/
+Polhub.xcodeproj/
 
 # Secrets : jamais dans le dépôt
 .env

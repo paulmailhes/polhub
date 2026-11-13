@@ -9,8 +9,8 @@ import Testing
 @Suite(.serialized) struct PropertyListenerTests {
     func makeEmptyPrivateAggregate() throws -> AudioObjectID {
         let description: [String: Any] = [
-            kAudioAggregateDeviceNameKey: "Transcriptor (test)",
-            kAudioAggregateDeviceUIDKey: "fr.paulmailhes.transcriptor.test." + UUID().uuidString,
+            kAudioAggregateDeviceNameKey: "Polhub (test)",
+            kAudioAggregateDeviceUIDKey: "fr.paulmailhes.polhub.test." + UUID().uuidString,
             kAudioAggregateDeviceIsPrivateKey: true,
         ]
         var device = AudioObjectID(kAudioObjectUnknown)
@@ -26,7 +26,7 @@ import Testing
 
     @Test func aListenerIsCalledThenNeverAgainOnceRemoved() async throws {
         let count = OSAllocatedUnfairLock(initialState: 0)
-        let queue = DispatchQueue(label: "fr.paulmailhes.transcriptor.test.listener")
+        let queue = DispatchQueue(label: "fr.paulmailhes.polhub.test.listener")
         let listener = try #require(PropertyListener(
             object: HAL.system,
             address: HAL.address(kAudioHardwarePropertyDevices, kAudioObjectPropertyScopeGlobal),

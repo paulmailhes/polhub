@@ -79,7 +79,7 @@ import Testing
         #expect(rows.map(\.name) == ["Récent", "Vieux", "Sans"])
     }
 
-    // Revue finale, Important 2 : la palette du greffon pol-pilotage, noms français d'abord, et les codes hexa.
+    // Revue finale, Important 2 : la palette du greffon du coffre, noms français d'abord, et les codes hexa.
     @Test func cardColorsAreThePluginsPalette() {
         #expect(ProjectViews.cardHex("bleu") == "#2F6FED" && ProjectViews.cardHex("Violet") == "#8E44AD")
         #expect(ProjectViews.cardHex("blue") == "#2F6FED" && ProjectViews.cardHex("marron") == "#8B5E3C")

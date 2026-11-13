@@ -9,8 +9,8 @@ public enum LaunchOrigin: String, Codable, Sendable {
 }
 
 public enum LaunchContext {
-    public static let agentLabel = "fr.paulmailhes.transcriptor.relance"
-    public static let agentPlistName = "fr.paulmailhes.transcriptor.relance.plist"
+    public static let agentLabel = "fr.paulmailhes.polhub.relance"
+    public static let agentPlistName = "fr.paulmailhes.polhub.relance.plist"
 
     /// launchd sets `XPC_SERVICE_NAME` to the job's label for the processes it starts itself.
     public static func origin(environment: [String: String]) -> LaunchOrigin {

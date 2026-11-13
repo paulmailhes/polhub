@@ -3,7 +3,7 @@ import Foundation
 /// Runs an AppleScript in `/usr/bin/osascript`, off this app's main thread. A reading of Dia's tabs takes
 /// about 0.3 s (phase 0, measure 4): run on the main thread, it would freeze the menu bar and the pop-up.
 /// macOS attributes the Apple Events of a child process to the app that started it, so the "Automation of
-/// Dia" permission already granted to Transcriptor applies (to be measured: étape 1, task 1).
+/// Dia" permission already granted to Polhub applies (to be measured: étape 1, task 1).
 public enum OsascriptRunner {
     public static func run(_ source: String, timeout: Double = 3) async -> Result<String, ScriptFailure> {
         await withCheckedContinuation { continuation in

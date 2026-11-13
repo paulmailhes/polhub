@@ -26,7 +26,7 @@ public final class WindowRouter: ObservableObject {
     }
 }
 
-/// Transcriptor's window: the meetings, the journal, and (step 1, task 13) the diagnostic.
+/// Polhub's window: the meetings, the journal, and (step 1, task 13) the diagnostic.
 public struct MainWindowView<Diagnostic: View>: View {
     /// The sidebar, the 300-point list and a detail of 360 points at least.
     public static var minimumWidth: CGFloat { 860 }

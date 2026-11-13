@@ -14,7 +14,7 @@ public enum ChecklistItem: String, CaseIterable, Identifiable, Sendable {
         case .systemAudio: "Enregistrement de l'audio du système"
         case .diaAutomation: "Automatisation de Dia"
         case .models: "Modèles de transcription"
-        case .relaunch: "Relancer Transcriptor s'il plante, et l'ouvrir à chaque session"
+        case .relaunch: "Relancer Polhub s'il plante, et l'ouvrir à chaque session"
         }
     }
 
@@ -24,7 +24,7 @@ public enum ChecklistItem: String, CaseIterable, Identifiable, Sendable {
         case .systemAudio: "Pour enregistrer le son des autres, dans Dia. Vérifié par un son inaudible."
         case .diaAutomation: "Pour voir qu'un onglet Google Meet s'ouvre."
         case .models: "Pour transcrire sur ton Mac, hors ligne : WhisperKit et le détecteur de voix, téléchargés une fois."
-        case .relaunch: "Sans cela, une réunion n'est enregistrée que si tu as ouvert Transcriptor toi-même."
+        case .relaunch: "Sans cela, une réunion n'est enregistrée que si tu as ouvert Polhub toi-même."
         }
     }
 

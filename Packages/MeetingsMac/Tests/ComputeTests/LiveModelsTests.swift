@@ -3,9 +3,9 @@ import Foundation
 import Testing
 import Transcription
 
-/// The real models, the real `transcriptor-calcul`, with the network forbidden. Not part of `make check`:
-/// `swift build --product transcriptor-calcul && TRANSCRIPTOR_MODELS=1 swift test --filter LiveModelsTests`.
-@Suite(.enabled(if: ProcessInfo.processInfo.environment["TRANSCRIPTOR_MODELS"] == "1"))
+/// The real models, the real `polhub-calcul`, with the network forbidden. Not part of `make check`:
+/// `swift build --product polhub-calcul && POLHUB_MODELS=1 swift test --filter LiveModelsTests`.
+@Suite(.enabled(if: ProcessInfo.processInfo.environment["POLHUB_MODELS"] == "1"))
 struct LiveModelsTests {
     static let package = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
     static let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appending(path: "Fixtures")
@@ -28,7 +28,7 @@ struct LiveModelsTests {
         return 2 * Double(previous[b.count]) / Double(a.count + b.count)
     }
 
-    /// A meeting folder whose `autres` archive is the 46.7 s synthetic sample of the M4 server.
+    /// A meeting folder whose `autres` archive is the 46.7 s synthetic French sample.
     func folder() throws -> URL {
         let folder = FileManager.default.temporaryDirectory.appending(path: "live-\(UUID().uuidString)", directoryHint: .isDirectory)
         let pistes = folder.appending(path: "pistes", directoryHint: .isDirectory)
@@ -44,8 +44,8 @@ struct LiveModelsTests {
     }
 
     @Test func theSampleIsTranscribedOfflineAt0_97() throws {
-        let binary = Self.package.appending(path: ".build/debug/transcriptor-calcul")
-        try #require(FileManager.default.isExecutableFile(atPath: binary.path(percentEncoded: false)), "Construire d'abord : swift build --product transcriptor-calcul")
+        let binary = Self.package.appending(path: ".build/debug/polhub-calcul")
+        try #require(FileManager.default.isExecutableFile(atPath: binary.path(percentEncoded: false)), "Construire d'abord : swift build --product polhub-calcul")
         let folder = try folder()
         defer { try? FileManager.default.removeItem(at: folder) }
         let request = String(decoding: try JSONEncoder().encode(CalculRequest(folder: folder.path(percentEncoded: false), language: "fr")), as: UTF8.self)
@@ -61,7 +61,7 @@ struct LiveModelsTests {
         process.waitUntilExit()
         let messages = String(decoding: data, as: UTF8.self).split(separator: "\n")
             .compactMap { try? JSONDecoder().decode(CalculMessage.self, from: Data($0.utf8)) }
-        print("transcriptor-calcul : \(String(format: "%.1f", Date().timeIntervalSince(began))) s, sortie \(process.terminationStatus)")
+        print("polhub-calcul : \(String(format: "%.1f", Date().timeIntervalSince(began))) s, sortie \(process.terminationStatus)")
         #expect(process.terminationStatus == 0)
         #expect(messages.last == .finished, "\(messages.last.map { "\($0)" } ?? "aucun message")")
 

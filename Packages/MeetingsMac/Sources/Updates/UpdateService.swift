@@ -8,7 +8,7 @@ public protocol UpdateInstalling: Sendable {
 extension Installer: UpdateInstalling {}
 
 /// Checks GitHub every hour and installs a newer version on its own, only when no meeting and no
-/// transcription is going on (the system of Vigie, `lib/update.mjs`).
+/// transcription is going on (the same approach as the author's other apps).
 @MainActor
 public final class UpdateService: ObservableObject {
     public enum State: Equatable, Sendable {
@@ -59,7 +59,7 @@ public final class UpdateService: ObservableObject {
     public static let fetchFromGitHub: @Sendable () async throws -> Data = {
         var request = URLRequest(url: Releases.listURL, timeoutInterval: 20)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        request.setValue("Transcriptor", forHTTPHeaderField: "User-Agent")
+        request.setValue("Polhub", forHTTPHeaderField: "User-Agent")
         let (data, response) = try await URLSession.shared.data(for: request)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
         return data
@@ -120,7 +120,7 @@ public final class UpdateService: ObservableObject {
         case .checking: "Vérification…"
         case .downloading: "Téléchargement de la nouvelle version…"
         case .waitingForIdle: "La mise à jour s'installera à la fin de la réunion ou de la transcription en cours."
-        case .installing: "Installation : Transcriptor va se relancer."
+        case .installing: "Installation : Polhub va se relancer."
         case .failed(let message): message
         }
     }
@@ -128,6 +128,6 @@ public final class UpdateService: ObservableObject {
     /// The line of the journal at the first launch of a new version.
     public static func upgradeNote(previous: String?, current: String) -> String? {
         guard let previous, previous != current else { return nil }
-        return "Transcriptor mis à jour : \(previous) → \(current)."
+        return "Polhub mis à jour : \(previous) → \(current)."
     }
 }

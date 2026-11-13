@@ -1,4 +1,4 @@
-# Transcriptor
+# Polhub
 
 Une application macOS qui enregistre seule les réunions Google Meet ouvertes dans le navigateur
 [Dia](https://www.diabrowser.com/), les transcrit sur le Mac et les range dans des projets. **Rien ne
@@ -22,7 +22,7 @@ usage : il n'est ni configurable pour d'autres navigateurs, ni traduit.
   réunions et relancer une transcription dans une autre langue.
 - **Range les projets** : un kanban, des vues « À rendre » et « À surveiller », une page par projet.
   Les projets s'importent d'un coffre Obsidian, lu sans jamais y écrire.
-- **Ouvre les réunions à Claude Code**, en lecture seule, par la commande `transcriptor` et son
+- **Ouvre les réunions à Claude Code**, en lecture seule, par la commande `polhub` et son
   serveur MCP.
 - **Se met à jour seul** à partir des versions publiées ici, et jamais pendant une réunion.
 
@@ -31,14 +31,14 @@ usage : il n'est ni configurable pour d'autres navigateurs, ni traduit.
 - Un Mac à puce Apple, sous macOS 27 ;
 - le navigateur Dia ;
 - environ 1,6 Go pour les modèles de transcription, rangés dans
-  `~/Library/Application Support/Transcriptor/Models/`.
+  `~/Library/Application Support/Polhub/Models/`.
 
 ## Construire
 
 ```bash
 brew install xcodegen
 make check   # les tests, sans micro, sans navigateur, sans modèle
-make app     # build/Transcriptor.app, signée (certificat Developer ID requis)
+make app     # build/Polhub.app, signée (certificat Developer ID requis)
 ```
 
 La signature utilise une identité « Developer ID Application ». Une version publiable (app signée,
@@ -48,11 +48,11 @@ notarisée et archivée pour les mises à jour) se prépare avec `scripts/releas
 
 | Dossier | Contenu |
 |---|---|
-| `App/Transcriptor` | L'application : barre des menus, fenêtre, lancement, relance |
+| `App/Polhub` | L'application : barre des menus, fenêtre, lancement, relance |
 | `Packages/Kernel` | Types du domaine, base SQLite (GRDB), journaux |
 | `Packages/MeetingsMac` | Détection, capture audio, transcription, file de calcul, interface, projets, ligne de commande |
 
-Le calcul tourne dans un processus séparé, `transcriptor-calcul`, que l'app lance hors réunion :
+Le calcul tourne dans un processus séparé, `polhub-calcul`, que l'app lance hors réunion :
 l'app ne charge jamais de modèle.
 
 ## Licence

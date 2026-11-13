@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>fr.paulmailhes.transcriptor.relance</string>
+	<string>fr.paulmailhes.polhub.relance</string>
 	<key>BundleProgram</key>
-	<string>Contents/MacOS/Transcriptor</string>
+	<string>Contents/MacOS/Polhub</string>
 	<key>AssociatedBundleIdentifiers</key>
-	<string>fr.paulmailhes.transcriptor</string>
+	<string>fr.paulmailhes.polhub</string>
 	<key>RunAtLoad</key>
 	<true/>
 	<key>KeepAlive</key>

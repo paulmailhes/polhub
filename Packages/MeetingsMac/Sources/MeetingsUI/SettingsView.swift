@@ -30,7 +30,7 @@ struct SettingsView: View {
                     }
                 }
                 if updates.newer.isEmpty, updates.lastCheck != nil, updates.state == .idle {
-                    Text("Transcriptor est à jour.").foregroundStyle(.secondary)
+                    Text("Polhub est à jour.").foregroundStyle(.secondary)
                 }
                 ForEach(updates.newer, id: \.version) { release in
                     VStack(alignment: .leading, spacing: 4) {

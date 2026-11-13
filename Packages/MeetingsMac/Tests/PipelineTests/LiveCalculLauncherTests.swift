@@ -3,7 +3,7 @@ import Testing
 import Transcription
 @testable import Pipeline
 
-/// The real launcher, with small scripts standing for `transcriptor-calcul`.
+/// The real launcher, with small scripts standing for `polhub-calcul`.
 @Suite struct LiveCalculLauncherTests {
     func script(_ body: String) throws -> URL {
         let url = FileManager.default.temporaryDirectory.appending(path: "calcul-\(UUID().uuidString).sh")

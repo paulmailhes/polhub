@@ -79,7 +79,7 @@ public enum SystemAudioSelfTest {
             }
         }
         do {
-            let builtTap = try ProcessTap(target: .processes([own]), name: "Transcriptor (vérification)")
+            let builtTap = try ProcessTap(target: .processes([own]), name: "Polhub (vérification)")
             tap = builtTap
             let status = builtTap.rewriteDescription()
             let builtAggregate = try TapAggregate(tap: builtTap)

@@ -8,11 +8,11 @@ import Testing
 import ProjectsUI
 
 /// Draws the window off screen, at a few widths, into PNG files to look at. Not part of `make check`:
-/// `TRANSCRIPTOR_SNAPSHOTS=<dossier> swift test --filter WindowSnapshotTests`.
-@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["TRANSCRIPTOR_SNAPSHOTS"] != nil))
+/// `POLHUB_SNAPSHOTS=<dossier> swift test --filter WindowSnapshotTests`.
+@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"] != nil))
 struct WindowSnapshotTests {
     @Test func theMeetingsSectionAtSeveralWidths() async throws {
-        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["TRANSCRIPTOR_SNAPSHOTS"]), isDirectory: true)
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let root = FileManager.default.temporaryDirectory.appending(path: "fenêtre \(UUID().uuidString)", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -64,14 +64,14 @@ struct WindowSnapshotTests {
     }
 
     @Test func theProjectsBoard() async throws {
-        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["TRANSCRIPTOR_SNAPSHOTS"]), isDirectory: true)
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let root = FileManager.default.temporaryDirectory.appending(path: "kanban \(UUID().uuidString)", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: root) }
         let database = try AppDatabase.inMemory()
         let store = ProjectStore(database)
         let samples: [(String, ProjectStatus, String?, Int?, String?)] = [
-            ("Site vitrine", .idee, "Freelance", nil, nil), ("Refonte cabinet", .priorite1, "Ourama", -2, "Envoyer la maquette de l'accueil"),
+            ("Site vitrine", .idee, "Freelance", nil, nil), ("Refonte site", .priorite1, "Ourama", -2, "Envoyer la maquette de l'accueil"),
             ("Identité", .priorite1, "Elias", 0, "Valider la typographie"), ("Studio photo", .priorite2, "Ourama", 6, "Relancer pour les contenus"),
             ("Landing", .priorite3, "Ourama", 12, "Préparer le cadrage"), ("Agence", .enAttente, "Ourama", nil, nil),
         ]
@@ -104,16 +104,16 @@ struct WindowSnapshotTests {
     }
 
     @Test func theProjectPage() async throws {
-        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["TRANSCRIPTOR_SNAPSHOTS"]), isDirectory: true)
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let database = try AppDatabase.inMemory()
         let store = ProjectStore(database)
-        var project = try store.addProject(name: "Refonte cabinet", status: .priorite1, at: Date())
+        var project = try store.addProject(name: "Refonte site", status: .priorite1, at: Date())
         project.client = "Ourama"
         project.todo = "Envoyer la maquette de l'accueil"
         project.dueDate = Date().addingTimeInterval(3 * 86_400)
         project.contacts = ["Camille Exemple"]
-        project.notes = "> [!info]- Contexte\n> Cabinet parisien.\n\n## Rendez-vous\n- **6 nov.** — Premier échange, voir la [page](https://exemple.fr).\n  - budget à confirmer\n- [ ] Lire la fiche"
+        project.notes = "> [!info]- Contexte\n> Studio de création.\n\n## Rendez-vous\n- **6 nov.** — Premier échange, voir la [page](https://exemple.fr).\n  - budget à confirmer\n- [ ] Lire la fiche"
         project.lastMeetingImported = Date().addingTimeInterval(-8 * 86_400)
         try store.save(project, at: Date())
         try store.saveAction(ActionRow(projectID: project.id, text: "Lire la fiche du client", addedOn: Date(), position: 0, createdAt: Date()))

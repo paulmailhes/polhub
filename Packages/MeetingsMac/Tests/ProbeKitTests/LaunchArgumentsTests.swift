@@ -8,12 +8,12 @@ import Testing
 
 @Suite struct LaunchArgumentsTests {
     @Test func parsesProbeArguments() {
-        #expect(LaunchArguments.parse(["Transcriptor", "--probe", "tabs", "--seconds", "30", "--variant", "whose", "--quit"])
+        #expect(LaunchArguments.parse(["Polhub", "--probe", "tabs", "--seconds", "30", "--variant", "whose", "--quit"])
                 == ProbeRequest(probe: .tabs, seconds: 30, variant: "whose", quitWhenDone: true))
-        #expect(LaunchArguments.parse(["Transcriptor", "--probe", "mic-holders"])
+        #expect(LaunchArguments.parse(["Polhub", "--probe", "mic-holders"])
                 == ProbeRequest(probe: .micHolders, seconds: 60, variant: nil, quitWhenDone: false))
-        #expect(LaunchArguments.parse(["Transcriptor", "--probe", "inconnue"]) == nil)
-        #expect(LaunchArguments.parse(["Transcriptor"]) == nil)
+        #expect(LaunchArguments.parse(["Polhub", "--probe", "inconnue"]) == nil)
+        #expect(LaunchArguments.parse(["Polhub"]) == nil)
     }
 
     @Test func everyProbeHasAFrenchTitle() {
@@ -78,10 +78,10 @@ import Testing
 
 @Suite struct LaunchContextTests {
     @Test func detectsALaunchByTheAgent() {
-        #expect(LaunchContext.origin(environment: ["XPC_SERVICE_NAME": "fr.paulmailhes.transcriptor.relance"]) == .launchd)
-        #expect(LaunchContext.origin(environment: ["XPC_SERVICE_NAME": "application.fr.paulmailhes.transcriptor.123.456"]) == .user)
+        #expect(LaunchContext.origin(environment: ["XPC_SERVICE_NAME": "fr.paulmailhes.polhub.relance"]) == .launchd)
+        #expect(LaunchContext.origin(environment: ["XPC_SERVICE_NAME": "application.fr.paulmailhes.polhub.123.456"]) == .user)
         #expect(LaunchContext.origin(environment: [:]) == .user)
-        #expect(LaunchContext.agentLabel == "fr.paulmailhes.transcriptor.relance")
+        #expect(LaunchContext.agentLabel == "fr.paulmailhes.polhub.relance")
     }
 }
 

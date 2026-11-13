@@ -12,7 +12,7 @@ import Testing
     }
 
     @Test func unknownDeviceUIDThrows() {
-        #expect(throws: HALError.self) { _ = try HAL.device(forUID: "fr.paulmailhes.transcriptor.inexistant") }
+        #expect(throws: HALError.self) { _ = try HAL.device(forUID: "fr.paulmailhes.polhub.inexistant") }
     }
 
     @Test func aProcessThatIsNotAnAudioClientHasNoProcessObject() {

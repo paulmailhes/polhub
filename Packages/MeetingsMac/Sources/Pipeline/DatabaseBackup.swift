@@ -11,12 +11,12 @@ public enum DatabaseBackup {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyyMMdd"
-        return "Transcriptor-\(formatter.string(from: date)).sqlite"
+        return "Polhub-\(formatter.string(from: date)).sqlite"
     }
 
     /// The copies beyond the seven most recent; any other file is left alone.
     public static func toRemove(_ names: [String]) -> [String] {
-        let copies = names.filter { $0.wholeMatch(of: /Transcriptor-\d{8}\.sqlite/) != nil }.sorted(by: >)
+        let copies = names.filter { $0.wholeMatch(of: /Polhub-\d{8}\.sqlite/) != nil }.sorted(by: >)
         return Array(copies.dropFirst(keep))
     }
 

@@ -1,15 +1,15 @@
 #!/bin/bash
-# Publie une version de Transcriptor sur GitHub. Usage : scripts/release.sh 0.3.1 (ou make release VERSION=0.3.1)
+# Publie une version de Polhub sur GitHub. Usage : scripts/release.sh 0.3.1 (ou make release VERSION=0.3.1)
 #   1. tests ; 2. VERSION ; 3. app signée et vérifiée ; 4. notarisation par Apple si possible ;
-#   5. dist/Transcriptor.zip ; 6. étiquette vX.Y.Z et version GitHub, avec la section de CHANGELOG.md.
-# Les Transcriptor installés la trouvent dans l'heure et s'installent seuls, jamais pendant une réunion :
+#   5. dist/Polhub.zip ; 6. étiquette vX.Y.Z et version GitHub, avec la section de CHANGELOG.md.
+# Les Polhub installés la trouvent dans l'heure et s'installent seuls, jamais pendant une réunion :
 # ils n'acceptent qu'une app signée par l'équipe de l'auteur (Packages/MeetingsMac/Sources/Updates/Verifier.swift).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VERSION="${1:?version, par exemple 0.3.1}"
-REPO="paulmailhes/transcriptor"
-PROFILE="${TRANSCRIPTOR_NOTARY_PROFILE:-vigie-notarisation}"
-APP="$ROOT/build/Transcriptor.app"
+REPO="paulmailhes/polhub"
+PROFILE="${POLHUB_NOTARY_PROFILE:-vigie-notarisation}"
+APP="$ROOT/build/Polhub.app"
 cd "$ROOT"
 
 fail() { echo "$*" >&2; echo "Rien n'est publié." >&2; exit 1; }
@@ -50,16 +50,16 @@ if xcrun notarytool history --keychain-profile "$PROFILE" >/dev/null 2>&1; then
   rm -f dist/notarisation.zip
 else
   echo "    ! Apple refuse le profil « $PROFILE » (accord à accepter sur developer.apple.com ?) : app signée, non notarisée."
-  echo "      Les Transcriptor installés l'acceptent : ils vérifient eux-mêmes la signature."
+  echo "      Les Polhub installés l'acceptent : ils vérifient eux-mêmes la signature."
 fi
 
 echo "5/6 Archive"
-rm -f dist/Transcriptor.zip
-ditto -c -k --keepParent "$APP" dist/Transcriptor.zip
+rm -f dist/Polhub.zip
+ditto -c -k --keepParent "$APP" dist/Polhub.zip
 
 echo "6/6 Publication"
-git tag -a "v$VERSION" -m "Transcriptor $VERSION"
+git tag -a "v$VERSION" -m "Polhub $VERSION"
 git push -q origin main "v$VERSION"
 printf '%s\n' "$NOTES" > dist/notes.md
-gh release create "v$VERSION" dist/Transcriptor.zip --repo "$REPO" --title "Transcriptor $VERSION" --notes-file dist/notes.md >/dev/null
-echo "Publié : https://github.com/$REPO/releases/tag/v$VERSION ($(du -h dist/Transcriptor.zip | cut -f1))"
+gh release create "v$VERSION" dist/Polhub.zip --repo "$REPO" --title "Polhub $VERSION" --notes-file dist/notes.md >/dev/null
+echo "Publié : https://github.com/$REPO/releases/tag/v$VERSION ($(du -h dist/Polhub.zip | cut -f1))"

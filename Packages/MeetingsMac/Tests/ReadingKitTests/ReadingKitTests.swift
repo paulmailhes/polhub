@@ -88,7 +88,7 @@ struct Fixture {
         let answer = try call(MCPServer(reader: try Fixture().reader), #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}"#)
         let result = try #require(answer["result"] as? [String: Any])
         #expect(result["protocolVersion"] as? String == "2025-06-18")
-        #expect((result["serverInfo"] as? [String: Any])?["name"] as? String == "transcriptor")
+        #expect((result["serverInfo"] as? [String: Any])?["name"] as? String == "polhub")
         #expect(answer["id"] as? Int == 1)
     }
 

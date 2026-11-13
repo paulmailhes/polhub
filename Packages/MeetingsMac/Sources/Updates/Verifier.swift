@@ -10,18 +10,18 @@ public enum VerificationError: Error, Equatable, CustomStringConvertible {
     public var description: String {
         switch self {
         case .invalidSignature: "la signature de l'app téléchargée est invalide"
-        case .wrongTeam: "l'app téléchargée n'est pas signée par l'auteur de Transcriptor"
-        case .wrongIdentifier: "l'app téléchargée n'est pas Transcriptor"
+        case .wrongTeam: "l'app téléchargée n'est pas signée par l'auteur de Polhub"
+        case .wrongIdentifier: "l'app téléchargée n'est pas Polhub"
         case .wrongVersion: "l'app téléchargée n'a pas la version annoncée"
         }
     }
 }
 
-/// An update is installed only if its app is signed by the author's team, is Transcriptor, and has the
+/// An update is installed only if its app is signed by the author's team, is Polhub, and has the
 /// announced version: a hacked GitHub account cannot get anything else installed.
 public enum Verifier {
     public static let teamID = "CQ43U6XX4Z"
-    public static let bundleID = "fr.paulmailhes.transcriptor"
+    public static let bundleID = "fr.paulmailhes.polhub"
 
     /// `signature`: the output of `codesign -dv --verbose=2`; `info`: the app's Info.plist.
     public static func check(signature: String, info: [String: Any], expected: SemanticVersion) -> VerificationError? {
@@ -49,10 +49,10 @@ public enum SwapScript {
 
     public static func make(newApp: URL, installed: URL, keepOld: URL, agent: String, log: URL, pid: Int32, uid: uid_t) -> String {
         let new = quote(path(newApp)), app = quote(path(installed))
-        let keep = quote(path(keepOld)), old = quote(path(keepOld) + "/Transcriptor.app")
+        let keep = quote(path(keepOld)), old = quote(path(keepOld) + "/Polhub.app")
         return """
         #!/bin/bash
-        # Transcriptor : échange de versions, écrit par l'app et lancé hors d'elle.
+        # Polhub : échange de versions, écrit par l'app et lancé hors d'elle.
         mkdir -p \(quote(path(log.deletingLastPathComponent())))
         exec >>\(quote(path(log))) 2>&1
         say() { echo "$(date '+%Y-%m-%d %H:%M:%S') $*"; }
@@ -70,7 +70,7 @@ public enum SwapScript {
         xattr -dr com.apple.quarantine \(app) 2>/dev/null
         start
         sleep 20
-        if ! pgrep -x Transcriptor >/dev/null; then
+        if ! pgrep -x Polhub >/dev/null; then
           say "la nouvelle version ne démarre pas : retour à l'ancienne version"
           rm -rf \(app); mv \(old) \(app); start; exit 1
         fi

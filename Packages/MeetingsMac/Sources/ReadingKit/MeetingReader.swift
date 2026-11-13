@@ -11,7 +11,7 @@ public struct ToolError: Error, CustomStringConvertible {
     }
 }
 
-/// The meetings as text, read-only: what `transcriptor` prints and what the MCP server answers.
+/// The meetings as text, read-only: what `polhub` prints and what the MCP server answers.
 public struct MeetingReader: Sendable {
     public static let pageSize = 200
     let meetings: MeetingStore

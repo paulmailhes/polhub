@@ -9,7 +9,7 @@ import ProbeKit
 import SwiftUI
 
 @main
-struct TranscriptorApp: App {
+struct PolhubApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
     var body: some Scene {
@@ -101,7 +101,7 @@ struct MenuContent: View {
             Button("\(row.title) · \(row.startedAt.formatted(date: .abbreviated, time: .shortened))") { app.showMeeting(row.id) }
         }
         if !model.recent.isEmpty { Divider() }
-        Button("Ouvrir Transcriptor") { app.showMainWindow() }
+        Button("Ouvrir Polhub") { app.showMainWindow() }
         Button("Diagnostic…") { app.showDiagnostic() }
         Divider()
         Button("Quitter") { NSApp.terminate(nil) }

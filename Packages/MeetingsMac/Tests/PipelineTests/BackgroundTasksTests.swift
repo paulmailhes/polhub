@@ -69,9 +69,9 @@ import Testing
     }
 
     @Test func keepsSevenDailyBackups() {
-        let names = (1...9).map { String(format: "Transcriptor-202611%02d.sqlite", $0) } + ["notes.txt"]
-        #expect(DatabaseBackup.toRemove(names) == ["Transcriptor-20261102.sqlite", "Transcriptor-20261101.sqlite"])
-        #expect(DatabaseBackup.toRemove(["Transcriptor-20261101.sqlite"]).isEmpty)
+        let names = (1...9).map { String(format: "Polhub-202611%02d.sqlite", $0) } + ["notes.txt"]
+        #expect(DatabaseBackup.toRemove(names) == ["Polhub-20261102.sqlite", "Polhub-20261101.sqlite"])
+        #expect(DatabaseBackup.toRemove(["Polhub-20261101.sqlite"]).isEmpty)
     }
 
     @Test func aMemorySampleIsComplete() {

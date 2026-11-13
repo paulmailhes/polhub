@@ -2,14 +2,14 @@ import Foundation
 import Persistence
 import ReadingKit
 
-/// `transcriptor`: Paul's meetings, read-only, for the terminal and for Claude Code (`transcriptor mcp`).
+/// `polhub`: Paul's meetings, read-only, for the terminal and for Claude Code (`polhub mcp`).
 let usage = """
 Usage :
-  transcriptor reunions [--depuis AAAA-MM-JJ] [--limite N]
-  transcriptor reunion <numéro | début d'id | morceau du titre> [--page N]
-  transcriptor chercher <texte> [--limite N]
-  transcriptor mcp            (serveur MCP sur l'entrée et la sortie standard)
-Option : --base <chemin de Transcriptor.sqlite>
+  polhub reunions [--depuis AAAA-MM-JJ] [--limite N]
+  polhub reunion <numéro | début d'id | morceau du titre> [--page N]
+  polhub chercher <texte> [--limite N]
+  polhub mcp            (serveur MCP sur l'entrée et la sortie standard)
+Option : --base <chemin de Polhub.sqlite>
 """
 
 var arguments = Array(CommandLine.arguments.dropFirst())
@@ -34,7 +34,7 @@ guard FileManager.default.fileExists(atPath: basePath) else { fail("La base des 
 let database: AppDatabase
 do { database = try AppDatabase.readOnly(path: basePath) } catch { fail("La base ne s'ouvre pas : \(error)") }
 guard (try? database.isAtStep2()) == true else {
-    fail("La base des réunions n'est pas encore à jour : la dernière version de Transcriptor doit être ouverte une fois.")
+    fail("La base des réunions n'est pas encore à jour : la dernière version de Polhub doit être ouverte une fois.")
 }
 let reader = MeetingReader(meetings: MeetingStore(database), transcripts: TranscriptStore(database))
 
