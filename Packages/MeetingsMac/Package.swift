@@ -17,6 +17,7 @@ let package = Package(
         .library(name: "VaultImport", targets: ["VaultImport"]),
         .library(name: "ProjectsUI", targets: ["ProjectsUI"]),
         .library(name: "Updates", targets: ["Updates"]),
+        .library(name: "Agenda", targets: ["Agenda"]),
         .executable(name: "polhub-calcul", targets: ["PolhubCalcul"]),
         .executable(name: "polhub", targets: ["PolhubCLI"]),
     ],
@@ -33,6 +34,11 @@ let package = Package(
         .target(name: "Transcription", dependencies: [.product(name: "Domain", package: "Kernel")]),
         // Updates from the versions published on GitHub, never during a meeting.
         .target(name: "Updates"),
+        // Google calendars, contacts, and the automatic links between events, meetings, contacts and projects.
+        .target(name: "Agenda", dependencies: [
+            .product(name: "Domain", package: "Kernel"),
+            .product(name: "Persistence", package: "Kernel"),
+        ]),
         // The projects module: board, views, project page.
         .target(name: "ProjectsUI", dependencies: [
             "VaultImport",
@@ -103,6 +109,7 @@ let package = Package(
         .testTarget(name: "VaultImportTests", dependencies: ["VaultImport", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")], resources: [.copy("Fixtures")]),
         .testTarget(name: "ProjectsUITests", dependencies: ["ProjectsUI", "VaultImport", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "UpdatesTests", dependencies: ["Updates"]),
+        .testTarget(name: "AgendaTests", dependencies: ["Agenda", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "TranscriptionTests", dependencies: ["Transcription", .product(name: "Domain", package: "Kernel")]),
         .testTarget(name: "MeetingDetectionTests", dependencies: ["MeetingDetection"], resources: [.copy("Fixtures")]),
         .testTarget(name: "MeetingsUITests", dependencies: ["MeetingsUI", "ProjectsUI", "Updates", "Pipeline", "Recording", "AudioCapture", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
