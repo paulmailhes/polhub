@@ -3,6 +3,13 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.3.2 — 13 novembre 2026
+
+- La barre latérale ne garde que **Projets**, **Réunions** et **Réglages**. Diagnostic et Journal
+  passent dans Réglages, en onglets, à côté de Mises à jour et du dossier du coffre (Projets).
+- Réglages apparaît toujours : il manquait quand le Diagnostic s'ouvrait au lancement.
+- « Diagnostic… » dans le menu ouvre Réglages › Diagnostic.
+
 ## 0.3.1 — 13 novembre 2026
 
 - Le serveur MCP `polhub` annonce la version de l'app au lieu d'un numéro figé.

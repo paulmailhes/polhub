@@ -105,7 +105,7 @@ let package = Package(
         .testTarget(name: "UpdatesTests", dependencies: ["Updates"]),
         .testTarget(name: "TranscriptionTests", dependencies: ["Transcription", .product(name: "Domain", package: "Kernel")]),
         .testTarget(name: "MeetingDetectionTests", dependencies: ["MeetingDetection"], resources: [.copy("Fixtures")]),
-        .testTarget(name: "MeetingsUITests", dependencies: ["MeetingsUI", "ProjectsUI", "Pipeline", "Recording", "AudioCapture", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
+        .testTarget(name: "MeetingsUITests", dependencies: ["MeetingsUI", "ProjectsUI", "Updates", "Pipeline", "Recording", "AudioCapture", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "RecordingTests", dependencies: ["Recording", "AudioCapture", "MeetingDetection", .product(name: "Observability", package: "Kernel"), .product(name: "Domain", package: "Kernel")]),
         .testTarget(name: "PipelineTests", dependencies: ["Pipeline", "MeetingDetection", "Recording", "Transcription", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "ProbeKitTests", dependencies: ["ProbeKit", "Recording", "AudioCapture", "MeetingDetection", .product(name: "Domain", package: "Kernel"), .product(name: "Observability", package: "Kernel")]),

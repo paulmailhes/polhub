@@ -2,16 +2,62 @@ import ProjectsUI
 import SwiftUI
 import Updates
 
-/// Réglages : the updates, and the vault the projects are imported from.
-struct SettingsView: View {
-    @ObservedObject var updates: UpdateService
+/// Réglages : a row of tabs, then the updates, the diagnostic, the journal or the vault.
+struct SettingsPage<Diagnostic: View, Journal: View>: View {
+    @Binding var tab: SettingsTab
+    let updates: UpdateService?
     let projects: ProjectLibrary?
-    @State private var choosingVault = false
-    @State private var vaultPath: String?
+    let diagnostic: Diagnostic
+    let journal: Journal
+
+    init(tab: Binding<SettingsTab>, updates: UpdateService?, projects: ProjectLibrary?,
+         @ViewBuilder diagnostic: () -> Diagnostic, @ViewBuilder journal: () -> Journal) {
+        _tab = tab
+        self.updates = updates
+        self.projects = projects
+        self.diagnostic = diagnostic()
+        self.journal = journal()
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Picker("Réglages", selection: $tab) {
+                ForEach(SettingsTab.visible(hasProjects: projects != nil), id: \.self) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+            .padding(12)
+            Divider()
+            Group {
+                switch tab {
+                case .updates:
+                    if let updates {
+                        UpdatesSettingsView(updates: updates)
+                    } else {
+                        ContentUnavailableView("Pas de mise à jour", systemImage: "arrow.down.circle",
+                                               description: Text("La version de développement ne se met jamais à jour."))
+                    }
+                case .diagnostic:
+                    diagnostic
+                case .journal:
+                    journal
+                case .projects:
+                    if let projects { VaultSettingsView(projects: projects) }
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+    }
+}
+
+/// Réglages › Mises à jour.
+struct UpdatesSettingsView: View {
+    @ObservedObject var updates: UpdateService
 
     var body: some View {
         Form {
-            Section("Mises à jour") {
+            Section {
                 LabeledContent("Version installée", value: updates.current.description)
                 LabeledContent("Dernière vérification", value: updates.lastCheck.map {
                     $0.formatted(date: .abbreviated, time: .shortened)
@@ -41,20 +87,6 @@ struct SettingsView: View {
                     .padding(.vertical, 4)
                 }
             }
-            if let projects {
-                Section("Projets") {
-                    LabeledContent("Coffre Obsidian", value: vaultPath ?? "pas encore choisi")
-                    Button("Choisir le dossier du coffre…") { choosingVault = true }
-                    Text("L'import lit ce dossier sans jamais y écrire.").font(.caption).foregroundStyle(.secondary)
-                }
-                .onAppear { vaultPath = projects.vaultPath }
-                .fileImporter(isPresented: $choosingVault, allowedContentTypes: [.folder]) { result in
-                    if case .success(let url) = result {
-                        projects.vaultPath = url.path(percentEncoded: false)
-                        vaultPath = projects.vaultPath
-                    }
-                }
-            }
         }
         .formStyle(.grouped)
         .frame(maxWidth: 640)
@@ -63,5 +95,31 @@ struct SettingsView: View {
     private var stateColor: Color {
         if case .failed = updates.state { return .orange }
         return .secondary
+    }
+}
+
+/// Réglages › Projets : the vault the projects are imported from.
+struct VaultSettingsView: View {
+    let projects: ProjectLibrary
+    @State private var choosingVault = false
+    @State private var vaultPath: String?
+
+    var body: some View {
+        Form {
+            Section {
+                LabeledContent("Coffre Obsidian", value: vaultPath ?? "pas encore choisi")
+                Button("Choisir le dossier du coffre…") { choosingVault = true }
+                Text("L'import lit ce dossier sans jamais y écrire.").font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .frame(maxWidth: 640)
+        .onAppear { vaultPath = projects.vaultPath }
+        .fileImporter(isPresented: $choosingVault, allowedContentTypes: [.folder]) { result in
+            if case .success(let url) = result {
+                projects.vaultPath = url.path(percentEncoded: false)
+                vaultPath = projects.vaultPath
+            }
+        }
     }
 }

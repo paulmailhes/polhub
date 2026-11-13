@@ -6,6 +6,7 @@ import SwiftUI
 import Testing
 @testable import MeetingsUI
 import ProjectsUI
+import Updates
 
 /// Draws the window off screen, at a few widths, into PNG files to look at. Not part of `make check`:
 /// `POLHUB_SNAPSHOTS=<dossier> swift test --filter WindowSnapshotTests`.
@@ -134,5 +135,42 @@ struct WindowSnapshotTests {
         let bitmap = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
         view.cacheDisplay(in: view.bounds, to: bitmap)
         try #require(bitmap.representation(using: .png, properties: [:])).write(to: output.appending(path: "projet.png"))
+    }
+
+    /// Réglages and its tabs: Mises à jour, Diagnostic, Journal.
+    @Test func theSettingsPage() async throws {
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let root = FileManager.default.temporaryDirectory.appending(path: "réglages \(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let database = try AppDatabase.inMemory()
+        let store = MeetingStore(database)
+        try store.addJournal(JournalEntry(createdAt: Date(), kind: .info, message: "Polhub mis à jour : 0.3.0 → 0.3.1."))
+        let library = MeetingLibrary(store: store)
+        let projects = ProjectLibrary(store: ProjectStore(database), meetings: store, defaults: UserDefaults(suiteName: "réglages-\(UUID().uuidString)")!)
+        let updates = UpdateService(current: SemanticVersion("0.3.1")!, fetch: { Data("[]".utf8) }, isIdle: { true },
+                                    defaults: UserDefaults(suiteName: "maj-\(UUID().uuidString)")!)
+        let router = WindowRouter()
+        router.section = .settings
+        try await Task.sleep(for: .milliseconds(300))
+        for tab in [SettingsTab.updates, .diagnostic, .journal] {
+            router.settingsTab = tab
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1_000, height: 560), styleMask: [.titled, .resizable],
+                                  backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.appearance = NSAppearance(named: .aqua)
+            window.contentView = NSHostingView(rootView: MainWindowView(library: library, projects: projects, updates: updates, router: router,
+                                                                       paths: AppPaths(root: root, logs: root)) {
+                Text("Le diagnostic de l'app").padding()
+            })
+            window.layoutIfNeeded()
+            try await Task.sleep(for: .milliseconds(500))
+            window.layoutIfNeeded()
+            let view = try #require(window.contentView)
+            let bitmap = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+            view.cacheDisplay(in: view.bounds, to: bitmap)
+            try #require(bitmap.representation(using: .png, properties: [:])).write(to: output.appending(path: "reglages-\(tab.rawValue).png"))
+            window.close()
+        }
     }
 }

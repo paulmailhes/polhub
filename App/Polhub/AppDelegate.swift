@@ -133,6 +133,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         self.store = store
         library = MeetingLibrary(store: store)
         projects = ProjectLibrary(store: ProjectStore(store.database), meetings: store)
+        // Before the diagnostic, which may open the window: the window takes the update service as it is
+        // when it opens, and Réglages › Mises à jour needs it (13/11).
+        startUpdates(store: store)
         startDiagnostic(store: store)
         let presenter = HUDPresenter(model: model, app: self)
         self.presenter = presenter
@@ -154,7 +157,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         self.coordinator = coordinator
         try? coordinator.recoverAfterLaunch()
         startTranscription(store: store)
-        startUpdates(store: store)
 
         // The development version never detects on its own: it must not record a meeting twice.
         if !isDevelopment { setDetection(true) }
@@ -336,7 +338,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func showDiagnostic() {
-        router.section = .diagnostic
+        router.openDiagnostic()
         showMainWindow()
     }
 
