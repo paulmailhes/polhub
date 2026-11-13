@@ -16,6 +16,7 @@ let package = Package(
         .library(name: "ReadingKit", targets: ["ReadingKit"]),
         .library(name: "VaultImport", targets: ["VaultImport"]),
         .library(name: "ProjectsUI", targets: ["ProjectsUI"]),
+        .library(name: "Updates", targets: ["Updates"]),
         .executable(name: "transcriptor-calcul", targets: ["TranscriptorCalcul"]),
         .executable(name: "transcriptor", targets: ["TranscriptorCLI"]),
     ],
@@ -30,6 +31,8 @@ let package = Package(
     targets: [
         .target(name: "AudioCapture"),
         .target(name: "Transcription", dependencies: [.product(name: "Domain", package: "Kernel")]),
+        // Updates from the versions published on GitHub, never during a meeting.
+        .target(name: "Updates"),
         // The projects module: board, views, project page.
         .target(name: "ProjectsUI", dependencies: [
             "VaultImport",
@@ -98,6 +101,7 @@ let package = Package(
         .testTarget(name: "ReadingKitTests", dependencies: ["ReadingKit", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "VaultImportTests", dependencies: ["VaultImport", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")], resources: [.copy("Fixtures")]),
         .testTarget(name: "ProjectsUITests", dependencies: ["ProjectsUI", "VaultImport", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
+        .testTarget(name: "UpdatesTests", dependencies: ["Updates"]),
         .testTarget(name: "TranscriptionTests", dependencies: ["Transcription", .product(name: "Domain", package: "Kernel")]),
         .testTarget(name: "MeetingDetectionTests", dependencies: ["MeetingDetection"], resources: [.copy("Fixtures")]),
         .testTarget(name: "MeetingsUITests", dependencies: ["MeetingsUI", "ProjectsUI", "Pipeline", "Recording", "AudioCapture", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
