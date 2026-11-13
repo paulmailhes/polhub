@@ -115,6 +115,11 @@ public struct ProjectStore: Sendable {
                 guard let id = byName[name] else { continue }
                 try db.execute(sql: "UPDATE meeting SET projectID = ? WHERE id = ?", arguments: [Self.key(id), meetingID])
             }
+            // The actions of a meeting follow its project (base v4: the vault's old meetings have some).
+            try db.execute(sql: """
+                UPDATE action SET projectID = (SELECT meeting.projectID FROM meeting WHERE meeting.id = action.meetingID)
+                WHERE meetingID IS NOT NULL
+                """)
         }
     }
 
@@ -122,6 +127,18 @@ public struct ProjectStore: Sendable {
 
     public func actions(projectID: UUID) throws -> [ActionRow] {
         try writer.read { try ActionRow.filter(Column("projectID") == Self.key(projectID)).order(Column("position")).fetchAll($0) }
+    }
+
+    /// The actions of a meeting's summary, replaced together, in the meeting's project.
+    public func replaceMeetingActions(meetingID: UUID, projectID: UUID?, actions: [ActionRow]) throws {
+        try writer.write { db in
+            try db.execute(sql: "DELETE FROM action WHERE meetingID = ?", arguments: [Self.key(meetingID)])
+            for var action in actions {
+                action.meetingID = meetingID
+                action.projectID = projectID
+                try action.insert(db)
+            }
+        }
     }
 
     public func saveAction(_ action: ActionRow) throws {

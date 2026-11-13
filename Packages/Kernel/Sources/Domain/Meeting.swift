@@ -12,6 +12,8 @@ public enum MeetingStatus: String, Codable, Sendable, CaseIterable {
 /// the whole Mac's sound and the default microphone.
 public enum MeetingSource: String, Codable, Sendable {
     case dia, wholeMac
+    /// An old meeting of the Obsidian vault: no audio, a summary and a plain transcript (13/11).
+    case imported
 }
 
 public enum EndReason: String, Codable, Sendable {

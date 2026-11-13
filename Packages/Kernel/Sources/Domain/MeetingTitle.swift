@@ -13,4 +13,11 @@ public enum MeetingTitle {
         if title.isEmpty || title == code || title == "Meet" { return "Google Meet" }
         return title
     }
+
+    /// A title made without knowing the meeting: the calendar's title replaces it (13/11).
+    public static func isGeneric(_ title: String) -> Bool {
+        let title = title.trimmingCharacters(in: .whitespaces)
+        return title.isEmpty || ["Google Meet", "Réunion dans Dia", "Enregistrement manuel"].contains(title)
+            || title.wholeMatch(of: #/[a-z]{3}-[a-z]{4}-[a-z]{3}/#) != nil
+    }
 }

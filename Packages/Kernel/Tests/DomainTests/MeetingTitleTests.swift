@@ -9,4 +9,12 @@ import Testing
         #expect(MeetingTitle.make(tabTitle: nil, code: nil, source: .dia, micOnly: true) == "Réunion dans Dia")
         #expect(MeetingTitle.make(tabTitle: nil, code: nil, source: .wholeMac, micOnly: false) == "Enregistrement manuel")
     }
+
+    /// A title the calendar may replace (13/11).
+    @Test func genericTitlesAreRecognised() {
+        for title in ["Google Meet", "Réunion dans Dia", "Enregistrement manuel", "abc-defg-hij", "  "] {
+            #expect(MeetingTitle.isGeneric(title), "« \(title) »")
+        }
+        #expect(!MeetingTitle.isGeneric("RDV de cadrage"))
+    }
 }

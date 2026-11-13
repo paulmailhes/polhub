@@ -26,6 +26,52 @@ public struct MeetingStore: Sendable {
         }
     }
 
+    // MARK: - Summaries and imported meetings (base v4)
+
+    public func setSummary(meetingID: UUID, summary: String?) throws {
+        try writer.write { db in
+            try db.execute(sql: "UPDATE meeting SET summary = ? WHERE id = ?", arguments: [summary, Self.key(meetingID)])
+        }
+    }
+
+    public func summary(meetingID: UUID) throws -> String? {
+        try writer.read { try String.fetchOne($0, sql: "SELECT summary FROM meeting WHERE id = ?", arguments: [Self.key(meetingID)]) }
+    }
+
+    /// A meeting of the vault: created, or updated when its note was imported before.
+    public func saveImported(_ row: MeetingRow, importedFrom: String, googleEventID: String?, summary: String?) throws {
+        try writer.write { db in
+            if try row.exists(db) { try row.update(db) } else { try row.insert(db) }
+            try db.execute(sql: "UPDATE meeting SET importedFrom = ?, googleEventID = ?, summary = ? WHERE id = ?",
+                           arguments: [importedFrom, googleEventID, summary, Self.key(row.id)])
+        }
+    }
+
+    public func setGoogleEventID(meetingID: UUID, eventID: String?) throws {
+        try writer.write { db in
+            try db.execute(sql: "UPDATE meeting SET googleEventID = ? WHERE id = ?", arguments: [eventID, Self.key(meetingID)])
+        }
+    }
+
+    public func googleEventID(meetingID: UUID) throws -> String? {
+        try writer.read { try String.fetchOne($0, sql: "SELECT googleEventID FROM meeting WHERE id = ?", arguments: [Self.key(meetingID)]) }
+    }
+
+    public func importedMeeting(from note: String) throws -> MeetingRow? {
+        try writer.read { try MeetingRow.fetchOne($0, sql: "SELECT * FROM meeting WHERE importedFrom = ?", arguments: [note]) }
+    }
+
+    public func meeting(googleEventID: String) throws -> MeetingRow? {
+        try writer.read { try MeetingRow.fetchOne($0, sql: "SELECT * FROM meeting WHERE googleEventID = ? AND deletedAt IS NULL", arguments: [googleEventID]) }
+    }
+
+    /// A better title, from the calendar, for a meeting whose title came from the tab.
+    public func setTitle(meetingID: UUID, title: String) throws {
+        try writer.write { db in
+            try db.execute(sql: "UPDATE meeting SET title = ? WHERE id = ?", arguments: [title, Self.key(meetingID)])
+        }
+    }
+
     public func meeting(id: UUID) throws -> MeetingRow? {
         try writer.read { try MeetingRow.filter(Column("id") == Self.key(id)).fetchOne($0) }
     }

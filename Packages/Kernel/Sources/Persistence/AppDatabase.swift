@@ -201,6 +201,67 @@ public final class AppDatabase: Sendable {
                 t.add(column: "projectID", .text).references("project", onDelete: .setNull)
             }
         }
+        // Contacts, calendars, the vault's old meetings (13/11).
+        migrator.registerMigration("v4") { db in
+            try db.create(table: "contact") { t in
+                t.primaryKey("id", .text)
+                t.column("name", .text).notNull()
+                t.column("email", .text)
+                t.column("company", .text)
+                t.column("phone", .text)
+                t.column("notes", .text).notNull()
+                t.column("importedFrom", .text)
+                t.column("createdAt", .datetime).notNull()
+                t.column("updatedAt", .datetime).notNull()
+                t.column("deletedAt", .datetime)
+            }
+            try db.create(index: "contact_on_email", on: "contact", columns: ["email"], unique: true, condition: Column("email") != nil)
+            try db.create(table: "contact_project") { t in
+                t.column("contactID", .text).notNull().indexed().references("contact", onDelete: .cascade)
+                t.column("projectID", .text).notNull().indexed().references("project", onDelete: .cascade)
+                t.column("origin", .text).notNull()
+                t.column("excluded", .boolean).notNull()
+                t.column("createdAt", .datetime).notNull()
+                t.primaryKey(["contactID", "projectID"])
+            }
+            try db.create(table: "meeting_participant") { t in
+                t.column("meetingID", .text).notNull().indexed().references("meeting", onDelete: .cascade)
+                t.column("contactID", .text).notNull().indexed().references("contact", onDelete: .cascade)
+                t.primaryKey(["meetingID", "contactID"])
+            }
+            try db.create(table: "google_account") { t in
+                t.primaryKey("email", .text)
+                t.column("addedAt", .datetime).notNull()
+                t.column("lastSyncAt", .datetime)
+                t.column("syncToken", .text)
+                t.column("lastError", .text)
+            }
+            try db.create(table: "calendar_event") { t in
+                t.primaryKey("id", .text)
+                t.column("account", .text).notNull()
+                t.column("eventID", .text).notNull()
+                t.column("recurringEventID", .text).indexed()
+                t.column("title", .text).notNull()
+                t.column("startAt", .datetime).notNull().indexed()
+                t.column("endAt", .datetime).notNull()
+                t.column("allDay", .boolean).notNull()
+                t.column("meetCode", .text).indexed()
+                t.column("location", .text)
+                t.column("htmlLink", .text)
+                t.column("organizer", .text)
+                t.column("attendees", .text).notNull()
+                t.column("projectID", .text).indexed().references("project", onDelete: .setNull)
+                t.column("projectOrigin", .text)
+                t.column("meetingID", .text).indexed().references("meeting", onDelete: .setNull)
+                t.column("updatedAt", .datetime).notNull()
+            }
+            // Outside `MeetingRow`: the recorder's copy of a meeting never touches them.
+            try db.alter(table: "meeting") { t in
+                t.add(column: "summary", .text)
+                t.add(column: "googleEventID", .text)
+                t.add(column: "importedFrom", .text)
+            }
+        }
         return migrator
     }
 }
