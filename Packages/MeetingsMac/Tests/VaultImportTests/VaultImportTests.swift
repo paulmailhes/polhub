@@ -21,7 +21,7 @@ func fixtureNote(_ name: String) throws -> String {
     @Test func frontmatterBecomesProperties() throws {
         let (project, warning) = NoteParser.parse(try fixtureNote("Alpha"), name: "Alpha")
         #expect(warning == nil)
-        #expect(project.status == "priorité 2" && project.client == "Ourama" && project.todo == "Envoyer la maquette de la page d'accueil")
+        #expect(project.status == "priorité 2" && project.client == "Atelier Nord" && project.todo == "Envoyer la maquette de la page d'accueil")
         #expect(project.dueDate == day("2026-11-20") && project.createdOn == day("2026-10-01"))
         #expect(project.contacts == ["Camille Exemple"] && project.icon == "🎯" && project.color == "blue")
         #expect(project.codeFolder == "/Users/exemple/Code/alpha")
@@ -73,9 +73,9 @@ func fixtureNote(_ name: String) throws -> String {
 // Revue finale du module Projets.
 @Suite struct NoteParserReviewTests {
     @Test func emptyPropertiesAreNone() {
-        let (project, _) = NoteParser.parse("---\nstatut: priorité 1\ntodo:\nicone:\ncontacts:\nclient: [[Ourama]]\n---\n", name: "Vide")
+        let (project, _) = NoteParser.parse("---\nstatut: priorité 1\ntodo:\nicone:\ncontacts:\nclient: [[Atelier Nord]]\n---\n", name: "Vide")
         #expect(project.todo == nil && project.icon == nil && project.contacts.isEmpty)
-        #expect(project.client == "Ourama")
+        #expect(project.client == "Atelier Nord")
     }
 
     @Test func paulsOwnSectionsStayInTheNotes() {

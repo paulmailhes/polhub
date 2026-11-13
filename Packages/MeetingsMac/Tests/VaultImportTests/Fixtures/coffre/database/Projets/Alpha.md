@@ -1,6 +1,6 @@
 ---
 date: 2026-10-01
-client: Ourama
+client: Atelier Nord
 statut: priorité 2
 echeance: 2026-11-20
 todo: Envoyer la maquette de la page d'accueil

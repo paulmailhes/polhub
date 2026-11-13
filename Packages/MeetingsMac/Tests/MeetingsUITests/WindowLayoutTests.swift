@@ -50,7 +50,7 @@ import ProjectsUI
             for copy in 0..<2 {
                 var project = try projectStore.addProject(name: "Projet au nom assez long \(index)-\(copy)", status: status, at: Date())
                 project.todo = "Une chose à faire qui prend de la place sur la carte du kanban"
-                project.client = "Ourama"
+                project.client = "Atelier Nord"
                 try projectStore.save(project, at: Date())
             }
         }
