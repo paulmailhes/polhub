@@ -2,10 +2,14 @@ import SwiftUI
 
 /// A note shown as in Obsidian's reading mode: titles, lists, check boxes, quotes and callouts, with bold,
 /// italics and links inside the lines.
-struct MarkdownView: View {
+public struct MarkdownView: View {
     let text: String
 
-    var body: some View {
+    public init(text: String) {
+        self.text = text
+    }
+
+    public var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             ForEach(Array(MarkdownBlocks.parse(text).enumerated()), id: \.offset) { _, block in
                 view(for: block)

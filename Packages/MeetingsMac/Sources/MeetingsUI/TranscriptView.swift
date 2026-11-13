@@ -84,6 +84,10 @@ struct DialogueRows: View {
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 6) {
             ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+                if line.speaker == .unknown {
+                    // An imported transcript: plain paragraphs, no time, no voice (13/11).
+                    Text(line.text).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 3).id(index)
+                } else {
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Group {
                         if let seek {
@@ -112,6 +116,7 @@ struct DialogueRows: View {
                 .padding(.horizontal, 6)
                 .background(index == current ? Color.accentColor.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 6))
                 .id(index)
+            }
             }
         }
     }

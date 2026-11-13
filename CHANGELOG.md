@@ -3,6 +3,21 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.5.0 — 13 novembre 2026
+
+- **Calendrier** : la semaine de tes agendas Google (connexion directe, en lecture seule, qui tient
+  dans le temps), le détail d'un rendez-vous, son projet modifiable, sa réunion enregistrée.
+- **Contacts** : les invités de tes agendas deviennent des contacts tout seuls, rangés dans les projets
+  de leurs rendez-vous ; une fiche par contact, ses projets (un lien retiré ne revient plus), ses
+  réunions, ses rendez-vous.
+- **La boucle** : un rendez-vous trouve son projet (ton choix, la réunion enregistrée, la série, les
+  invités, le titre) et sa réunion enregistrée, qui prend son titre et ses participants.
+- **Historique** : les fiches contact et les anciennes réunions du coffre s'importent (Réglages ›
+  Projets), sans rien remplacer ; une réunion déjà enregistrée par Polhub est complétée, pas doublée.
+- **Accueil** : les rendez-vous du jour, les projets en priorité 1, les dernières réunions, ce qui
+  est à classer.
+- Le `contexte` du MCP montre les contacts et les prochains rendez-vous du projet.
+
 ## 0.4.0 — 13 novembre 2026
 
 - **Suivi de projet par Claude Code** : le serveur MCP `polhub` reprend les outils du serveur Obsidian,

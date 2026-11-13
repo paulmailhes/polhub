@@ -4,6 +4,7 @@ import GRDB
 import Persistence
 import Pipeline
 import Recording
+import ProjectsUI
 import SwiftUI
 
 /// One meeting: when, how long, how the recording went, and the player.
@@ -26,6 +27,8 @@ struct MeetingDetailView: View {
     @State private var confirmingDelete = false
     @State private var lines: [UtteranceRow] = []
     @State private var observation: AnyDatabaseCancellable?
+    @State private var summary: String?
+    @State private var participants: [ContactRow] = []
 
     private var folder: URL { paths.meetingFolder(row.id) }
 
@@ -53,7 +56,25 @@ struct MeetingDetailView: View {
                     .frame(maxWidth: 320)
                 }
 
-                if row.status.isUnfinished {
+                if !participants.isEmpty {
+                    HStack(spacing: 6) {
+                        Text("Participants :").foregroundStyle(.secondary)
+                        ForEach(participants) { contact in
+                            Button(contact.name) { router.openContact(contact.id) }.buttonStyle(.link)
+                        }
+                    }
+                }
+
+                if let summary, !summary.isEmpty {
+                    GroupBox("Résumé") {
+                        MarkdownView(text: summary).frame(maxWidth: .infinity, alignment: .leading).padding(4)
+                    }
+                }
+
+                if row.source == .imported {
+                    Label("Réunion importée d'Obsidian : pas d'audio, transcription sans distinction des voix.", systemImage: "tray.and.arrow.down")
+                        .foregroundStyle(.secondary)
+                } else if row.status.isUnfinished {
                     Label("Enregistrement en cours. La réunion se réécoute dès qu'elle est terminée.", systemImage: "record.circle")
                         .foregroundStyle(.red)
                 } else if let player {
@@ -83,6 +104,7 @@ struct MeetingDetailView: View {
                     }
                 }
 
+                if row.source != .imported {
                 GroupBox("Enregistrement") {
                     VStack(alignment: .leading, spacing: 6) {
                         if !microphones.isEmpty {
@@ -102,6 +124,7 @@ struct MeetingDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(4)
                 }
+                }
 
                 HStack {
                     Button("Afficher dans le Finder") {
@@ -116,7 +139,12 @@ struct MeetingDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         }
-        .task(id: row.status) { await load() }
+        .task(id: row.status) {
+            summary = try? store.summary(meetingID: row.id)
+            participants = (try? ContactStore(store.database).participants(meetingID: row.id)) ?? []
+            guard row.source != .imported else { return }
+            await load()
+        }
         .onAppear {
             observation = transcripts.observeUtterances(meetingID: row.id) { lines = $0 }
         }

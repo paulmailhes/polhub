@@ -6,27 +6,35 @@ import Updates
 
 /// The sidebar keeps the work; the app's own pages (diagnostic, journal) live in Réglages (Paul, 13/11).
 public enum SidebarItem: String, Hashable, Sendable {
-    case projects, meetings, settings
+    case home, projects, meetings, calendar, contacts, settings
 
     var title: String {
         switch self {
+        case .home: "Accueil"
         case .projects: "Projets"
         case .meetings: "Réunions"
+        case .calendar: "Calendrier"
+        case .contacts: "Contacts"
         case .settings: "Réglages"
         }
     }
 
     var icon: String {
         switch self {
+        case .home: "house"
         case .projects: "square.grid.3x2"
         case .meetings: "waveform"
+        case .calendar: "calendar"
+        case .contacts: "person.2"
         case .settings: "gearshape"
         }
     }
 
-    /// Réglages is always there: it no longer depends on the update service being ready (13/11).
-    static func visible(hasProjects: Bool) -> [SidebarItem] {
-        hasProjects ? [.projects, .meetings, .settings] : [.meetings, .settings]
+    /// Réglages is always there: it no longer depends on the update service being ready (13/11). Accueil,
+    /// Calendrier and Contacts need the agenda (13/11).
+    static func visible(hasProjects: Bool, hasAgenda: Bool) -> [SidebarItem] {
+        [hasAgenda ? .home : nil, hasProjects ? .projects : nil, .meetings, hasAgenda ? .calendar : nil, hasAgenda ? .contacts : nil, .settings]
+            .compactMap { $0 }
     }
 }
 
@@ -57,8 +65,14 @@ public final class WindowRouter: ObservableObject {
     @Published public var seekRequest: (meetingID: UUID, seconds: Double)?
     @Published public var query = ""
     @Published public var settingsTab: SettingsTab = .updates
+    @Published public var contactSelection: UUID?
 
     public init() {}
+
+    public func openContact(_ id: UUID) {
+        section = .contacts
+        contactSelection = id
+    }
 
     /// The menu's « Diagnostic… », the first launch and the alerts.
     public func openDiagnostic() {
@@ -80,17 +94,19 @@ public struct MainWindowView<Diagnostic: View>: View {
 
     @ObservedObject var library: MeetingLibrary
     let projects: ProjectLibrary?
+    let agenda: AgendaLibrary?
     let updates: UpdateService?
     @ObservedObject var router: WindowRouter
     let paths: AppPaths
     let diagnostic: Diagnostic
 
     public init(
-        library: MeetingLibrary, projects: ProjectLibrary? = nil, updates: UpdateService? = nil, router: WindowRouter, paths: AppPaths,
-        @ViewBuilder diagnostic: () -> Diagnostic
+        library: MeetingLibrary, projects: ProjectLibrary? = nil, agenda: AgendaLibrary? = nil, updates: UpdateService? = nil, router: WindowRouter,
+        paths: AppPaths, @ViewBuilder diagnostic: () -> Diagnostic
     ) {
         self.library = library
         self.projects = projects
+        self.agenda = agenda
         self.updates = updates
         self.router = router
         self.paths = paths
@@ -100,13 +116,19 @@ public struct MainWindowView<Diagnostic: View>: View {
     public var body: some View {
         NavigationSplitView {
             List(selection: $router.section) {
-                ForEach(SidebarItem.visible(hasProjects: projects != nil), id: \.self) { item in
+                ForEach(SidebarItem.visible(hasProjects: projects != nil, hasAgenda: agenda != nil), id: \.self) { item in
                     Label(item.title, systemImage: item.icon).tag(item)
                 }
             }
             .navigationSplitViewColumnWidth(min: 160, ideal: 180)
         } detail: {
             switch router.section {
+            case .home:
+                if let agenda { HomeView(agenda: agenda, library: library, router: router) }
+            case .calendar:
+                if let agenda { CalendarView(agenda: agenda, router: router) }
+            case .contacts:
+                if let agenda { ContactsView(agenda: agenda, router: router) }
             case .projects:
                 if let projects {
                     ProjectsView(library: projects)
@@ -144,7 +166,7 @@ public struct MainWindowView<Diagnostic: View>: View {
                     .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
                 }
             case .settings:
-                SettingsPage(tab: $router.settingsTab, updates: updates, projects: projects) {
+                SettingsPage(tab: $router.settingsTab, updates: updates, projects: projects, agenda: agenda) {
                     diagnostic
                 } journal: {
                     JournalView(entries: library.journal)

@@ -21,6 +21,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var library: MeetingLibrary?
     /// The projects module (copy of the vault's projects, imported by Paul).
     private var projects: ProjectLibrary?
+    /// Calendars, contacts and the loop of 13/11.
+    private var agenda: AgendaLibrary?
+    private var agendaTimer: Timer?
     /// Step 2: the transcriptions, run by `polhub-calcul` outside meetings.
     private var transcription: TranscriptionQueue?
     private var transcriptionTimer: Timer?
@@ -136,6 +139,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         self.store = store
         library = MeetingLibrary(store: store)
         projects = ProjectLibrary(store: ProjectStore(store.database), meetings: store)
+        startAgenda(database: store.database)
         // Before the diagnostic, which may open the window: the window takes the update service as it is
         // when it opens, and Réglages › Mises à jour needs it (13/11).
         startUpdates(store: store)
@@ -216,6 +220,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 120) {
             Task { await updates.tick() }
+        }
+    }
+
+    /// The window opens on Accueil; the calendars are read at launch, then every 10 minutes, and the loop
+    /// links guests, events, meetings and projects after each reading (13/11).
+    private func startAgenda(database: AppDatabase) {
+        let projects = projects
+        let agenda = AgendaLibrary(database: database, vaultPath: { projects?.vaultPath })
+        self.agenda = agenda
+        router.section = .home
+        agendaTimer = Timer.scheduledTimer(withTimeInterval: 600, repeats: true) { _ in
+            Task { @MainActor in await agenda.syncAll() }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 20) {
+            Task { @MainActor in await agenda.syncAll() }
         }
     }
 
@@ -314,7 +333,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         if mainWindow == nil {
             let diagnostic = diagnostic
-            let view = MainWindowView(library: library, projects: projects, updates: updates, router: router, paths: paths) {
+            let view = MainWindowView(library: library, projects: projects, agenda: agenda, updates: updates, router: router, paths: paths) {
                 if let diagnostic {
                     DiagnosticView(model: diagnostic) { [weak self] in self?.showProbeWindow() }
                 }

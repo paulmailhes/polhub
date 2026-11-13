@@ -65,13 +65,27 @@ public struct ProjectDesk: Sendable {
         if let folder = Self.folderPath(project.codeFolder) { facts.append("dossier : \(folder)") }
         text += facts.joined(separator: " · ") + "\n"
         if let todo = project.todo, !todo.isEmpty { text += "À faire maintenant : \(todo)\n" }
-        if !project.contacts.isEmpty { text += "Contacts : \(project.contacts.joined(separator: ", "))\n" }
+        // The linked contacts (base v4), else the vault's names.
+        let linked = (try? ContactStore(projects.database).contacts(projectID: project.id)) ?? []
+        if !linked.isEmpty {
+            text += "Contacts : " + linked.map { contact in
+                let details = [contact.company, contact.email].compactMap { $0 }
+                return details.isEmpty ? contact.name : "\(contact.name) (\(details.joined(separator: ", ")))"
+            }.joined(separator: " ; ") + "\n"
+        } else if !project.contacts.isEmpty {
+            text += "Contacts : \(project.contacts.joined(separator: ", "))\n"
+        }
 
         let open = try openActions(project)
         text += "\n## Actions ouvertes (\(open.count))\n"
         let shown = all ? open : Array(open.prefix(Self.briefActions))
         text += shown.isEmpty ? "Aucune.\n" : shown.enumerated().map { "\($0.offset + 1). \($0.element.text)" }.joined(separator: "\n") + "\n"
         if shown.count < open.count { text += "… et \(open.count - shown.count) autres (outil `actions`).\n" }
+
+        let coming = ((try? CalendarStore(projects.database).events(projectID: project.id)) ?? []).filter { $0.endAt > now() }.prefix(5)
+        if !coming.isEmpty {
+            text += "\n## Prochains rendez-vous\n" + coming.map { "- \(reader.date($0.startAt)) · \($0.title)" }.joined(separator: "\n") + "\n"
+        }
 
         let filed = try numberedMeetings(project).prefix(5)
         text += "\n## Réunions récentes\n"

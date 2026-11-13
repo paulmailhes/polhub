@@ -173,4 +173,63 @@ struct WindowSnapshotTests {
             window.close()
         }
     }
+
+    /// Accueil, Calendrier and Contacts, with made-up data (13/11).
+    @Test func theAgendaScreens() async throws {
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let root = FileManager.default.temporaryDirectory.appending(path: "agenda \(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let database = try AppDatabase.inMemory()
+        let projectStore = ProjectStore(database)
+        var alpha = try projectStore.addProject(name: "Atelier Nord", status: .priorite1, at: Date())
+        alpha.color = "bleu"
+        alpha.todo = "Envoyer la maquette"
+        try projectStore.save(alpha, at: Date())
+        var beta = try projectStore.addProject(name: "Site vitrine", status: .priorite2, at: Date())
+        beta.color = "vert"
+        try projectStore.save(beta, at: Date())
+        let calendar = CalendarStore(database)
+        try calendar.addAccount(email: "moi@exemple.fr", at: Date())
+        let monday = CalendarView.monday(of: .now)
+        func at(_ day: Int, _ hour: Double) -> Date { monday.addingTimeInterval(Double(day) * 86_400 + hour * 3_600) }
+        let guests = [Attendee(email: "camille.martin@exemple-studio.fr", name: "Camille Martin"), Attendee(email: "jules@atelier-nord.fr"),
+                      Attendee(email: "moi@exemple.fr", isSelf: true)]
+        try calendar.applyGoogle(account: "moi@exemple.fr", changed: [
+            CalendarEventRow(account: "moi@exemple.fr", eventID: "a", title: "Atelier maquette", startAt: at(0, 10), endAt: at(0, 11), meetCode: "abc-defg-hij", attendees: guests, updatedAt: Date()),
+            CalendarEventRow(account: "moi@exemple.fr", eventID: "b", title: "Point hebdo", startAt: at(0, 10.5), endAt: at(0, 11.5), updatedAt: Date()),
+            CalendarEventRow(account: "moi@exemple.fr", eventID: "c", title: "Revue Site vitrine", startAt: at(2, 14), endAt: at(2, 15), attendees: guests, updatedAt: Date()),
+            CalendarEventRow(account: "moi@exemple.fr", eventID: "d", title: "Déjeuner", startAt: at(3, 12.5), endAt: at(3, 13.5), updatedAt: Date()),
+            CalendarEventRow(account: "moi@exemple.fr", eventID: "e", title: "Férié", startAt: at(4, 0), endAt: at(5, 0), allDay: true, updatedAt: Date()),
+        ], cancelled: [], at: Date())
+        try calendar.setProject(eventID: CalendarEventRow.key(account: "moi@exemple.fr", eventID: "a"), projectID: alpha.id, origin: .invites)
+        try calendar.setProject(eventID: CalendarEventRow.key(account: "moi@exemple.fr", eventID: "c"), projectID: beta.id, origin: .titre)
+        let contacts = ContactStore(database)
+        let camille = try contacts.upsert(email: "camille.martin@exemple-studio.fr", name: "Camille Martin", company: "Exemple Studio", at: Date())
+        try contacts.link(contactID: camille.id, projectID: alpha.id, origin: .agenda, at: Date())
+        try contacts.upsert(email: "jules@atelier-nord.fr", name: "Jules", company: "Atelier Nord", at: Date())
+        let library = MeetingLibrary(store: MeetingStore(database))
+        let projects = ProjectLibrary(store: projectStore, meetings: MeetingStore(database), defaults: UserDefaults(suiteName: "agenda-\(UUID().uuidString)")!)
+        let agenda = AgendaLibrary(database: database)
+        let router = WindowRouter()
+        try await Task.sleep(for: .milliseconds(400))
+        for (section, name) in [(SidebarItem.home, "accueil"), (.calendar, "calendrier"), (.contacts, "contacts")] {
+            router.section = section
+            if section == .contacts { router.contactSelection = camille.id }
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1_280, height: 760), styleMask: [.titled, .resizable],
+                                  backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.appearance = NSAppearance(named: .aqua)
+            window.contentView = NSHostingView(rootView: MainWindowView(library: library, projects: projects, agenda: agenda, router: router,
+                                                                       paths: AppPaths(root: root, logs: root)) { EmptyView() })
+            window.layoutIfNeeded()
+            try await Task.sleep(for: .milliseconds(600))
+            window.layoutIfNeeded()
+            let view = try #require(window.contentView)
+            let bitmap = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+            view.cacheDisplay(in: view.bounds, to: bitmap)
+            try #require(bitmap.representation(using: .png, properties: [:])).write(to: output.appending(path: "\(name).png"))
+            window.close()
+        }
+    }
 }

@@ -134,6 +134,23 @@ struct DeskFixture {
         }
     }
 
+    /// Base v4 (13/11): the brief shows the linked contacts and the coming events.
+    @Test func theBriefShowsContactsAndComingEvents() throws {
+        let fixture = try DeskFixture()
+        let contacts = ContactStore(fixture.database)
+        let jules = try contacts.upsert(email: "jules@exemple.fr", name: "Jules Roy", company: "Exemple", at: fixture.now)
+        try contacts.link(contactID: jules.id, projectID: fixture.atelier.id, origin: .agenda, at: fixture.now)
+        let calendar = CalendarStore(fixture.database)
+        try calendar.applyGoogle(account: "moi@exemple.fr", changed: [
+            CalendarEventRow(account: "moi@exemple.fr", eventID: "e1", title: "Revue de la maquette", startAt: fixture.now.addingTimeInterval(86_400),
+                             endAt: fixture.now.addingTimeInterval(88_200), updatedAt: fixture.now),
+        ], cancelled: [], at: fixture.now)
+        try calendar.setProject(eventID: CalendarEventRow.key(account: "moi@exemple.fr", eventID: "e1"), projectID: fixture.atelier.id, origin: .invites)
+        let text = try fixture.desk().context("Atelier Nord", all: false)
+        #expect(text.contains("Jules Roy (Exemple, jules@exemple.fr)"))
+        #expect(text.contains("Revue de la maquette"))
+    }
+
     @Test func theProjectsMeetingsKeepTheirNumberInTheWholeList() throws {
         let fixture = try DeskFixture()
         let other = MeetingRow(createdAt: fixture.now, status: .ended, source: .dia, candidateKey: "t/b", title: "Autre réunion",
