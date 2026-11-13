@@ -99,6 +99,12 @@ final class Switch: @unchecked Sendable {
         #expect(installer.prepared == 2)
     }
 
+    @Test func everyStateHasAFrenchText() {
+        #expect(UpdateService.text(.idle) == nil)
+        #expect(UpdateService.text(.waitingForIdle) == "La mise à jour s'installera à la fin de la réunion ou de la transcription en cours.")
+        #expect(UpdateService.text(.installing) == "Installation : Transcriptor va se relancer.")
+    }
+
     @Test func theJournalSaysWhichVersionCameIn() {
         #expect(UpdateService.upgradeNote(previous: "0.3.0", current: "0.3.1") == "Transcriptor mis à jour : 0.3.0 → 0.3.1.")
         #expect(UpdateService.upgradeNote(previous: "0.3.1", current: "0.3.1") == nil)

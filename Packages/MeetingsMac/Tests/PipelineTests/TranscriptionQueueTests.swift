@@ -136,6 +136,20 @@ func eventually(_ condition: @Sendable () async throws -> Bool) async rethrows -
         #expect(launcher.requests[0] == launcher.requests[1])
     }
 
+    // Mises à jour : l'app ne s'installe pas pendant une transcription.
+    @Test func theQueueSaysWhenItIsComputing() async throws {
+        _ = try endedMeeting()
+        let queue = queue()
+        #expect(await !queue.isRunning)
+        await queue.wake()
+        #expect(await eventually { launcher.requests.count == 1 })
+        #expect(await queue.isRunning)
+        let process = try #require(launcher.processes.first)
+        process.send(.failed("arrêt"))
+        process.end()
+        #expect(await eventually { await !queue.isRunning || launcher.requests.count > 1 })
+    }
+
     @Test func nothingStartsWhileAMeetingIsActive() async throws {
         _ = try endedMeeting()
         let queue = queue()

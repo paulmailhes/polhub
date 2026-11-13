@@ -2,9 +2,10 @@ import Domain
 import Persistence
 import ProjectsUI
 import SwiftUI
+import Updates
 
 public enum SidebarItem: String, Hashable, Sendable {
-    case projects, meetings, journal, diagnostic
+    case projects, meetings, journal, diagnostic, settings
 }
 
 /// Where the window is: the app sets it to open a meeting from the menu.
@@ -32,16 +33,18 @@ public struct MainWindowView<Diagnostic: View>: View {
 
     @ObservedObject var library: MeetingLibrary
     let projects: ProjectLibrary?
+    let updates: UpdateService?
     @ObservedObject var router: WindowRouter
     let paths: AppPaths
     let diagnostic: Diagnostic
 
     public init(
-        library: MeetingLibrary, projects: ProjectLibrary? = nil, router: WindowRouter, paths: AppPaths,
+        library: MeetingLibrary, projects: ProjectLibrary? = nil, updates: UpdateService? = nil, router: WindowRouter, paths: AppPaths,
         @ViewBuilder diagnostic: () -> Diagnostic
     ) {
         self.library = library
         self.projects = projects
+        self.updates = updates
         self.router = router
         self.paths = paths
         self.diagnostic = diagnostic()
@@ -57,6 +60,9 @@ public struct MainWindowView<Diagnostic: View>: View {
                 Label("Journal", systemImage: "list.bullet.rectangle").tag(SidebarItem.journal)
                 if Diagnostic.self != EmptyView.self {
                     Label("Diagnostic", systemImage: "stethoscope").tag(SidebarItem.diagnostic)
+                }
+                if updates != nil {
+                    Label("Réglages", systemImage: "gearshape").tag(SidebarItem.settings)
                 }
             }
             .navigationSplitViewColumnWidth(min: 160, ideal: 180)
@@ -102,6 +108,10 @@ public struct MainWindowView<Diagnostic: View>: View {
                 JournalView(entries: library.journal)
             case .diagnostic:
                 diagnostic
+            case .settings:
+                if let updates {
+                    SettingsView(updates: updates, projects: projects)
+                }
             }
         }
         .frame(minWidth: Self.minimumWidth, minHeight: 520)

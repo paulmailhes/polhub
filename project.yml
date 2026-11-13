@@ -1,6 +1,11 @@
 name: Transcriptor
 options:
   bundleIdPrefix: fr.paulmailhes
+settings:
+  base:
+    # The version comes from the VERSION file, passed by the Makefile (make app, scripts/release.sh).
+    MARKETING_VERSION: "0.0.0"
+    CURRENT_PROJECT_VERSION: "1"
   deploymentTarget:
     macOS: "27.0"
   createIntermediateGroups: true

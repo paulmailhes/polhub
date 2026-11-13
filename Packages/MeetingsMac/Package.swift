@@ -67,6 +67,7 @@ let package = Package(
             "Pipeline",
             "Transcription",
             "ProjectsUI",
+            "Updates",
             .product(name: "Domain", package: "Kernel"),
             .product(name: "Persistence", package: "Kernel"),
             .product(name: "GRDB", package: "GRDB.swift"),

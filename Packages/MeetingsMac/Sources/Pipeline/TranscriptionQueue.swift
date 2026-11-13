@@ -49,6 +49,9 @@ public actor TranscriptionQueue {
         self.log = log
     }
 
+    /// A computation is under way: an update waits for its end.
+    public var isRunning: Bool { current != nil }
+
     /// At launch: what was running when the app stopped goes back to the queue. Nothing starts for
     /// `holdSeconds`: a meeting the app is resuming after a crash shows up only after the first readings of
     /// Dia (review, Important 5).

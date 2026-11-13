@@ -10,6 +10,7 @@ import ProbeKit
 import ProjectsUI
 import Recording
 import SwiftUI
+import Updates
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
@@ -23,6 +24,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     /// Step 2: the transcriptions, run by `transcriptor-calcul` outside meetings.
     private var transcription: TranscriptionQueue?
     private var transcriptionTimer: Timer?
+    /// Updates from GitHub, installed on their own when all is quiet.
+    private var updates: UpdateService?
+    private var updateTimer: Timer?
     let router = WindowRouter()
     private var diagnostic: DiagnosticModel?
     private var checklistObserver: AnyCancellable?
@@ -150,6 +154,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         self.coordinator = coordinator
         try? coordinator.recoverAfterLaunch()
         startTranscription(store: store)
+        startUpdates(store: store)
 
         // The development version never detects on its own: it must not record a meeting twice.
         if !isDevelopment { setDetection(true) }
@@ -185,6 +190,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         transcriptionTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in
             Task { await queue.wake() }
         }
+    }
+
+    /// The version that runs, a line in the journal when it is new, then a look at GitHub every five minutes
+    /// (the service itself checks once an hour). The development version never updates itself.
+    private func startUpdates(store: MeetingStore) {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
+        let key = "lastLaunchedVersion"
+        if let note = UpdateService.upgradeNote(previous: UserDefaults.standard.string(forKey: key), current: version) {
+            try? store.addJournal(JournalEntry(createdAt: Date(), kind: .info, message: note))
+        }
+        UserDefaults.standard.set(version, forKey: key)
+        guard !isDevelopment, let current = SemanticVersion(version) else { return }
+        let updates = UpdateService(current: current, isIdle: { [weak self] in await self?.isQuiet() ?? false })
+        self.updates = updates
+        updateTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { _ in
+            Task { await updates.tick() }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 120) {
+            Task { await updates.tick() }
+        }
+    }
+
+    /// No meeting (from the pop-up to the end) and no transcription under way.
+    private func isQuiet() async -> Bool {
+        switch model.status {
+        case .prompting, .recording, .presumedEnded: return false
+        case .idle, .paused: break
+        }
+        return !(await transcription?.isRunning ?? false)
     }
 
     /// Reads Dia and feeds the coordinator, or stops doing so.
@@ -273,7 +307,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         if mainWindow == nil {
             let diagnostic = diagnostic
-            let view = MainWindowView(library: library, projects: projects, router: router, paths: paths) {
+            let view = MainWindowView(library: library, projects: projects, updates: updates, router: router, paths: paths) {
                 if let diagnostic {
                     DiagnosticView(model: diagnostic) { [weak self] in self?.showProbeWindow() }
                 }

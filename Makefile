@@ -3,8 +3,9 @@ PRODUCT  := build/DerivedData/Build/Products/Release/Transcriptor.app
 INSTALL  := /Applications/Transcriptor.app
 AGENT    := fr.paulmailhes.transcriptor.relance
 DB       := $(HOME)/Library/Application Support/Transcriptor/Transcriptor.sqlite
+VERSION  := $(shell cat VERSION)
 
-.PHONY: check gen app app-dev verify install stop
+.PHONY: check gen app app-dev verify install stop release
 
 # Tests des deux paquets, sans micro ni navigateur.
 check:
@@ -17,14 +18,14 @@ gen:
 
 app: gen
 	xcodebuild -project Transcriptor.xcodeproj -scheme Transcriptor -configuration Release \
-		-derivedDataPath build/DerivedData -quiet build
+		-derivedDataPath build/DerivedData -quiet MARKETING_VERSION=$(VERSION) build
 	rm -rf $(APP)
 	ditto $(PRODUCT) $(APP)
 
 # La version de développement : identifiant .dev, données à part, détection coupée. Jamais installée.
 app-dev: gen
 	xcodebuild -project Transcriptor.xcodeproj -scheme TranscriptorDev -configuration Release \
-		-derivedDataPath build/DerivedData -quiet build
+		-derivedDataPath build/DerivedData -quiet MARKETING_VERSION=$(VERSION) build
 	rm -rf "build/Transcriptor Dev.app"
 	ditto "build/DerivedData/Build/Products/Release/Transcriptor Dev.app" "build/Transcriptor Dev.app"
 	scripts/verify-bundle.sh "build/Transcriptor Dev.app" fr.paulmailhes.transcriptor.dev
@@ -54,3 +55,7 @@ stop:
 		test "$$n" = "0" || { echo "Refusé : une réunion s'enregistre ($$n)."; exit 1; }
 	-pkill -x Transcriptor
 	@sleep 1
+
+# Publie une version sur GitHub (tests, app signée, archive, notes de CHANGELOG.md) : make release VERSION=0.3.1
+release:
+	scripts/release.sh $(VERSION)
