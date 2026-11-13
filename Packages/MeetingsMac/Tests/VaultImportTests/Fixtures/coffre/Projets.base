@@ -1,0 +1,41 @@
+filters:
+  and:
+    - file.inFolder("database/Projets")
+formulas:
+  seuil_silence: "14"
+views:
+  - type: kanban-view
+    name: Kanban
+    filters:
+      and:
+        - statut != "terminé"
+    groupByProperty: note.statut
+    columnOrders:
+      note.statut:
+        - idée
+        - priorité 3
+        - priorité 2
+        - priorité 1
+        - en attente
+        - Uncategorized
+    cardOrders:
+      note.statut:
+        priorité 2:
+          - database/Projets/Beta Studio.md
+          - database/Projets/Alpha.md
+        idée:
+          - database/Projets/Gamma.md
+    columnColors:
+      note.statut:
+        priorité 1: yellow
+        idée: pink
+  - type: kanban-view
+    name: Tous
+    groupByProperty: note.statut
+    cardOrders:
+      note.statut:
+        priorité 2:
+          - database/Projets/Alpha.md
+          - database/Projets/Beta Studio.md
+  - type: table
+    name: Tableau

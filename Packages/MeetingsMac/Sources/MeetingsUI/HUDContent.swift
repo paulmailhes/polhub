@@ -1,0 +1,103 @@
+import Foundation
+import Pipeline
+
+/// What a pop-up shows. The prompt goes first, then an alert, then a short notice.
+public enum HUDContent: Equatable, Sendable {
+    case prompt(title: String, deadline: Date)
+    case toast(title: String, subtitle: String)
+    case alert(title: String, message: String, action: String)
+
+    var priority: Int {
+        switch self {
+        case .prompt: 3
+        case .alert: 2
+        case .toast: 1
+        }
+    }
+}
+
+/// One pop-up at a time. A notice never covers the start prompt: it waits for it to close. A prompt or an
+/// alert replaces a notice, which is dropped (it would be stale by then).
+public struct HUDQueue: Sendable {
+    public private(set) var showing: HUDContent?
+    private var waiting: [HUDContent] = []
+
+    public init() {}
+
+    /// What to show now, or nil when the item waits.
+    public mutating func enqueue(_ item: HUDContent) -> HUDContent? {
+        guard let current = showing else {
+            showing = item
+            return item
+        }
+        if item.priority > current.priority {
+            if current.priority > 1 { waiting.append(current) }
+            showing = item
+            return item
+        }
+        if case .toast = item { waiting.removeAll { if case .toast = $0 { true } else { false } } }
+        waiting.append(item)
+        return nil
+    }
+
+    /// The shown pop-up closed: what comes next, if anything.
+    public mutating func closed() -> HUDContent? {
+        guard let next = waiting.max(by: { $0.priority < $1.priority }) else {
+            showing = nil
+            return nil
+        }
+        waiting.removeAll { $0 == next }
+        showing = next
+        return next
+    }
+}
+
+/// Device changes come in bursts (phase 0, S11): one notice once things have been quiet for two seconds,
+/// with the final state.
+public struct ToastCoalescer: Sendable {
+    public static let quietSeconds = 2.0
+    private var pending: (toast: Toast, at: Double)?
+
+    public init() {}
+
+    public mutating func add(_ toast: Toast, at time: Double) {
+        pending = (toast, time)
+    }
+
+    public mutating func due(at time: Double) -> Toast? {
+        guard let pending, time - pending.at >= Self.quietSeconds else { return nil }
+        self.pending = nil
+        return pending.toast
+    }
+}
+
+/// The words of every pop-up.
+public enum HUDText {
+    public static func promptTitle(_ title: String) -> String { "Google Meet · \(title)" }
+    public static func countdown(_ seconds: Int) -> String { "Enregistrement dans \(max(0, seconds)) s" }
+
+    public static func toast(_ toast: Toast) -> (title: String, subtitle: String) {
+        switch toast {
+        case .devices(let mic, let output):
+            let parts = [mic.map { "Micro : \($0)" }, output.map { "Sortie : \($0)" }].compactMap { $0 }
+            return ("L'enregistrement continue", parts.isEmpty ? "Périphériques changés" : parts.joined(separator: " · "))
+        case .ended(let title, let seconds):
+            return ("Réunion enregistrée", "\(title) · \(DurationText.short(seconds))")
+        case .resumed(let title):
+            return ("Enregistrement repris", title)
+        }
+    }
+
+    public static func alert(_ alert: AppAlert) -> (title: String, message: String, action: String) {
+        switch alert {
+        case .tabsUnreadable:
+            ("Transcriptor ne lit plus les onglets de Dia", "Les réunions sont détectées par le micro seul.", "Diagnostic")
+        case .selfTestFailed:
+            ("Le son des autres n'est pas capté", "Vérifie l'autorisation « Enregistrement de l'audio du système ».", "Diagnostic")
+        case .diskLow(let freeGB):
+            ("Disque presque plein", "Il reste \(freeGB) Go. Une heure de réunion en prend environ 1,4.", "OK")
+        case .trackFailed(let message):
+            ("Une piste s'est interrompue", message, "OK")
+        }
+    }
+}

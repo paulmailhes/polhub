@@ -1,0 +1,56 @@
+APP      := build/Transcriptor.app
+PRODUCT  := build/DerivedData/Build/Products/Release/Transcriptor.app
+INSTALL  := /Applications/Transcriptor.app
+AGENT    := fr.paulmailhes.transcriptor.relance
+DB       := $(HOME)/Library/Application Support/Transcriptor/Transcriptor.sqlite
+
+.PHONY: check gen app app-dev verify install stop
+
+# Tests des deux paquets, sans micro ni navigateur.
+check:
+	swift test --package-path Packages/Kernel
+	swift test --package-path Packages/MeetingsMac
+
+# Le projet Xcode est généré, jamais versionné.
+gen:
+	xcodegen generate --quiet
+
+app: gen
+	xcodebuild -project Transcriptor.xcodeproj -scheme Transcriptor -configuration Release \
+		-derivedDataPath build/DerivedData -quiet build
+	rm -rf $(APP)
+	ditto $(PRODUCT) $(APP)
+
+# La version de développement : identifiant .dev, données à part, détection coupée. Jamais installée.
+app-dev: gen
+	xcodebuild -project Transcriptor.xcodeproj -scheme TranscriptorDev -configuration Release \
+		-derivedDataPath build/DerivedData -quiet build
+	rm -rf "build/Transcriptor Dev.app"
+	ditto "build/DerivedData/Build/Products/Release/Transcriptor Dev.app" "build/Transcriptor Dev.app"
+	scripts/verify-bundle.sh "build/Transcriptor Dev.app" fr.paulmailhes.transcriptor.dev
+
+verify:
+	scripts/verify-bundle.sh $(APP)
+
+# Change l'état du Mac : seulement avec l'accord de Paul (CONFIRM=oui).
+install:
+	@test "$(CONFIRM)" = "oui" || { echo "Refusé : relancer avec CONFIRM=oui, après accord de Paul."; exit 1; }
+	@n=$$(sqlite3 "$(DB)" "SELECT count(*) FROM meeting WHERE status IN ('pending','recording','presumedEnded') AND deletedAt IS NULL" 2>/dev/null || echo 0); \
+		test "$$n" = "0" || { echo "Refusé : une réunion s'enregistre ($$n). Attendre sa fin."; exit 1; }
+	@! pgrep -x Transcriptor >/dev/null || { echo "Refusé : Transcriptor tourne. Le quitter d'abord (make stop)."; exit 1; }
+	rm -rf $(INSTALL)
+	ditto $(APP) $(INSTALL)
+	@echo "Installé : $(INSTALL)"
+	@# The relaunch agent stays loaded (make stop quits cleanly, launchd does not restart it): it starts the new version.
+	@if launchctl print gui/$$(id -u)/$(AGENT) >/dev/null 2>&1; then \
+		launchctl kickstart gui/$$(id -u)/$(AGENT) && echo "Relancée par l'agent de relance."; \
+	else \
+		echo "Agent de relance absent : ouvrir Transcriptor, puis cocher la relance dans le Diagnostic."; \
+	fi
+
+# Quitte l'app, sauf si une réunion s'enregistre.
+stop:
+	@n=$$(sqlite3 "$(DB)" "SELECT count(*) FROM meeting WHERE status IN ('pending','recording','presumedEnded') AND deletedAt IS NULL" 2>/dev/null || echo 0); \
+		test "$$n" = "0" || { echo "Refusé : une réunion s'enregistre ($$n)."; exit 1; }
+	-pkill -x Transcriptor
+	@sleep 1

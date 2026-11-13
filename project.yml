@@ -1,0 +1,180 @@
+name: Transcriptor
+options:
+  bundleIdPrefix: fr.paulmailhes
+  deploymentTarget:
+    macOS: "27.0"
+  createIntermediateGroups: true
+packages:
+  Kernel:
+    path: Packages/Kernel
+  MeetingsMac:
+    path: Packages/MeetingsMac
+targets:
+  Transcriptor:
+    type: application
+    platform: macOS
+    sources:
+      - path: App/Transcriptor
+        excludes:
+          - "*.plist"
+          - "*.entitlements"
+      # The relaunch agent's plist must sit where SMAppService looks for it.
+      - path: App/Transcriptor/fr.paulmailhes.transcriptor.relance.plist
+        buildPhase:
+          copyFiles:
+            destination: wrapper
+            subpath: Contents/Library/LaunchAgents
+    dependencies:
+      - package: Kernel
+        product: Observability
+      - package: Kernel
+        product: Domain
+      - package: Kernel
+        product: Persistence
+      - package: MeetingsMac
+        product: ProbeKit
+      - package: MeetingsMac
+        product: MeetingDetection
+      - package: MeetingsMac
+        product: Recording
+      - package: MeetingsMac
+        product: Pipeline
+      - package: MeetingsMac
+        product: MeetingsUI
+      - package: MeetingsMac
+        product: ProjectsUI
+      # Step 2: the computing process and the command line, in Contents/Helpers.
+      - target: TranscriptorCalcul
+        embed: true
+        codeSign: true
+        copy:
+          destination: wrapper
+          subpath: Contents/Helpers
+      - target: TranscriptorCLI
+        embed: true
+        codeSign: true
+        copy:
+          destination: wrapper
+          subpath: Contents/Helpers
+    settings:
+      base:
+        PRODUCT_NAME: Transcriptor
+        PRODUCT_BUNDLE_IDENTIFIER: fr.paulmailhes.transcriptor
+        MACOSX_DEPLOYMENT_TARGET: "27.0"
+        SWIFT_VERSION: "6.0"
+        # Info.plist is written by hand: Xcode drops NSAudioCaptureUsageDescription from generated ones.
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: App/Transcriptor/Info.plist
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "Developer ID Application"
+        DEVELOPMENT_TEAM: CQ43U6XX4Z
+        CODE_SIGN_ENTITLEMENTS: App/Transcriptor/Transcriptor.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+  TranscriptorDev:
+    type: application
+    platform: macOS
+    sources:
+      - path: App/Transcriptor
+        excludes:
+          - "*.plist"
+          - "*.entitlements"
+    dependencies:
+      - package: Kernel
+        product: Observability
+      - package: Kernel
+        product: Domain
+      - package: Kernel
+        product: Persistence
+      - package: MeetingsMac
+        product: ProbeKit
+      - package: MeetingsMac
+        product: MeetingDetection
+      - package: MeetingsMac
+        product: Recording
+      - package: MeetingsMac
+        product: Pipeline
+      - package: MeetingsMac
+        product: MeetingsUI
+      - package: MeetingsMac
+        product: ProjectsUI
+      - target: TranscriptorCalcul
+        embed: true
+        codeSign: true
+        copy:
+          destination: wrapper
+          subpath: Contents/Helpers
+      - target: TranscriptorCLI
+        embed: true
+        codeSign: true
+        copy:
+          destination: wrapper
+          subpath: Contents/Helpers
+    settings:
+      base:
+        PRODUCT_NAME: "Transcriptor Dev"
+        PRODUCT_BUNDLE_IDENTIFIER: fr.paulmailhes.transcriptor.dev
+        MACOSX_DEPLOYMENT_TARGET: "27.0"
+        SWIFT_VERSION: "6.0"
+        # Info.plist is written by hand: Xcode drops NSAudioCaptureUsageDescription from generated ones.
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: App/Transcriptor/Info-dev.plist
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "Developer ID Application"
+        DEVELOPMENT_TEAM: CQ43U6XX4Z
+        CODE_SIGN_ENTITLEMENTS: App/Transcriptor/Transcriptor.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+  # transcriptor-calcul: the models live only in this process (WhisperKit, Silero), never in the app.
+  TranscriptorCalcul:
+    type: tool
+    platform: macOS
+    sources:
+      - path: Packages/MeetingsMac/Sources/TranscriptorCalcul
+    dependencies:
+      - package: MeetingsMac
+        product: Compute
+      - package: MeetingsMac
+        product: Transcription
+    settings:
+      base:
+        PRODUCT_NAME: transcriptor-calcul
+        MACOSX_DEPLOYMENT_TARGET: "27.0"
+        SWIFT_VERSION: "6.0"
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "Developer ID Application"
+        DEVELOPMENT_TEAM: CQ43U6XX4Z
+        ENABLE_HARDENED_RUNTIME: YES
+        SKIP_INSTALL: YES
+  # transcriptor: the meetings read-only, for the terminal and Claude Code (MCP).
+  TranscriptorCLI:
+    type: tool
+    platform: macOS
+    sources:
+      - path: Packages/MeetingsMac/Sources/TranscriptorCLI
+    dependencies:
+      - package: MeetingsMac
+        product: ReadingKit
+      - package: Kernel
+        product: Persistence
+    settings:
+      base:
+        PRODUCT_NAME: transcriptor
+        MACOSX_DEPLOYMENT_TARGET: "27.0"
+        SWIFT_VERSION: "6.0"
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "Developer ID Application"
+        DEVELOPMENT_TEAM: CQ43U6XX4Z
+        ENABLE_HARDENED_RUNTIME: YES
+        SKIP_INSTALL: YES
+schemes:
+  Transcriptor:
+    build:
+      targets:
+        Transcriptor: all
+    run:
+      config: Debug
+  TranscriptorDev:
+    build:
+      targets:
+        TranscriptorDev: all
+    run:
+      config: Debug

@@ -1,0 +1,108 @@
+import Domain
+import Foundation
+import GRDB
+
+/// Every read and write of the base goes through here.
+public struct MeetingStore: Sendable {
+    public let database: AppDatabase
+    private var writer: any DatabaseWriter { database.writer }
+
+    public init(_ database: AppDatabase) {
+        self.database = database
+    }
+
+    private static func key(_ id: UUID) -> String { id.uuidString.lowercased() }
+
+    /// Every column but the project: `setProject` alone files a meeting, so the coordinator's copy of a
+    /// meeting being recorded never undoes a filing (review of the projects module, Important 3).
+    public func save(_ row: MeetingRow) throws {
+        try writer.write { db in
+            if try row.exists(db) {
+                let columns = try db.columns(in: MeetingRow.databaseTableName).map(\.name).filter { $0 != "projectID" }
+                try row.update(db, columns: columns)
+            } else {
+                try row.insert(db)
+            }
+        }
+    }
+
+    public func meeting(id: UUID) throws -> MeetingRow? {
+        try writer.read { try MeetingRow.filter(Column("id") == Self.key(id)).fetchOne($0) }
+    }
+
+    /// Meetings the app may still be recording, or must close after a crash.
+    public func unfinished() throws -> [MeetingRow] {
+        try writer.read { db in
+            try MeetingRow
+                .filter([MeetingStatus.pending, .recording, .presumedEnded].map(\.rawValue).contains(Column("status")))
+                .filter(Column("deletedAt") == nil)
+                .order(Column("startedAt"))
+                .fetchAll(db)
+        }
+    }
+
+    public func recent(limit: Int) throws -> [MeetingRow] {
+        try writer.read { try Self.recentRequest(limit: limit).fetchAll($0) }
+    }
+
+    private static func recentRequest(limit: Int) -> QueryInterfaceRequest<MeetingRow> {
+        MeetingRow
+            .filter(Column("deletedAt") == nil)
+            .order(Column("startedAt").desc)
+            .limit(limit)
+    }
+
+    public func softDelete(id: UUID, at date: Date) throws {
+        try writer.write { db in
+            try db.execute(
+                sql: "UPDATE meeting SET deletedAt = ?, updatedAt = ? WHERE id = ?",
+                arguments: [date, date, Self.key(id)]
+            )
+        }
+    }
+
+    public func addJournal(_ entry: JournalEntry) throws {
+        try writer.write { try entry.insert($0) }
+    }
+
+    public func journal(limit: Int) throws -> [JournalEntry] {
+        try writer.read { try JournalEntry.order(Column("createdAt").desc).limit(limit).fetchAll($0) }
+    }
+
+    public func neverCodes() throws -> Set<String> {
+        try writer.read { try String.fetchSet($0, sql: "SELECT code FROM never_link") }
+    }
+
+    public func addNeverCode(_ code: String, at date: Date) throws {
+        try writer.write { db in
+            try db.execute(sql: "INSERT OR IGNORE INTO never_link (code, createdAt) VALUES (?, ?)", arguments: [code, date])
+        }
+    }
+
+    public func addMemorySample(_ sample: MemorySample) throws {
+        var sample = sample
+        try writer.write { try sample.insert($0) }
+    }
+
+    public func memorySampleCount() throws -> Int {
+        try writer.read { try MemorySample.fetchCount($0) }
+    }
+
+    /// Calls `onChange` on the main queue with the latest journal entries, now and after every change.
+    public func observeJournal(limit: Int, onChange: @escaping @MainActor @Sendable ([JournalEntry]) -> Void) -> AnyDatabaseCancellable {
+        ValueObservation
+            .tracking { try JournalEntry.order(Column("createdAt").desc).limit(limit).fetchAll($0) }
+            .start(in: writer, scheduling: .async(onQueue: .main), onError: { _ in }, onChange: { entries in
+                MainActor.assumeIsolated { onChange(entries) }
+            })
+    }
+
+    /// Calls `onChange` on the main queue with the latest meetings, now and after every change.
+    public func observeRecent(limit: Int, onChange: @escaping @MainActor @Sendable ([MeetingRow]) -> Void) -> AnyDatabaseCancellable {
+        ValueObservation
+            .tracking { try Self.recentRequest(limit: limit).fetchAll($0) }
+            .start(in: writer, scheduling: .async(onQueue: .main), onError: { _ in }, onChange: { rows in
+                MainActor.assumeIsolated { onChange(rows) }
+            })
+    }
+}

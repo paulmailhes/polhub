@@ -1,0 +1,33 @@
+# macOS
+.DS_Store
+
+# Xcode et Swift
+build/
+DerivedData/
+.build/
+.swiftpm/
+xcuserdata/
+*.xcuserstate
+*.xcarchive
+Transcriptor.xcodeproj/
+
+# Secrets : jamais dans le dépôt
+.env
+*.p8
+*.p12
+client_secret*.json
+
+# Enregistrements (voix de tiers) : jamais dans le dépôt
+*.wav
+*.caf
+*.m4a
+!Packages/MeetingsMac/Tests/ComputeTests/Fixtures/echantillon-fr-16k.wav
+
+# Ce qui reste sur le Mac de Paul : ses documents de travail, l'ancien historique, les outils de session
+prive/
+CLAUDE.md
+.superpowers/
+.claude/
+
+# Versions publiées : construites par scripts/release.sh, envoyées sur GitHub
+dist/
