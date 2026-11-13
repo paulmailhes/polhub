@@ -5,7 +5,7 @@
 # Le projet est publié « en production » : les connexions tiennent, sans rien refaire tous les 7 jours.
 
 DEST="$HOME/Library/Application Support/Polhub/google-client.json"
-etape() { print; print -P "%B── Étape $1/5 — $2%b"; }
+etape() { print; print -P "%B── Étape $1/6 — $2%b"; }
 attendre() { read "?   Entrée quand c'est fait… "; }
 
 clear
@@ -31,13 +31,21 @@ print "   « Commencer » → nom de l'application : Polhub → ton e-mail → A
 print "   → accepter le règlement → Créer."
 open "https://console.cloud.google.com/auth/overview"; attendre
 
-etape 4 "Publier l'application (pour que les connexions tiennent)"
+etape 4 "L'identité de l'application (Google l'exige pour publier)"
+print "   Page d'accueil de l'application :       https://paulmailhes.github.io/polhub/"
+print "   Règles de confidentialité :             https://paulmailhes.github.io/polhub/confidentialite.html"
+print "   Conditions d'utilisation :              https://paulmailhes.github.io/polhub/conditions.html"
+print "   Domaines autorisés → « Ajouter un domaine » : paulmailhes.github.io"
+print "   → Enregistrer."
+open "https://console.cloud.google.com/auth/branding"; attendre
+
+etape 5 "Publier l'application (pour que les connexions tiennent)"
 print "   « Publier l'application » → Confirmer. Le statut doit devenir « En production »."
-print "   Google ne demande rien d'autre : à la première connexion, il dira « application non validée »,"
+print "   À la première connexion, Google dira « application non validée » (normal, sans validation),"
 print "   et il suffira de cliquer « Paramètres avancés » puis « Accéder à Polhub »."
 open "https://console.cloud.google.com/auth/audience"; attendre
 
-etape 5 "Créer la clé"
+etape 6 "Créer la clé"
 print "   Type d'application : Application de bureau → nom : Polhub → Créer → « Télécharger le fichier JSON »."
 debut=$(date +%s)
 open "https://console.cloud.google.com/auth/clients/create"

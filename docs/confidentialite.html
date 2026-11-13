@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Polhub — Règles de confidentialité</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <p><a href="index.html">← Polhub</a></p>
+  <h1>Règles de confidentialité</h1>
+  <p class="meta">En vigueur le 13 novembre 2026.</p>
+
+  <p>Polhub est une application macOS installée sur l'ordinateur de son utilisateur. Elle n'a pas de serveur :
+  l'éditeur de Polhub ne reçoit, ne voit et ne stocke aucune donnée de ses utilisateurs.</p>
+
+  <h2>Données Google utilisées</h2>
+  <p>Quand l'utilisateur connecte un compte Google, Polhub demande trois autorisations :</p>
+  <ul>
+    <li><code>openid</code> et <code>email</code> : l'adresse du compte, pour savoir quel compte est connecté ;</li>
+    <li><code>calendar.readonly</code> : la lecture seule des rendez-vous de l'agenda principal (titre, horaires,
+    lieu, lien Google Meet, organisateur, invités et leurs réponses).</li>
+  </ul>
+  <p>Polhub ne modifie, ne crée et ne supprime jamais rien dans les agendas ni dans le compte Google.</p>
+
+  <h2>Usage</h2>
+  <p>Ces données servent uniquement à des fonctions visibles par l'utilisateur dans l'application : afficher ses
+  rendez-vous, les relier à ses projets et à ses réunions enregistrées, et tenir à jour ses contacts à partir des
+  invités.</p>
+
+  <h2>Stockage</h2>
+  <ul>
+    <li>Les rendez-vous et les contacts sont enregistrés dans la base de données locale de l'application, sur le
+    Mac de l'utilisateur.</li>
+    <li>Le jeton d'accès au compte Google est conservé dans le Trousseau de macOS. Il n'est jamais écrit ailleurs.</li>
+    <li>Rien n'est envoyé à un serveur de l'éditeur ni à un tiers : les seules connexions réseau vont aux services
+    de Google, pour lire les agendas.</li>
+  </ul>
+
+  <h2>Partage</h2>
+  <p>Aucune donnée n'est vendue, louée, partagée ni transmise à quiconque, ni utilisée pour de la publicité ou
+  pour entraîner un modèle d'intelligence artificielle.</p>
+  <p>L'utilisation et le transfert à toute autre application des informations reçues des API Google respectent la
+  <a href="https://developers.google.com/terms/api-services-user-data-policy">Règle relative aux données des
+  utilisateurs des services d'API Google</a>, y compris les exigences d'utilisation limitée.</p>
+
+  <h2>Contrôle et suppression</h2>
+  <ul>
+    <li>Dans Polhub, « Déconnecter ce compte » retire le jeton du Trousseau et efface les rendez-vous de ce compte.</li>
+    <li>L'accès peut aussi être révoqué à tout moment depuis la page
+    <a href="https://myaccount.google.com/permissions">Applications tierces</a> du compte Google.</li>
+    <li>Supprimer l'application et son dossier de données efface tout le reste.</li>
+  </ul>
+
+  <h2>Contact</h2>
+  <p>Questions et demandes : <a href="https://github.com/paulmailhes/polhub/issues">github.com/paulmailhes/polhub/issues</a>.</p>
+</main>
+</body>
+</html>
