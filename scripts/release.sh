@@ -20,7 +20,7 @@ fail() { echo "$*" >&2; echo "Rien n'est publié." >&2; exit 1; }
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "Version attendue sous la forme 0.3.1, pas « $VERSION »."
 [ "$(git branch --show-current)" = "main" ] || fail "Publier depuis la branche main."
 [ -z "$(git status --porcelain)" ] || fail "Des changements ne sont pas commités."
-if gh release view "v$VERSION" --repo "$REPO" --json isDraft -q .isDraft 2>/dev/null | grep -qx false; then
+if [ "$(gh release view "v$VERSION" --repo "$REPO" --json isDraft -q .isDraft 2>/dev/null || true)" = "false" ]; then
   fail "La version v$VERSION est déjà publiée."
 fi
 NOTES="$(awk -v v="## $VERSION" 'index($0, v) == 1 { on = 1; next } on && /^## / { exit } on' CHANGELOG.md)"
@@ -44,7 +44,9 @@ BUILT="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Co
 [ "$BUILT" = "$VERSION" ] || fail "L'app construite porte la version $BUILT, pas $VERSION."
 codesign --verify --deep --strict -R="$(sed -n 's/.*designated => //p' <(codesign -d -r- "$APP" 2>&1))" "$APP" >/dev/null 2>&1 \
   || fail "La signature de l'app ne tient pas."
-codesign -dv --verbose=2 "$APP" 2>&1 | grep -qx "TeamIdentifier=CQ43U6XX4Z" || fail "L'app n'est pas signée par l'équipe CQ43U6XX4Z."
+# Captured first: with pipefail, `grep -q` closing the pipe early would fail the line.
+SIGNATURE="$(codesign -dv --verbose=2 "$APP" 2>&1)"
+[[ $'\n'"$SIGNATURE"$'\n' == *$'\n'"TeamIdentifier=CQ43U6XX4Z"$'\n'* ]] || fail "L'app n'est pas signée par l'équipe CQ43U6XX4Z."
 
 echo "4/6 Notarisation"
 if xcrun notarytool history --keychain-profile "$PROFILE" >/dev/null 2>&1; then
@@ -52,7 +54,7 @@ if xcrun notarytool history --keychain-profile "$PROFILE" >/dev/null 2>&1; then
   RESULT="$(xcrun notarytool submit dist/notarisation.zip --keychain-profile "$PROFILE" --wait --timeout 15m 2>&1 || true)"
   rm -f dist/notarisation.zip
   printf '%s\n' "$RESULT" | tail -3
-  printf '%s\n' "$RESULT" | grep -q "status: Accepted" || fail "Apple a refusé la notarisation (xcrun notarytool log <id> --keychain-profile $PROFILE)."
+  [[ "$RESULT" == *"status: Accepted"* ]] || fail "Apple a refusé la notarisation (xcrun notarytool log <id> --keychain-profile $PROFILE)."
   xcrun stapler staple "$APP" >/dev/null || fail "L'agrafage du ticket de notarisation a échoué."
 elif [ -n "${POLHUB_ALLOW_UNNOTARIZED:-}" ]; then
   echo "    ! profil « $PROFILE » refusé par Apple : app signée mais non notarisée (POLHUB_ALLOW_UNNOTARIZED)."
