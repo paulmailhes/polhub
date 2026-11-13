@@ -52,6 +52,10 @@ check "signée Developer ID (CQ43U6XX4Z)"  has "$details" "$EXPECTED_AUTHORITY"
 check "Hardened Runtime"                  has "$details" "(runtime)"
 check "droit audio-input"                 has "$entitlements" "com.apple.security.device.audio-input"
 check "droit apple-events"                has "$entitlements" "com.apple.security.automation.apple-events"
+# Notarisation : Apple refuse une signature sans horodatage sécurisé ou avec le droit de débogage.
+lacks() { ! grep -qF -- "$2" <<<"$1"; }
+check "horodatage sécurisé"               has "$details" "Timestamp="
+check "pas de droit get-task-allow"       lacks "$entitlements" "get-task-allow"
 
 # Étape 2 : le calcul et la ligne de commande, signés comme l'app.
 HELPERS="$APP/Contents/Helpers"
@@ -60,6 +64,8 @@ for tool in polhub-calcul polhub; do
     check "$tool présent"                 test -x "$HELPERS/$tool"
     check "$tool signé par CQ43U6XX4Z"    has "$tool_details" "TeamIdentifier=CQ43U6XX4Z"
     check "$tool en Hardened Runtime"     has "$tool_details" "(runtime)"
+    check "$tool horodaté"                has "$tool_details" "Timestamp="
+    check "$tool sans get-task-allow"     lacks "$(codesign -d --entitlements - --xml "$HELPERS/$tool" 2>/dev/null)" "get-task-allow"
 done
 check "polhub --help répond"        "$HELPERS/polhub" --help
 check "aucun modèle d'IA lié à l'app"     not_linked_whisperkit

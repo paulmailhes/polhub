@@ -6,6 +6,10 @@ settings:
     # The version comes from the VERSION file, passed by the Makefile (make app, scripts/release.sh).
     MARKETING_VERSION: "0.0.0"
     CURRENT_PROJECT_VERSION: "1"
+    # Apple's notarization refuses a signature without a secure timestamp or with get-task-allow, which
+    # Xcode adds on its own unless told not to.
+    CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
+    OTHER_CODE_SIGN_FLAGS: "--timestamp"
   deploymentTarget:
     macOS: "27.0"
   createIntermediateGroups: true
