@@ -202,6 +202,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         UserDefaults.standard.set(version, forKey: key)
         guard !isDevelopment, let current = SemanticVersion(version) else { return }
+        // The swap script waits for this: the new version has really started.
+        LaunchSignal.write(version: version)
         let updates = UpdateService(current: current, isIdle: { [weak self] in await self?.isQuiet() ?? false })
         self.updates = updates
         updateTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { _ in

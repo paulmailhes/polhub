@@ -18,14 +18,14 @@ gen:
 
 app: gen
 	xcodebuild -project Polhub.xcodeproj -scheme Polhub -configuration Release \
-		-derivedDataPath build/DerivedData -quiet MARKETING_VERSION=$(VERSION) build
+		-derivedDataPath build/DerivedData -quiet MARKETING_VERSION=$(VERSION) CURRENT_PROJECT_VERSION=$(VERSION) build
 	rm -rf $(APP)
 	ditto $(PRODUCT) $(APP)
 
 # La version de développement : identifiant .dev, données à part, détection coupée. Jamais installée.
 app-dev: gen
 	xcodebuild -project Polhub.xcodeproj -scheme PolhubDev -configuration Release \
-		-derivedDataPath build/DerivedData -quiet MARKETING_VERSION=$(VERSION) build
+		-derivedDataPath build/DerivedData -quiet MARKETING_VERSION=$(VERSION) CURRENT_PROJECT_VERSION=$(VERSION) build
 	rm -rf "build/Polhub Dev.app"
 	ditto "build/DerivedData/Build/Products/Release/Polhub Dev.app" "build/Polhub Dev.app"
 	scripts/verify-bundle.sh "build/Polhub Dev.app" fr.paulmailhes.polhub.dev

@@ -17,7 +17,7 @@ final class FakeInstaller: UpdateInstalling, @unchecked Sendable {
         return URL(fileURLWithPath: "/tmp/Polhub.app")
     }
 
-    func launch(newApp: URL) throws {
+    func launch(newApp: URL, version: SemanticVersion) throws {
         lock.withLock { launches += 1 }
     }
 }
@@ -34,7 +34,7 @@ final class Switch: @unchecked Sendable {
 
 @MainActor @Suite struct UpdateServiceTests {
     let start = Date(timeIntervalSince1970: 1_794_600_000)
-    static let available = Data(ReleaseTests.json.utf8)
+    nonisolated static let available = Data(ReleaseTests.json.utf8)
 
     func service(fetch: @escaping @Sendable () async throws -> Data = { UpdateServiceTests.available }, installer: FakeInstaller,
                  idle: Switch = Switch(true), auto: Bool = true, clock: TestNow, quits: QuitCounter = QuitCounter()) -> UpdateService {
@@ -97,6 +97,32 @@ final class Switch: @unchecked Sendable {
         clock.date = start.addingTimeInterval(3_700)
         await updates.tick()
         #expect(installer.prepared == 2)
+    }
+
+    // Revue, important 2 : une version déjà ratée ne se réinstalle pas en boucle.
+    @Test func aVersionThatFailedIsNotTriedAgainAutomatically() async {
+        let installer = FakeInstaller(), clock = TestNow(start)
+        let defaults = UserDefaults(suiteName: "maj-\(UUID().uuidString)")!
+        defaults.set("0.3.1", forKey: UpdateService.failedVersionKey)
+        let updates = UpdateService(current: SemanticVersion("0.3.0")!, fetch: { UpdateServiceTests.available }, installer: installer,
+                                    isIdle: { true }, defaults: defaults, now: { clock.date }, quit: {})
+        await updates.tick()
+        #expect(updates.latest?.version.description == "0.3.1" && installer.prepared == 0)
+        await updates.installNow()
+        #expect(installer.prepared == 1)
+    }
+
+    // Revue, mineur 4 : une demande à la main attend la fin de la réunion, même après la vérification suivante.
+    @Test func aManualRequestSurvivesTheNextCheck() async {
+        let installer = FakeInstaller(), idle = Switch(false), clock = TestNow(start)
+        let updates = service(installer: installer, idle: idle, auto: false, clock: clock)
+        await updates.tick()
+        await updates.installNow()
+        #expect(updates.state == .waitingForIdle)
+        clock.date = start.addingTimeInterval(3_700)
+        idle.value = true
+        await updates.tick()
+        #expect(installer.launched == 1)
     }
 
     @Test func everyStateHasAFrenchText() {

@@ -45,6 +45,7 @@ public enum Releases {
     public static let archiveName = "Polhub.zip"
     /// The public repository the versions are published on.
     public static let listURL = URL(string: "https://api.github.com/repos/paulmailhes/polhub/releases?per_page=20")!
+    static let downloadPrefix = "https://github.com/paulmailhes/polhub/releases/download/"
 
     private struct Payload: Decodable {
         struct Asset: Decodable {
@@ -64,8 +65,10 @@ public enum Releases {
     public static func parse(_ json: Data) throws -> [Release] {
         let iso = ISO8601DateFormatter()
         return try JSONDecoder().decode([Payload].self, from: json).compactMap { payload in
+            // Only an archive of this repository's releases (review, minor 6).
             guard !payload.draft, !payload.prerelease, let version = SemanticVersion(payload.tag_name),
-                  let asset = payload.assets.first(where: { $0.name == archiveName }), let url = URL(string: asset.browser_download_url)
+                  let asset = payload.assets.first(where: { $0.name == archiveName }),
+                  asset.browser_download_url.hasPrefix(downloadPrefix), let url = URL(string: asset.browser_download_url)
             else { return nil }
             return Release(version: version, notes: (payload.body ?? "").trimmingCharacters(in: .whitespacesAndNewlines),
                            publishedAt: payload.published_at.flatMap(iso.date(from:)), archiveURL: url)

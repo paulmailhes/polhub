@@ -17,15 +17,15 @@ import Testing
     static let json = """
     [
       {"tag_name": "v0.3.2", "draft": true, "prerelease": false, "body": "brouillon", "published_at": null,
-       "assets": [{"name": "Polhub.zip", "browser_download_url": "https://github.com/x/y/releases/download/v0.3.2/Polhub.zip"}]},
+       "assets": [{"name": "Polhub.zip", "browser_download_url": "https://github.com/paulmailhes/polhub/releases/download/v0.3.2/Polhub.zip"}]},
       {"tag_name": "v0.3.1", "draft": false, "prerelease": false, "body": "Corrections.", "published_at": "2026-11-14T09:00:00Z",
-       "assets": [{"name": "Polhub.zip", "browser_download_url": "https://github.com/x/y/releases/download/v0.3.1/Polhub.zip"}]},
+       "assets": [{"name": "Polhub.zip", "browser_download_url": "https://github.com/paulmailhes/polhub/releases/download/v0.3.1/Polhub.zip"}]},
       {"tag_name": "v0.4.0-beta", "draft": false, "prerelease": true, "body": "", "published_at": "2026-11-14T10:00:00Z",
-       "assets": [{"name": "Polhub.zip", "browser_download_url": "https://github.com/x/y/releases/download/v0.4.0-beta/Polhub.zip"}]},
+       "assets": [{"name": "Polhub.zip", "browser_download_url": "https://github.com/paulmailhes/polhub/releases/download/v0.4.0-beta/Polhub.zip"}]},
       {"tag_name": "v0.3.3", "draft": false, "prerelease": false, "body": "Sans archive.", "published_at": "2026-11-14T11:00:00Z",
-       "assets": [{"name": "autre.zip", "browser_download_url": "https://github.com/x/y/releases/download/v0.3.3/autre.zip"}]},
+       "assets": [{"name": "autre.zip", "browser_download_url": "https://github.com/paulmailhes/polhub/releases/download/v0.3.3/autre.zip"}]},
       {"tag_name": "v0.3.0", "draft": false, "prerelease": false, "body": "Première version.", "published_at": "2026-11-13T18:00:00Z",
-       "assets": [{"name": "Polhub.zip", "browser_download_url": "https://github.com/x/y/releases/download/v0.3.0/Polhub.zip"}]}
+       "assets": [{"name": "Polhub.zip", "browser_download_url": "https://github.com/paulmailhes/polhub/releases/download/v0.3.0/Polhub.zip"}]}
     ]
     """
 
@@ -33,7 +33,7 @@ import Testing
         let releases = try Releases.parse(Data(Self.json.utf8))
         #expect(releases.map(\.version.description) == ["0.3.1", "0.3.0"])
         #expect(releases.first?.notes == "Corrections.")
-        #expect(releases.first?.archiveURL.absoluteString == "https://github.com/x/y/releases/download/v0.3.1/Polhub.zip")
+        #expect(releases.first?.archiveURL.absoluteString == "https://github.com/paulmailhes/polhub/releases/download/v0.3.1/Polhub.zip")
     }
 
     @Test func onlyNewerReleasesNewestFirst() throws {

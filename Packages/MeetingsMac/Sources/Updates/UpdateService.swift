@@ -2,7 +2,7 @@ import Foundation
 
 public protocol UpdateInstalling: Sendable {
     func prepare(_ release: Release) async throws -> URL
-    func launch(newApp: URL) throws
+    func launch(newApp: URL, version: SemanticVersion) throws
 }
 
 extension Installer: UpdateInstalling {}
@@ -17,6 +17,8 @@ public final class UpdateService: ObservableObject {
     }
 
     public static let autoKey = "updates.autoInstall"
+    /// Written by the swap script when a version is rolled back: it is not tried again on its own.
+    nonisolated public static let failedVersionKey = "updates.failedVersion"
     public static let checkInterval: TimeInterval = 3_600
     /// A failed installation is tried again an hour later, not at every tick.
     public static let retryAfter: TimeInterval = 3_600
@@ -37,6 +39,8 @@ public final class UpdateService: ObservableObject {
     private let quit: @MainActor () -> Void
     private var lastFailure: Date?
     private var busy = false
+    /// « Mettre à jour » was clicked: it waits for a quiet moment even with automatic installs off.
+    private var requested = false
 
     public init(
         current: SemanticVersion, fetch: @escaping @Sendable () async throws -> Data = UpdateService.fetchFromGitHub,
@@ -67,25 +71,38 @@ public final class UpdateService: ObservableObject {
 
     public func check() async {
         guard !busy else { return }
+        busy = true
+        defer { busy = false }
+        let waiting = state == .waitingForIdle
         state = .checking
         do {
             newer = Releases.newer(than: current, in: try Releases.parse(try await fetch()))
-            state = .idle
+            state = waiting && latest != nil ? .waitingForIdle : .idle
         } catch {
             state = .failed("GitHub ne répond pas : la vérification reprendra dans une heure.")
         }
         lastCheck = now()
     }
 
+    /// A version rolled back by the swap script is not installed again automatically.
+    var failedVersion: SemanticVersion? {
+        defaults.string(forKey: Self.failedVersionKey).flatMap(SemanticVersion.init)
+    }
+
     /// « Mettre à jour maintenant », or the automatic installation: waits for a quiet moment.
     public func installNow() async {
+        requested = true
+        await install()
+    }
+
+    private func install() async {
         guard !busy, let release = latest else { return }
+        busy = true
+        defer { busy = false }
         guard await isIdle() else {
             state = .waitingForIdle
             return
         }
-        busy = true
-        defer { busy = false }
         state = .downloading
         do {
             let app = try await installer.prepare(release)
@@ -95,7 +112,8 @@ public final class UpdateService: ObservableObject {
                 return
             }
             state = .installing
-            try installer.launch(newApp: app)
+            try installer.launch(newApp: app, version: release.version)
+            requested = false
             quit()
         } catch {
             lastFailure = now()
@@ -108,9 +126,11 @@ public final class UpdateService: ObservableObject {
         if lastCheck.map({ now().timeIntervalSince($0) >= Self.checkInterval }) ?? true {
             await check()
         }
-        guard latest != nil, autoInstall || state == .waitingForIdle else { return }
+        guard let latest else { return }
+        let automatic = autoInstall && latest.version != failedVersion
+        guard automatic || requested || state == .waitingForIdle else { return }
         if let failure = lastFailure, now().timeIntervalSince(failure) < Self.retryAfter { return }
-        await installNow()
+        await install()
     }
 
     /// The sentence the screen shows for a state, if any.
