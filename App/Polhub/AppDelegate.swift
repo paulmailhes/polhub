@@ -29,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var updateTimer: Timer?
     let router = WindowRouter()
     private var diagnostic: DiagnosticModel?
+    private var externalChanges: ExternalChangeSignal.Listener?
     private var checklistObserver: AnyCancellable?
     private var terminationSource: DispatchSourceSignal?
     private var guideObserver: AnyCancellable?
@@ -127,6 +128,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let database = try AppDatabase(path: paths.database.path)
             self.database = database
             store = MeetingStore(database)
+            // A session wrote through `polhub mcp`: the views fetch again (13/11).
+            externalChanges = ExternalChangeSignal.listen(queue: .main) { try? database.notifyExternalChanges() }
         } catch {
             Self.alertThenExit("La base des réunions ne s'ouvre pas : \(error.localizedDescription)")
         }

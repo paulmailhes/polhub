@@ -109,10 +109,49 @@ struct Fixture {
         #expect(HelperVersion.read(helper: URL(fileURLWithPath: "/usr/bin/true")) == nil)
     }
 
-    @Test func toolsListNamesTheThreeTools() throws {
+    @Test func toolsListNamesTheMeetingTools() throws {
         let answer = try call(MCPServer(reader: try Fixture().reader), #"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#)
         let tools = try #require((answer["result"] as? [String: Any])?["tools"] as? [[String: Any]])
         #expect(tools.compactMap { $0["name"] as? String } == ["reunions", "reunion", "chercher"])
+    }
+
+    /// With the projects (13/11): the vocabulary of the `obsidian` server it replaces.
+    @Test func withProjectsTheServerOffersTheObsidianTools() throws {
+        let fixture = try DeskFixture()
+        let server = MCPServer(reader: try Fixture().reader, desk: fixture.desk())
+        let answer = try call(server, #"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#)
+        let tools = try #require((answer["result"] as? [String: Any])?["tools"] as? [[String: Any]])
+        #expect(tools.compactMap { $0["name"] as? String }
+            == ["projets", "contexte", "actions", "reunions", "reunion", "chercher", "action", "note", "journal", "fait"])
+        let writing = tools.filter { ($0["annotations"] as? [String: Any])?["readOnlyHint"] as? Bool == false }.compactMap { $0["name"] as? String }
+        #expect(writing == ["action", "note", "journal", "fait"])
+    }
+
+    @Test func aWriteToolWritesThenTellsTheApp() throws {
+        let fixture = try DeskFixture()
+        let writes = WriteCounter()
+        let server = MCPServer(reader: try Fixture().reader, desk: fixture.desk(), onWrite: { writes.add() })
+        let added = try call(server, #"{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"action","arguments":{"projet":"Atelier Nord","texte":"Corriger la page Contact"}}}"#)
+        #expect(!toolText(added).1 && toolText(added).0.contains("« Atelier Nord »"))
+        #expect(writes.count == 1)
+        let listed = try call(server, #"{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"actions","arguments":{"projet":"Atelier Nord"}}}"#)
+        #expect(toolText(listed).0.contains("3. Corriger la page Contact"))
+        #expect(writes.count == 1)
+        let checked = try call(server, #"{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"fait","arguments":{"projet":"Atelier Nord","numeros":[3]}}}"#)
+        #expect(toolText(checked).0.contains("Corriger la page Contact") && writes.count == 2)
+        let refused = try call(server, #"{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"note","arguments":{"projet":"Atelier Nord"}}}"#)
+        #expect(toolText(refused).1 && writes.count == 2)
+        let journal = try call(server, #"{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"journal","arguments":{"projet":"Atelier Nord","titre":"Contact","details":["Formulaire branché."]}}}"#)
+        #expect(!toolText(journal).1 && writes.count == 3)
+    }
+
+    @Test func meetingsOfAProjectAndSearchAcrossProjects() throws {
+        let fixture = try DeskFixture()
+        let server = MCPServer(reader: try Fixture().reader, desk: fixture.desk())
+        let meetings = try call(server, #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"reunions","arguments":{"projet":"Atelier Nord"}}}"#)
+        #expect(toolText(meetings).0.contains("Point maquette"))
+        let found = try call(server, #"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"chercher","arguments":{"texte":"maquette"}}}"#)
+        #expect(toolText(found).0.contains("Atelier Nord") && toolText(found).0.contains("Relire la maquette"))
     }
 
     @Test func callingReunionReturnsTheDialogue() throws {
@@ -137,4 +176,11 @@ struct Fixture {
     @Test func notificationsGetNoAnswer() throws {
         #expect(MCPServer(reader: try Fixture().reader).handle(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#) == nil)
     }
+}
+
+final class WriteCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+    var count: Int { lock.withLock { value } }
+    func add() { lock.withLock { value += 1 } }
 }

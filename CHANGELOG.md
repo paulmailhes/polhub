@@ -3,6 +3,16 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.4.0 — 13 novembre 2026
+
+- **Suivi de projet par Claude Code** : le serveur MCP `polhub` reprend les outils du serveur Obsidian,
+  avec les mêmes noms — `projets`, `contexte`, `actions`, et pour écrire `action`, `note`, `journal`,
+  `fait`. Le projet se déduit du dossier de la session. `reunions` prend un projet, `chercher`
+  cherche aussi dans les projets.
+- Ce que Claude Code écrit apparaît tout de suite dans l'app.
+- La commande `polhub` lit la base même quand l'app est fermée (pendant une mise à jour, par exemple).
+- L'import du coffre prévient qu'il remplace aussi ce que Claude Code a écrit dans l'app.
+
 ## 0.3.2 — 13 novembre 2026
 
 - La barre latérale ne garde que **Projets**, **Réunions** et **Réglages**. Diagnostic et Journal

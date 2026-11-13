@@ -87,7 +87,7 @@ public struct ProjectsView: View {
             Button("Remplacer", role: .destructive) { if let pending { apply(pending) } }
             Button("Annuler", role: .cancel) {}
         } message: {
-            Text("Ce qui a été modifié dans l'app sera perdu. Obsidian n'est pas touché.")
+            Text("Ce qui a été modifié dans l'app sera perdu, y compris les actions, notes et journaux écrits par Claude Code. Obsidian n'est pas touché.")
         }
         .fileImporter(isPresented: $choosingVault, allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result {

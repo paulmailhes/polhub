@@ -31,6 +31,14 @@ public struct ProjectStore: Sendable {
         try writer.write { try project.save($0) }
     }
 
+    /// The notes, written by a session (`polhub mcp`): not a change of Paul's, so `lastEditedAt` stays.
+    public func saveNotes(_ project: ProjectRow) throws {
+        try writer.write { db in
+            try db.execute(sql: "UPDATE project SET notes = ?, updatedAt = ? WHERE id = ?",
+                           arguments: [project.notes, project.updatedAt, Self.key(project.id)])
+        }
+    }
+
     /// A new project at the bottom of its column.
     @discardableResult
     public func addProject(name: String, status: ProjectStatus, at date: Date) throws -> ProjectRow {

@@ -31,6 +31,34 @@ public final class AppDatabase: Sendable {
         return AppDatabase(unmigrated: try DatabasePool(path: path, configuration: configuration))
     }
 
+    /// For `polhub mcp`, whose project tools write (13/11): reads and writes, waits up to 5 s for the app,
+    /// and never migrates — only the app does. The base must already be at the app's version.
+    public static func forTools(path: String) throws -> AppDatabase {
+        var configuration = Configuration()
+        configuration.busyMode = .timeout(5)
+        return AppDatabase(unmigrated: try DatabasePool(path: path, configuration: configuration))
+    }
+
+    /// For the command line's reading: read-only when the app runs; when it is closed, SQLite has removed
+    /// the base's `-shm` and a read-only opening fails, so the base opens for writing — never migrated,
+    /// and nothing is written (13/11).
+    public static func forReading(path: String) throws -> AppDatabase {
+        if let base = try? readOnly(path: path), (try? base.writer.read { try $0.tableExists("meeting") }) != nil {
+            return base
+        }
+        return try forTools(path: path)
+    }
+
+    /// Whether the base has the project tables (migration `v3`).
+    public func hasProjects() throws -> Bool {
+        try writer.read { try $0.tableExists("project") && $0.tableExists("project_journal") }
+    }
+
+    /// Another process (`polhub mcp`) wrote in the base: the app's observations fetch again.
+    public func notifyExternalChanges() throws {
+        try writer.write { try $0.notifyChanges(in: .fullDatabase) }
+    }
+
     /// Whether the base has the tables of step 2: a base left by an older app does not.
     public func isAtStep2() throws -> Bool {
         try writer.read { try $0.tableExists("job") && $0.tableExists("utterance") }

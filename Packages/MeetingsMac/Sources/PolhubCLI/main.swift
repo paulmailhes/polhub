@@ -2,7 +2,8 @@ import Foundation
 import Persistence
 import ReadingKit
 
-/// `polhub`: Paul's meetings, read-only, for the terminal and for Claude Code (`polhub mcp`).
+/// `polhub`: Paul's meetings for the terminal, read-only, and for Claude Code the meetings and the projects
+/// (`polhub mcp`, whose project tools write).
 let usage = """
 Usage :
   polhub reunions [--depuis AAAA-MM-JJ] [--limite N]
@@ -32,7 +33,7 @@ guard let command = arguments.first, command != "--help", command != "-h" else {
 }
 guard FileManager.default.fileExists(atPath: basePath) else { fail("La base des réunions est introuvable : \(basePath)") }
 let database: AppDatabase
-do { database = try AppDatabase.readOnly(path: basePath) } catch { fail("La base ne s'ouvre pas : \(error)") }
+do { database = try AppDatabase.forReading(path: basePath) } catch { fail("La base ne s'ouvre pas : \(error)") }
 guard (try? database.isAtStep2()) == true else {
     fail("La base des réunions n'est pas encore à jour : la dernière version de Polhub doit être ouverte une fois.")
 }
@@ -58,7 +59,14 @@ do {
         print(try reader.search(arguments.dropFirst().joined(separator: " "), limit: limit))
     case "mcp":
         let helper = Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments[0])
-        let server = MCPServer(reader: reader, version: HelperVersion.read(helper: helper) ?? "0.0.0")
+        // The project tools write (13/11): the base opens for writing, never migrated, and the app is told.
+        var desk: ProjectDesk?
+        if let tools = try? AppDatabase.forTools(path: basePath), (try? tools.hasProjects()) == true {
+            desk = ProjectDesk(projects: ProjectStore(tools), meetings: MeetingStore(tools),
+                               workingDirectory: FileManager.default.currentDirectoryPath)
+        }
+        let server = MCPServer(reader: reader, desk: desk, version: HelperVersion.read(helper: helper) ?? "0.0.0",
+                               onWrite: { ExternalChangeSignal.post() })
         while let line = readLine(strippingNewline: true) {
             guard !line.trimmingCharacters(in: .whitespaces).isEmpty, let answer = server.handle(line) else { continue }
             FileHandle.standardOutput.write(Data((answer + "\n").utf8))
