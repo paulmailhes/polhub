@@ -3,6 +3,21 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.5.1 — 13 novembre 2026
+
+Corrections de la relecture de la 0.5.0, pour que rien de ce que tu fais ne se perde :
+
+- Un nouvel import des projets garde les liens entre contacts et projets (ceux que tu as retirés
+  aussi) et les rendez-vous que tu as rangés.
+- Tu peux sortir un rendez-vous d'un projet (« Aucun ») : il y reste.
+- La boucle automatique ne revient jamais sur un choix que tu viens de faire.
+- Un nouvel import de l'historique ajoute seulement ce qui manque : tes modifications, tes réunions
+  mises à la corbeille et tes actions cochées restent telles quelles ; une adresse déjà utilisée ne
+  l'arrête plus.
+- Une ancienne réunion importée n'est jamais envoyée en transcription.
+- La page d'un projet n'enregistre que le champ que tu modifies : une note écrite pendant ce temps par
+  Claude Code reste.
+
 ## 0.5.0 — 13 novembre 2026
 
 - **Calendrier** : la semaine de tes agendas Google (connexion directe, en lecture seule, qui tient

@@ -31,6 +31,36 @@ public struct ProjectStore: Sendable {
         try writer.write { try project.save($0) }
     }
 
+    /// What Paul changed on the project's page, and only that, over the project as it is now: a note a
+    /// session wrote meanwhile stays (review, Important 7).
+    public func saveChanges(from original: ProjectRow, to edited: ProjectRow, at date: Date) throws {
+        let encoder = JSONEncoder(), decoder = JSONDecoder()
+        func fields(_ project: ProjectRow) throws -> [String: Any] {
+            try JSONSerialization.jsonObject(with: encoder.encode(project)) as? [String: Any] ?? [:]
+        }
+        try writer.write { db in
+            guard let current = try ProjectRow.fetchOne(db, key: Self.key(edited.id)) else { return }
+            let before = try fields(original), after = try fields(edited)
+            var merged = try fields(current)
+            for key in Set(before.keys).union(after.keys) where !Self.same(before[key], after[key]) {
+                merged[key] = after[key] ?? NSNull()
+            }
+            var project = try decoder.decode(ProjectRow.self, from: JSONSerialization.data(withJSONObject: merged))
+            project.lastEditedAt = date
+            project.updatedAt = date
+            try project.update(db)
+        }
+    }
+
+    static func same(_ a: Any?, _ b: Any?) -> Bool {
+        switch (a, b) {
+        case (nil, nil): true
+        case let (a?, b?): (a as? NSObject)?.isEqual(b) ?? false
+        default: false
+        }
+    }
+
+
     /// The notes, written by a session (`polhub mcp`): not a change of Paul's, so `lastEditedAt` stays.
     public func saveNotes(_ project: ProjectRow) throws {
         try writer.write { db in
@@ -101,6 +131,14 @@ public struct ProjectStore: Sendable {
             let filed = try Row.fetchAll(db, sql: """
                 SELECT meeting.id AS meetingID, project.name AS name FROM meeting JOIN project ON project.id = meeting.projectID
                 """).map { (meetingID: $0["meetingID"] as String, name: $0["name"] as String) }
+            // Base v4 (review, Critical 1): the contacts' links, removed ones included, and the events' filings
+            // follow their project by name, as the meetings do.
+            let links = try Row.fetchAll(db, sql: """
+                SELECT contact_project.*, project.name AS name FROM contact_project JOIN project ON project.id = contact_project.projectID
+                """)
+            let events = try Row.fetchAll(db, sql: """
+                SELECT calendar_event.id AS eventID, project.name AS name FROM calendar_event JOIN project ON project.id = calendar_event.projectID
+                """).map { (eventID: $0["eventID"] as String, name: $0["name"] as String) }
             try db.execute(sql: "UPDATE meeting SET projectID = NULL WHERE projectID IS NOT NULL")
             // The actions of a meeting's summary (step 3) stay; those of the vault go with their project.
             try db.execute(sql: "DELETE FROM action WHERE projectID IS NOT NULL AND meetingID IS NULL")
@@ -114,6 +152,16 @@ public struct ProjectStore: Sendable {
             for (meetingID, name) in filed {
                 guard let id = byName[name] else { continue }
                 try db.execute(sql: "UPDATE meeting SET projectID = ? WHERE id = ?", arguments: [Self.key(id), meetingID])
+            }
+            for link in links {
+                guard let id = byName[link["name"] as String] else { continue }
+                try db.execute(sql: "INSERT OR REPLACE INTO contact_project (contactID, projectID, origin, excluded, createdAt) VALUES (?, ?, ?, ?, ?)",
+                               arguments: [link["contactID"] as String, Self.key(id), link["origin"] as String, link["excluded"] as Bool,
+                                           link["createdAt"] as Date])
+            }
+            for (eventID, name) in events {
+                guard let id = byName[name] else { continue }
+                try db.execute(sql: "UPDATE calendar_event SET projectID = ? WHERE id = ?", arguments: [Self.key(id), eventID])
             }
             // The actions of a meeting follow its project (base v4: the vault's old meetings have some).
             try db.execute(sql: """
@@ -139,6 +187,10 @@ public struct ProjectStore: Sendable {
                 try action.insert(db)
             }
         }
+    }
+
+    public func actions(meetingID: UUID) throws -> [ActionRow] {
+        try writer.read { try ActionRow.filter(Column("meetingID") == Self.key(meetingID)).order(Column("position")).fetchAll($0) }
     }
 
     public func saveAction(_ action: ActionRow) throws {

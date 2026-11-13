@@ -115,4 +115,42 @@ import Testing
         _ = try HistoryImport.apply(snapshot, database: stores.database, now: now)
         #expect(try stores.contacts.contacts(projectID: alpha.id).isEmpty)
     }
+
+    /// Review, Important 4: a second import adds what is missing and overwrites nothing Paul did.
+    @Test func aSecondImportKeepsPaulsEdits() throws {
+        let stores = try stores()
+        let snapshot = try HistoryReader.read(vault: fixtureVault)
+        _ = try HistoryImport.apply(snapshot, database: stores.database, now: now)
+        var camille = try #require(try stores.contacts.contact(email: "camille.martin@exemple-studio.fr"))
+        camille.company = "Nouveau studio"
+        try stores.contacts.save(camille, at: now)
+        let meeting = try imported(stores)
+        var action = try #require(try stores.projects.actions(projectID: meeting.projectID!).first { !$0.done })
+        action.done = true
+        try stores.projects.saveAction(action)
+        let bare = try #require(try stores.meetings.importedMeeting(from: "database/Meet/2026-11-01 Point Alpha.md"))
+        try stores.meetings.softDelete(id: bare.id, at: now)
+
+        _ = try HistoryImport.apply(snapshot, database: stores.database, now: now)
+
+        #expect(try stores.contacts.contact(email: "camille.martin@exemple-studio.fr")?.company == "Nouveau studio")
+        #expect(try stores.projects.actions(projectID: meeting.projectID!).allSatisfy(\.done))
+        #expect(try stores.meetings.meeting(id: bare.id)?.deletedAt != nil)
+    }
+
+    /// Review, Important 5: an address already used by another contact never stops the import.
+    @Test func anAddressAlreadyUsedDoesNotStopTheImport() throws {
+        let stores = try stores()
+        func snapshot(email: String?) -> HistorySnapshot {
+            var jules = ImportedContact(name: "Jules (Beta)", relativePath: "database/Contacts/Jules (Beta).md")
+            jules.email = email
+            let nadia = ImportedContact(name: "Nadia", relativePath: "database/Contacts/Nadia.md")
+            return HistorySnapshot(contacts: [jules, nadia], meetings: [], warnings: [])
+        }
+        _ = try HistoryImport.apply(snapshot(email: nil), database: stores.database, now: now)
+        try stores.contacts.upsert(email: "jules@beta.fr", name: "Jules", company: nil, at: now)
+        let report = try HistoryImport.apply(snapshot(email: "jules@beta.fr"), database: stores.database, now: now)
+        #expect(report.contacts == 2)
+        #expect(try stores.contacts.contacts().map(\.name).contains("Nadia"))
+    }
 }

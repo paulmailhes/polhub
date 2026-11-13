@@ -100,7 +100,12 @@ public struct LinkRunner: Sendable {
         self.database = database
     }
 
+    /// One loop at a time: a sync's and a gesture's never interleave (review, Important 3).
+    static let running = NSLock()
+
     public func run(now: Date) throws {
+        Self.running.lock()
+        defer { Self.running.unlock() }
         // Twice: links made by the first pass (a guest now in a project) can file other events.
         try pass(now: now)
         try pass(now: now)
@@ -150,11 +155,13 @@ public struct LinkRunner: Sendable {
         }
         for index in events.indices {
             let event = events[index]
+            // Paul's filing, « no project » included, is never recomputed (review, Important 2).
+            if event.projectOrigin == .paul { continue }
             let meetingProject = event.meetingID.flatMap { meetingByID[$0]?.projectID }
             let found = Linker.project(for: event, meetingProject: meetingProject, seriesProjects: seriesProjects,
                                        contactProjects: contactProjects, projects: projectList)
             if found?.id != event.projectID || found?.origin != event.projectOrigin {
-                try calendar.setProject(eventID: event.id, projectID: found?.id, origin: found?.origin)
+                try calendar.setAutomaticProject(eventID: event.id, projectID: found?.id, origin: found?.origin)
                 events[index].projectID = found?.id
                 events[index].projectOrigin = found?.origin
             }

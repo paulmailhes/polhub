@@ -118,6 +118,23 @@ import Testing
         #expect(Set(try contacts.participants(meetingID: recorded.id).map(\.name)) == ["Camille", "Jules Roy"])
     }
 
+    /// Review, Important 2: Paul takes an event out of a project, and it stays out.
+    @Test func paulCanTakeAnEventOutOfAProject() throws {
+        let database = try AppDatabase.inMemory()
+        let calendar = CalendarStore(database)
+        _ = try ProjectStore(database).addProject(name: "Alpha", status: .idee, at: now)
+        try calendar.applyGoogle(account: "moi@exemple.fr", changed: [
+            CalendarEventRow(account: "moi@exemple.fr", eventID: "e1", title: "Point Alpha", startAt: now, endAt: now.addingTimeInterval(1_800), updatedAt: now),
+        ], cancelled: [], at: now)
+        let id = CalendarEventRow.key(account: "moi@exemple.fr", eventID: "e1")
+        try LinkRunner(database: database).run(now: now)
+        #expect(try calendar.event(id: id)?.projectOrigin == .titre)
+        try calendar.setProject(eventID: id, projectID: nil, origin: .paul)
+        try LinkRunner(database: database).run(now: now)
+        let event = try #require(try calendar.event(id: id))
+        #expect(event.projectID == nil && event.projectOrigin == .paul)
+    }
+
     @Test func anImportedMeetingFindsItsEventByGooglesID() throws {
         let database = try AppDatabase.inMemory()
         let calendar = CalendarStore(database), meetings = MeetingStore(database)

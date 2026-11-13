@@ -88,10 +88,21 @@ public struct CalendarStore: Sendable {
         try writer.read { try CalendarEventRow.filter(Column("projectID") == Self.key(projectID)).order(Column("startAt")).fetchAll($0) }
     }
 
+    /// Paul's filing (origin `.paul`), « no project » included: the loop never changes it.
     public func setProject(eventID: String, projectID: UUID?, origin: EventProjectOrigin?) throws {
         try writer.write { db in
             try db.execute(sql: "UPDATE calendar_event SET projectID = ?, projectOrigin = ? WHERE id = ?",
-                           arguments: [projectID.map(Self.key), projectID == nil ? nil : origin?.rawValue, eventID])
+                           arguments: [projectID.map(Self.key), origin?.rawValue, eventID])
+        }
+    }
+
+    /// A filing found by the loop: never over Paul's, even one he made while the loop was running (review, Important 3).
+    public func setAutomaticProject(eventID: String, projectID: UUID?, origin: EventProjectOrigin?) throws {
+        try writer.write { db in
+            try db.execute(sql: """
+                UPDATE calendar_event SET projectID = ?, projectOrigin = ?
+                WHERE id = ? AND (projectOrigin IS NULL OR projectOrigin != 'paul')
+                """, arguments: [projectID.map(Self.key), projectID == nil ? nil : origin?.rawValue, eventID])
         }
     }
 

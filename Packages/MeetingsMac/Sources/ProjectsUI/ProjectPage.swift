@@ -45,8 +45,9 @@ struct ProjectPage: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .onAppear(perform: reload)
-        .onChange(of: draft) { _, changed in
-            if changed != project { library.save(changed) }
+        .onChange(of: draft) { previous, changed in
+            // Only what Paul just changed: a note a session wrote meanwhile stays (review, Important 7).
+            if changed != previous { library.save(from: previous, to: changed) }
         }
     }
 

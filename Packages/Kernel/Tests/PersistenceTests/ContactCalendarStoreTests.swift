@@ -131,3 +131,77 @@ import Testing
         #expect(try projects.actions(projectID: again.id).map(\.text) == ["Envoyer le devis"])
     }
 }
+
+/// Fixes of the review of 13/11.
+@Suite struct ReviewFixTests {
+    let now = Date(timeIntervalSince1970: 1_794_562_920)
+
+    /// Critical 1: a new import of the projects keeps the contacts' links (removed ones included) and
+    /// Paul's filing of events.
+    @Test func aProjectReimportKeepsContactLinksAndPaulsFilings() throws {
+        let database = try AppDatabase.inMemory()
+        let projects = ProjectStore(database), contacts = ContactStore(database), calendar = CalendarStore(database)
+        let alpha = ProjectRow(name: "Alpha", status: .idee, createdAt: now)
+        try projects.replaceAll([alpha], actions: [], journal: [])
+        let camille = try contacts.upsert(email: "camille@exemple.fr", name: "Camille", company: nil, at: now)
+        let jules = try contacts.upsert(email: "jules@exemple.fr", name: "Jules", company: nil, at: now)
+        try contacts.link(contactID: camille.id, projectID: alpha.id, origin: .coffre, at: now)
+        try contacts.exclude(contactID: jules.id, projectID: alpha.id, at: now)
+        try calendar.applyGoogle(account: "moi@exemple.fr", changed: [CalendarEventRow(account: "moi@exemple.fr", eventID: "e1", title: "Point",
+                                                                                       startAt: now, endAt: now.addingTimeInterval(600), updatedAt: now)],
+                                 cancelled: [], at: now)
+        let id = CalendarEventRow.key(account: "moi@exemple.fr", eventID: "e1")
+        try calendar.setProject(eventID: id, projectID: alpha.id, origin: .paul)
+
+        let again = ProjectRow(name: "Alpha", status: .priorite1, createdAt: now)
+        try projects.replaceAll([again], actions: [], journal: [])
+
+        #expect(try contacts.contacts(projectID: again.id).map(\.name) == ["Camille"])
+        #expect(try contacts.links().first { $0.contactID == jules.id }?.excluded == true)
+        let event = try #require(try calendar.event(id: id))
+        #expect(event.projectID == again.id && event.projectOrigin == .paul)
+    }
+
+    /// Important 3: an automatic filing never overwrites Paul's, even computed before it.
+    @Test func anAutomaticFilingNeverOverwritesPauls() throws {
+        let database = try AppDatabase.inMemory()
+        let calendar = CalendarStore(database)
+        let alpha = try ProjectStore(database).addProject(name: "Alpha", status: .idee, at: now)
+        let beta = try ProjectStore(database).addProject(name: "Beta", status: .idee, at: now)
+        try calendar.applyGoogle(account: "moi@exemple.fr", changed: [CalendarEventRow(account: "moi@exemple.fr", eventID: "e1", title: "Point",
+                                                                                       startAt: now, endAt: now.addingTimeInterval(600), updatedAt: now)],
+                                 cancelled: [], at: now)
+        let id = CalendarEventRow.key(account: "moi@exemple.fr", eventID: "e1")
+        try calendar.setProject(eventID: id, projectID: alpha.id, origin: .paul)
+        try calendar.setAutomaticProject(eventID: id, projectID: beta.id, origin: .invites)
+        #expect(try calendar.event(id: id)?.projectID == alpha.id)
+        // Paul's « no project » is a choice too.
+        try calendar.setProject(eventID: id, projectID: nil, origin: .paul)
+        try calendar.setAutomaticProject(eventID: id, projectID: beta.id, origin: .titre)
+        let event = try #require(try calendar.event(id: id))
+        #expect(event.projectID == nil && event.projectOrigin == .paul)
+    }
+
+    /// Important 6: an old meeting of the vault is never sent to transcription.
+    @Test func importedMeetingsAreNeverQueued() throws {
+        let database = try AppDatabase.inMemory()
+        let row = MeetingRow(createdAt: now, status: .ended, source: .imported, candidateKey: "coffre/a", title: "Ancien", startedAt: now)
+        try MeetingStore(database).saveImported(row, importedFrom: "database/Meet/a.md", googleEventID: nil, summary: nil)
+        #expect(try TranscriptStore(database).meetingsAwaitingTranscription().isEmpty)
+    }
+
+    /// Important 7: the project page saves only what Paul changed, over what a session wrote meanwhile.
+    @Test func thePageSavesOnlyWhatPaulChanged() throws {
+        let database = try AppDatabase.inMemory()
+        let projects = ProjectStore(database)
+        let opened = try projects.addProject(name: "Alpha", status: .idee, at: now)
+        var written = try #require(try projects.project(id: opened.id))
+        written.notes = "- 13/11/2026 : écrit par une session."
+        try projects.saveNotes(written)
+        var edited = opened
+        edited.client = "Studio Sud"
+        try projects.saveChanges(from: opened, to: edited, at: now)
+        let stored = try #require(try projects.project(id: opened.id))
+        #expect(stored.client == "Studio Sud" && stored.notes == "- 13/11/2026 : écrit par une session.")
+    }
+}

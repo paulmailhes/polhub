@@ -160,27 +160,32 @@ public enum HistoryImport {
         let projectByName = Dictionary(try projects.projects().map { (fold($0.name), $0.id) }, uniquingKeysWith: { first, _ in first })
         var report = HistoryReport(warnings: snapshot.warnings)
 
-        // Contacts: by their note, else their address, else their name.
+        // Contacts: by their note, else their address, else their name. A known contact only gets what it
+        // lacks, and never an address another contact has (review, Important 4 and 5).
         var known = try contacts.contacts()
         for imported in snapshot.contacts {
-            var contact = known.first { $0.importedFrom == imported.relativePath }
-                ?? imported.email.flatMap { email in known.first { $0.email == email } }
-                ?? known.first { fold($0.name) == fold(imported.name) }
-                ?? ContactRow(name: imported.name, createdAt: now)
-            contact.name = imported.name
-            contact.email = imported.email ?? contact.email
-            contact.company = imported.company ?? contact.company
-            contact.phone = imported.phone ?? contact.phone
-            if !imported.notes.isEmpty { contact.notes = imported.notes }
-            contact.importedFrom = imported.relativePath
-            contact.deletedAt = nil
-            try contacts.save(contact, at: now)
-            for name in imported.projects {
-                guard let projectID = projectByName[fold(name)] else { continue }
-                try contacts.link(contactID: contact.id, projectID: projectID, origin: .coffre, at: now)
+            do {
+                let existing = known.first { $0.importedFrom == imported.relativePath }
+                    ?? imported.email.flatMap { email in known.first { $0.email == email } }
+                    ?? known.first { fold($0.name) == fold(imported.name) }
+                let addressFree = imported.email.map { email in !known.contains { $0.email == email && $0.id != existing?.id } } ?? false
+                var contact = existing ?? ContactRow(name: imported.name, createdAt: now)
+                let before = contact
+                if contact.email == nil, addressFree { contact.email = imported.email }
+                if contact.company == nil { contact.company = imported.company }
+                if contact.phone == nil { contact.phone = imported.phone }
+                if contact.notes.isEmpty { contact.notes = imported.notes }
+                if contact.importedFrom == nil { contact.importedFrom = imported.relativePath }
+                if existing == nil || contact != before { try contacts.save(contact, at: now) }
+                for name in imported.projects {
+                    guard let projectID = projectByName[fold(name)] else { continue }
+                    try contacts.link(contactID: contact.id, projectID: projectID, origin: .coffre, at: now)
+                }
+                report.contacts += 1
+                known = try contacts.contacts()
+            } catch {
+                report.warnings.append("« \(imported.name) » : contact laissé de côté (\(error)).")
             }
-            report.contacts += 1
-            known = try contacts.contacts()
         }
 
         // Meetings.
@@ -202,7 +207,16 @@ public enum HistoryImport {
                     participantIDs.append(contact.id)
                 }
             }
+            // Imported before (even trashed since): left as Paul has it now (review, Important 4).
+            if let existing = try meetings.importedMeeting(from: imported.relativePath) {
+                if existing.deletedAt == nil {
+                    try contacts.setParticipants(meetingID: existing.id, contactIDs: participantIDs + (try contacts.participants(meetingID: existing.id).map(\.id)))
+                }
+                report.meetings += 1
+                continue
+            }
             let meetingID: UUID
+            var isNew = false
             if let twin = recorded.first(where: { abs($0.startedAt.timeIntervalSince(date)) <= sameMeeting }) {
                 // Polhub recorded it: its own transcript stays; the vault adds what it lacks.
                 meetingID = twin.id
@@ -214,9 +228,9 @@ public enum HistoryImport {
                 if let eventID = imported.eventID { try meetings.setGoogleEventID(meetingID: twin.id, eventID: eventID) }
                 report.merged += 1
             } else {
-                let existing = try meetings.importedMeeting(from: imported.relativePath)
+                isNew = true
                 let row = MeetingRow(
-                    id: existing?.id ?? UUID(), createdAt: existing?.createdAt ?? now, updatedAt: now, status: .ended, source: .imported,
+                    createdAt: now, updatedAt: now, status: .ended, source: .imported,
                     candidateKey: "coffre/\(imported.relativePath)", title: imported.title, startedAt: date,
                     transcribedAt: imported.transcript.isEmpty ? nil : date, projectID: projectID
                 )
@@ -229,11 +243,15 @@ public enum HistoryImport {
                 meetingID = row.id
             }
             try contacts.setParticipants(meetingID: meetingID, contactIDs: participantIDs + (try contacts.participants(meetingID: meetingID).map(\.id)))
+            // A meeting's actions come once: those Paul checked since stay checked.
+            let hasActions = !(try projects.actions(meetingID: meetingID).isEmpty)
+            if isNew || !hasActions {
             try projects.replaceMeetingActions(meetingID: meetingID, projectID: try meetings.meeting(id: meetingID)?.projectID,
                                                actions: imported.actions.enumerated().map { index, action in
                                                    ActionRow(meetingID: meetingID, text: action.text, done: action.done, addedOn: action.addedOn,
                                                              position: 10_000 + Double(index), createdAt: now)
                                                })
+            }
             report.meetings += 1
         }
         return report

@@ -88,7 +88,7 @@ public final class AgendaLibrary: ObservableObject {
 
     /// Paul files an event: it wins over every rule, and its recording follows.
     public func setProject(_ event: CalendarEventRow, projectID: UUID?) async {
-        try? CalendarStore(database).setProject(eventID: event.id, projectID: projectID, origin: projectID == nil ? nil : .paul)
+        try? CalendarStore(database).setProject(eventID: event.id, projectID: projectID, origin: .paul)
         if let meetingID = event.meetingID { try? ProjectStore(database).setProject(meetingID: meetingID, projectID: projectID) }
         await runLinks()
     }

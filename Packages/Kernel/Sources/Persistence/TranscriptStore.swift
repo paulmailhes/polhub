@@ -76,7 +76,7 @@ public struct TranscriptStore: Sendable {
         try writer.read { db in
             try MeetingRow.fetchAll(db, sql: """
                 SELECT meeting.* FROM meeting
-                WHERE status IN (?, ?) AND deletedAt IS NULL AND transcribedAt IS NULL
+                WHERE status IN (?, ?) AND deletedAt IS NULL AND transcribedAt IS NULL AND source != 'imported'
                   AND NOT EXISTS (SELECT 1 FROM job WHERE job.meetingID = meeting.id)
                 ORDER BY startedAt
                 """, arguments: [MeetingStatus.ended.rawValue, MeetingStatus.interrupted.rawValue])

@@ -54,6 +54,12 @@ public final class ProjectLibrary: ObservableObject {
 
     /// A change made on a project's page. A new status sends the card to the bottom of its new column,
     /// as a move on the board does (review, minor 8).
+    /// A change on the project's page: only the fields that differ go over the stored project.
+    public func save(from previous: ProjectRow, to changed: ProjectRow) {
+        if previous.status != changed.status { try? store.move(changed.id, to: changed.status, before: nil) }
+        try? store.saveChanges(from: previous, to: changed, at: Date())
+    }
+
     public func save(_ project: ProjectRow) {
         var project = project
         if let stored = try? store.project(id: project.id), stored.status != project.status {
