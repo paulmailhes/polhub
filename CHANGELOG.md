@@ -3,6 +3,11 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.3.1 — 13 novembre 2026
+
+- Le serveur MCP `polhub` annonce la version de l'app au lieu d'un numéro figé.
+- Première mise à jour installée automatiquement : elle sert d'essai au système de mise à jour.
+
 ## 0.3.0 — 13 novembre 2026
 
 Première version publiée.

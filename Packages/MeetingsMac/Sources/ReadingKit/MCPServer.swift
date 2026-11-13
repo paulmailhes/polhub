@@ -4,7 +4,6 @@ import Foundation
 /// line on the standard output. Three read-only tools, in the vocabulary of the `obsidian` server.
 public struct MCPServer: Sendable {
     public static let defaultProtocol = "2025-06-18"
-    public static let version = "0.2.0"
     static let instructions = """
     Les réunions Google Meet de Paul, enregistrées et transcrites sur son Mac par Polhub. Lecture \
     seule. `reunions` donne la liste numérotée (la plus récente d'abord), `reunion` le dialogue d'une \
@@ -14,9 +13,12 @@ public struct MCPServer: Sendable {
     """
 
     let reader: MeetingReader
+    /// The version of Polhub the server belongs to (see `HelperVersion`).
+    let version: String
 
-    public init(reader: MeetingReader) {
+    public init(reader: MeetingReader, version: String = "0.0.0") {
         self.reader = reader
+        self.version = version
     }
 
     static var tools: [[String: Any]] { [
@@ -63,7 +65,7 @@ public struct MCPServer: Sendable {
             answer["result"] = [
                 "protocolVersion": params["protocolVersion"] as? String ?? Self.defaultProtocol,
                 "capabilities": ["tools": ["listChanged": false]],
-                "serverInfo": ["name": "polhub", "title": "Réunions de Paul (Polhub)", "version": Self.version],
+                "serverInfo": ["name": "polhub", "title": "Réunions de Paul (Polhub)", "version": version],
                 "instructions": Self.instructions,
             ]
         case "ping":

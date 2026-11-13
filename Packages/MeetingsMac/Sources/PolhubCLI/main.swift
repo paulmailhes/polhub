@@ -57,7 +57,8 @@ do {
         guard arguments.count >= 2 else { fail(usage) }
         print(try reader.search(arguments.dropFirst().joined(separator: " "), limit: limit))
     case "mcp":
-        let server = MCPServer(reader: reader)
+        let helper = Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments[0])
+        let server = MCPServer(reader: reader, version: HelperVersion.read(helper: helper) ?? "0.0.0")
         while let line = readLine(strippingNewline: true) {
             guard !line.trimmingCharacters(in: .whitespaces).isEmpty, let answer = server.handle(line) else { continue }
             FileHandle.standardOutput.write(Data((answer + "\n").utf8))

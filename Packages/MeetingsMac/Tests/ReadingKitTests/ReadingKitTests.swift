@@ -92,6 +92,23 @@ struct Fixture {
         #expect(answer["id"] as? Int == 1)
     }
 
+    @Test func serverInfoGivesTheAppVersion() throws {
+        let answer = try call(MCPServer(reader: try Fixture().reader, version: "0.3.1"), #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#)
+        let info = (answer["result"] as? [String: Any])?["serverInfo"] as? [String: Any]
+        #expect(info?["version"] as? String == "0.3.1")
+    }
+
+    /// The command lives in `Polhub.app/Contents/Helpers/`: its version is the app's.
+    @Test func aHelperReadsTheVersionOfItsApp() throws {
+        let app = FileManager.default.temporaryDirectory.appending(path: "essai \(UUID().uuidString)/Polhub.app", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: app.deletingLastPathComponent()) }
+        try FileManager.default.createDirectory(at: app.appending(path: "Contents/Helpers"), withIntermediateDirectories: true)
+        let plist: NSDictionary = ["CFBundleShortVersionString": "0.3.1"]
+        plist.write(to: app.appending(path: "Contents/Info.plist"), atomically: true)
+        #expect(HelperVersion.read(helper: app.appending(path: "Contents/Helpers/polhub")) == "0.3.1")
+        #expect(HelperVersion.read(helper: URL(fileURLWithPath: "/usr/bin/true")) == nil)
+    }
+
     @Test func toolsListNamesTheThreeTools() throws {
         let answer = try call(MCPServer(reader: try Fixture().reader), #"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#)
         let tools = try #require((answer["result"] as? [String: Any])?["tools"] as? [[String: Any]])
