@@ -13,6 +13,15 @@ final class FakeGmail: @unchecked Sendable {
         var from = "Camille Martin <camille@exemple.fr>"
         var subject = "Maquette v2"
         var minutes = 0.0
+        var to = "moi@exemple.fr"
+        var replyTo: String?
+        var references: String?
+    }
+
+    struct StoredDraft {
+        var raw: String
+        var threadID: String?
+        var messageID: String
     }
 
     private let lock = NSLock()
@@ -25,6 +34,14 @@ final class FakeGmail: @unchecked Sendable {
     private var forgot = false
     /// Status to answer the next label changes with (429, 404…), once.
     private var nextModifyStatus: Int?
+    private var draftStore: [String: StoredDraft] = [:]
+    private var draftCounter = 0
+    var signature = "<b>Moi</b> · Studio Exemple"
+
+    var drafts: [String: StoredDraft] { lock.withLock { draftStore } }
+    func addGmailDraft(id: String, messageID: String, thread: String) {
+        lock.withLock { draftStore[id] = StoredDraft(raw: "", threadID: thread, messageID: messageID) }
+    }
 
     var calls: [String] { lock.withLock { log } }
     func labels(_ id: String) -> [String]? { lock.withLock { mails[id]?.labels } }
@@ -60,9 +77,15 @@ final class FakeGmail: @unchecked Sendable {
         guard let mail = mails[id] else { return nil }
         let date = Int((1_794_562_920 + mail.minutes * 60) * 1_000)
         var text = #"{"id":"\#(id)","threadId":"\#(mail.thread)","labelIds":\#(Self.json(mail.labels)),"snippet":"extrait \#(id)","internalDate":"\#(date)""#
+        if !full {
+            var headers = [#"{"name":"Message-ID","value":"<\#(id)@exemple.fr>"}"#]
+            if let replyTo = mail.replyTo { headers.append(#"{"name":"Reply-To","value":"\#(replyTo)"}"#) }
+            if let references = mail.references { headers.append(#"{"name":"References","value":"\#(references)"}"#) }
+            text += #","payload":{"headers":[\#(headers.joined(separator: ","))]}"#
+        }
         if full {
             let html = Data("<p>Corps de \(id)</p>".utf8).base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
-            text += #","payload":{"mimeType":"text/html","filename":"","headers":[{"name":"From","value":"\#(mail.from)"},{"name":"To","value":"moi@exemple.fr"},{"name":"Subject","value":"\#(mail.subject)"},{"name":"Authentication-Results","value":"mx.google.com; dmarc=pass"},{"name":"Content-Type","value":"text/html; charset=utf-8"}],"body":{"size":20,"data":"\#(html)"}}"#
+            text += #","payload":{"mimeType":"text/html","filename":"","headers":[{"name":"From","value":"\#(mail.from)"},{"name":"To","value":"\#(mail.to)"},{"name":"Subject","value":"\#(mail.subject)"},{"name":"Authentication-Results","value":"mx.google.com; dmarc=pass"},{"name":"Content-Type","value":"text/html; charset=utf-8"}],"body":{"size":20,"data":"\#(html)"}}"#
         }
         return text + "}"
     }
@@ -75,6 +98,45 @@ final class FakeGmail: @unchecked Sendable {
             func value(_ name: String) -> String? { items.first { $0.name == name }?.value }
             return try lock.withLock {
                 log.append("\(request.httpMethod ?? "GET") \(path.replacingOccurrences(of: "/gmail/v1/users/me", with: ""))" + (value("format").map { " \($0)" } ?? ""))
+                if path.hasPrefix("/upload/gmail/v1/users/me/drafts") {
+                    let body = String(decoding: request.httpBody ?? Data(), as: UTF8.self)
+                    let json = body.components(separatedBy: "\r\n\r\n")[1].components(separatedBy: "\r\n--")[0]
+                    let raw = body.components(separatedBy: "Content-Type: message/rfc822\r\n\r\n")[1]
+                    let metadata = try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any] ?? [:]
+                    let thread = (metadata["message"] as? [String: Any])?["threadId"] as? String
+                    let id: String
+                    if request.httpMethod == "PUT" {
+                        id = url.lastPathComponent
+                        guard draftStore[id] != nil else { throw GmailAPI.error(status: 404, data: Data()) }
+                    } else {
+                        draftCounter += 1
+                        id = "r\(draftCounter)"
+                    }
+                    draftCounter += 1
+                    let messageID = "dm\(draftCounter)"
+                    draftStore[id] = StoredDraft(raw: raw, threadID: thread, messageID: messageID)
+                    return Data(#"{"id":"\#(id)","message":{"id":"\#(messageID)","threadId":"\#(thread ?? messageID)"}}"#.utf8)
+                }
+                if path.hasSuffix("/drafts/send") {
+                    let body = try JSONSerialization.jsonObject(with: request.httpBody ?? Data()) as? [String: Any] ?? [:]
+                    guard let id = body["id"] as? String, let draft = draftStore.removeValue(forKey: id) else { throw GmailAPI.error(status: 404, data: Data()) }
+                    let sent = "sent-\(draft.messageID)"
+                    mails[sent] = Mail(thread: draft.threadID ?? sent, labels: ["SENT"], from: "Moi <moi@exemple.fr>", subject: "envoyé")
+                    order.insert(sent, at: 0)
+                    records.append(#"{"messagesAdded":[{"message":{"id":"\#(sent)","threadId":"\#(draft.threadID ?? sent)","labelIds":["SENT"]}}]}"#)
+                    return Data(#"{"id":"\#(sent)"}"#.utf8)
+                }
+                if path.contains("/drafts/"), request.httpMethod == "DELETE" {
+                    guard draftStore.removeValue(forKey: url.lastPathComponent) != nil else { throw GmailAPI.error(status: 404, data: Data()) }
+                    return Data()
+                }
+                if path.hasSuffix("/drafts") {
+                    let items = draftStore.map { #"{"id":"\#($0.key)","message":{"id":"\#($0.value.messageID)"}}"# }
+                    return Data(#"{"drafts":[\#(items.joined(separator: ","))]}"#.utf8)
+                }
+                if path.hasSuffix("/settings/sendAs") {
+                    return Data(#"{"sendAs":[{"sendAsEmail":"moi@exemple.fr","displayName":"Moi Exemple","signature":"\#(signature)","isPrimary":true}]}"#.utf8)
+                }
                 if path.hasSuffix("/profile") {
                     return Data(#"{"emailAddress":"moi@exemple.fr","messagesTotal":\#(order.count),"threadsTotal":1,"historyId":"\#(cursor)"}"#.utf8)
                 }

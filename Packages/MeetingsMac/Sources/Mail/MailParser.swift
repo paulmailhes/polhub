@@ -174,6 +174,11 @@ public struct MailFiles: Sendable {
         folder(account: message.account).appending(path: "\(message.messageID).\(message.bodyIsHTML ? "html" : "txt")")
     }
 
+    /// The files Paul joined to a draft, kept beside it until it leaves.
+    public func draftFolder(_ draft: MailDraftRow) -> URL {
+        folder(account: draft.account).appending(path: "brouillons/\(draft.id)", directoryHint: .isDirectory)
+    }
+
     public func attachment(_ attachment: MailAttachment, of message: MailMessageRow) -> URL {
         folder(account: message.account).appending(path: "\(message.messageID)-\(attachment.partID)", directoryHint: .isDirectory)
             .appending(path: AttachmentSafety.cleanName(attachment.filename))

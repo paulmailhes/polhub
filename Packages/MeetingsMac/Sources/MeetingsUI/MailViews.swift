@@ -158,9 +158,9 @@ struct MailListView: View {
                     Button("Comptes Google") { router.openSettings(.accounts) }
                 }
             }
-            if mails.found == nil, mails.tab == .automatiques {
+            if mails.found == nil, mails.tab != .personnes {
                 banner(icon: "info.circle", tint: .secondary,
-                       text: "\(MailTab.automatiques.explanation) Un mail qui n'a rien à faire ici : clic droit › « Déplacer vers Principale ».") { EmptyView() }
+                       text: "\(mails.tab.explanation) Un mail qui n'a rien à faire ici : clic droit › « Déplacer vers ».") { EmptyView() }
             }
             if threads.isEmpty {
                 ContentUnavailableView(mails.found != nil ? "Aucun mail trouvé" : (mails.progress != nil ? "Lecture de tes boîtes…" : "Rien ici"),
@@ -280,7 +280,7 @@ struct MailListView: View {
             .pickerStyle(.segmented)
             .labelsHidden()
             .disabled(mails.found != nil)
-            .help("Principale : \(MailTab.principale.explanation)\nAutomatiques : \(MailTab.automatiques.explanation)")
+            .help(MailTab.allCases.map { "\($0.title) : \($0.explanation)" }.joined(separator: "\n"))
         }
         if mails.selecting || !mails.selected.isEmpty {
             ToolbarItemGroup(placement: .primaryAction) {
@@ -408,16 +408,22 @@ struct MailRow: View {
     }
 }
 
-/// « Déplacer vers Principale », kept for the sender; or back to Gmail's own filing.
+/// « Déplacer vers » another tab, kept for the sender; or back to Gmail's own filing.
 struct MailTabChoice: View {
     let thread: MailThreadRow
     @ObservedObject var mails: MailLibrary
 
     var body: some View {
-        if mails.isAutomatic(thread) {
-            Button("Déplacer vers Principale") { mails.setPrincipal(true, for: thread) }
-        } else if let sender = thread.lastSender, mails.senders[sender]?.principal == true {
-            Button("Laisser Gmail classer cet expéditeur") { mails.setPrincipal(false, for: thread) }
+        if thread.lastSender != nil {
+            Menu("Déplacer vers") {
+                ForEach(MailTab.allCases.filter { $0 != mails.tab(of: thread) }, id: \.self) { tab in
+                    Button(tab.title) { mails.move(thread, to: tab) }
+                }
+                if let sender = thread.lastSender, mails.senders[sender]?.tab != nil {
+                    Divider()
+                    Button("Laisser Gmail classer cet expéditeur") { mails.move(thread, to: nil) }
+                }
+            }
         }
     }
 }
@@ -670,7 +676,7 @@ struct MailThreadView: View {
                         Text(model.messages.count > 1 ? "\(model.messages.count) messages" : "1 message")
                         if mails.isAutomatic(thread) {
                             Text("·")
-                            Text("Automatique").help(MailTab.automatiques.explanation)
+                            Text(mails.tab(of: thread).title).help(mails.tab(of: thread).explanation)
                         }
                     }
                     .font(.callout).foregroundStyle(.secondary)

@@ -123,11 +123,46 @@ import Testing
 
     @Test func whatPaulSaidAboutASenderIsKept() throws {
         let mails = try store()
-        try mails.remember(address: "Lettre@Exemple.fr", principal: true, at: now)
+        try mails.remember(address: "Lettre@Exemple.fr", tab: "newsletters", at: now)
         try mails.remember(address: "lettre@exemple.fr", images: true, at: now)
         let rule = try #require(try mails.senders()["lettre@exemple.fr"])
-        #expect(rule.principal && rule.images)
-        try mails.remember(address: "lettre@exemple.fr", principal: false, images: false, at: now)
+        #expect(rule.tab == "newsletters" && rule.images && !rule.principal)
+        try mails.remember(address: "lettre@exemple.fr", tab: .some(nil), images: false, at: now)
         #expect(try mails.senders().isEmpty)
+    }
+
+    /// Base v9 (14/11): a draft is kept on the Mac, then marked as Gmail took it; it leaves with its account.
+    @Test func aDraftIsKeptThenPushedAndLeavesWithItsAccount() throws {
+        let mails = try store()
+        var draft = MailDraftRow(account: account, mode: .reply, threadKey: key, to: [MailAddress(name: "Camille", email: "camille@exemple.fr")],
+                                 subject: "Re: Maquette v2", body: "Merci !", createdAt: now)
+        try mails.saveDraft(draft)
+        #expect(try mails.draft(draft.id) == draft)
+        #expect(draft.isSendable && draft.needsPush)
+        try mails.markPushed(draftID: draft.id, gmailDraftID: "r-1", gmailMessageID: "m-9", version: draft.updatedAt, at: now)
+        draft = try #require(try mails.draft(draft.id))
+        #expect(draft.gmailDraftID == "r-1" && !draft.needsPush)
+        draft.body = "Merci beaucoup !"
+        draft.updatedAt = now.addingTimeInterval(5)
+        try mails.saveDraft(draft)
+        #expect(try mails.draft(draft.id)?.needsPush == true)
+        // An empty draft has nothing to send.
+        #expect(!MailDraftRow(account: account, mode: .new, createdAt: now).isSendable)
+        try CalendarStore(mails.database).removeAccount(email: account)
+        #expect(try mails.drafts().isEmpty)
+    }
+
+    @Test func theSentThreadsAndTheDraftsWrittenElsewhere() throws {
+        let mails = try store()
+        try mails.apply(account: account, upserts: [
+            message("m1"), message("m2", minutes: 3, from: account, labels: ["SENT"]),
+            message("d1", thread: "t2", minutes: 9, from: account, labels: ["DRAFT"], subject: "Brouillon du téléphone"),
+        ])
+        #expect(try mails.sentThreads().map(\.threadID) == ["t1"])
+        #expect(try mails.gmailOnlyDrafts().map(\.messageID) == ["d1"])
+        var draft = MailDraftRow(account: account, mode: .new, createdAt: now)
+        draft.gmailMessageID = "d1"
+        try mails.saveDraft(draft)
+        #expect(try mails.gmailOnlyDrafts().isEmpty)
     }
 }

@@ -166,9 +166,12 @@ public struct MailCursorRow: Codable, Equatable, Sendable, FetchableRecord, Pers
     public var finishedAt: Date?
     public var lastSyncAt: Date?
     public var lastError: String?
+    /// How the mailbox signs: its name and Gmail's signature (HTML), read from Gmail's settings.
+    public var senderName: String?
+    public var signature: String?
 
     public init(account: String, historyID: String? = nil, total: Int = 0, done: Int = 0, finishedAt: Date? = nil, lastSyncAt: Date? = nil,
-                lastError: String? = nil) {
+                lastError: String? = nil, senderName: String? = nil, signature: String? = nil) {
         self.account = account.lowercased()
         self.historyID = historyID
         self.total = total
@@ -176,6 +179,8 @@ public struct MailCursorRow: Codable, Equatable, Sendable, FetchableRecord, Pers
         self.finishedAt = finishedAt
         self.lastSyncAt = lastSyncAt
         self.lastError = lastError
+        self.senderName = senderName
+        self.signature = signature
     }
 }
 
@@ -244,9 +249,107 @@ public struct MailSenderRow: Codable, Equatable, Sendable, FetchableRecord, Pers
     public static let databaseTableName = "mail_sender"
 
     public var address: String
-    /// Its mails go to the main tab, whatever Gmail's category.
+    /// Kept for the bases of 0.12: « personnes » is now said by `tab`.
     public var principal: Bool
     /// Its remote images show without asking.
     public var images: Bool
     public var createdAt: Date
+    /// The tab Paul chose for its mails (`personnes`, `notifications`, `newsletters`), whatever Gmail's category.
+    public var tab: String?
+}
+
+/// A mail Paul writes (14/11, step « Écrire »): kept on the Mac first, then in Gmail's drafts. Never a send:
+/// sending is Paul's click, held ten seconds in memory.
+public struct MailDraftRow: Codable, Equatable, Identifiable, Sendable, FetchableRecord, PersistableRecord {
+    public static let databaseTableName = "mail_draft"
+
+    public enum Mode: String, Codable, Sendable, CaseIterable {
+        case new, reply, replyAll, forward
+    }
+
+    /// Who wrote it: Paul in Polhub, Paul elsewhere (a draft found in Gmail), or an agent (step « Agents »).
+    public enum Origin: String, Codable, Sendable {
+        case paul, gmail, agent
+    }
+
+    public var id: String
+    public var account: String
+    public var mode: Mode
+    /// The thread answered or forwarded; `nil` for a new mail.
+    public var threadKey: String?
+    /// The message answered or forwarded (`account|messageID`).
+    public var replyToKey: String?
+    public var to: [MailAddress]
+    public var cc: [MailAddress]
+    public var bcc: [MailAddress]
+    public var subject: String
+    /// What Paul writes, as text.
+    public var body: String
+    /// The message answered or forwarded, below Paul's text, as Gmail quotes it.
+    public var quoteHTML: String?
+    public var quoteText: String?
+    public var inReplyTo: String?
+    public var references: String?
+    /// Gmail's signature of the account goes below the text.
+    public var signature: Bool
+    public var files: [MailDraftFile]
+    public var gmailDraftID: String?
+    public var gmailMessageID: String?
+    public var origin: Origin
+    /// The version Gmail holds; `nil` before the first push.
+    public var pushedAt: Date?
+    public var lastError: String?
+    public var createdAt: Date
+    public var updatedAt: Date
+
+    public init(id: String = UUID().uuidString.lowercased(), account: String, mode: Mode, threadKey: String? = nil, replyToKey: String? = nil,
+                to: [MailAddress] = [], cc: [MailAddress] = [], bcc: [MailAddress] = [], subject: String = "", body: String = "",
+                quoteHTML: String? = nil, quoteText: String? = nil, inReplyTo: String? = nil, references: String? = nil, signature: Bool = true,
+                files: [MailDraftFile] = [], gmailDraftID: String? = nil, gmailMessageID: String? = nil, origin: Origin = .paul,
+                pushedAt: Date? = nil, lastError: String? = nil, createdAt: Date, updatedAt: Date? = nil) {
+        self.id = id
+        self.account = account.lowercased()
+        self.mode = mode
+        self.threadKey = threadKey
+        self.replyToKey = replyToKey
+        self.to = to
+        self.cc = cc
+        self.bcc = bcc
+        self.subject = subject
+        self.body = body
+        self.quoteHTML = quoteHTML
+        self.quoteText = quoteText
+        self.inReplyTo = inReplyTo
+        self.references = references
+        self.signature = signature
+        self.files = files
+        self.gmailDraftID = gmailDraftID
+        self.gmailMessageID = gmailMessageID
+        self.origin = origin
+        self.pushedAt = pushedAt
+        self.lastError = lastError
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt ?? createdAt
+    }
+
+    /// Something to send: someone to send it to, and words or a file.
+    public var isSendable: Bool {
+        !(to + cc + bcc).isEmpty && (!body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !files.isEmpty || quoteHTML != nil)
+    }
+
+    /// Changed since Gmail last took it.
+    public var needsPush: Bool { pushedAt.map { $0 < updatedAt } ?? true }
+}
+
+/// A file joined to a draft: copied beside it on the Mac, so the draft never depends on where it came from.
+public struct MailDraftFile: Codable, Equatable, Hashable, Sendable {
+    public var filename: String
+    public var mimeType: String
+    public var size: Int
+
+    public init(filename: String, mimeType: String, size: Int) {
+        self.filename = filename
+        self.mimeType = mimeType
+        self.size = size
+    }
 }

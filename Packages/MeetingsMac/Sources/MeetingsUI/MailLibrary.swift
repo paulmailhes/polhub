@@ -8,22 +8,35 @@ import Persistence
 import PolhubDesign
 import SwiftUI
 
-/// The two tabs of the list (Paul, 14/11): the mails people wrote; what services send on their own.
+/// The three tabs of the list (Paul, 14/11): what people wrote; what services send on their own; the
+/// newsletters and promotions. Gmail's own categories decide, unless Paul moved a sender.
 public enum MailTab: String, Hashable, Sendable, CaseIterable {
-    case principale, automatiques
+    case personnes, notifications, newsletters
 
     var title: String {
         switch self {
-        case .principale: "Principale"
-        case .automatiques: "Automatiques"
+        case .personnes: "Personnes"
+        case .notifications: "Notifications"
+        case .newsletters: "Newsletters"
         }
     }
 
     /// What the tab holds, said where Paul sees it.
     var explanation: String {
         switch self {
-        case .principale: "Les mails écrits par des personnes : clients, collègues, proches."
-        case .automatiques: "Ce que des services envoient tout seuls : newsletters, notifications, reçus, promotions. Rien n'y attend de réponse."
+        case .personnes: "Les mails écrits par des personnes : clients, collègues, proches."
+        case .notifications: "Ce que des services envoient tout seuls : reçus, confirmations, alertes, rappels. Rien n'y attend de réponse."
+        case .newsletters: "Les lettres d'information, les promotions et les réseaux sociaux."
+        }
+    }
+
+    /// Gmail's category of a mail: notifications are Gmail's « Notifications », newsletters its « Promotions »
+    /// and « Réseaux sociaux »; everything else (« Principale », « Forums », none) is people.
+    static func of(category: String?) -> MailTab {
+        switch category {
+        case "updates": .notifications
+        case "promotions", "social": .newsletters
+        default: .personnes
         }
     }
 }
@@ -53,7 +66,7 @@ public final class MailLibrary: ObservableObject {
     @Published public private(set) var inbox: [MailThreadRow] = []
     @Published public private(set) var cursors: [String: MailCursorRow] = [:]
     @Published public private(set) var senders: [String: MailSenderRow] = [:]
-    @Published public var tab: MailTab = .principale { didSet { selected = [] } }
+    @Published public var tab: MailTab = .personnes { didSet { selected = [] } }
     /// The mailboxes Paul hid from the list.
     @Published public var hidden: Set<String> { didSet { defaults.set(hidden.sorted(), forKey: Preferences.Key.mailHiddenAccounts) } }
     /// What a search found at Gmail's; `nil` out of a search.
@@ -124,7 +137,7 @@ public final class MailLibrary: ObservableObject {
 
     /// Mails just arrived in an inbox: those of the main tab are told.
     private func arrived(_ rows: [MailMessageRow]) {
-        let told = rows.filter { !isAutomatic(message: $0) && !hidden.contains($0.account) }
+        let told = rows.filter { tab(of: $0) == .personnes && !hidden.contains($0.account) }
             .map { (threadKey: $0.threadKey, sender: $0.sender?.display ?? "Nouveau mail", subject: $0.subject) }
         if !told.isEmpty { onArrival?(told) }
     }
@@ -134,17 +147,23 @@ public final class MailLibrary: ObservableObject {
     /// The mailboxes: the accounts that granted the mails.
     public var accounts: [GoogleAccountRow] { agenda.accounts.filter(agenda.mailGranted) }
 
-    /// Gmail files it as a notification, a promotion or a social mail, Paul never wrote in it and never said
-    /// its sender belongs to the main tab.
-    public func isAutomatic(_ thread: MailThreadRow) -> Bool {
-        guard let category = thread.category, MailThreadRow.automaticCategories.contains(category), !thread.paulWrote else { return false }
-        return thread.lastSender.flatMap { senders[$0]?.principal } != true
+    /// The tab of a thread: a thread Paul wrote in is people's; a sender Paul moved stays where he put it;
+    /// otherwise Gmail's category of the last mail received.
+    public func tab(of thread: MailThreadRow) -> MailTab {
+        if thread.paulWrote { return .personnes }
+        if let chosen = thread.lastSender.flatMap({ senders[$0]?.tab }).flatMap(MailTab.init(rawValue:)) { return chosen }
+        return MailTab.of(category: thread.category)
     }
 
-    func isAutomatic(message: MailMessageRow) -> Bool {
-        guard let label = message.labels.first(where: { $0.hasPrefix("CATEGORY_") }) else { return false }
-        let category = String(label.dropFirst("CATEGORY_".count)).lowercased()
-        return MailThreadRow.automaticCategories.contains(category) && message.sender.flatMap { senders[$0.email]?.principal } != true
+    func tab(of message: MailMessageRow) -> MailTab {
+        if let chosen = message.sender.flatMap({ senders[$0.email]?.tab }).flatMap(MailTab.init(rawValue:)) { return chosen }
+        let label = message.labels.first { $0.hasPrefix("CATEGORY_") }
+        return MailTab.of(category: label.map { String($0.dropFirst("CATEGORY_".count)).lowercased() })
+    }
+
+    /// Not written by a person: the notifications and the newsletters.
+    public func isAutomatic(_ thread: MailThreadRow) -> Bool {
+        tab(of: thread) != .personnes
     }
 
     private func visible(_ threads: [MailThreadRow]) -> [MailThreadRow] {
@@ -154,16 +173,16 @@ public final class MailLibrary: ObservableObject {
     /// The threads of the tab, or of the search under way.
     public var shown: [MailThreadRow] {
         if let found { return found }
-        return visible(inbox).filter { isAutomatic($0) == (tab == .automatiques) }
+        return visible(inbox).filter { tab(of: $0) == tab }
     }
 
-    /// The unread threads of the main tab: what waits for Paul.
+    /// The unread threads of the people's tab: what waits for Paul.
     public var unreadCount: Int {
-        visible(inbox).filter { $0.unread && !isAutomatic($0) }.count
+        visible(inbox).filter { $0.unread && tab(of: $0) == .personnes }.count
     }
 
     public func unread(in tab: MailTab) -> Int {
-        visible(inbox).filter { $0.unread && isAutomatic($0) == (tab == .automatiques) }.count
+        visible(inbox).filter { $0.unread && self.tab(of: $0) == tab }.count
     }
 
     /// « Lecture de la boîte : 1 240 sur 6 000 », while a first reading is under way.
@@ -283,11 +302,11 @@ public final class MailLibrary: ObservableObject {
         perform(.markRead, on: thread, undoable: false)
     }
 
-    /// « Déplacer vers Principale » (or back): kept for the sender's next mails.
-    public func setPrincipal(_ principal: Bool, for thread: MailThreadRow) {
+    /// « Déplacer vers… » a tab: kept for the sender's next mails; `nil` gives it back to Gmail's category.
+    public func move(_ thread: MailThreadRow, to tab: MailTab?) {
         guard let sender = thread.lastSender else { return }
-        try? store.remember(address: sender, principal: principal, at: Date())
-        message = principal ? "Les mails de \(sender) iront dans Principale." : "Les mails de \(sender) suivent de nouveau le classement de Gmail."
+        try? store.remember(address: sender, tab: .some(tab?.rawValue), at: Date())
+        message = tab.map { "Les mails de \(sender) iront dans « \($0.title) »." } ?? "Les mails de \(sender) suivent de nouveau le classement de Gmail."
     }
 
     /// The thread in Gmail's own page, under its account.

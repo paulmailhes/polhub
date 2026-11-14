@@ -228,11 +228,11 @@ struct NotificationsSettingsPane: View {
                 Toggle("Compte rendu prêt", isOn: $summaryReady)
             }
             Section {
-                Toggle("Nouveau mail dans l'onglet Principale", isOn: $mailNotices)
+                Toggle("Nouveau mail dans l'onglet Personnes", isOn: $mailNotices)
             } header: {
                 Text("Mails")
             } footer: {
-                Text("Jamais pour les mails automatiques, ni pendant la première lecture d'une boîte. Un clic ouvre le fil.")
+                Text("Jamais pour les notifications ni les newsletters, ni pendant la première lecture d'une boîte. Un clic ouvre le fil.")
             }
             Section {
                 Toggle("Son", isOn: $sound)

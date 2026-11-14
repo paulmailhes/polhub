@@ -1,6 +1,7 @@
 import Domain
 import Foundation
 import GoogleKit
+import MailFormat
 import Persistence
 
 /// Keeps the copy of each mailbox in step with Gmail (14/11): a first reading of everything, the most recent
@@ -86,6 +87,7 @@ public actor MailEngine {
     }
 
     private func run(_ account: String) async {
+        await readIdentity(account)
         while !Task.isCancelled {
             if await step(account) { continue }
             var waited = 0.0
@@ -394,5 +396,137 @@ public actor MailEngine {
             }
         }
         return keys
+    }
+
+    // MARK: - Writing (step « Écrire », 14/11)
+
+    /// The name and Gmail's signature of a mailbox, read once a launch: the drafts sign as Gmail would.
+    func readIdentity(_ account: String) async {
+        guard let list = try? await get(GmailAPI.SendAsList.self, account, cost: GmailAPI.Cost.sendAs, { GmailAPI.sendAsRequest(accessToken: $0) }),
+              let identity = list.sendAs?.first(where: { $0.sendAsEmail.lowercased() == account }) ?? list.sendAs?.first(where: { $0.isPrimary == true })
+        else { return }
+        var cursor = (try? store.cursor(account: account)) ?? MailCursorRow(account: account)
+        cursor.senderName = identity.displayName.flatMap { $0.isEmpty ? nil : $0 }
+        cursor.signature = identity.signature.flatMap { $0.isEmpty ? nil : $0 }
+        try? store.save(cursor)
+    }
+
+    /// What a reply needs of the message it answers: its people, its thread's headers, its body.
+    public func replySource(for message: MailMessageRow) async throws -> ReplySource {
+        let headers = try await get(GmailAPI.Message.self, message.account, cost: GmailAPI.Cost.metadata) {
+            GmailAPI.messageRequest(accessToken: $0, id: message.messageID, format: .metadata, headers: ["Reply-To", "References", "Message-ID"])
+        }.payload
+        let body = try await self.body(of: message)
+        return ReplySource(from: message.sender, replyTo: MailParser.addresses(headers?.header("Reply-To")), to: message.to, cc: message.cc,
+                           date: message.date, subject: message.subject, messageID: headers?.header("Message-ID") ?? message.rfcMessageID,
+                           references: headers?.header("References"), body: body, isHTML: message.bodyIsHTML)
+    }
+
+    /// The draft as it leaves: Paul's text, the mailbox's signature, the quoted message, the files.
+    func outgoing(_ draft: MailDraftRow) throws -> OutgoingMail {
+        let cursor = try store.cursor(account: draft.account)
+        let signature = draft.signature ? cursor?.signature : nil
+        let folder = files.draftFolder(draft)
+        let attached = try draft.files.map { file in
+            OutgoingFile(filename: file.filename, mimeType: file.mimeType, data: try Data(contentsOf: folder.appending(path: file.filename)))
+        }
+        return OutgoingMail(from: MailAddress(name: cursor?.senderName, email: draft.account), to: draft.to, cc: draft.cc, bcc: draft.bcc,
+                            subject: draft.subject, text: ReplyBuilder.text(body: draft.body, signature: signature, quote: draft.quoteText),
+                            html: ReplyBuilder.html(body: draft.body, signature: signature, quote: draft.quoteHTML),
+                            inReplyTo: draft.inReplyTo, references: draft.references, files: attached, date: now())
+    }
+
+    /// Gives Gmail the draft's latest version: created the first time, replaced after. A draft deleted in
+    /// Gmail meanwhile is created again.
+    @discardableResult
+    public func push(_ draftID: String) async throws -> MailDraftRow {
+        guard flavor == .prod else { throw GoogleError.readOnlyBuild }
+        guard let draft = try store.draft(draftID) else { throw GoogleError.notFound }
+        let version = draft.updatedAt
+        let raw = try MIMEBuilder.build(try outgoing(draft), draft: true)
+        let threadID = draft.threadKey.map { String($0.dropFirst(draft.account.count + 1)) }
+        func upload(_ existing: String?) async throws -> GmailAPI.Draft {
+            try await get(GmailAPI.Draft.self, draft.account, cost: existing == nil ? GmailAPI.Cost.draftCreate : GmailAPI.Cost.draftUpdate) {
+                GmailAPI.draftUploadRequest(accessToken: $0, draftID: existing, raw: raw, threadID: threadID)
+            }
+        }
+        let answer: GmailAPI.Draft
+        do {
+            answer = try await upload(draft.gmailDraftID)
+        } catch GoogleError.notFound where draft.gmailDraftID != nil {
+            answer = try await upload(nil)
+        }
+        try store.markPushed(draftID: draftID, gmailDraftID: answer.id, gmailMessageID: answer.message?.id, version: version, at: now())
+        return try store.draft(draftID) ?? draft
+    }
+
+    /// Sends what Gmail holds of the draft, after giving it the latest version. Only Paul's click leads here:
+    /// nothing in the base ever asks for a send.
+    public func send(_ draftID: String) async throws {
+        guard flavor == .prod else { throw GoogleError.readOnlyBuild }
+        guard var draft = try store.draft(draftID) else { throw GoogleError.notFound }
+        _ = try MIMEBuilder.build(try outgoing(draft))
+        if draft.needsPush || draft.gmailDraftID == nil { draft = try await push(draftID) }
+        guard let gmailDraftID = draft.gmailDraftID else { throw GoogleError.badAnswer }
+        do {
+            await pacer(draft.account).take(GmailAPI.Cost.draftSend)
+            _ = try await sendFor(draft.account)({ GmailAPI.draftSendRequest(accessToken: $0, draftID: gmailDraftID) })
+        } catch GoogleError.notFound {
+            throw GoogleError.refused("Gmail n'a plus ce brouillon : regarde dans Envoyés s'il est déjà parti")
+        }
+        try store.deleteDraft(draftID)
+        try? FileManager.default.removeItem(at: files.draftFolder(draft))
+        kick(draft.account)
+    }
+
+    /// The draft goes, here and in Gmail.
+    public func discard(_ draftID: String) async throws {
+        guard let draft = try store.draft(draftID) else { return }
+        if flavor == .prod, let gmailDraftID = draft.gmailDraftID {
+            do {
+                await pacer(draft.account).take(GmailAPI.Cost.draftDelete)
+                _ = try await sendFor(draft.account)({ GmailAPI.draftDeleteRequest(accessToken: $0, draftID: gmailDraftID) })
+            } catch GoogleError.notFound {}
+        }
+        try store.deleteDraft(draftID)
+        try? FileManager.default.removeItem(at: files.draftFolder(draft))
+        kick(draft.account)
+    }
+
+    /// A draft written in Gmail (the phone, the web), taken up in Polhub: its text, its people, its files.
+    public func resume(gmailDraft message: MailMessageRow) async throws -> MailDraftRow {
+        var gmailDraftID: String?, token: String?
+        repeat {
+            let pageToken = token
+            let page = try await get(GmailAPI.DraftList.self, message.account, cost: GmailAPI.Cost.draftList) {
+                GmailAPI.draftsRequest(accessToken: $0, pageToken: pageToken)
+            }
+            gmailDraftID = page.drafts?.first { $0.message?.id == message.messageID }?.id
+            token = page.nextPageToken
+        } while gmailDraftID == nil && token != nil
+        guard let gmailDraftID else { throw GoogleError.notFound }
+        let headers = try await get(GmailAPI.Message.self, message.account, cost: GmailAPI.Cost.metadata) {
+            GmailAPI.messageRequest(accessToken: $0, id: message.messageID, format: .metadata, headers: ["Bcc", "In-Reply-To", "References"])
+        }.payload
+        let body = try await self.body(of: message)
+        let others = try store.messages(threadKey: message.threadKey).filter { $0.id != message.id }
+        var draft = MailDraftRow(account: message.account, mode: others.isEmpty ? .new : .reply, threadKey: others.isEmpty ? nil : message.threadKey,
+                                 to: message.to, cc: message.cc, bcc: MailParser.addresses(headers?.header("Bcc")), subject: message.subject == "(sans objet)" ? "" : message.subject,
+                                 body: message.bodyIsHTML ? HTMLText.plain(body) : body, inReplyTo: headers?.header("In-Reply-To"),
+                                 references: headers?.header("References"), signature: false, gmailDraftID: gmailDraftID,
+                                 gmailMessageID: message.messageID, origin: .gmail, createdAt: message.date, updatedAt: now())
+        // Gmail holds it as it is: nothing goes back until Paul changes it (its formatting would be lost).
+        draft.pushedAt = draft.updatedAt
+        let folder = files.draftFolder(draft)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        for attachment in message.files {
+            let source = try await file(attachment, of: message)
+            let target = folder.appending(path: AttachmentSafety.cleanName(attachment.filename))
+            try? FileManager.default.removeItem(at: target)
+            try FileManager.default.copyItem(at: source, to: target)
+            draft.files.append(MailDraftFile(filename: target.lastPathComponent, mimeType: attachment.mimeType, size: attachment.size))
+        }
+        try store.saveDraft(draft)
+        return draft
     }
 }

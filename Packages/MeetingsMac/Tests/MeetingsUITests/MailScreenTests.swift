@@ -260,11 +260,13 @@ struct MailScreenTests {
                                          to: output.appending(path: "\(name).png"), size: NSSize(width: 1_180, height: 780), dark: dark, wait: wait)
         }
         UserDefaults.standard.set(true, forKey: Preferences.Key.floatingPages)
-        try await capture("mails-principale")
-        try await capture("mails-principale-sombre", dark: true)
-        mails.tab = .automatiques
-        try await capture("mails-automatiques")
-        mails.tab = .principale
+        try await capture("mails-personnes")
+        try await capture("mails-personnes-sombre", dark: true)
+        mails.tab = .notifications
+        try await capture("mails-notifications")
+        mails.tab = .newsletters
+        try await capture("mails-newsletters")
+        mails.tab = .personnes
         mails.selecting = true
         mails.selected = [MailThreadRow.key(account: "moi@exemple.fr", threadID: "a"), MailThreadRow.key(account: "paul@atelier-nord.fr", threadID: "f")]
         try await capture("mails-selection")
@@ -272,7 +274,7 @@ struct MailScreenTests {
         router.mailSelection = MailThreadRow.key(account: "moi@exemple.fr", threadID: "a")
         try await capture("mails-fil-flottant")
         try await capture("mails-fil-flottant-sombre", dark: true)
-        mails.tab = .automatiques
+        mails.tab = .newsletters
         router.mailSelection = MailThreadRow.key(account: "moi@exemple.fr", threadID: "b")
         try await capture("mails-lettre-sombre", dark: true)
         UserDefaults.standard.set(false, forKey: Preferences.Key.floatingPages)

@@ -20,6 +20,7 @@ let package = Package(
         .library(name: "Agenda", targets: ["Agenda"]),
         .library(name: "GoogleKit", targets: ["GoogleKit"]),
         .library(name: "Mail", targets: ["Mail"]),
+        .library(name: "MailFormat", targets: ["MailFormat"]),
         .library(name: "Summarization", targets: ["Summarization"]),
         .library(name: "PolhubDesign", targets: ["PolhubDesign"]),
         .library(name: "Notifications", targets: ["Notifications"]),
@@ -60,7 +61,9 @@ let package = Package(
             .product(name: "Persistence", package: "Kernel"),
         ]),
         // Gmail, spoken to directly: the client and the measures of step 0 (14/11).
-        .target(name: "Mail", dependencies: ["GoogleKit", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
+        // What a mail is made of when it leaves: MIME, replies, quotes. Pure, no network (14/11).
+        .target(name: "MailFormat", dependencies: [.product(name: "Persistence", package: "Kernel")]),
+        .target(name: "Mail", dependencies: ["GoogleKit", "MailFormat", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         // The projects module: board, views, project page.
         .target(name: "ProjectsUI", dependencies: [
             "PolhubDesign",
@@ -100,6 +103,7 @@ let package = Package(
             "Agenda",
             "GoogleKit",
             "Mail",
+            "MailFormat",
             "VaultImport",
             "Summarization",
             "PolhubDesign",
@@ -143,10 +147,11 @@ let package = Package(
         .testTarget(name: "SummarizationTests", dependencies: ["Summarization", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "AgendaTests", dependencies: ["Agenda", "GoogleKit", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "GoogleKitTests", dependencies: ["GoogleKit"]),
-        .testTarget(name: "MailTests", dependencies: ["Mail", "GoogleKit", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
+        .testTarget(name: "MailTests", dependencies: ["Mail", "GoogleKit", "MailFormat", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
+        .testTarget(name: "MailFormatTests", dependencies: ["MailFormat", .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "TranscriptionTests", dependencies: ["Transcription", .product(name: "Domain", package: "Kernel")]),
         .testTarget(name: "MeetingDetectionTests", dependencies: ["MeetingDetection"], resources: [.copy("Fixtures")]),
-        .testTarget(name: "MeetingsUITests", dependencies: ["MeetingsUI", "ProjectsUI", "PolhubDesign", "Notifications", "Agenda", "GoogleKit", "Mail", "Updates", "Pipeline", "Recording", "AudioCapture", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
+        .testTarget(name: "MeetingsUITests", dependencies: ["MeetingsUI", "ProjectsUI", "PolhubDesign", "Notifications", "Agenda", "GoogleKit", "Mail", "MailFormat", "Updates", "Pipeline", "Recording", "AudioCapture", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "RecordingTests", dependencies: ["Recording", "AudioCapture", "MeetingDetection", .product(name: "Observability", package: "Kernel"), .product(name: "Domain", package: "Kernel")]),
         .testTarget(name: "PipelineTests", dependencies: ["Pipeline", "MeetingDetection", "Recording", "Transcription", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "ProbeKitTests", dependencies: ["ProbeKit", "Recording", "AudioCapture", "MeetingDetection", .product(name: "Domain", package: "Kernel"), .product(name: "Observability", package: "Kernel")]),

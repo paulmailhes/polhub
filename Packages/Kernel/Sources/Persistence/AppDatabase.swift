@@ -352,6 +352,42 @@ public final class AppDatabase: Sendable {
                 t.column("createdAt", .datetime).notNull()
             }
         }
+        // The mails, step « Écrire » (14/11): the drafts, the signature of each mailbox, three tabs.
+        migrator.registerMigration("v9") { db in
+            try db.alter(table: "mail_sender") { t in
+                t.add(column: "tab", .text)
+            }
+            try db.execute(sql: "UPDATE mail_sender SET tab = 'personnes' WHERE principal = 1")
+            try db.alter(table: "mail_cursor") { t in
+                t.add(column: "senderName", .text)
+                t.add(column: "signature", .text)
+            }
+            try db.create(table: "mail_draft") { t in
+                t.primaryKey("id", .text)
+                t.column("account", .text).notNull().indexed().references("google_account", onDelete: .cascade)
+                t.column("mode", .text).notNull()
+                t.column("threadKey", .text).indexed()
+                t.column("replyToKey", .text)
+                t.column("to", .text).notNull()
+                t.column("cc", .text).notNull()
+                t.column("bcc", .text).notNull()
+                t.column("subject", .text).notNull()
+                t.column("body", .text).notNull()
+                t.column("quoteHTML", .text)
+                t.column("quoteText", .text)
+                t.column("inReplyTo", .text)
+                t.column("references", .text)
+                t.column("signature", .boolean).notNull()
+                t.column("files", .text).notNull()
+                t.column("gmailDraftID", .text)
+                t.column("gmailMessageID", .text)
+                t.column("origin", .text).notNull()
+                t.column("pushedAt", .datetime)
+                t.column("lastError", .text)
+                t.column("createdAt", .datetime).notNull()
+                t.column("updatedAt", .datetime).notNull()
+            }
+        }
         return migrator
     }
 }

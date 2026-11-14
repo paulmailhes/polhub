@@ -13,6 +13,7 @@ public enum GmailAPI {
     public enum Cost {
         public static let profile = 1, label = 1, history = 2, messageList = 5, threadList = 10
         public static let metadata = 20, full = 60, batchModify = 50, untrash = 5, thread = 120, attachment = 20
+        public static let sendAs = 1, draftCreate = 10, draftUpdate = 15, draftSend = 100, draftDelete = 10, draftList = 5
     }
 
     // MARK: - Requests
@@ -74,6 +75,47 @@ public enum GmailAPI {
         request("/threads/\(id)", [URLQueryItem(name: "format", value: format.rawValue)], accessToken: accessToken)
     }
 
+    /// The addresses the mailbox sends as, with their name and Gmail's signature.
+    public static func sendAsRequest(accessToken: String) -> URLRequest {
+        request("/settings/sendAs", accessToken: accessToken)
+    }
+
+    /// A draft created (`draftID == nil`) or replaced, by an upload that carries the whole message, files
+    /// included, and the thread it belongs to.
+    public static func draftUploadRequest(accessToken: String, draftID: String?, raw: Data, threadID: String?) -> URLRequest {
+        var url = "https://gmail.googleapis.com/upload/gmail/v1/users/me/drafts"
+        if let draftID { url += "/\(draftID)" }
+        var request = URLRequest(url: URL(string: url + "?uploadType=multipart")!)
+        request.httpMethod = draftID == nil ? "POST" : "PUT"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        let boundary = "polhub-envoi-\(UUID().uuidString)"
+        request.setValue("multipart/related; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        var metadata: [String: Any] = [:]
+        if let draftID { metadata["id"] = draftID }
+        metadata["message"] = threadID.map { ["threadId": $0] } ?? [String: String]()
+        var body = Data("--\(boundary)\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n".utf8)
+        body.append((try? JSONSerialization.data(withJSONObject: metadata, options: [.sortedKeys])) ?? Data("{}".utf8))
+        body.append(Data("\r\n--\(boundary)\r\nContent-Type: message/rfc822\r\n\r\n".utf8))
+        body.append(raw)
+        body.append(Data("\r\n--\(boundary)--\r\n".utf8))
+        request.httpBody = body
+        return request
+    }
+
+    /// Gmail sends the draft it holds; the draft disappears and a sent message takes its place.
+    public static func draftSendRequest(accessToken: String, draftID: String) -> URLRequest {
+        request("/drafts/send", accessToken: accessToken, method: "POST", json: ["id": draftID])
+    }
+
+    public static func draftDeleteRequest(accessToken: String, draftID: String) -> URLRequest {
+        request("/drafts/\(draftID)", accessToken: accessToken, method: "DELETE")
+    }
+
+    public static func draftsRequest(accessToken: String, pageToken: String? = nil) -> URLRequest {
+        request("/drafts", [URLQueryItem(name: "maxResults", value: "500")] + (pageToken.map { [URLQueryItem(name: "pageToken", value: $0)] } ?? []),
+                accessToken: accessToken)
+    }
+
     /// The bytes of a file a message carries.
     public static func attachmentRequest(accessToken: String, messageID: String, attachmentID: String) -> URLRequest {
         request("/messages/\(messageID)/attachments/\(attachmentID)", accessToken: accessToken)
@@ -125,6 +167,33 @@ public enum GmailAPI {
         /// When Gmail received it, in milliseconds since 1970, as text.
         public var internalDate: String?
         public var payload: Part?
+    }
+
+    public struct SendAsList: Decodable, Sendable, Equatable {
+        public struct Identity: Decodable, Sendable, Equatable {
+            public var sendAsEmail: String
+            public var displayName: String?
+            public var signature: String?
+            public var isPrimary: Bool?
+            public var isDefault: Bool?
+        }
+
+        public var sendAs: [Identity]?
+    }
+
+    public struct Draft: Decodable, Sendable, Equatable {
+        public struct Ref: Decodable, Sendable, Equatable {
+            public var id: String
+            public var threadId: String?
+        }
+
+        public var id: String
+        public var message: Ref?
+    }
+
+    public struct DraftList: Decodable, Sendable, Equatable {
+        public var drafts: [Draft]?
+        public var nextPageToken: String?
     }
 
     public struct Thread: Decodable, Sendable, Equatable {

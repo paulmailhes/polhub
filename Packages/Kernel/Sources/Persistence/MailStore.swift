@@ -205,15 +205,85 @@ public struct MailStore: Sendable {
         try writer.read { db in Dictionary(uniqueKeysWithValues: try MailSenderRow.fetchAll(db).map { ($0.address, $0) }) }
     }
 
-    /// Keeps a choice for the next mails of this address; `nil` leaves the other choice as it is.
-    public func remember(address: String, principal: Bool? = nil, images: Bool? = nil, at date: Date) throws {
+    /// Keeps a choice for the next mails of this address: its tab (`.some(nil)` gives it back to Gmail's
+    /// category), its images. What is not given stays as it is.
+    public func remember(address: String, tab: String?? = nil, images: Bool? = nil, at date: Date) throws {
         let address = address.lowercased()
         try writer.write { db in
-            var row = try MailSenderRow.fetchOne(db, key: address) ?? MailSenderRow(address: address, principal: false, images: false, createdAt: date)
-            if let principal { row.principal = principal }
+            var row = try MailSenderRow.fetchOne(db, key: address)
+                ?? MailSenderRow(address: address, principal: false, images: false, createdAt: date, tab: nil)
+            if let tab {
+                row.tab = tab
+                row.principal = tab == "personnes"
+            }
             if let images { row.images = images }
-            if row.principal || row.images { try row.save(db) } else { _ = try MailSenderRow.deleteOne(db, key: address) }
+            if row.tab != nil || row.images { try row.save(db) } else { _ = try MailSenderRow.deleteOne(db, key: address) }
         }
+    }
+
+    // MARK: - Drafts (step « Écrire »)
+
+    public func saveDraft(_ draft: MailDraftRow) throws {
+        try writer.write { db in
+            guard try GoogleAccountRow.fetchOne(db, key: draft.account) != nil else { return }
+            try draft.save(db)
+        }
+    }
+
+    public func draft(_ id: String) throws -> MailDraftRow? {
+        try writer.read { try MailDraftRow.fetchOne($0, key: id) }
+    }
+
+    public func drafts() throws -> [MailDraftRow] {
+        try writer.read { try MailDraftRow.order(Column("updatedAt").desc).fetchAll($0) }
+    }
+
+    public func deleteDraft(_ id: String) throws {
+        _ = try writer.write { try MailDraftRow.deleteOne($0, key: id) }
+    }
+
+    /// Gmail took a version: what it holds, and when. A draft changed meanwhile keeps its newer text.
+    public func markPushed(draftID: String, gmailDraftID: String, gmailMessageID: String?, version: Date, at date: Date) throws {
+        try writer.write { db in
+            try db.execute(sql: """
+                UPDATE mail_draft SET gmailDraftID = ?, gmailMessageID = ?, pushedAt = ?, lastError = NULL WHERE id = ?
+                """, arguments: [gmailDraftID, gmailMessageID, version, draftID])
+        }
+    }
+
+    public func markDraftError(_ id: String, error: String?) throws {
+        try writer.write { db in
+            try db.execute(sql: "UPDATE mail_draft SET lastError = ? WHERE id = ?", arguments: [error, id])
+        }
+    }
+
+    /// The threads Paul wrote in, the most recent first: the « Envoyés ».
+    public func sentThreads(accounts: Set<String>? = nil, limit: Int = 500) throws -> [MailThreadRow] {
+        try writer.read { db in
+            let keys = try String.fetchAll(db, sql: """
+                SELECT threadKey FROM mail_message WHERE labels LIKE '%"SENT"%' GROUP BY threadKey ORDER BY MAX(date) DESC LIMIT ?
+                """, arguments: [limit])
+            let threads = try MailThreadRow.filter(keys: keys).fetchAll(db)
+            let byKey = Dictionary(uniqueKeysWithValues: threads.map { ($0.id, $0) })
+            return keys.compactMap { byKey[$0] }.filter { accounts?.contains($0.account) ?? true }
+        }
+    }
+
+    /// The drafts Gmail holds that Polhub did not make (written on the phone, in Gmail web).
+    public func gmailOnlyDrafts() throws -> [MailMessageRow] {
+        try writer.read { db in
+            let mine = try String.fetchSet(db, sql: "SELECT gmailMessageID FROM mail_draft WHERE gmailMessageID IS NOT NULL")
+            return try MailMessageRow.filter(sql: "labels LIKE '%\"DRAFT\"%'").order(Column("date").desc).fetchAll(db)
+                .filter { !mine.contains($0.messageID) }
+        }
+    }
+
+    public func observeDrafts(onChange: @escaping @MainActor @Sendable ([MailDraftRow]) -> Void) -> AnyDatabaseCancellable {
+        ValueObservation
+            .tracking { try MailDraftRow.order(Column("updatedAt").desc).fetchAll($0) }
+            .start(in: writer, scheduling: .async(onQueue: .main), onError: { _ in }, onChange: { rows in
+                MainActor.assumeIsolated { onChange(rows) }
+            })
     }
 
     // MARK: - Observation
