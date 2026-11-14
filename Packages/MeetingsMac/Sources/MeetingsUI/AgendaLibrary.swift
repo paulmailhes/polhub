@@ -5,6 +5,7 @@ import Foundation
 import GRDB
 import Persistence
 import ProjectsUI
+import PolhubDesign
 import SwiftUI
 import VaultImport
 

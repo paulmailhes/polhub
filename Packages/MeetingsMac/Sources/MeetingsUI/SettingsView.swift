@@ -1,4 +1,5 @@
 import ProjectsUI
+import PolhubDesign
 import SwiftUI
 import Updates
 
@@ -36,13 +37,11 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
                     diagnostic
                 case .journal:
                     journal
-                case .projects:
-                    if let projects { VaultSettingsView(projects: projects, agenda: agenda) }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
-        .navigationTitle("Réglages")
+        .windowTitle("Réglages")
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Picker("Réglages", selection: $tab) {
@@ -103,39 +102,3 @@ struct UpdatesSettingsView: View {
     }
 }
 
-/// Réglages › Projets : the vault the projects are imported from.
-struct VaultSettingsView: View {
-    let projects: ProjectLibrary
-    var agenda: AgendaLibrary?
-    @State private var choosingVault = false
-    @State private var vaultPath: String?
-
-    var body: some View {
-        Form {
-            Section {
-                LabeledContent("Coffre Obsidian", value: vaultPath ?? "pas encore choisi")
-                Button("Choisir le dossier du coffre…") { choosingVault = true }
-                Text("L'import lit ce dossier sans jamais y écrire.").font(.caption).foregroundStyle(.secondary)
-            }
-            if let agenda {
-                Section {
-                    Button("Importer les contacts et l'historique") { Task { await agenda.importHistory() } }
-                        .disabled(agenda.importing || vaultPath == nil)
-                    Text("Les fiches contact et les anciennes réunions du coffre s'ajoutent, sans rien remplacer ; un nouvel import met à jour sans doublon.")
-                        .font(.caption).foregroundStyle(.secondary)
-                    if agenda.importing { ProgressView().controlSize(.small) }
-                    if let message = agenda.message { Text(message).font(.callout) }
-                }
-            }
-        }
-        .formStyle(.grouped)
-        .frame(maxWidth: 640)
-        .onAppear { vaultPath = projects.vaultPath }
-        .fileImporter(isPresented: $choosingVault, allowedContentTypes: [.folder]) { result in
-            if case .success(let url) = result {
-                projects.vaultPath = url.path(percentEncoded: false)
-                vaultPath = projects.vaultPath
-            }
-        }
-    }
-}

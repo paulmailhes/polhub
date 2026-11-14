@@ -49,23 +49,9 @@ struct WindowSnapshotTests {
         measure("répliques", DialogueParagraphs(lines: try TranscriptStore(database).utterances(meetingID: row.id), current: nil, seek: { _ in }))
         measure("ligne de liste", MeetingRowView(row: row, now: Date(), badge: "Transcription 50 %"))
 
-        for width in [860.0, 1_000, 1_280] {
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: width, height: 700), styleMask: [.titled, .resizable, .closable],
-                                  backing: .buffered, defer: false)
-            window.isReleasedWhenClosed = false
-            window.appearance = NSAppearance(named: .aqua)
-            window.contentView = NSHostingView(rootView: MainWindowView(library: library, router: router, paths: paths) { EmptyView() })
-            window.setContentSize(NSSize(width: width, height: 700))
-            window.layoutIfNeeded()
-            try await Task.sleep(for: .milliseconds(500))
-            window.layoutIfNeeded()
-            let view = try #require(window.contentView)
-            let bitmap = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
-            view.cacheDisplay(in: view.bounds, to: bitmap)
-            let png = try #require(bitmap.representation(using: .png, properties: [:]))
-            try png.write(to: output.appending(path: "fenetre-\(Int(width)).png"))
-            print("fenêtre \(Int(width)) : contenu \(Int(view.fittingSize.width)) × \(Int(view.fittingSize.height)), fenêtre \(Int(window.frame.width))")
-            window.close()
+        for width in [860.0, 1_280] {
+            try await LiveWindow.capture(MainWindowView(library: library, router: router, paths: paths) { EmptyView() },
+                                         to: output.appending(path: "fenetre-\(Int(width)).png"), size: NSSize(width: width, height: 760))
         }
     }
 
@@ -94,19 +80,10 @@ struct WindowSnapshotTests {
         let router = WindowRouter()
         router.section = .projects
         try await Task.sleep(for: .milliseconds(300))
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1_400, height: 640), styleMask: [.titled, .resizable],
-                              backing: .buffered, defer: false)
-        window.isReleasedWhenClosed = false
-        window.appearance = NSAppearance(named: .aqua)
-        window.contentView = NSHostingView(rootView: MainWindowView(library: library, projects: projects, router: router,
-                                                                   paths: AppPaths(root: root, logs: root)) { EmptyView() })
-        window.layoutIfNeeded()
-        try await Task.sleep(for: .milliseconds(500))
-        window.layoutIfNeeded()
-        let view = try #require(window.contentView)
-        let bitmap = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
-        view.cacheDisplay(in: view.bounds, to: bitmap)
-        try #require(bitmap.representation(using: .png, properties: [:])).write(to: output.appending(path: "kanban.png"))
+        try await LiveWindow.capture(MainWindowView(library: library, projects: projects, router: router,
+                                                    paths: AppPaths(root: root, logs: root)) { EmptyView() },
+                                     to: output.appending(path: "kanban.png"), size: NSSize(width: 1_440, height: 760))
+        router.section = .projects
     }
 
     @Test func theProjectPage() async throws {
@@ -128,18 +105,7 @@ struct WindowSnapshotTests {
         let projects = ProjectLibrary(store: store, meetings: MeetingStore(database), defaults: UserDefaults(suiteName: "page-\(UUID().uuidString)")!)
         try await Task.sleep(for: .milliseconds(300))
         projects.selected = project.id
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 1_100), styleMask: [.titled, .resizable],
-                              backing: .buffered, defer: false)
-        window.isReleasedWhenClosed = false
-        window.appearance = NSAppearance(named: .aqua)
-        window.contentView = NSHostingView(rootView: ProjectsView(library: projects))
-        window.layoutIfNeeded()
-        try await Task.sleep(for: .milliseconds(500))
-        window.layoutIfNeeded()
-        let view = try #require(window.contentView)
-        let bitmap = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
-        view.cacheDisplay(in: view.bounds, to: bitmap)
-        try #require(bitmap.representation(using: .png, properties: [:])).write(to: output.appending(path: "projet.png"))
+        try await LiveWindow.capture(ProjectsView(library: projects), to: output.appending(path: "projet.png"), size: NSSize(width: 1_200, height: 900))
     }
 
     /// Réglages and its tabs: Mises à jour, Diagnostic, Journal.
@@ -160,22 +126,9 @@ struct WindowSnapshotTests {
         try await Task.sleep(for: .milliseconds(300))
         for tab in [SettingsTab.updates, .diagnostic, .journal] {
             router.settingsTab = tab
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1_000, height: 560), styleMask: [.titled, .resizable],
-                                  backing: .buffered, defer: false)
-            window.isReleasedWhenClosed = false
-            window.appearance = NSAppearance(named: .aqua)
-            window.contentView = NSHostingView(rootView: MainWindowView(library: library, projects: projects, updates: updates, router: router,
-                                                                       paths: AppPaths(root: root, logs: root)) {
-                Text("Le diagnostic de l'app").padding()
-            })
-            window.layoutIfNeeded()
-            try await Task.sleep(for: .milliseconds(500))
-            window.layoutIfNeeded()
-            let view = try #require(window.contentView)
-            let bitmap = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
-            view.cacheDisplay(in: view.bounds, to: bitmap)
-            try #require(bitmap.representation(using: .png, properties: [:])).write(to: output.appending(path: "reglages-\(tab.rawValue).png"))
-            window.close()
+            try await LiveWindow.capture(MainWindowView(library: library, projects: projects, updates: updates, router: router,
+                                                        paths: AppPaths(root: root, logs: root)) { Text("Le diagnostic de l'app").padding() },
+                                         to: output.appending(path: "reglages-\(tab.rawValue).png"), size: NSSize(width: 1_000, height: 600))
         }
     }
 
@@ -235,20 +188,45 @@ struct WindowSnapshotTests {
         for (section, name) in [(SidebarItem.home, "accueil"), (.calendar, "calendrier"), (.contacts, "contacts")] {
             router.section = section
             if section == .contacts { router.contactSelection = camille.id }
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1_280, height: 760), styleMask: [.titled, .resizable],
-                                  backing: .buffered, defer: false)
-            window.isReleasedWhenClosed = false
-            window.appearance = NSAppearance(named: .aqua)
-            window.contentView = NSHostingView(rootView: MainWindowView(library: library, projects: projects, agenda: agenda, router: router,
-                                                                       paths: AppPaths(root: root, logs: root)) { EmptyView() })
+            try await LiveWindow.capture(MainWindowView(library: library, projects: projects, agenda: agenda, router: router,
+                                                        paths: AppPaths(root: root, logs: root)) { EmptyView() },
+                                         to: output.appending(path: "\(name).png"))
+        }
+    }
+}
+
+/// A window as the app makes it. With `POLHUB_LIVE=1`, it is shown on screen and captured by the system, glass
+/// and toolbar included (14/11: the offscreen drawing leaves them out); otherwise it is drawn offscreen.
+@MainActor
+enum LiveWindow {
+    static func capture(_ view: some View, to file: URL, size: NSSize = NSSize(width: 1_280, height: 780), dark: Bool = false) async throws {
+        let live = ProcessInfo.processInfo.environment["POLHUB_LIVE"] != nil
+        let host = NSHostingController(rootView: view)
+        host.sceneBridgingOptions = [.title, .toolbars]
+        let window = NSWindow(contentViewController: host)
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+        window.setContentSize(size)
+        window.isReleasedWhenClosed = false
+        window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+        defer { window.close() }
+        if live {
+            _ = NSApplication.shared
+            window.setFrameTopLeftPoint(NSPoint(x: 40, y: (NSScreen.main?.visibleFrame.maxY ?? 900) - 20))
+            window.orderFrontRegardless()
+            try await Task.sleep(for: .milliseconds(1_500))
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+            process.arguments = ["-l", "\(window.windowNumber)", "-o", "-x", file.path]
+            try process.run()
+            process.waitUntilExit()
+        } else {
             window.layoutIfNeeded()
             try await Task.sleep(for: .milliseconds(600))
             window.layoutIfNeeded()
-            let view = try #require(window.contentView)
-            let bitmap = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
-            view.cacheDisplay(in: view.bounds, to: bitmap)
-            try #require(bitmap.representation(using: .png, properties: [:])).write(to: output.appending(path: "\(name).png"))
-            window.close()
+            let content = try #require(window.contentView)
+            let bitmap = try #require(content.bitmapImageRepForCachingDisplay(in: content.bounds))
+            content.cacheDisplay(in: content.bounds, to: bitmap)
+            try #require(bitmap.representation(using: .png, properties: [:])).write(to: file)
         }
     }
 }

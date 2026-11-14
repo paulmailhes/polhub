@@ -3,6 +3,19 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.8.0 — 14 novembre 2026
+
+- **Un système de design commun, dans l'esprit Liquid Glass** : barre du haut en verre sur chaque écran,
+  toujours présente (les boutons de la fenêtre ne bougent plus, l'Accueil n'est plus collé en haut), le
+  titre de la fenêtre suit l'écran, les mêmes cartes, pastilles et couleurs partout.
+- **Projets** : le Kanban, en grand (cartes plus lisibles, prochaine étape, échéance, dernière réunion),
+  et la **Liste** de tous les projets, triable par colonne et filtrable par statut. La recherche, en
+  haut, vaut pour les deux. « Tous », « À rendre » et « À surveiller » disparaissent.
+- **Nouveau projet** : « + » en haut ou en tête d'une colonne ouvre une fenêtre avec tous ses champs.
+- **La page d'un projet** est refaite : la prochaine étape en tête, actions, journal et notes ; sur le
+  côté ses infos, ses contacts, ses réunions et ses prochains rendez-vous.
+- Plus aucun import depuis Obsidian : le bouton, le menu et l'onglet Réglages › Projets disparaissent.
+
 ## 0.7.0 — 14 novembre 2026
 
 - **Comptes rendus** : après la transcription, chaque réunion reçoit son résumé, ses décisions et ses

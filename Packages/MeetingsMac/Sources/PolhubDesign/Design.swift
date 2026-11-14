@@ -1,0 +1,267 @@
+import AppKit
+import SwiftUI
+
+// Polhub's design system (14/11): the rules are in docs/design-system.md. Glass belongs to the navigation
+// layer and to floating controls; content sits on calm, continuous rounded surfaces.
+
+/// Spacing, on a 4-point grid.
+public enum Space {
+    public static let xs: CGFloat = 4
+    public static let s: CGFloat = 8
+    public static let m: CGFloat = 12
+    public static let l: CGFloat = 16
+    public static let xl: CGFloat = 24
+    public static let xxl: CGFloat = 32
+}
+
+/// Corner radii, always with the continuous style.
+public enum Radius {
+    public static let small: CGFloat = 6
+    public static let control: CGFloat = 10
+    public static let card: CGFloat = 16
+    public static let hero: CGFloat = 22
+}
+
+/// The width and margins of a page's content.
+public enum PageMetrics {
+    public static let maxWidth: CGFloat = 1_080
+    public static let readingWidth: CGFloat = 860
+    public static let horizontal: CGFloat = 28
+    public static let top: CGFloat = 16
+    public static let bottom: CGFloat = 40
+}
+
+/// Content surfaces: a hint of the text color over the window, so they read in light and dark alike.
+public enum Surface {
+    public static let fill = Color.primary.opacity(0.045)
+    public static let raised = Color.primary.opacity(0.07)
+    public static let stroke = Color.primary.opacity(0.08)
+    public static let selected = Color.accentColor.opacity(0.12)
+}
+
+/// The one palette of the app: accounts, projects and statuses take their colors here.
+public enum Palette {
+    public static let violet = "#8B5CF6"
+    public static let green = "#22A06B"
+    public static let orange = "#F97316"
+    public static let blue = "#3B82F6"
+    public static let pink = "#EC4899"
+    public static let teal = "#14B8A6"
+    public static let red = "#EF4444"
+    public static let yellow = "#EAB308"
+    public static let brown = "#8B5E3C"
+    public static let gray = "#8E8E93"
+}
+
+extension Color {
+    /// `#RRGGBB`.
+    public init(hex: String) {
+        let value = UInt64(hex.dropFirst(), radix: 16) ?? 0
+        self.init(red: Double((value >> 16) & 0xFF) / 255, green: Double((value >> 8) & 0xFF) / 255, blue: Double(value & 0xFF) / 255)
+    }
+}
+
+/// A page: scrolls, keeps its width, and the same margins everywhere.
+public struct Page<Content: View>: View {
+    let maxWidth: CGFloat
+    let spacing: CGFloat
+    let content: Content
+
+    public init(maxWidth: CGFloat = PageMetrics.maxWidth, spacing: CGFloat = Space.xl, @ViewBuilder content: () -> Content) {
+        self.maxWidth = maxWidth
+        self.spacing = spacing
+        self.content = content()
+    }
+
+    public var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: spacing) { content }
+                .padding(.horizontal, PageMetrics.horizontal)
+                .padding(.top, PageMetrics.top)
+                .padding(.bottom, PageMetrics.bottom)
+                .frame(maxWidth: maxWidth, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .center)
+        }
+    }
+}
+
+/// A page's title and the line under it.
+public struct PageHeader<Accessory: View>: View {
+    let title: String
+    let subtitle: String?
+    let accessory: Accessory
+
+    public init(_ title: String, subtitle: String? = nil, @ViewBuilder accessory: () -> Accessory = { EmptyView() }) {
+        self.title = title
+        self.subtitle = subtitle
+        self.accessory = accessory()
+    }
+
+    public var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Space.l) {
+            VStack(alignment: .leading, spacing: Space.xs) {
+                Text(title).font(.largeTitle.weight(.bold)).fixedSize(horizontal: false, vertical: true)
+                if let subtitle { Text(subtitle).font(.title3).foregroundStyle(.secondary) }
+            }
+            Spacer(minLength: 0)
+            accessory
+        }
+    }
+}
+
+/// A content surface.
+public struct Card<Content: View>: View {
+    let padding: CGFloat
+    let content: Content
+
+    public init(padding: CGFloat = Space.l, @ViewBuilder content: () -> Content) {
+        self.padding = padding
+        self.content = content()
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: Space.m) { content }
+            .padding(padding)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .cardSurface()
+    }
+}
+
+extension View {
+    /// The card's background and edge.
+    public func cardSurface(radius: CGFloat = Radius.card, fill: Color = Surface.fill) -> some View {
+        background(fill, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous).strokeBorder(Surface.stroke))
+    }
+}
+
+/// The title of a part of a page or of a card, with an optional count and trailing control.
+public struct SectionTitle<Trailing: View>: View {
+    let title: String
+    let systemImage: String?
+    let count: Int?
+    let trailing: Trailing
+
+    public init(_ title: String, systemImage: String? = nil, count: Int? = nil, @ViewBuilder trailing: () -> Trailing = { EmptyView() }) {
+        self.title = title
+        self.systemImage = systemImage
+        self.count = count
+        self.trailing = trailing()
+    }
+
+    public var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+            if let systemImage {
+                Label(title, systemImage: systemImage).font(.headline)
+            } else {
+                Text(title).font(.headline)
+            }
+            if let count { Text("\(count)").font(.callout.monospacedDigit()).foregroundStyle(.secondary) }
+            Spacer(minLength: 0)
+            trailing
+        }
+    }
+}
+
+/// A small tinted capsule: a status, a date, a tag.
+public struct Chip: View {
+    let text: String
+    let systemImage: String?
+    let tint: Color?
+
+    public init(_ text: String, systemImage: String? = nil, tint: Color? = nil) {
+        self.text = text
+        self.systemImage = systemImage
+        self.tint = tint
+    }
+
+    public var body: some View {
+        HStack(spacing: Space.xs) {
+            if let systemImage { Image(systemName: systemImage) }
+            Text(text).lineLimit(1)
+        }
+        .font(.caption.weight(.semibold))
+        .padding(.horizontal, Space.s)
+        .padding(.vertical, 3)
+        .foregroundStyle(tint ?? .secondary)
+        .background((tint ?? .secondary).opacity(0.14), in: Capsule())
+    }
+}
+
+/// Someone's initials in a soft circle.
+public struct Avatar: View {
+    let initials: String
+    let size: CGFloat
+    let tint: Color
+
+    public init(_ initials: String, size: CGFloat = 30, tint: Color = .accentColor) {
+        self.initials = initials
+        self.size = size
+        self.tint = tint
+    }
+
+    public var body: some View {
+        Text(initials.isEmpty ? "?" : initials)
+            .font(.system(size: size * 0.4, weight: .semibold))
+            .frame(width: size, height: size)
+            .foregroundStyle(tint)
+            .background(tint.opacity(0.16), in: Circle())
+    }
+}
+
+/// A colored dot: an account, a status, a project.
+public struct ColorDot: View {
+    let color: Color
+    let size: CGFloat
+
+    public init(_ color: Color, size: CGFloat = 9) {
+        self.color = color
+        self.size = size
+    }
+
+    public var body: some View {
+        Circle().fill(color).frame(width: size, height: size)
+    }
+}
+
+/// Controls floating over the content, at the bottom of a page: a capsule of glass.
+public struct FloatingBar<Content: View>: View {
+    let content: Content
+
+    public init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    public var body: some View {
+        content
+            .padding(.horizontal, Space.l)
+            .padding(.vertical, Space.s + 2)
+            .glassEffect(.regular, in: .capsule)
+            .padding(.horizontal, Space.xl)
+            .padding(.bottom, Space.l)
+    }
+}
+
+/// The window's title and subtitle, from the page shown: the main window is made by hand and SwiftUI does not
+/// pass `navigationTitle` to it (measured on 14/11).
+public struct WindowTitle: NSViewRepresentable {
+    let title: String
+    let subtitle: String
+
+    public func makeNSView(context: Context) -> NSView { NSView() }
+
+    public func updateNSView(_ view: NSView, context: Context) {
+        let title = title, subtitle = subtitle
+        DispatchQueue.main.async {
+            view.window?.title = title
+            view.window?.subtitle = subtitle
+        }
+    }
+}
+
+extension View {
+    /// Names the window after this page.
+    public func windowTitle(_ title: String, subtitle: String = "") -> some View {
+        background(WindowTitle(title: title, subtitle: subtitle).frame(width: 0, height: 0))
+    }
+}

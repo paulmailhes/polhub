@@ -1,5 +1,6 @@
 import Domain
 import Persistence
+import PolhubDesign
 import SwiftUI
 
 extension BoardColor {
@@ -16,55 +17,50 @@ extension BoardColor {
     }
 }
 
-/// The kanban: one column per status, cards moved by dragging.
+/// The Kanban: one column per status (done ones in the list), large cards moved by dragging (14/11).
 struct BoardView: View {
     @ObservedObject var library: ProjectLibrary
-    let includeDone: Bool
+    let projects: [ProjectRow]
+    /// « + » of a column: the creation window, with that status.
+    let create: (ProjectStatus) -> Void
 
     var body: some View {
         ScrollView(.horizontal) {
-            HStack(alignment: .top, spacing: 12) {
-                ForEach(ProjectViews.columns(library.projects, includeDone: includeDone)) { column in
-                    ColumnView(column: column, library: library)
+            HStack(alignment: .top, spacing: Space.l) {
+                ForEach(ProjectViews.columns(projects, includeDone: false)) { column in
+                    ColumnView(column: column, library: library, create: create)
                 }
             }
-            .padding(16)
+            .padding(.horizontal, Space.xl)
+            .padding(.top, Space.m)
+            .padding(.bottom, Space.l)
         }
+        .scrollIndicators(.automatic)
     }
 }
 
 struct ColumnView: View {
     let column: BoardColumn
     @ObservedObject var library: ProjectLibrary
-    @State private var adding = false
-    @State private var newName = ""
+    let create: (ProjectStatus) -> Void
     @State private var targeted = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Circle().fill(column.color.swiftUI).frame(width: 9, height: 9)
+        VStack(alignment: .leading, spacing: Space.m) {
+            HStack(spacing: Space.s) {
+                ColorDot(column.color.swiftUI, size: 10)
                 Text(column.title.capitalizedFirst).font(.headline)
-                Text("\(column.projects.count)").font(.caption).foregroundStyle(.secondary)
+                Text("\(column.projects.count)").font(.callout.monospacedDigit()).foregroundStyle(.secondary)
                 Spacer()
-                Button { adding = true } label: { Image(systemName: "plus") }
+                Button { create(column.status) } label: { Image(systemName: "plus") }
                     .buttonStyle(.borderless)
                     .help("Nouveau projet dans « \(column.title) »")
             }
-            if adding {
-                TextField("Nom du projet", text: $newName)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit {
-                        library.add(name: newName, status: column.status)
-                        newName = ""
-                        adding = false
-                    }
-                    .onExitCommand { adding = false; newName = "" }
-            }
+            .padding(.horizontal, Space.xs)
             ScrollView(.vertical) {
-                LazyVStack(spacing: 8) {
+                LazyVStack(spacing: Space.m) {
                     ForEach(column.projects) { project in
-                        ProjectCard(project: project)
+                        ProjectCard(project: project, lastMeeting: ProjectViews.lastMeeting(project, appMeeting: library.lastAppMeetings[project.id]))
                             .onTapGesture { library.selected = project.id }
                             .draggable(project.id.uuidString)
                             .dropDestination(for: String.self) { items, _ in
@@ -72,13 +68,14 @@ struct ColumnView: View {
                             }
                     }
                 }
-                .padding(.bottom, 40)
+                .padding(.bottom, 60)
             }
+            .scrollIndicators(.never)
         }
-        .padding(10)
-        .frame(width: 250)
+        .padding(Space.m)
+        .frame(width: 300)
         .frame(maxHeight: .infinity, alignment: .top)
-        .background(column.color.swiftUI.opacity(targeted ? 0.16 : 0.07), in: RoundedRectangle(cornerRadius: 10))
+        .background(column.color.swiftUI.opacity(targeted ? 0.16 : 0.06), in: RoundedRectangle(cornerRadius: Radius.card + 4, style: .continuous))
         .dropDestination(for: String.self) { items, _ in
             drop(items, before: nil)
         } isTargeted: { targeted = $0 }
@@ -92,39 +89,47 @@ struct ColumnView: View {
     }
 }
 
-/// One project on the board: icon, name, client, due date, the next thing to do.
+/// One project on the board: icon and name, client, due date, the next thing to do, the last meeting.
 struct ProjectCard: View {
     let project: ProjectRow
+    var lastMeeting: Date?
+    @State private var hovering = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                if let icon = project.icon, icon.count <= 2 { Text(icon) }
-                Text(project.name).font(.body.weight(.semibold)).lineLimit(2)
-            }
-            HStack(spacing: 6) {
-                if let client = project.client { Text(client).font(.caption).foregroundStyle(.secondary) }
-                if let label = ProjectViews.dueLabel(project.dueDate, today: Date()) {
-                    Text(label)
-                        .font(.caption2.weight(.semibold))
-                        .padding(.horizontal, 6).padding(.vertical, 1)
-                        .foregroundStyle(dueColor(label))
-                        .background(dueColor(label).opacity(0.14), in: Capsule())
+        VStack(alignment: .leading, spacing: Space.s) {
+            HStack(alignment: .top, spacing: Space.s) {
+                if let icon = project.icon, icon.count <= 2 { Text(icon).font(.title2) }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(project.name).font(.headline).lineLimit(2)
+                    if let client = project.client { Text(client).font(.callout).foregroundStyle(.secondary).lineLimit(1) }
                 }
             }
             if let todo = project.todo, !todo.isEmpty {
-                Text(todo).font(.callout).foregroundStyle(.secondary).lineLimit(3)
+                Text(todo).font(.callout).lineLimit(3).fixedSize(horizontal: false, vertical: true)
+            }
+            let due = ProjectViews.dueLabel(project.dueDate, today: Date())
+            if due != nil || lastMeeting != nil {
+                HStack(spacing: Space.s) {
+                    if let due { Chip(due, systemImage: "calendar", tint: dueColor(due)) }
+                    if let lastMeeting {
+                        Chip(lastMeeting.formatted(.relative(presentation: .named).locale(Locale(identifier: "fr_FR"))), systemImage: "waveform")
+                    }
+                }
             }
         }
-        .padding(10)
+        .padding(Space.m + 2)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background, in: RoundedRectangle(cornerRadius: 8))
+        .background(.background, in: RoundedRectangle(cornerRadius: Radius.card - 2, style: .continuous))
         .overlay(alignment: .leading) {
             if let hex = ProjectViews.cardHex(project.color) {
-                RoundedRectangle(cornerRadius: 2).fill(Color(hex: hex)).frame(width: 3).padding(.vertical, 6)
+                Capsule().fill(Color(hex: hex)).frame(width: 4).padding(.vertical, Space.m)
             }
         }
-        .shadow(color: .black.opacity(0.08), radius: 1, y: 1)
+        .overlay(RoundedRectangle(cornerRadius: Radius.card - 2, style: .continuous).strokeBorder(Surface.stroke))
+        .shadow(color: .black.opacity(hovering ? 0.12 : 0.05), radius: hovering ? 8 : 2, y: hovering ? 3 : 1)
+        .scaleEffect(hovering ? 1.01 : 1)
+        .animation(.easeOut(duration: 0.15), value: hovering)
+        .onHover { hovering = $0 }
         .contentShape(Rectangle())
     }
 
@@ -138,10 +143,3 @@ extension String {
     var capitalizedFirst: String { prefix(1).uppercased() + dropFirst() }
 }
 
-extension Color {
-    /// `#RRGGBB`.
-    public init(hex: String) {
-        let value = UInt64(hex.dropFirst(), radix: 16) ?? 0
-        self.init(red: Double((value >> 16) & 0xFF) / 255, green: Double((value >> 8) & 0xFF) / 255, blue: Double(value & 0xFF) / 255)
-    }
-}

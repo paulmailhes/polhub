@@ -3,6 +3,7 @@ import AppKit
 import Domain
 import Persistence
 import ProjectsUI
+import PolhubDesign
 import SwiftUI
 
 /// Where the overlapping events of a day sit: a column, and how many columns their group shares.
@@ -71,7 +72,7 @@ struct CalendarView: View {
                 }
             }
         }
-        .navigationTitle(weekTitle)
+        .windowTitle("Calendrier", subtitle: weekTitle)
         .toolbar { toolbar }
         .onAppear(perform: openAsked)
         .onChange(of: router.eventSelection) { _, _ in openAsked() }
@@ -144,7 +145,7 @@ struct CalendarView: View {
                     }
                     .padding(.top, 8)
                 }
-                .onAppear { scroll.scrollTo(max(0, Self.calendar.component(.hour, from: .now) - 2), anchor: .top) }
+                .defaultScrollAnchor(UnitPoint(x: 0, y: CGFloat(max(0, Self.calendar.component(.hour, from: .now) - 2)) / 22))
             }
         }
     }
@@ -513,7 +514,7 @@ struct GuestRow: View {
             router.openContact(contact.id)
         } label: {
             HStack(spacing: 8) {
-                InitialsBadge(text: contact?.initials ?? String(Linker.name(for: guest).prefix(1)), size: 24)
+                Avatar(contact?.initials ?? String(Linker.name(for: guest).prefix(1)), size: 24)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(contact?.name ?? Linker.name(for: guest)).font(.callout).foregroundStyle(.primary)
                     if let company = contact?.company ?? Linker.company(forEmail: guest.email) {
@@ -527,18 +528,5 @@ struct GuestRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-}
-
-/// Initials in a soft circle.
-struct InitialsBadge: View {
-    let text: String
-    var size: CGFloat = 30
-
-    var body: some View {
-        Text(text.isEmpty ? "?" : text)
-            .font(.system(size: size * 0.4, weight: .semibold))
-            .frame(width: size, height: size)
-            .background(Color.accentColor.opacity(0.15), in: Circle())
     }
 }

@@ -1,6 +1,7 @@
 import Domain
 import Persistence
 import ProjectsUI
+import PolhubDesign
 import SwiftUI
 
 /// Contacts: the people of the calendars and of the vault, their projects, meetings and events (13/11).
@@ -32,7 +33,7 @@ struct ContactsView: View {
                 } else {
                     List(shown, selection: $router.contactSelection) { contact in
                         HStack(spacing: 10) {
-                            InitialsBadge(text: contact.initials)
+                            Avatar(contact.initials)
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(contact.name)
                                 if let company = contact.company { Text(company).font(.caption).foregroundStyle(.secondary) }
@@ -53,18 +54,15 @@ struct ContactsView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .navigationTitle("Contacts")
+        .windowTitle("Contacts")
         .searchable(text: $query, placement: .toolbar, prompt: "Chercher un contact")
     }
 
     private var empty: some View {
         VStack(spacing: 12) {
             Text("Pas encore de contacts.").foregroundStyle(.secondary)
-            Text("Ils viennent tout seuls des invités de tes agendas Google, ou de ton coffre :").font(.callout)
+            Text("Ils viennent tout seuls des invités de tes agendas Google.").font(.callout)
                 .foregroundStyle(.secondary).multilineTextAlignment(.center)
-            Button("Importer les contacts et l'historique") { Task { await agenda.importHistory() } }.disabled(agenda.importing)
-            if agenda.importing { ProgressView().controlSize(.small) }
-            if let message = agenda.message { Text(message).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center) }
         }
         .padding(20)
         .frame(maxHeight: .infinity)
@@ -83,7 +81,7 @@ struct ContactPage: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(spacing: 14) {
-                    InitialsBadge(text: contact.initials, size: 56)
+                    Avatar(contact.initials, size: 56)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(contact.name).font(.title2.bold())
                         if let company = contact.company { Text(company).foregroundStyle(.secondary) }

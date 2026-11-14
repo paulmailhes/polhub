@@ -6,6 +6,7 @@ import Pipeline
 import Recording
 import ProjectsUI
 import Summarization
+import PolhubDesign
 import SwiftUI
 
 /// One meeting: who and when, its summary and actions, the dialogue, and the player floating at the bottom
@@ -115,7 +116,7 @@ struct MeetingDetailView: View {
                 ForEach(participants.prefix(6)) { contact in
                     Button { router.openContact(contact.id) } label: {
                         HStack(spacing: 6) {
-                            InitialsBadge(text: contact.initials, size: 22)
+                            Avatar(contact.initials, size: 22)
                             Text(contact.name).lineLimit(1)
                         }
                     }
@@ -162,10 +163,9 @@ struct MeetingDetailView: View {
                     }
                 }
             }
-            .padding(18)
+            .padding(Space.l + 2)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color.primary.opacity(0.06)))
+            .cardSurface()
         }
     }
 

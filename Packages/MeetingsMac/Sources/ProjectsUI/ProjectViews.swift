@@ -1,6 +1,7 @@
 import Domain
 import Foundation
 import Persistence
+import SwiftUI
 
 /// The colors of the board: the column colors of `Projets.base`, and the card colors of the vault.
 public enum BoardColor: String, Equatable, Sendable {
@@ -23,6 +24,11 @@ public enum ProjectViews {
     static let columnColors: [ProjectStatus: BoardColor] = [
         .idee: .pink, .priorite3: .red, .priorite2: .orange, .priorite1: .yellow, .enAttente: .cyan, .termine: .green, .none: .gray,
     ]
+
+    /// A status's color, as on the board's columns.
+    public static func statusColor(_ status: ProjectStatus) -> Color {
+        (columnColors[status] ?? .gray).swiftUI
+    }
 
     /// The six columns of the vault in its order (« terminé » only in the « Tous » view), then « Sans statut »
     /// when it has cards.
@@ -91,6 +97,20 @@ public enum ProjectViews {
         }
     }
 
+    /// The projects whose name, client, next step or notes hold the text, without case or accents (14/11).
+    public static func matching(_ projects: [ProjectRow], _ query: String) -> [ProjectRow] {
+        let words = fold(query).split(separator: " ").map(String.init)
+        guard !words.isEmpty else { return projects }
+        return projects.filter { project in
+            let text = fold([project.name, project.client ?? "", project.todo ?? "", project.notes].joined(separator: " "))
+            return words.allSatisfy(text.contains)
+        }
+    }
+
+    static func fold(_ text: String) -> String {
+        text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "fr_FR"))
+    }
+
     /// The card a dropped card goes above. Dropped on a card lower in its own column, it goes below it:
     /// moving a card down one place is dropping it on the next one (review, minor 7).
     public static func dropBefore(dragged: UUID, onto target: UUID, column: [UUID]) -> UUID? {
@@ -120,5 +140,28 @@ public enum ProjectViews {
         let digits = value.hasPrefix("#") ? String(value.dropFirst()) : value
         guard digits.count == 6, digits.allSatisfy(\.isHexDigit) else { return nil }
         return "#" + digits.uppercased()
+    }
+}
+
+/// One line of the « Liste » (14/11): the project and the keys its columns sort by.
+public struct ProjectListRow: Identifiable, Sendable {
+    public let project: ProjectRow
+    public let lastSign: Date
+    public var id: UUID { project.id }
+
+    /// Priority 1 first, done last.
+    public var statusRank: Int {
+        [ProjectStatus.priorite1, .priorite2, .priorite3, .enAttente, .idee, .none, .termine].firstIndex(of: project.status) ?? 99
+    }
+    public var name: String { ProjectViews.fold(project.name) }
+    /// Without a client, last.
+    public var clientSort: String { project.client.map(ProjectViews.fold) ?? "\u{10FFFF}" }
+    /// Without a due date, last.
+    public var dueSort: Date { project.dueDate ?? .distantFuture }
+    public var activitySort: Date { lastSign }
+
+    public static func rows(_ projects: [ProjectRow], lastMeetings: [UUID: Date], status: ProjectStatus?) -> [ProjectListRow] {
+        projects.filter { status == nil || $0.status == status }
+            .map { ProjectListRow(project: $0, lastSign: ProjectViews.sign($0, lastAppMeeting: lastMeetings[$0.id])) }
     }
 }

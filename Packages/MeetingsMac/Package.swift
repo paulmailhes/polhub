@@ -19,6 +19,7 @@ let package = Package(
         .library(name: "Updates", targets: ["Updates"]),
         .library(name: "Agenda", targets: ["Agenda"]),
         .library(name: "Summarization", targets: ["Summarization"]),
+        .library(name: "PolhubDesign", targets: ["PolhubDesign"]),
         .executable(name: "polhub-calcul", targets: ["PolhubCalcul"]),
         .executable(name: "polhub", targets: ["PolhubCLI"]),
     ],
@@ -36,6 +37,8 @@ let package = Package(
         // Updates from the versions published on GitHub, never during a meeting.
         .target(name: "Updates"),
         // Google calendars, contacts, and the automatic links between events, meetings, contacts and projects.
+        // The design system: tokens and components every screen uses (14/11, docs/design-system.md).
+        .target(name: "PolhubDesign"),
         // The meetings' summaries, by the model built into macOS: nothing to download, nothing leaves the Mac (14/11).
         .target(name: "Summarization", dependencies: [
             .product(name: "Domain", package: "Kernel"),
@@ -47,6 +50,7 @@ let package = Package(
         ]),
         // The projects module: board, views, project page.
         .target(name: "ProjectsUI", dependencies: [
+            "PolhubDesign",
             "VaultImport",
             .product(name: "Domain", package: "Kernel"),
             .product(name: "Persistence", package: "Kernel"),
@@ -83,6 +87,7 @@ let package = Package(
             "Agenda",
             "VaultImport",
             "Summarization",
+            "PolhubDesign",
             .product(name: "Domain", package: "Kernel"),
             .product(name: "Persistence", package: "Kernel"),
             .product(name: "GRDB", package: "GRDB.swift"),

@@ -12,7 +12,8 @@ import Testing
     }
 
     @Test func diagnosticAndJournalLiveInSettings() {
-        #expect(SettingsTab.visible(hasProjects: true).map(\.title) == ["Mises à jour", "Diagnostic", "Journal", "Projets"])
+        // 14/11: the vault's import left with Obsidian, and its tab with it.
+        #expect(SettingsTab.visible(hasProjects: true).map(\.title) == ["Mises à jour", "Diagnostic", "Journal"])
         #expect(SettingsTab.visible(hasProjects: false) == [.updates, .diagnostic, .journal])
     }
 

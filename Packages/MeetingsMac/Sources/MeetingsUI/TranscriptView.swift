@@ -1,6 +1,7 @@
 import Domain
 import Persistence
 import Pipeline
+import PolhubDesign
 import SwiftUI
 
 /// The state of the transcription and « Réessayer »; « Retranscrire » is in the « … » menu (14/11).

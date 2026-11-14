@@ -357,7 +357,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     DiagnosticView(model: diagnostic) { [weak self] in self?.showProbeWindow() }
                 }
             }
-            let window = NSWindow(contentViewController: NSHostingController(rootView: view))
+            let host = NSHostingController(rootView: view)
+            // Each page's title and toolbar go to the window (14/11).
+            host.sceneBridgingOptions = [.title, .toolbars]
+            let window = NSWindow(contentViewController: host)
             window.title = "Polhub"
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
             window.setContentSize(NSSize(width: 1_180, height: 720))

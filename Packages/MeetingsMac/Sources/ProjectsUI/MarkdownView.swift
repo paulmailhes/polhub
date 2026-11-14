@@ -1,3 +1,4 @@
+import PolhubDesign
 import SwiftUI
 
 /// A note shown as in Obsidian's reading mode: titles, lists, check boxes, quotes and callouts, with bold,

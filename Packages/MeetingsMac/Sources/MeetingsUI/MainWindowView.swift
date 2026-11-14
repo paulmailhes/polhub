@@ -1,6 +1,7 @@
 import Domain
 import Persistence
 import ProjectsUI
+import PolhubDesign
 import SwiftUI
 import Updates
 
@@ -40,19 +41,19 @@ public enum SidebarItem: String, Hashable, Sendable {
 
 /// The tabs of Réglages.
 public enum SettingsTab: String, Hashable, Sendable, CaseIterable {
-    case updates, diagnostic, journal, projects
+    case updates, diagnostic, journal
 
     var title: String {
         switch self {
         case .updates: "Mises à jour"
         case .diagnostic: "Diagnostic"
         case .journal: "Journal"
-        case .projects: "Projets"
         }
     }
 
+    /// The vault's import is gone with Obsidian (Paul, 14/11).
     static func visible(hasProjects: Bool) -> [SettingsTab] {
-        allCases.filter { hasProjects || $0 != .projects }
+        allCases
     }
 }
 
@@ -106,6 +107,7 @@ public struct MainWindowView<Diagnostic: View>: View {
     @ObservedObject var router: WindowRouter
     let paths: AppPaths
     let diagnostic: Diagnostic
+    @State private var columns: NavigationSplitViewVisibility = .all
 
     public init(
         library: MeetingLibrary, projects: ProjectLibrary? = nil, agenda: AgendaLibrary? = nil, updates: UpdateService? = nil, router: WindowRouter,
@@ -121,13 +123,25 @@ public struct MainWindowView<Diagnostic: View>: View {
     }
 
     public var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columns) {
             List(selection: $router.section) {
                 ForEach(SidebarItem.visible(hasProjects: projects != nil, hasAgenda: agenda != nil), id: \.self) { item in
                     Label(item.title, systemImage: item.icon).tag(item)
                 }
             }
-            .navigationSplitViewColumnWidth(min: 160, ideal: 180)
+            .navigationSplitViewColumnWidth(min: 170, ideal: 190)
+            // The window is made by hand: SwiftUI does not add this button there. It keeps a toolbar on every
+            // page, so the window's buttons never move and nothing sticks to the top (Paul, 14/11).
+            .toolbar {
+                ToolbarItem {
+                    Button {
+                        withAnimation { columns = columns == .detailOnly ? .all : .detailOnly }
+                    } label: {
+                        Label("Barre latérale", systemImage: "sidebar.left")
+                    }
+                    .help("Afficher ou masquer la barre latérale")
+                }
+            }
         } detail: {
             switch router.section {
             case .home:
@@ -139,7 +153,10 @@ public struct MainWindowView<Diagnostic: View>: View {
             case .projects:
                 if let projects {
                     ProjectsView(library: projects)
-                        .onAppear { projects.openMeeting = { [weak router] id in router?.open(meetingID: id, at: nil) } }
+                        .onAppear {
+                            projects.openMeeting = { [weak router] id in router?.open(meetingID: id, at: nil) }
+                            projects.openContact = { [weak router] id in router?.openContact(id) }
+                        }
                 } else {
                     ContentUnavailableView("Projets indisponibles", systemImage: "square.grid.3x2")
                 }
@@ -173,7 +190,7 @@ public struct MainWindowView<Diagnostic: View>: View {
                     }
                     .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .navigationTitle("Réunions")
+                .windowTitle("Réunions", subtitle: router.selection.flatMap { id in library.rows.first { $0.id == id }?.title } ?? "")
                 .searchable(text: $router.query, placement: .toolbar, prompt: "Chercher dans les transcriptions")
             case .settings:
                 SettingsPage(tab: $router.settingsTab, updates: updates, projects: projects, agenda: agenda) {
@@ -184,6 +201,7 @@ public struct MainWindowView<Diagnostic: View>: View {
             }
         }
         .frame(minWidth: Self.minimumWidth, minHeight: 520)
+
     }
 }
 

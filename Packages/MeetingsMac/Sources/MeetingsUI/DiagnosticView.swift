@@ -1,5 +1,6 @@
 import AppKit
 import Recording
+import PolhubDesign
 import SwiftUI
 import Transcription
 

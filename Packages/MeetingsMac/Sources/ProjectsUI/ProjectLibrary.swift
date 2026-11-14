@@ -16,6 +16,8 @@ public final class ProjectLibrary: ObservableObject {
     @Published public var selected: UUID?
     /// Set by the window: opens a meeting from a project's page.
     public var openMeeting: ((UUID) -> Void)?
+    /// Opens a contact, in Contacts (14/11).
+    public var openContact: ((UUID) -> Void)?
     public let store: ProjectStore
     public let meetings: MeetingStore
     private let defaults: UserDefaults
@@ -50,6 +52,20 @@ public final class ProjectLibrary: ObservableObject {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         return try? store.addProject(name: trimmed, status: status, at: Date())
+    }
+
+    /// A project made in the creation window, with every field it was given, at the bottom of its column.
+    @discardableResult
+    public func create(_ draft: ProjectRow) -> ProjectRow? {
+        guard let added = add(name: draft.name, status: draft.status) else { return nil }
+        var filled = draft
+        filled.id = added.id
+        filled.name = added.name
+        filled.kanbanOrder = added.kanbanOrder
+        filled.createdAt = added.createdAt
+        filled.createdOn = draft.createdOn ?? added.createdAt
+        try? store.saveChanges(from: added, to: filled, at: Date())
+        return (try? store.project(id: added.id)) ?? nil
     }
 
     /// A change made on a project's page. A new status sends the card to the bottom of its new column,

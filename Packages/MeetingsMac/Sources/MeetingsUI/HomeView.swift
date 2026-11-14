@@ -2,6 +2,7 @@ import Agenda
 import Domain
 import Persistence
 import ProjectsUI
+import PolhubDesign
 import SwiftUI
 
 /// What Accueil puts first (14/11).
@@ -60,12 +61,14 @@ struct HomeView: View {
                         unfiledCard
                     }
                 }
-                .padding(28)
-                .frame(maxWidth: 1_040, alignment: .leading)
+                .padding(.horizontal, PageMetrics.horizontal)
+                .padding(.top, PageMetrics.top)
+                .padding(.bottom, PageMetrics.bottom)
+                .frame(maxWidth: PageMetrics.maxWidth, alignment: .leading)
                 .frame(maxWidth: .infinity)
             }
         }
-        .navigationTitle("Accueil")
+        .windowTitle("Accueil")
     }
 
     static func title(_ date: Date) -> String {
@@ -205,24 +208,20 @@ struct NextEventCard: View {
             }
         }
         .padding(18)
-        .glassEffect(.regular.tint(color.opacity(0.12)), in: .rect(cornerRadius: 22))
+        .glassEffect(.regular.tint(color.opacity(0.12)), in: .rect(cornerRadius: Radius.hero))
     }
 }
 
-/// A card of Accueil: a title, then its lines.
+/// A card of Accueil: a title, then its lines (the design system's card).
 struct HomeCard<Content: View>: View {
     let title: String
     let systemImage: String
     @ViewBuilder let content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label(title, systemImage: systemImage).font(.headline)
+        Card {
+            SectionTitle(title, systemImage: systemImage)
             content
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color.primary.opacity(0.06)))
     }
 }

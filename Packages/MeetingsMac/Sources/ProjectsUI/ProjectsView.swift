@@ -1,29 +1,23 @@
 import Domain
 import Persistence
+import PolhubDesign
 import SwiftUI
-import VaultImport
 
+/// Paul keeps the Kanban and a list he can sort and search (14/11).
 public enum ProjectsMode: String, CaseIterable, Identifiable, Sendable {
     case board = "Kanban"
-    case all = "Tous"
-    case table = "Tableau"
-    case handIn = "À rendre"
-    case watch = "À surveiller"
+    case list = "Liste"
 
     public var id: String { rawValue }
 }
 
-/// The « Projets » section: the views of `Projets.base`, the page of a project, the import.
+/// The « Projets » section: the Kanban, the list, the page of a project, the creation window.
 public struct ProjectsView: View {
     @ObservedObject var library: ProjectLibrary
     @State private var mode: ProjectsMode = .board
-    /// What the vault holds, read before anything is replaced (review, minor 10).
-    @State private var pending: VaultSnapshot?
-    @State private var reading = false
-    @State private var importAfterChoosing = false
-    @State private var choosingVault = false
-    @State private var report: String?
-    @State private var importError: String?
+    @State private var query = ""
+    /// The status of the column whose « + » was clicked; the creation window is open while it is set.
+    @State private var creating: ProjectStatus?
 
     public init(library: ProjectLibrary) {
         self.library = library
@@ -39,21 +33,18 @@ public struct ProjectsView: View {
                 ContentUnavailableView {
                     Label("Aucun projet", systemImage: "square.grid.3x2")
                 } description: {
-                    Text("Ramène tes projets d'Obsidian : l'app lit ton coffre, sans jamais y écrire.")
+                    Text("Crée ton premier projet : il prendra place dans le Kanban.")
                 } actions: {
-                    Button("Importer depuis Obsidian") { startImport() }
+                    Button("Nouveau projet") { creating = .priorite1 }
                         .buttonStyle(.glassProminent)
                         .controlSize(.large)
-                        .disabled(reading)
                 }
             } else {
-                VStack(spacing: 0) {
+                let shown = ProjectViews.matching(library.projects, query)
+                Group {
                     switch mode {
-                    case .board: BoardView(library: library, includeDone: false)
-                    case .all: BoardView(library: library, includeDone: true)
-                    case .table: AllProjectsTable(library: library)
-                    case .handIn: HandInTable(library: library)
-                    case .watch: WatchTable(library: library)
+                    case .board: BoardView(library: library, projects: shown) { creating = $0 }
+                    case .list: ProjectListView(library: library, projects: shown)
                     }
                 }
                 .toolbar {
@@ -66,76 +57,22 @@ public struct ProjectsView: View {
                         .fixedSize()
                     }
                     ToolbarItem(placement: .primaryAction) {
-                        Menu {
-                            Button("Importer depuis Obsidian…") { startImport() }
-                            Button("Choisir le dossier du coffre…") { choosingVault = true }
-                        } label: { Label("Plus", systemImage: "ellipsis") }
+                        Button { creating = .priorite1 } label: { Label("Nouveau projet", systemImage: "plus") }
+                            .help("Nouveau projet")
                     }
                 }
+                .searchable(text: $query, placement: .toolbar, prompt: "Chercher un projet")
             }
         }
-        .navigationTitle(library.project(library.selected)?.name ?? "Projets")
-        .overlay {
-            if reading {
-                ProgressView("Lecture du coffre…").padding(24).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .windowTitle(library.project(library.selected)?.name ?? "Projets")
+        .sheet(item: $creating) { status in
+            NewProjectSheet(status: status) { draft in
+                if let project = library.create(draft) { library.selected = project.id }
             }
         }
-        .confirmationDialog(
-            "Remplacer les \(library.projects.count) projets de l'app par les \(pending?.projects.count ?? 0) du coffre ?",
-            isPresented: Binding(get: { pending != nil }, set: { if !$0 { pending = nil } })
-        ) {
-            Button("Remplacer", role: .destructive) { if let pending { apply(pending) } }
-            Button("Annuler", role: .cancel) {}
-        } message: {
-            Text("Ce qui a été modifié dans l'app sera perdu, y compris les actions, notes et journaux écrits par Claude Code. Obsidian n'est pas touché.")
-        }
-        .fileImporter(isPresented: $choosingVault, allowedContentTypes: [.folder]) { result in
-            if case .success(let url) = result {
-                library.vaultPath = url.path(percentEncoded: false)
-                if importAfterChoosing { startImport() }
-            }
-            importAfterChoosing = false
-        }
-        .alert("Import terminé", isPresented: Binding(get: { report != nil }, set: { if !$0 { report = nil } })) {
-            Button("OK") {}
-        } message: { Text(report ?? "") }
-        .alert("L'import n'a pas pu se faire", isPresented: Binding(get: { importError != nil }, set: { if !$0 { importError = nil } })) {
-            Button("Choisir le dossier du coffre…") { choosingVault = true }
-            Button("OK", role: .cancel) {}
-        } message: { Text(importError ?? "") }
     }
+}
 
-    private func startImport() {
-        // The first time, the vault's folder is chosen; the import starts right after.
-        guard library.vaultPath != nil else {
-            choosingVault = true
-            importAfterChoosing = true
-            return
-        }
-        reading = true
-        Task {
-            defer { reading = false }
-            do {
-                let snapshot = try await library.readVault()
-                if snapshot.projects.isEmpty {
-                    importError = "\(ImportError.emptyVault)"
-                } else if library.projects.isEmpty {
-                    apply(snapshot)
-                } else {
-                    pending = snapshot
-                }
-            } catch {
-                importError = "\(error)"
-            }
-        }
-    }
-
-    private func apply(_ snapshot: VaultSnapshot) {
-        do {
-            let result = try library.apply(snapshot)
-            report = ([result.summary] + result.warnings).joined(separator: "\n")
-        } catch {
-            importError = "\(error)"
-        }
-    }
+extension ProjectStatus: @retroactive Identifiable {
+    public var id: String { rawValue }
 }

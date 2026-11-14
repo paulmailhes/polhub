@@ -1,4 +1,5 @@
 import AppKit
+import PolhubDesign
 import SwiftUI
 
 /// The floating pop-up: a panel that shows above everything, on every desktop and over full-screen apps,
