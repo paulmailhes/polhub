@@ -123,6 +123,22 @@ import Testing
         #expect(log.contains("retour à l'ancienne version"))
     }
 
+    /// 14/11: the swapped app is registered again, so the Dock and the Finder show its new icon at once.
+    @Test func theNewVersionIsRegisteredWithLaunchServices() throws {
+        let layout = try layout()
+        defer { try? FileManager.default.removeItem(at: layout.root) }
+        let marks = layout.root.appending(path: "enregistrement.txt")
+        let script = SwapScript.make(newApp: layout.newApp, installed: layout.installed, keepOld: layout.keep, version: "0.3.1",
+                                     signal: layout.signal, log: layout.log, pid: 999_999, processName: "polhub-test-absent",
+                                     start: "echo 0.3.1 > \(SwapScript.quote(layout.signal.path(percentEncoded: false)))",
+                                     startTimeout: 3, failedKey: nil, register: "echo >> \(SwapScript.quote(marks.path(percentEncoded: false)))")
+        #expect(try run(script) == 0)
+        let installed = layout.installed.path(percentEncoded: false)
+        let written = (try? String(contentsOf: marks, encoding: .utf8)) ?? ""
+        #expect(written.contains(installed.hasSuffix("/") ? String(installed.dropLast()) : installed), "écrit : \(written)")
+        #expect(SwapScript.launchServicesRegister.hasSuffix("LaunchServices.framework/Support/lsregister -f"))
+    }
+
     @Test func quotesSurviveAnyPath() {
         #expect(SwapScript.quote("l'app") == #"'l'\''app'"#)
     }

@@ -3,6 +3,13 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.10.1 — 14 novembre 2026
+
+- **Nouvelle icône : les Colonnes, en Liquid Glass**. Des plaques de verre posées sur trois colonnes sombres,
+  sur fond beige ; macOS en fait une version sombre, teintée et transparente selon tes réglages.
+- **L'icône s'affiche enfin dans le Dock**, et nette partout. macOS avait gardé en mémoire l'app d'avant,
+  sans icône : Polhub se réenregistre maintenant à chaque lancement et à chaque mise à jour.
+
 ## 0.10.0 — 14 novembre 2026
 
 - **Une icône** : des ondes sur fond beige, dans le style de tes icônes Polflix et Nextcloud, faite en

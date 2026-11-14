@@ -67,6 +67,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // macOS keeps what it knew of the app before an update (no icon then): it learns this version's icon, for
+        // the Dock and the Finder (14/11).
+        LSRegisterURL(Bundle.main.bundleURL as CFURL, true)
         exitCleanlyOnSIGTERM()
         // A pipe to an osascript that already ended must not kill the app.
         signal(SIGPIPE, SIG_IGN)

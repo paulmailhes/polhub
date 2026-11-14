@@ -110,10 +110,16 @@ public enum SwapScript {
     ///   - signal: the file the new version writes its version into once it has really started.
     ///   - start: the shell command that launches the installed app.
     ///   - failedKey: the preference written when the new version is rolled back (no loop of attempts).
+    /// Registers an app with LaunchServices again: its new icon shows at once in the Dock and the Finder (14/11).
+    public static let launchServicesRegister = "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f"
+
+    /// - register: the command that registers the installed app again (`launchServicesRegister`); the tests pass a
+    ///   harmless one, so that no test app is ever registered.
     public static func make(
         newApp: URL, installed: URL, keepOld: URL, version: String, signal: URL, log: URL, pid: Int32, processName: String,
-        start: String, startTimeout: Int, failedKey: String?
+        start: String, startTimeout: Int, failedKey: String?, register: String? = nil
     ) -> String {
+        let registration = register.map { "touch \(quote(path(installed))); \($0) \(quote(path(installed))) 2>/dev/null || true" } ?? "true"
         let new = quote(path(newApp)), app = quote(path(installed)), parent = quote(path(installed.deletingLastPathComponent()))
         let keep = quote(path(keepOld)), zip = quote(path(keepOld) + "/Polhub-precedente.zip"), signalFile = quote(path(signal))
         let failed = failedKey.map { "defaults write \(Verifier.bundleID) \($0) \(quote(version))" } ?? "true"
@@ -149,6 +155,7 @@ public enum SwapScript {
           restore; \(failed); DONE=1; start; exit 1
         fi
         xattr -dr com.apple.quarantine \(app) 2>/dev/null
+        \(registration)
         rm -f \(signalFile)
         start
         for i in $(seq 1 $(( \(startTimeout) * 5 ))); do
