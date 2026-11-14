@@ -4,14 +4,20 @@ import Domain
 import Foundation
 import GRDB
 import Persistence
+import ProjectsUI
 import SwiftUI
 import VaultImport
 
 /// Calendars, contacts and the loop, for the window: what the base holds, and Paul's gestures (13/11).
 @MainActor
 public final class AgendaLibrary: ObservableObject {
-    @Published public private(set) var events: [CalendarEventRow] = []
-    @Published public private(set) var accounts: [GoogleAccountRow] = []
+    /// Every copy, as the base holds them; the views show `shown`.
+    @Published public private(set) var events: [CalendarEventRow] = [] { didSet { refreshShown() } }
+    @Published public private(set) var accounts: [GoogleAccountRow] = [] { didSet { refreshShown() } }
+    /// One row per Google event, under the account to join it with (14/11).
+    @Published public private(set) var shown: [CalendarEventRow] = []
+    /// Address → `#RRGGBB`.
+    @Published public private(set) var colors: [String: String] = [:]
     @Published public private(set) var contacts: [ContactRow] = []
     @Published public private(set) var projects: [ProjectRow] = []
     @Published public private(set) var syncing = false
@@ -38,6 +44,11 @@ public final class AgendaLibrary: ObservableObject {
             ContactStore(database).observeContacts { [weak self] in self?.contacts = $0 },
             ProjectStore(database).observeProjects { [weak self] in self?.projects = $0 },
         ]
+    }
+
+    private func refreshShown() {
+        shown = EventCopies.merge(events, accounts: accounts)
+        colors = AccountStyle.colors(for: accounts)
     }
 
     public var hasGoogleKey: Bool { FileManager.default.fileExists(atPath: GoogleClientConfig.file.path(percentEncoded: false)) }
@@ -86,11 +97,36 @@ public final class AgendaLibrary: ObservableObject {
 
     // MARK: - Paul's gestures
 
-    /// Paul files an event: it wins over every rule, and its recording follows.
+    /// Paul files an event: it wins over every rule, in each calendar that has it, and its recording follows.
     public func setProject(_ event: CalendarEventRow, projectID: UUID?) async {
-        try? CalendarStore(database).setProject(eventID: event.id, projectID: projectID, origin: .paul)
-        if let meetingID = event.meetingID { try? ProjectStore(database).setProject(meetingID: meetingID, projectID: projectID) }
+        try? CalendarStore(database).setProject(googleEventID: event.eventID, projectID: projectID, origin: .paul)
+        for meetingID in Set(copies(of: event).compactMap(\.meetingID) + [event.meetingID].compactMap { $0 }) {
+            try? ProjectStore(database).setProject(meetingID: meetingID, projectID: projectID)
+        }
         await runLinks()
+    }
+
+    public func copies(of event: CalendarEventRow) -> [CalendarEventRow] {
+        events.filter { $0.eventID == event.eventID }
+    }
+
+    /// The Meet, in Dia (whose meetings record themselves), under the event's account.
+    public func join(_ event: CalendarEventRow) {
+        guard let code = event.meetCode else { return }
+        let url = MeetJoin.url(code: code, account: event.account)
+        if let dia = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "company.thebrowser.dia") {
+            NSWorkspace.shared.open([url], withApplicationAt: dia, configuration: NSWorkspace.OpenConfiguration())
+        } else {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    public func color(for account: String) -> Color {
+        Color(hex: colors[account] ?? AccountStyle.gray)
+    }
+
+    public func setColor(_ hex: String?, for account: String) {
+        try? CalendarStore(database).setColor(email: account, hex: hex)
     }
 
     public func remove(contact: ContactRow, from projectID: UUID) {
@@ -117,7 +153,7 @@ public final class AgendaLibrary: ObservableObject {
 
     public func events(of contact: ContactRow) -> [CalendarEventRow] {
         guard let email = contact.email else { return [] }
-        return events.filter { $0.attendees.contains { $0.email == email } }.reversed()
+        return shown.filter { $0.attendees.contains { $0.email == email } }.reversed()
     }
 
     public func contact(email: String) -> ContactRow? {

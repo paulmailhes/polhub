@@ -103,6 +103,14 @@ public struct CalendarStore: Sendable {
         }
     }
 
+    /// Paul files a Google event: every copy of it, in each of his calendars, follows.
+    public func setProject(googleEventID: String, projectID: UUID?, origin: EventProjectOrigin?) throws {
+        try writer.write { db in
+            try db.execute(sql: "UPDATE calendar_event SET projectID = ?, projectOrigin = ? WHERE eventID = ?",
+                           arguments: [projectID.map(Self.key), origin?.rawValue, googleEventID])
+        }
+    }
+
     /// A filing found by the loop: never over Paul's, even one he made while the loop was running (review, Important 3).
     public func setAutomaticProject(eventID: String, projectID: UUID?, origin: EventProjectOrigin?) throws {
         try writer.write { db in

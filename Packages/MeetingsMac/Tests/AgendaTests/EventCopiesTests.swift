@@ -1,0 +1,75 @@
+import Domain
+import Foundation
+import Persistence
+import Testing
+@testable import Agenda
+
+/// An event in two of Paul's calendars shows once, under the account to join it with (Paul, 14/11).
+@Suite struct EventCopiesTests {
+    let now = Date(timeIntervalSince1970: 1_794_562_920)
+    var accounts: [GoogleAccountRow] {
+        [GoogleAccountRow(email: "moi@gmail.com", addedAt: now), GoogleAccountRow(email: "paul@exemple.fr", addedAt: now.addingTimeInterval(60)),
+         GoogleAccountRow(email: "paul@atelier-nord.fr", addedAt: now.addingTimeInterval(120))]
+    }
+
+    func copy(_ account: String, organizer: String?, id: String = "e1") -> CalendarEventRow {
+        CalendarEventRow(account: account, eventID: id, title: "Point", startAt: now, endAt: now.addingTimeInterval(1_800),
+                         meetCode: "abc-defg-hij", organizer: organizer, updatedAt: now)
+    }
+
+    @Test func theOrganizingAccountWins() {
+        let copies = [copy("paul@exemple.fr", organizer: "moi@gmail.com"), copy("moi@gmail.com", organizer: "moi@gmail.com")]
+        #expect(EventCopies.joinAccount(for: copies, accounts: accounts) == "moi@gmail.com")
+    }
+
+    @Test func thenTheAccountOfTheOrganizersDomain() {
+        let copies = [copy("paul@exemple.fr", organizer: "camille@atelier-nord.fr"), copy("paul@atelier-nord.fr", organizer: "camille@atelier-nord.fr")]
+        #expect(EventCopies.joinAccount(for: copies, accounts: accounts) == "paul@atelier-nord.fr")
+    }
+
+    @Test func thenAWorkAccountRatherThanThePersonalOne() {
+        let copies = [copy("moi@gmail.com", organizer: "client@ailleurs.fr"), copy("paul@atelier-nord.fr", organizer: "client@ailleurs.fr"),
+                      copy("paul@exemple.fr", organizer: "client@ailleurs.fr")]
+        #expect(EventCopies.joinAccount(for: copies, accounts: accounts) == "paul@exemple.fr")
+    }
+
+    @Test func aFriendsInvitationGoesToThePersonalAccount() {
+        let copies = [copy("paul@exemple.fr", organizer: "ami@gmail.com"), copy("moi@gmail.com", organizer: "ami@gmail.com")]
+        #expect(EventCopies.joinAccount(for: copies, accounts: accounts) == "moi@gmail.com")
+    }
+
+    @Test func mergeKeepsOneRowAndPaulsProjectFromAnyCopy() {
+        let project = UUID(), meeting = UUID()
+        var personal = copy("moi@gmail.com", organizer: "client@ailleurs.fr")
+        personal.projectID = project
+        personal.projectOrigin = .paul
+        personal.meetingID = meeting
+        let work = copy("paul@exemple.fr", organizer: "client@ailleurs.fr")
+        let other = copy("paul@exemple.fr", organizer: nil, id: "e2")
+        let merged = EventCopies.merge([personal, work, other], accounts: accounts)
+        #expect(merged.count == 2)
+        let shown = try? #require(merged.first { $0.eventID == "e1" })
+        #expect(shown?.account == "paul@exemple.fr")
+        #expect(shown?.projectID == project && shown?.projectOrigin == .paul && shown?.meetingID == meeting)
+    }
+
+    @Test func theJoinLinkNamesTheAccount() {
+        #expect(MeetJoin.url(code: "abc-defg-hij", account: "paul+agenda@exemple.fr").absoluteString
+                == "https://meet.google.com/abc-defg-hij?authuser=paul%2Bagenda@exemple.fr")
+    }
+
+    @Test func paulsChoiceOnOneCopyFilesEveryCopyAndTheLoopKeepsIt() throws {
+        let database = try AppDatabase.inMemory()
+        let calendar = CalendarStore(database)
+        let alpha = try ProjectStore(database).addProject(name: "Alpha", status: .priorite1, at: now)
+        for account in accounts.prefix(2) {
+            try calendar.addAccount(email: account.email, at: now)
+            try calendar.applyGoogle(account: account.email, changed: [copy(account.email, organizer: "client@ailleurs.fr")], cancelled: [], at: now)
+        }
+        try calendar.setProject(googleEventID: "e1", projectID: alpha.id, origin: .paul)
+        try LinkRunner(database: database).run(now: now)
+        let rows = try calendar.allEvents()
+        #expect(rows.count == 2)
+        #expect(rows.allSatisfy { $0.projectID == alpha.id && $0.projectOrigin == .paul })
+    }
+}
