@@ -6,6 +6,7 @@ import MeetingsUI
 import Observability
 import Persistence
 import Pipeline
+import PolhubDesign
 import ProbeKit
 import ProjectsUI
 import Recording
@@ -194,14 +195,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let helper = Bundle.main.bundleURL.appending(path: "Contents/Helpers/polhub-calcul")
         let queue = TranscriptionQueue(
             meetings: store, transcripts: TranscriptStore(store.database), paths: paths,
-            launcher: LiveCalculLauncher(executable: helper), log: detectionLog
+            launcher: LiveCalculLauncher(executable: helper), log: detectionLog,
+            // Réglages › Réunions (14/11).
+            language: { Preferences().transcriptionLanguage }
         )
         transcription = queue
         library?.queue = queue
         // The first minute after launch belongs to the meeting the app may be resuming after a crash.
         Task { await queue.start(holdSeconds: 45) }
         let engine = AppleSummaryEngine()
-        let summaries = SummaryQueue(database: store.database, engine: engine, otherWork: { await queue.isRunning })
+        let summaries = SummaryQueue(database: store.database, engine: engine, otherWork: { await queue.isRunning },
+                                     isEnabled: { Preferences().summariesEnabled })
         self.summaries = summaries
         library?.summaries = summaries
         library?.summaryUnavailable = engine.unavailableReason

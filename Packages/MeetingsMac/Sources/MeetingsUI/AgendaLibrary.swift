@@ -21,8 +21,6 @@ public final class AgendaLibrary: ObservableObject {
     @Published public private(set) var colors: [String: String] = [:]
     @Published public private(set) var contacts: [ContactRow] = []
     @Published public private(set) var projects: [ProjectRow] = []
-    /// Whether each account can be written to (read only when connected before 14/11).
-    @Published public private(set) var writable: [String: Bool] = [:]
     @Published public private(set) var syncing = false
     @Published public private(set) var importing = false
     /// The last thing to tell Paul: a sync error, an import's report.
@@ -89,7 +87,6 @@ public final class AgendaLibrary: ObservableObject {
                 try? store.recordSync(email: account.email, syncToken: nil, error: "\(error)", at: Date())
             }
         }
-        for account in accounts { writable[account.email] = await session.canWrite(account.email) ?? writable[account.email] }
         await runLinks()
     }
 
@@ -115,7 +112,6 @@ public final class AgendaLibrary: ObservableObject {
             }
             return CalendarWrite.insertRequest(accessToken: token, draft: draft, timeZone: zone, requestID: requestID)
         }, for: account)
-        writable[account] = true
         if let row = try CalendarWrite.event(from: data, account: account) {
             try CalendarStore(database).applyGoogle(account: account, changed: [row], cancelled: [], at: Date())
         }
@@ -137,19 +133,6 @@ public final class AgendaLibrary: ObservableObject {
     /// A sync that reads Google while Polhub writes would put back what it read: writes wait for it (review of 14/11).
     private func waitForSync() async {
         for _ in 0..<300 where syncing { try? await Task.sleep(for: .milliseconds(100)) }
-    }
-
-    /// Connects the account again, to grant writing: Google's page opens on it.
-    public func reconnect(_ email: String) async {
-        do {
-            let connected = try await session.connect(open: { url in Task { @MainActor in NSWorkspace.shared.open(url) } }, loginHint: email)
-            try CalendarStore(database).addAccount(email: connected, at: Date())
-            writable[connected] = await session.canWrite(connected)
-            message = "Compte \(connected) reconnecté."
-            await syncAll()
-        } catch {
-            message = "Reconnexion impossible : \(error)"
-        }
     }
 
     /// The calendar's name for a recording that starts: the event of the same Meet code at that time (14/11).

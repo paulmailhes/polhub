@@ -124,11 +124,11 @@ struct WindowSnapshotTests {
         let router = WindowRouter()
         router.section = .settings
         try await Task.sleep(for: .milliseconds(300))
-        for tab in [SettingsTab.updates, .diagnostic, .journal] {
-            router.settingsTab = tab
+        for tab in [SettingsPane?.none, .updates, .projects, .meetings, .diagnostic, .journal] {
+            router.settingsPane = tab
             try await LiveWindow.capture(MainWindowView(library: library, projects: projects, updates: updates, router: router,
                                                         paths: AppPaths(root: root, logs: root)) { Text("Le diagnostic de l'app").padding() },
-                                         to: output.appending(path: "reglages-\(tab.rawValue).png"), size: NSSize(width: 1_000, height: 600))
+                                         to: output.appending(path: "reglages-\(tab?.rawValue ?? "familles").png"), size: NSSize(width: 1_000, height: 600))
         }
     }
 

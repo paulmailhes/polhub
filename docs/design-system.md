@@ -74,6 +74,15 @@ Référence : [Adopting Liquid Glass](https://developer.apple.com/documentation/
 - Une action secondaire visible : `.buttonStyle(.glass)`.
 - Dans une liste ou une carte : `.borderless` ou `.plain`, pour ne pas charger le contenu.
 
+## Les réglages
+
+- Chaque fonction range ses réglages dans **Réglages**, dans sa famille (Calendrier, Projets, Réunions…),
+  comme les réglages d'Apple : la liste des familles, puis une page par famille, avec un retour.
+- Une page n'a pas de bouton de réglage à elle ; au plus un raccourci vers sa famille dans Réglages.
+- Chaque réglage a sa clé et sa valeur par défaut dans `Preferences` (module `PolhubDesign`) ; les vues le lisent
+  par `@AppStorage(Preferences.Key…)`.
+- Réglages est en bas de la barre latérale, à part du travail.
+
 ## Vérifier une page
 
 Les captures hors écran ne dessinent ni le verre ni la barre d'outils. Pour voir le vrai rendu :

@@ -37,12 +37,18 @@ struct EventEditor: View {
             _draft = State(initialValue: EventDraft(event: event, notes: ""))
             _account = State(initialValue: event.account)
         } else {
+            // Réglages › Calendrier: the calendar, the length and the Meet of new events (14/11).
+            let settings = Preferences()
             let start = request.start ?? EventEditor.nextSlot(after: Date())
-            _draft = State(initialValue: EventDraft.new(at: start))
+            var draft = EventDraft.new(at: start)
+            draft.end = start.addingTimeInterval(TimeInterval(settings.eventMinutes * 60))
+            draft.addMeet = settings.eventMeet
+            _draft = State(initialValue: draft)
             let remembered = UserDefaults.standard.string(forKey: "dernierAgenda") ?? ""
             let accounts = agenda.accounts.map(\.email)
             let work = accounts.first { AccountStyle.label(for: $0) != "Perso" }
-            _account = State(initialValue: accounts.contains(remembered) ? remembered : (work ?? accounts.first ?? ""))
+            let chosen = settings.defaultAccount.flatMap { accounts.contains($0) ? $0 : nil }
+            _account = State(initialValue: chosen ?? (accounts.contains(remembered) ? remembered : (work ?? accounts.first ?? "")))
         }
     }
 
@@ -162,9 +168,6 @@ struct EventEditor: View {
                 HStack(spacing: Space.s) {
                     Label(failure.description, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
                         .fixedSize(horizontal: false, vertical: true)
-                    if failure == .needsWrite {
-                        Button("Reconnecter le compte") { Task { await agenda.reconnect(account) } }.buttonStyle(.glass)
-                    }
                 }
             } else if let otherFailure {
                 Label(otherFailure, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)

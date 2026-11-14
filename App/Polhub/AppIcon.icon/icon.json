@@ -1,0 +1,52 @@
+{
+  "fill-specializations": [
+    {
+      "value": {
+        "solid": "srgb:0.83922,0.81961,0.77647,1.00000"
+      }
+    },
+    {
+      "appearance": "dark",
+      "value": {
+        "solid": "srgb:0.12157,0.11765,0.11373,1.00000"
+      }
+    }
+  ],
+  "groups": [
+    {
+      "layers": [
+        {
+          "glass": true,
+          "image-name": "ondes.svg",
+          "name": "ondes",
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "srgb:0.12157,0.11765,0.11373,1.00000"
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "srgb:0.83922,0.81961,0.77647,1.00000"
+              }
+            }
+          ]
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.4
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": [
+      "macOS"
+    ]
+  }
+}

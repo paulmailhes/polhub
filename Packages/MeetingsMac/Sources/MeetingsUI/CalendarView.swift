@@ -63,7 +63,11 @@ struct CalendarView: View {
         calendar.dateInterval(of: .weekOfYear, for: date)?.start ?? calendar.startOfDay(for: date)
     }
 
-    var days: [Date] { (0..<7).compactMap { Self.calendar.date(byAdding: .day, value: $0, to: weekStart) } }
+    @AppStorage(Preferences.Key.showWeekend) private var showWeekend = true
+    @AppStorage(Preferences.Key.dayStartHour) private var dayStartHour = Preferences.Default.dayStartHour
+
+    /// Monday to Sunday, or to Friday (Réglages › Calendrier).
+    var days: [Date] { (0..<(showWeekend ? 7 : 5)).compactMap { Self.calendar.date(byAdding: .day, value: $0, to: weekStart) } }
 
     var body: some View {
         Group {
@@ -71,7 +75,7 @@ struct CalendarView: View {
                 setup
             } else {
                 VStack(spacing: 0) {
-                    AccountLegend(agenda: agenda)
+                    AccountLegend(agenda: agenda, router: router)
                     week
                 }
             }
@@ -156,7 +160,7 @@ struct CalendarView: View {
                     }
                     .padding(.top, 8)
                 }
-                .defaultScrollAnchor(UnitPoint(x: 0, y: CGFloat(max(0, Self.calendar.component(.hour, from: .now) - 2)) / 22))
+                .defaultScrollAnchor(UnitPoint(x: 0, y: CGFloat(min(max(0, dayStartHour), 22)) / 22))
             }
         }
     }
@@ -329,89 +333,29 @@ struct NowLine: View {
     }
 }
 
-/// The accounts, each in its color: a click changes the color, disconnects, or adds an account.
+/// The accounts, each in its color, to read the week; a click opens Réglages › Calendrier, where they are
+/// managed (Paul, 14/11).
 struct AccountLegend: View {
     @ObservedObject var agenda: AgendaLibrary
-    @State private var editing: String?
+    @ObservedObject var router: WindowRouter
 
     var body: some View {
         HStack(spacing: 14) {
             ForEach(agenda.accounts) { account in
-                Button { editing = account.email } label: {
-                    HStack(spacing: 6) {
-                        Circle().fill(agenda.color(for: account.email)).frame(width: 10, height: 10)
-                        Text(AccountStyle.label(for: account.email)).font(.callout)
-                        if account.lastError != nil { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange).font(.caption) }
-                    }
+                HStack(spacing: 6) {
+                    ColorDot(agenda.color(for: account.email), size: 10)
+                    Text(AccountStyle.label(for: account.email)).font(.callout)
+                    if account.lastError != nil { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange).font(.caption) }
                 }
-                .buttonStyle(.plain)
                 .help(account.email)
-                .popover(isPresented: Binding(get: { editing == account.email }, set: { if !$0 { editing = nil } }), arrowEdge: .bottom) {
-                    AccountCard(account: account, agenda: agenda) { editing = nil }
-                }
             }
-            Button { Task { await agenda.connect() } } label: { Image(systemName: "plus") }
+            Button { router.openSettings(.calendar) } label: { Image(systemName: "slider.horizontal.3") }
                 .buttonStyle(.borderless)
-                .help("Ajouter un compte Google")
-                .disabled(!agenda.hasGoogleKey)
+                .help("Réglages du Calendrier : comptes, couleurs, nouveaux rendez-vous")
             Spacer()
         }
         .padding(.horizontal, 16)
         .padding(.top, 10)
-    }
-}
-
-/// One account: its color, its state, and « Déconnecter ».
-struct AccountCard: View {
-    let account: GoogleAccountRow
-    @ObservedObject var agenda: AgendaLibrary
-    let close: () -> Void
-    @State private var confirming = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(AccountStyle.label(for: account.email)).font(.headline)
-                Text(account.email).font(.callout).foregroundStyle(.secondary)
-            }
-            HStack(spacing: 8) {
-                ForEach(AccountStyle.choices, id: \.self) { hex in
-                    let chosen = agenda.colors[account.email] == hex
-                    Button { agenda.setColor(hex, for: account.email) } label: {
-                        Circle().fill(Color(hex: hex)).frame(width: 22, height: 22)
-                            .overlay { if chosen { Image(systemName: "checkmark").font(.caption.bold()).foregroundStyle(.white) } }
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            if let error = account.lastError {
-                Label(error, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else if let last = account.lastSyncAt {
-                Text("Lu à \(last.formatted(date: .omitted, time: .shortened))").font(.caption).foregroundStyle(.secondary)
-            }
-            if agenda.writable[account.email] == false {
-                Label("Lecture seule : reconnecte ce compte pour créer et modifier ses rendez-vous depuis Polhub.", systemImage: "lock")
-                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                Button("Autoriser la modification") {
-                    close()
-                    Task { await agenda.reconnect(account.email) }
-                }
-                .buttonStyle(.glassProminent)
-            }
-            Divider()
-            Button("Déconnecter ce compte…", role: .destructive) { confirming = true }.buttonStyle(.borderless)
-        }
-        .padding(16)
-        .frame(width: 300, alignment: .leading)
-        .confirmationDialog("Déconnecter \(account.email) ?", isPresented: $confirming) {
-            Button("Déconnecter", role: .destructive) {
-                close()
-                Task { await agenda.disconnect(account.email) }
-            }
-        } message: {
-            Text("Ses rendez-vous disparaissent de Polhub ; rien ne change chez Google.")
-        }
     }
 }
 

@@ -3,6 +3,22 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.10.0 — 14 novembre 2026
+
+- **Une icône** : des ondes sur fond beige, dans le style de tes icônes Polflix et Nextcloud, faite en
+  calques pour Liquid Glass (sombre en mode sombre, teintée ou transparente selon tes réglages macOS).
+- **Réglages refaits** comme ceux d'Apple : la liste des familles, puis une page par famille.
+  - **Calendrier** : tes comptes Google et leur couleur, ajouter ou déconnecter un compte ; l'agenda, la
+    durée et la visio par défaut des nouveaux rendez-vous ; afficher ou non le week-end, l'heure à laquelle
+    la grille s'ouvre.
+  - **Projets** : la taille des cartes du Kanban (petites, moyennes, grandes). Elles sont moyennes par
+    défaut, plus compactes qu'avant.
+  - **Réunions** : comptes rendus automatiques oui ou non, langue des transcriptions.
+  - Mises à jour, Diagnostic et Journal, comme avant.
+- **Réglages passe en bas de la barre latérale**, à part du travail.
+- Le Calendrier garde la légende des couleurs ; son bouton ouvre Réglages › Calendrier. « Autoriser la
+  modification » disparaît : tes comptes sont autorisés.
+
 ## 0.9.1 — 14 novembre 2026
 
 Corrections de deux relectures complètes, pour que rien ne se perde :

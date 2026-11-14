@@ -1,57 +1,155 @@
-import ProjectsUI
+import Agenda
 import PolhubDesign
+import ProjectsUI
 import SwiftUI
 import Updates
 
-/// Réglages : a row of tabs, then the updates, the diagnostic, the journal or the vault.
+/// Réglages, as Apple's (Paul, 14/11): the families first; each is entered, with a way back. Every new feature
+/// puts its settings in its family (docs/design-system.md).
 struct SettingsPage<Diagnostic: View, Journal: View>: View {
-    @Binding var tab: SettingsTab
+    @ObservedObject var router: WindowRouter
     let updates: UpdateService?
     let projects: ProjectLibrary?
     let agenda: AgendaLibrary?
+    @ObservedObject var library: MeetingLibrary
     let diagnostic: Diagnostic
     let journal: Journal
 
-    init(tab: Binding<SettingsTab>, updates: UpdateService?, projects: ProjectLibrary?, agenda: AgendaLibrary? = nil,
+    init(router: WindowRouter, updates: UpdateService?, projects: ProjectLibrary?, agenda: AgendaLibrary? = nil, library: MeetingLibrary,
          @ViewBuilder diagnostic: () -> Diagnostic, @ViewBuilder journal: () -> Journal) {
-        _tab = tab
+        self.router = router
         self.updates = updates
         self.projects = projects
         self.agenda = agenda
+        self.library = library
         self.diagnostic = diagnostic()
         self.journal = journal()
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            Group {
-                switch tab {
-                case .updates:
-                    if let updates {
-                        UpdatesSettingsView(updates: updates)
-                    } else {
-                        ContentUnavailableView("Pas de mise à jour", systemImage: "arrow.down.circle",
-                                               description: Text("La version de développement ne se met jamais à jour."))
+        Group {
+            if let pane = router.settingsPane {
+                content(pane)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .toolbar {
+                        ToolbarItem(placement: .navigation) {
+                            Button { router.settingsPane = nil } label: { Label("Réglages", systemImage: "chevron.left") }
+                                .help("Revenir aux réglages")
+                        }
                     }
-                case .diagnostic:
-                    diagnostic
-                case .journal:
-                    journal
+                    .windowTitle(pane.title, subtitle: "Réglages")
+            } else {
+                families.windowTitle("Réglages")
+            }
+        }
+    }
+
+    private var families: some View {
+        Form {
+            ForEach(Array(SettingsPane.families(hasAgenda: agenda != nil, hasProjects: projects != nil).enumerated()), id: \.offset) { _, group in
+                Section {
+                    ForEach(group, id: \.self) { pane in
+                        Button { router.settingsPane = pane } label: { SettingsRow(pane: pane) }
+                            .buttonStyle(.plain)
+                    }
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
-        .windowTitle("Réglages")
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Picker("Réglages", selection: $tab) {
-                    ForEach(SettingsTab.visible(hasProjects: projects != nil), id: \.self) { Text($0.title).tag($0) }
+        .formStyle(.grouped)
+        .frame(maxWidth: 640)
+        .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private func content(_ pane: SettingsPane) -> some View {
+        switch pane {
+        case .calendar:
+            if let agenda { CalendarSettingsPane(agenda: agenda) }
+        case .projects:
+            ProjectsSettingsPane()
+        case .meetings:
+            MeetingsSettingsPane(library: library)
+        case .updates:
+            if let updates {
+                UpdatesSettingsView(updates: updates)
+            } else {
+                ContentUnavailableView("Pas de mise à jour", systemImage: "arrow.down.circle",
+                                       description: Text("La version de développement ne se met jamais à jour."))
+            }
+        case .diagnostic:
+            diagnostic
+        case .journal:
+            journal
+        }
+    }
+}
+
+/// A family of Réglages: its icon in a colored square, its name, what it holds.
+struct SettingsRow: View {
+    let pane: SettingsPane
+
+    var body: some View {
+        HStack(spacing: Space.m) {
+            Image(systemName: pane.icon)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 26, height: 26)
+                .background(Color(hex: pane.tint), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(pane.title)
+                Text(pane.subtitle).font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+        }
+        .padding(.vertical, 2)
+        .contentShape(Rectangle())
+    }
+}
+
+/// Réglages › Projets.
+struct ProjectsSettingsPane: View {
+    @AppStorage(Preferences.Key.cardSize) private var cardSize = CardSize.medium.rawValue
+
+    var body: some View {
+        Form {
+            Section("Kanban") {
+                Picker("Taille des cartes", selection: $cardSize) {
+                    ForEach(CardSize.allCases) { Text($0.title).tag($0.rawValue) }
                 }
                 .pickerStyle(.segmented)
-                .labelsHidden()
-                .fixedSize()
             }
         }
+        .formStyle(.grouped)
+        .frame(maxWidth: 640)
+    }
+}
+
+/// Réglages › Réunions.
+struct MeetingsSettingsPane: View {
+    @ObservedObject var library: MeetingLibrary
+    @AppStorage(Preferences.Key.summariesEnabled) private var summaries = true
+    @AppStorage(Preferences.Key.transcriptionLanguage) private var language = Preferences.Default.transcriptionLanguage
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Comptes rendus automatiques", isOn: $summaries)
+                Text(library.summaryUnavailable ?? "Écrits sur le Mac par le modèle d'Apple, après la transcription, jamais pendant une réunion.")
+                    .font(.caption).foregroundStyle(library.summaryUnavailable == nil ? Color.secondary : .orange)
+            }
+            Section("Transcription") {
+                Picker("Langue des réunions", selection: $language) {
+                    Text("Français").tag("fr")
+                    Text("Anglais").tag("en")
+                    Text("Détectée par le moteur").tag("auto")
+                }
+                Text("Pour les prochaines réunions ; « Retranscrire », dans une réunion, en change une seule.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .frame(maxWidth: 640)
     }
 }
 

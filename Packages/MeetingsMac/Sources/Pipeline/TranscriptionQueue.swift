@@ -16,6 +16,8 @@ public actor TranscriptionQueue {
     private let paths: AppPaths
     private let launcher: any CalculLaunching
     private let now: @Sendable () -> Date
+    /// The language of new meetings: Réglages › Réunions (14/11); `nil` lets the engine detect it.
+    private let language: @Sendable () -> String?
     private let log: TraceWriter?
 
     private var busy = false
@@ -39,8 +41,10 @@ public actor TranscriptionQueue {
 
     public init(
         meetings: MeetingStore, transcripts: TranscriptStore, paths: AppPaths, launcher: any CalculLaunching,
-        now: @escaping @Sendable () -> Date = Date.init, log: TraceWriter? = nil
+        now: @escaping @Sendable () -> Date = Date.init, log: TraceWriter? = nil,
+        language: @escaping @Sendable () -> String? = { TranscriptionQueue.defaultLanguage }
     ) {
+        self.language = language
         self.meetings = meetings
         self.transcripts = transcripts
         self.paths = paths
@@ -77,7 +81,7 @@ public actor TranscriptionQueue {
         if let holdUntil, now() < holdUntil { return }
         let date = now()
         for row in (try? transcripts.meetingsAwaitingTranscription()) ?? [] {
-            _ = try? transcripts.enqueue(meetingID: row.id, language: Self.defaultLanguage, at: date)
+            _ = try? transcripts.enqueue(meetingID: row.id, language: language(), at: date)
         }
         guard let job = try? transcripts.nextQueued() else { return }
         launch(job)

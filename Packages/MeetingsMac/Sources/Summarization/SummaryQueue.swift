@@ -10,6 +10,8 @@ public actor SummaryQueue {
     private let engine: any SummaryEngine
     /// A transcription runs: the Mac's computing goes to it first.
     private let otherWork: @Sendable () async -> Bool
+    /// Réglages › Réunions › Comptes rendus automatiques (14/11).
+    private let isEnabled: @Sendable () -> Bool
     private let now: @Sendable () -> Date
     private var busy = false
     private var current: (meetingID: UUID, task: Task<Void, Never>)?
@@ -17,7 +19,8 @@ public actor SummaryQueue {
     private var retryAfter: Date?
 
     public init(database: AppDatabase, engine: any SummaryEngine, otherWork: @escaping @Sendable () async -> Bool = { false },
-                now: @escaping @Sendable () -> Date = Date.init) {
+                isEnabled: @escaping @Sendable () -> Bool = { true }, now: @escaping @Sendable () -> Date = Date.init) {
+        self.isEnabled = isEnabled
         self.database = database
         self.store = SummaryStore(database)
         self.engine = engine
@@ -51,6 +54,7 @@ public actor SummaryQueue {
     /// Starts the newest waiting summary, if nothing runs and nothing stops it.
     public func wake() async {
         if let retryAfter, now() < retryAfter { return }
+        guard isEnabled() else { return }
         guard !busy, current == nil, engine.unavailableReason == nil, await !otherWork(), !busy, current == nil,
               let meetingID = try? store.nextPending() else { return }
         try? store.start(meetingID: meetingID, at: now())

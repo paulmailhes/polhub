@@ -31,29 +31,66 @@ public enum SidebarItem: String, Hashable, Sendable {
         }
     }
 
-    /// Réglages is always there: it no longer depends on the update service being ready (13/11). Accueil,
-    /// Calendrier and Contacts need the agenda (13/11).
+    /// The work; Réglages sits apart, at the bottom of the sidebar (Paul, 14/11). Accueil, Calendrier and
+    /// Contacts need the agenda (13/11).
     static func visible(hasProjects: Bool, hasAgenda: Bool) -> [SidebarItem] {
-        [hasAgenda ? .home : nil, hasProjects ? .projects : nil, .meetings, hasAgenda ? .calendar : nil, hasAgenda ? .contacts : nil, .settings]
+        [hasAgenda ? .home : nil, hasProjects ? .projects : nil, .meetings, hasAgenda ? .calendar : nil, hasAgenda ? .contacts : nil]
             .compactMap { $0 }
     }
 }
 
-/// The tabs of Réglages.
-public enum SettingsTab: String, Hashable, Sendable, CaseIterable {
-    case updates, diagnostic, journal
+/// The families of Réglages, entered one by one, as in Apple's settings (Paul, 14/11). Every new feature puts
+/// its settings in its family.
+public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
+    case calendar, projects, meetings, updates, diagnostic, journal
 
-    var title: String {
+    public var title: String {
         switch self {
+        case .calendar: "Calendrier"
+        case .projects: "Projets"
+        case .meetings: "Réunions"
         case .updates: "Mises à jour"
         case .diagnostic: "Diagnostic"
         case .journal: "Journal"
         }
     }
 
-    /// The vault's import is gone with Obsidian (Paul, 14/11).
-    static func visible(hasProjects: Bool) -> [SettingsTab] {
-        allCases
+    var icon: String {
+        switch self {
+        case .calendar: "calendar"
+        case .projects: "square.grid.3x2.fill"
+        case .meetings: "waveform"
+        case .updates: "arrow.down.circle.fill"
+        case .diagnostic: "stethoscope"
+        case .journal: "list.bullet.rectangle.fill"
+        }
+    }
+
+    var tint: String {
+        switch self {
+        case .calendar: Palette.red
+        case .projects: Palette.blue
+        case .meetings: Palette.violet
+        case .updates: Palette.gray
+        case .diagnostic: Palette.green
+        case .journal: Palette.brown
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .calendar: "Comptes Google, couleurs, nouveaux rendez-vous, affichage"
+        case .projects: "Taille des cartes du Kanban"
+        case .meetings: "Comptes rendus, langue des transcriptions"
+        case .updates: "Version installée, installation automatique"
+        case .diagnostic: "Autorisations, micro, Dia"
+        case .journal: "Ce que l'app a fait et vu"
+        }
+    }
+
+    /// Paul's tools first, then the app's own pages.
+    static func families(hasAgenda: Bool, hasProjects: Bool) -> [[SettingsPane]] {
+        [[hasAgenda ? .calendar : nil, hasProjects ? .projects : nil, .meetings].compactMap { $0 }, [.updates, .diagnostic, .journal]]
     }
 }
 
@@ -65,7 +102,8 @@ public final class WindowRouter: ObservableObject {
     /// A moment to play in the selected meeting, asked by the search.
     @Published public var seekRequest: (meetingID: UUID, seconds: Double)?
     @Published public var query = ""
-    @Published public var settingsTab: SettingsTab = .updates
+    /// The family of Réglages entered; `nil` for the list of families.
+    @Published public var settingsPane: SettingsPane?
     @Published public var contactSelection: UUID?
     /// An event Accueil asked Calendrier to open (14/11).
     @Published public var eventSelection: String?
@@ -91,8 +129,12 @@ public final class WindowRouter: ObservableObject {
     }
 
     public func openDiagnostic() {
+        openSettings(.diagnostic)
+    }
+
+    public func openSettings(_ pane: SettingsPane?) {
         section = .settings
-        settingsTab = .diagnostic
+        settingsPane = pane
     }
 
     public func open(meetingID: UUID, at seconds: Double?) {
@@ -137,6 +179,20 @@ public struct MainWindowView<Diagnostic: View>: View {
                 }
             }
             .navigationSplitViewColumnWidth(min: 170, ideal: 190)
+            // Réglages at the bottom, apart from the work (Paul, 14/11).
+            .safeAreaInset(edge: .bottom) {
+                Button { router.openSettings(nil) } label: {
+                    Label(SidebarItem.settings.title, systemImage: SidebarItem.settings.icon)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, Space.s)
+                        .padding(.vertical, 6)
+                        .background(router.section == .settings ? Surface.selected : .clear, in: RoundedRectangle(cornerRadius: Radius.small + 2, style: .continuous))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, Space.s + 2)
+                .padding(.bottom, Space.m)
+            }
             // The window is made by hand: SwiftUI does not add this button there. It keeps a toolbar on every
             // page, so the window's buttons never move and nothing sticks to the top (Paul, 14/11).
             .toolbar {
@@ -202,7 +258,7 @@ public struct MainWindowView<Diagnostic: View>: View {
                 .windowTitle("Réunions", subtitle: router.selection.flatMap { id in library.rows.first { $0.id == id }?.title } ?? "")
                 .searchable(text: $router.query, placement: .toolbar, prompt: "Chercher dans les transcriptions")
             case .settings:
-                SettingsPage(tab: $router.settingsTab, updates: updates, projects: projects, agenda: agenda) {
+                SettingsPage(router: router, updates: updates, projects: projects, agenda: agenda, library: library) {
                     diagnostic
                 } journal: {
                     JournalView(entries: library.journal)

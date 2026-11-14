@@ -79,6 +79,17 @@ final class Flag: @unchecked Sendable {
         SummaryQueue(database: database, engine: engine, otherWork: { flag.on }, now: { [now] in now })
     }
 
+    /// 14/11: Réglages › Réunions can turn the summaries off.
+    @Test func turnedOffItWritesNothing() async throws {
+        let row = try meeting(hoursAgo: 2, title: "Atelier maquette")
+        let engine = FakeEngine()
+        let queue = SummaryQueue(database: database, engine: engine, isEnabled: { false }, now: { [now] in now })
+        await queue.wake()
+        await queue.waitForIdle()
+        #expect(engine.calls == 0)
+        #expect(try SummaryStore(database).job(meetingID: row.id) == nil)
+    }
+
     @Test func aStopIsNeverAFailureEvenWhenTheModelCallsItAnError() async throws {
         let row = try meeting(hoursAgo: 2, title: "Atelier maquette")
         let engine = FakeEngine()

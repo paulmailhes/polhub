@@ -118,6 +118,16 @@ func eventually(_ condition: @Sendable () async throws -> Bool) async rethrows -
         #expect(try meetings.meeting(id: row.id)?.transcribedAt != nil)
     }
 
+    /// 14/11: the language of new meetings comes from Réglages › Réunions.
+    @Test func theLanguageOfNewMeetingsComesFromTheSettings() async throws {
+        let row = try endedMeeting()
+        let queue = TranscriptionQueue(meetings: meetings, transcripts: transcripts, paths: paths, launcher: launcher, now: { [now] in now },
+                                       language: { "en" })
+        await queue.wake()
+        #expect(await eventually { launcher.requests.count == 1 })
+        #expect(launcher.requests.first == CalculRequest(folder: paths.meetingFolder(row.id).path(percentEncoded: false), language: "en"))
+    }
+
     @Test func aMeetStartingStopsTheCalculAndItResumesAfter() async throws {
         let row = try endedMeeting()
         let queue = queue()

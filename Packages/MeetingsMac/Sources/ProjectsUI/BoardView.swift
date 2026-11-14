@@ -44,6 +44,7 @@ struct ColumnView: View {
     @ObservedObject var library: ProjectLibrary
     let create: (ProjectStatus) -> Void
     @State private var targeted = false
+    @AppStorage(Preferences.Key.cardSize) private var sizeName = CardSize.medium.rawValue
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.m) {
@@ -73,7 +74,7 @@ struct ColumnView: View {
             .scrollIndicators(.never)
         }
         .padding(Space.m)
-        .frame(width: 300)
+        .frame(width: CardSize(rawValue: sizeName)?.columnWidth ?? CardSize.medium.columnWidth)
         .frame(maxHeight: .infinity, alignment: .top)
         .background(column.color.swiftUI.opacity(targeted ? 0.16 : 0.06), in: RoundedRectangle(cornerRadius: Radius.card + 4, style: .continuous))
         .dropDestination(for: String.self) { items, _ in
@@ -94,18 +95,21 @@ struct ProjectCard: View {
     let project: ProjectRow
     var lastMeeting: Date?
     @State private var hovering = false
+    /// Réglages › Projets (Paul, 14/11: the large cards were too large).
+    @AppStorage(Preferences.Key.cardSize) private var sizeName = CardSize.medium.rawValue
+    private var size: CardSize { CardSize(rawValue: sizeName) ?? .medium }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.s) {
             HStack(alignment: .top, spacing: Space.s) {
                 if let icon = project.icon, icon.count <= 2 { Text(icon).font(.title2) }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(project.name).font(.headline).lineLimit(2)
+                    Text(project.name).font(size.titleFont).lineLimit(2)
                     if let client = project.client { Text(client).font(.callout).foregroundStyle(.secondary).lineLimit(1) }
                 }
             }
             if let todo = project.todo, !todo.isEmpty {
-                Text(todo).font(.callout).lineLimit(3).fixedSize(horizontal: false, vertical: true)
+                Text(todo).font(size == .small ? .caption : .callout).lineLimit(size.todoLines).fixedSize(horizontal: false, vertical: true)
             }
             let due = ProjectViews.dueLabel(project.dueDate, today: Date())
             if due != nil || lastMeeting != nil {
@@ -117,7 +121,7 @@ struct ProjectCard: View {
                 }
             }
         }
-        .padding(Space.m + 2)
+        .padding(size.padding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.background, in: RoundedRectangle(cornerRadius: Radius.card - 2, style: .continuous))
         .overlay(alignment: .leading) {
