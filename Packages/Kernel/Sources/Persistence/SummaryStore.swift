@@ -43,14 +43,15 @@ public struct SummaryStore: Sendable {
     private static func key(_ id: UUID) -> String { id.uuidString.lowercased() }
 
     /// The newest transcribed meeting that has words and no summary of its current transcription: never
-    /// an imported one, nor one in the Trash, nor one that failed twice.
+    /// an imported one, nor one in the Trash, nor one that failed twice, nor one that already has a summary
+    /// from elsewhere (the vault's, merged at the history import: review of 14/11) unless Paul asks.
     public func nextPending() throws -> UUID? {
         try writer.read { db in
             try String.fetchOne(db, sql: """
                 SELECT meeting.id FROM meeting LEFT JOIN summary_job AS job ON job.meetingID = meeting.id
                 WHERE meeting.deletedAt IS NULL AND meeting.source != 'imported' AND meeting.transcribedAt IS NOT NULL
                   AND EXISTS (SELECT 1 FROM utterance WHERE utterance.meetingID = meeting.id)
-                  AND (job.meetingID IS NULL OR job.state = 'queued'
+                  AND ((job.meetingID IS NULL AND meeting.summary IS NULL) OR job.state = 'queued'
                        OR (job.state IN ('done', 'failed') AND job.sourceTranscribedAt < meeting.transcribedAt))
                 ORDER BY meeting.startedAt DESC LIMIT 1
                 """)
@@ -81,7 +82,8 @@ public struct SummaryStore: Sendable {
         try writer.write { db in
             try db.execute(sql: "UPDATE meeting SET summary = ? WHERE id = ?", arguments: [summary, Self.key(meetingID)])
             // The ones Paul put in a project stay.
-            try db.execute(sql: "DELETE FROM action WHERE meetingID = ? AND projectID IS NULL", arguments: [Self.key(meetingID)])
+            // The ones Paul checked stay too.
+            try db.execute(sql: "DELETE FROM action WHERE meetingID = ? AND projectID IS NULL AND done = 0", arguments: [Self.key(meetingID)])
             for var action in actions {
                 action.meetingID = meetingID
                 action.projectID = nil

@@ -30,13 +30,26 @@ public enum EventCopies {
             guard copies.count > 1 else { return copies.first }
             let account = joinAccount(for: copies, accounts: accounts)
             guard var shown = copies.first(where: { $0.account == account }) ?? copies.first else { return nil }
-            if shown.projectOrigin != .paul, let filed = copies.first(where: { $0.projectOrigin == .paul }) ?? copies.first(where: { $0.projectID != nil }),
-               shown.projectID == nil || filed.projectOrigin == .paul {
+            // The strongest reason wins: Paul's choice, then the recording, the series, the guests, the title
+            // (review of 14/11, Important 7).
+            if let filed = copies.filter({ $0.projectOrigin != nil }).min(by: { rank($0.projectOrigin) < rank($1.projectOrigin) }),
+               rank(filed.projectOrigin) < rank(shown.projectOrigin) {
                 shown.projectID = filed.projectID
                 shown.projectOrigin = filed.projectOrigin
             }
             if shown.meetingID == nil { shown.meetingID = copies.compactMap(\.meetingID).first }
             return shown
+        }
+    }
+
+    static func rank(_ origin: EventProjectOrigin?) -> Int {
+        switch origin {
+        case .paul?: 0
+        case .reunion?: 1
+        case .serie?: 2
+        case .invites?: 3
+        case .titre?: 4
+        case nil: 5
         }
     }
 

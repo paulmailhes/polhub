@@ -209,8 +209,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             Task { await summaries.start() }
         }
         transcriptionTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
-            Task { await queue.wake() }
-            Task { await summaries.wake() }
+            // One after the other: the transcription first, the summary only if nothing computes (review of 14/11).
+            Task {
+                await queue.wake()
+                await summaries.wake()
+            }
             MainActor.assumeIsolated { self?.library?.summaryUnavailable = engine.unavailableReason }
         }
     }

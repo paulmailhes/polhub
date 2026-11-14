@@ -163,11 +163,13 @@ public struct LinkRunner: Sendable {
             guard let series = event.recurringEventID, let id = event.projectID, [.paul, .reunion].contains(event.projectOrigin) else { continue }
             if seriesProjects[series] == nil { seriesProjects[series] = id }
         }
+        // The recording is linked to one copy of an event; every copy takes its project (review of 14/11, Important 7).
+        let recordingOf = Dictionary(events.compactMap { event in event.meetingID.map { (event.eventID, $0) } }, uniquingKeysWith: { first, _ in first })
         for index in events.indices {
             let event = events[index]
             // Paul's filing, « no project » included, is never recomputed (review, Important 2).
             if event.projectOrigin == .paul { continue }
-            let meetingProject = event.meetingID.flatMap { meetingByID[$0]?.projectID }
+            let meetingProject = (event.meetingID ?? recordingOf[event.eventID]).flatMap { meetingByID[$0]?.projectID }
             let found = Linker.project(for: event, meetingProject: meetingProject, seriesProjects: seriesProjects,
                                        contactProjects: contactProjects, projects: projectList)
             if found?.id != event.projectID || found?.origin != event.projectOrigin {

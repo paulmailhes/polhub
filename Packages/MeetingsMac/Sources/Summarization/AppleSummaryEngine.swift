@@ -52,6 +52,9 @@ public struct AppleSummaryEngine: SummaryEngine {
     private func respond<T>(_ body: () async throws -> T) async throws -> T {
         do {
             return try await body()
+        } catch _ where Task.isCancelled {
+            // Stopped by a meeting: never a failure (review of 14/11, Important 4).
+            throw CancellationError()
         } catch let error as LanguageModelSession.GenerationError {
             switch error {
             case .exceededContextWindowSize: throw SummaryError.model("La transcription dépasse la fenêtre du modèle.")

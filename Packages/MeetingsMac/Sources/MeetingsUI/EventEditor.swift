@@ -23,6 +23,10 @@ struct EventEditor: View {
     @State private var failure: GoogleError?
     @State private var otherFailure: String?
     @State private var confirmingDelete = false
+    /// What the event was, and what Google holds, read before changing it (review of 14/11).
+    @State private var original: EventDraft?
+    @State private var details: EventDetails?
+    @State private var detailsRead = false
     @AppStorage("dernierAgenda") private var lastAccount = ""
     @Environment(\.dismiss) private var dismiss
 
@@ -131,8 +135,11 @@ struct EventEditor: View {
         .windowTitle(editing == nil ? "Nouveau rendez-vous" : "Modifier le rendez-vous")
         .task {
             guard let editing else { return }
-            let notes = await agenda.notes(of: editing)
-            if draft.notes.isEmpty { draft.notes = notes }
+            details = await agenda.details(of: editing)
+            let base = EventDraft(event: editing, notes: details?.notes ?? "")
+            original = base
+            if draft.notes.isEmpty { draft.notes = base.notes }
+            detailsRead = true
         }
         .confirmationDialog("Supprimer « \(draft.title) » ?", isPresented: $confirmingDelete) {
             Button("Supprimer", role: .destructive) { remove() }
@@ -153,6 +160,9 @@ struct EventEditor: View {
                 }
             } else if let otherFailure {
                 Label(otherFailure, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+            } else if editing != nil, detailsRead, details == nil {
+                Label("Google n'a pas pu être lu : la description et les invités ne changent que si tu les modifies.", systemImage: "info.circle")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             HStack {
                 if editing != nil {
@@ -165,7 +175,7 @@ struct EventEditor: View {
                     .buttonStyle(.glassProminent)
                     .tint(color)
                     .keyboardShortcut(.defaultAction)
-                    .disabled(saving || draft.title.trimmingCharacters(in: .whitespaces).isEmpty || account.isEmpty)
+                    .disabled(saving || draft.title.trimmingCharacters(in: .whitespaces).isEmpty || account.isEmpty || (editing != nil && !detailsRead))
             }
         }
         .padding(Space.l)
@@ -211,7 +221,7 @@ struct EventEditor: View {
         Task {
             defer { saving = false }
             do {
-                try await agenda.save(draft, account: account, editing: editing)
+                try await agenda.save(draft, account: account, editing: editing, original: original, details: details)
                 if editing == nil { lastAccount = account }
                 dismiss()
             } catch let error as GoogleError {

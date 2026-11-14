@@ -58,6 +58,32 @@ import Testing
                 == "https://meet.google.com/abc-defg-hij?authuser=paul%2Bagenda@exemple.fr")
     }
 
+    /// Review of 14/11, Important 7: the recording is linked to one copy; its project goes to every copy.
+    @Test func theRecordingsProjectFilesEveryCopy() throws {
+        let database = try AppDatabase.inMemory()
+        let calendar = CalendarStore(database), projects = ProjectStore(database), contacts = ContactStore(database)
+        let alpha = try projects.addProject(name: "Alpha", status: .priorite1, at: now)
+        let beta = try projects.addProject(name: "Beta", status: .priorite1, at: now)
+        // The guest belongs to Beta, but Paul filed the recording in Alpha.
+        let guest = try contacts.upsert(email: "camille@ailleurs.fr", name: "Camille", company: nil, at: now)
+        try contacts.link(contactID: guest.id, projectID: beta.id, origin: .coffre, at: now)
+        var recorded = MeetingRow(createdAt: now, status: .ended, source: .dia, candidateKey: "t/a", meetCode: "abc-defg-hij", title: "Point",
+                                  startedAt: now.addingTimeInterval(60), endedAt: now.addingTimeInterval(1_700))
+        recorded.projectID = alpha.id
+        try MeetingStore(database).save(recorded)
+        for account in accounts.prefix(2) {
+            try calendar.addAccount(email: account.email, at: account.addedAt)
+            var event = copy(account.email, organizer: "client@ailleurs.fr")
+            event.attendees = [Attendee(email: "camille@ailleurs.fr"), Attendee(email: account.email, isSelf: true)]
+            try calendar.applyGoogle(account: account.email, changed: [event], cancelled: [], at: now)
+        }
+        try LinkRunner(database: database).run(now: now)
+        let rows = try calendar.allEvents()
+        #expect(rows.filter { $0.meetingID == recorded.id }.count == 1)
+        #expect(rows.allSatisfy { $0.projectID == alpha.id })
+        #expect(EventCopies.merge(rows, accounts: Array(accounts.prefix(2))).first?.projectID == alpha.id)
+    }
+
     @Test func paulsChoiceOnOneCopyFilesEveryCopyAndTheLoopKeepsIt() throws {
         let database = try AppDatabase.inMemory()
         let calendar = CalendarStore(database)

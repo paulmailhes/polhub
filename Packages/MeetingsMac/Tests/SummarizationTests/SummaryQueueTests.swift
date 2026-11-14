@@ -9,19 +9,42 @@ final class FakeEngine: SummaryEngine, @unchecked Sendable {
     var unavailableReason: String?
     var slow = false
     var failing = false
+    /// The model reports a cancellation as its own error (review of 14/11, Important 4).
+    var cancelAsModelError = false
+    /// The model's assets are missing although `availability` says otherwise (Important 5).
+    var assetsMissing = false
+    /// The length of each part's notes.
+    var notesLength = 0
+    /// Called after each part's notes.
+    var afterNotes: (() -> Void)?
     private(set) var calls = 0
+    private(set) var mergedLength = 0
 
     func notes(for chunk: String, part: Int, of count: Int) async throws -> String {
         calls += 1
         if failing { throw SummaryError.model("le modèle n'a pas répondu") }
-        if slow { try await Task.sleep(for: .seconds(30)) }
-        return "notes \(part)/\(count)"
+        if assetsMissing { throw SummaryError.unavailable("Le modèle d'Apple n'est pas disponible pour l'instant.") }
+        if slow {
+            do {
+                try await Task.sleep(for: .seconds(30))
+            } catch {
+                if cancelAsModelError { throw SummaryError.model("requête annulée") }
+                throw error
+            }
+        }
+        afterNotes?()
+        return notesLength > 0 ? String(repeating: "n", count: notesLength) : "notes \(part)/\(count)"
     }
 
     func summary(of notes: [String], title: String) async throws -> MeetingSummary {
-        MeetingSummary(overview: "\(title) : \(notes.count) parties.", decisions: ["Garder la maquette."],
-                       actions: [SummaryAction(text: "envoyer le devis", owner: "Moi", due: "vendredi")])
+        mergedLength = notes.joined(separator: "\n\n").count
+        return MeetingSummary(overview: "\(title) : \(notes.count) parties.", decisions: ["Garder la maquette."],
+                              actions: [SummaryAction(text: "envoyer le devis", owner: "Moi", due: "vendredi")])
     }
+}
+
+final class Flag: @unchecked Sendable {
+    var on = false
 }
 
 @Suite struct SummaryQueueTests {
@@ -50,6 +73,72 @@ final class FakeEngine: SummaryEngine, @unchecked Sendable {
 
     func queue(_ engine: FakeEngine, otherWork: Bool = false) -> SummaryQueue {
         SummaryQueue(database: database, engine: engine, otherWork: { otherWork }, now: { [now] in now })
+    }
+
+    func queue(_ engine: FakeEngine, otherWork flag: Flag) -> SummaryQueue {
+        SummaryQueue(database: database, engine: engine, otherWork: { flag.on }, now: { [now] in now })
+    }
+
+    @Test func aStopIsNeverAFailureEvenWhenTheModelCallsItAnError() async throws {
+        let row = try meeting(hoursAgo: 2, title: "Atelier maquette")
+        let engine = FakeEngine()
+        engine.slow = true
+        engine.cancelAsModelError = true
+        let queue = queue(engine)
+        await queue.wake()
+        // The meeting starts while the model is working, not before.
+        for _ in 0..<200 where engine.calls == 0 { try await Task.sleep(for: .milliseconds(5)) }
+        #expect(engine.calls == 1)
+        await queue.meetingActivity(true)
+        await queue.waitForIdle()
+        let job = try #require(try SummaryStore(database).job(meetingID: row.id))
+        #expect(job.state == .queued && job.attempts == 0)
+    }
+
+    @Test func missingModelAssetsDoNotSpin() async throws {
+        let row = try meeting(hoursAgo: 2, title: "Atelier maquette")
+        let engine = FakeEngine()
+        engine.assetsMissing = true
+        let queue = queue(engine)
+        await queue.wake()
+        await queue.waitForIdle()
+        await queue.wake()
+        await queue.waitForIdle()
+        #expect(engine.calls == 1)
+        let job = try #require(try SummaryStore(database).job(meetingID: row.id))
+        #expect(job.state == .queued && job.attempts == 0)
+    }
+
+    @Test func aTranscriptionThatStartsStopsTheSummary() async throws {
+        let row = try meeting(hoursAgo: 2, title: "Atelier maquette")
+        let engine = FakeEngine(), transcribing = Flag()
+        engine.afterNotes = { transcribing.on = true }
+        // Long enough for two parts.
+        try TranscriptStore(database).replaceUtterances(meetingID: row.id, (0..<40).map { index in
+            UtteranceRow(meetingID: row.id, speaker: .autres, startMs: index * 1_000, endMs: index * 1_000 + 900,
+                         text: String(repeating: "On avance sur la maquette. ", count: 20), doubtful: false)
+        })
+        let queue = queue(engine, otherWork: transcribing)
+        await queue.wake()
+        await queue.waitForIdle()
+        #expect(engine.calls == 1)
+        let job = try #require(try SummaryStore(database).job(meetingID: row.id))
+        #expect(job.state == .queued && job.attempts == 0)
+    }
+
+    @Test func aLongMeetingsNotesAreReducedToFitTheModel() async throws {
+        let row = try meeting(hoursAgo: 2, title: "Atelier de deux heures")
+        try TranscriptStore(database).replaceUtterances(meetingID: row.id, (0..<400).map { index in
+            UtteranceRow(meetingID: row.id, speaker: index % 2 == 0 ? .moi : .autres, startMs: index * 10_000, endMs: index * 10_000 + 9_000,
+                         text: String(repeating: "Une phrase de la réunion. ", count: 20), doubtful: false)
+        })
+        let engine = FakeEngine()
+        engine.notesLength = 1_500
+        let queue = queue(engine)
+        await queue.wake()
+        await queue.waitForIdle()
+        #expect(try SummaryStore(database).job(meetingID: row.id)?.state == .done)
+        #expect(engine.mergedLength > 0 && engine.mergedLength <= SummaryPlan.maxCharacters)
     }
 
     @Test func theMeetingsAreSummarizedNewestFirstWithTheirActions() async throws {

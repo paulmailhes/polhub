@@ -55,24 +55,79 @@ import Testing
         #expect(CalendarWrite.insertRequest(accessToken: "jeton", draft: draft, timeZone: paris, requestID: "x").url?.query == "sendUpdates=all")
     }
 
-    @Test func anEditKeepsTheAnswersOfTheGuestsWhoStay() throws {
-        let event = CalendarEventRow(account: "paul@exemple.fr", eventID: "e1", title: "Point", startAt: date(17, 10), endAt: date(17, 11),
-                                     meetCode: "abc-defg-hij", organizer: "paul@exemple.fr",
-                                     attendees: [Attendee(email: "paul@exemple.fr", response: "accepted", isSelf: true, isOrganizer: true),
-                                                 Attendee(email: "camille@exemple.fr", response: "accepted"), Attendee(email: "jules@exemple.fr", response: "needsAction")],
-                                     updatedAt: date(1))
-        var draft = EventDraft(event: event, notes: "Notes", calendar: calendar)
-        #expect(draft.guests == ["camille@exemple.fr", "jules@exemple.fr"] && draft.addMeet && draft.notes == "Notes")
-        draft.guests = ["camille@exemple.fr", "zoe@exemple.fr"]
+    var meeting: CalendarEventRow {
+        CalendarEventRow(account: "paul@exemple.fr", eventID: "e1", title: "Point", startAt: date(17, 10), endAt: date(17, 11),
+                         meetCode: "abc-defg-hij", organizer: "paul@exemple.fr",
+                         attendees: [Attendee(email: "paul@exemple.fr", response: "accepted", isSelf: true, isOrganizer: true),
+                                     Attendee(email: "camille@exemple.fr", response: "accepted"), Attendee(email: "jules@exemple.fr", response: "needsAction")],
+                         updatedAt: date(1))
+    }
+
+    /// Google's own list, read before the change: optional guests, comments and « +N » stay as they are.
+    let rawAttendees = Data("""
+        [{"email": "paul@exemple.fr", "self": true, "organizer": true, "responseStatus": "accepted"},
+         {"email": "camille@exemple.fr", "optional": true, "comment": "En retard", "additionalGuests": 1, "responseStatus": "accepted"},
+         {"email": "jules@exemple.fr", "responseStatus": "needsAction"}]
+        """.utf8)
+
+    @Test func anEditSendsOnlyWhatChanged() throws {
+        let original = EventDraft(event: meeting, notes: "Ordre du jour", calendar: calendar)
+        #expect(original.guests == ["camille@exemple.fr", "jules@exemple.fr"] && original.addMeet && original.notes == "Ordre du jour")
+        var draft = original
         draft.title = "Point déplacé"
-        let request = CalendarWrite.patchRequest(accessToken: "jeton", event: event, draft: draft, timeZone: paris, requestID: "x")
+        let request = CalendarWrite.patchRequest(accessToken: "jeton", event: meeting, original: original, draft: draft,
+                                                 details: EventDetails(notes: "Ordre du jour", attendees: rawAttendees), timeZone: paris, requestID: "x")
         #expect(request.httpMethod == "PATCH")
         #expect(request.url?.absoluteString == "https://www.googleapis.com/calendar/v3/calendars/primary/events/e1?sendUpdates=all")
         let body = try json(request)
+        // Review of 14/11, Important 1 and 2: neither the description nor the guests are rewritten.
+        #expect(Set(body.keys) == ["summary"])
+    }
+
+    @Test func changedGuestsKeepGooglesFieldsForThoseWhoStay() throws {
+        let original = EventDraft(event: meeting, notes: "", calendar: calendar)
+        var draft = original
+        draft.guests = ["camille@exemple.fr", "zoe@exemple.fr"]
+        let body = try json(CalendarWrite.patchRequest(accessToken: "jeton", event: meeting, original: original, draft: draft,
+                                                       details: EventDetails(notes: "", attendees: rawAttendees), timeZone: paris, requestID: "x"))
+        let attendees = try #require(body["attendees"] as? [[String: Any]])
+        #expect(attendees.map { $0["email"] as? String } == ["paul@exemple.fr", "camille@exemple.fr", "zoe@exemple.fr"])
+        #expect(attendees[1]["optional"] as? Bool == true && attendees[1]["comment"] as? String == "En retard" && attendees[1]["additionalGuests"] as? Int == 1)
+        #expect(Set(body.keys) == ["attendees"])
+    }
+
+    @Test func withoutGooglesListTheStoredAnswersAreKept() throws {
+        let original = EventDraft(event: meeting, notes: "", calendar: calendar)
+        var draft = original
+        draft.guests = ["camille@exemple.fr", "zoe@exemple.fr"]
+        let body = try json(CalendarWrite.patchRequest(accessToken: "jeton", event: meeting, original: original, draft: draft, details: nil,
+                                                       timeZone: paris, requestID: "x"))
         #expect((body["attendees"] as? [[String: String]]) == [
             ["email": "paul@exemple.fr", "responseStatus": "accepted"], ["email": "camille@exemple.fr", "responseStatus": "accepted"], ["email": "zoe@exemple.fr"],
         ])
-        #expect(body["conferenceData"] == nil)
+    }
+
+    @Test func switchingToAWholeDayClearsTheTime() throws {
+        let original = EventDraft(event: meeting, notes: "", calendar: calendar)
+        var draft = original
+        draft.allDay = true
+        draft.start = date(17)
+        draft.end = date(17)
+        let body = try json(CalendarWrite.patchRequest(accessToken: "jeton", event: meeting, original: original, draft: draft, details: nil,
+                                                       timeZone: paris, requestID: "x"))
+        let start = try #require(body["start"] as? [String: Any])
+        #expect(start["date"] as? String == "2026-11-17" && start["dateTime"] is NSNull)
+        #expect((body["end"] as? [String: Any])?["date"] as? String == "2026-11-18")
+        #expect(Set(body.keys) == ["start", "end"])
+    }
+
+    @Test func googlesDetailsAreTheDescriptionAndTheGuests() throws {
+        let data = Data(#"{"id": "e1", "description": "Ordre du jour", "attendees": [{"email": "camille@exemple.fr", "optional": true}]}"#.utf8)
+        let details = CalendarWrite.details(from: data)
+        #expect(details.notes == "Ordre du jour")
+        let raw = try #require(details.attendees)
+        let attendees = try #require(try JSONSerialization.jsonObject(with: raw) as? [[String: Any]])
+        #expect(attendees.first?["optional"] as? Bool == true)
     }
 
     @Test func aWholeDayEventReadsBackItsLastDay() {

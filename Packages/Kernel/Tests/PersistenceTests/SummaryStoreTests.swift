@@ -92,6 +92,30 @@ import Testing
         #expect(try ProjectStore(database).actions(projectID: project.id).map(\.text) == ["Envoyer le devis"])
     }
 
+    /// Review of 14/11, Important 3: a recorded meeting that received the vault's summary at the history
+    /// import keeps it, and its actions.
+    @Test func aMeetingThatAlreadyHasASummaryIsNeverQueued() throws {
+        let (store, meetings, transcripts, database) = try base()
+        let row = try meeting(meetings, transcripts, hoursAgo: 2)
+        try meetings.setSummary(meetingID: row.id, summary: "## Résumé\n\nVenu du coffre.")
+        try ProjectStore(database).replaceMeetingActions(meetingID: row.id, projectID: nil, actions: [ActionRow(text: "Du coffre", position: 0, createdAt: now)])
+        #expect(try store.nextPending() == nil)
+        try store.redo(meetingID: row.id, at: now)
+        #expect(try store.nextPending() == row.id)
+    }
+
+    /// Review of 14/11, minor: a new summary keeps the actions Paul checked.
+    @Test func aNewSummaryKeepsTheCheckedActions() throws {
+        let (store, meetings, transcripts, database) = try base()
+        let row = try meeting(meetings, transcripts, hoursAgo: 2)
+        try store.finish(meetingID: row.id, summary: "A", actions: [ActionRow(text: "Faite", position: 0, createdAt: now), ActionRow(text: "Pas faite", position: 1, createdAt: now)], at: now)
+        var done = try #require(try ProjectStore(database).actions(meetingID: row.id).first { $0.text == "Faite" })
+        done.done = true
+        try ProjectStore(database).saveAction(done)
+        try store.finish(meetingID: row.id, summary: "B", actions: [ActionRow(text: "Nouvelle", position: 0, createdAt: now)], at: now)
+        #expect(Set(try ProjectStore(database).actions(meetingID: row.id).map(\.text)) == ["Faite", "Nouvelle"])
+    }
+
     @Test func importedAndDeletedMeetingsAreLeftAlone() throws {
         let (store, meetings, transcripts, _) = try base()
         try meeting(meetings, transcripts, hoursAgo: 3, source: .imported)

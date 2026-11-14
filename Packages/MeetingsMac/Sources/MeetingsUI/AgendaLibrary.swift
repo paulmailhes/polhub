@@ -95,25 +95,31 @@ public final class AgendaLibrary: ObservableObject {
 
     // MARK: - Writing (14/11)
 
-    /// The description of an event, read from Google before changing it.
-    public func notes(of event: CalendarEventRow) async -> String {
+    /// The description and Google's list of guests, read before changing an event; `nil` when Google could not
+    /// be read (the description is then never sent: review of 14/11).
+    public func details(of event: CalendarEventRow) async -> EventDetails? {
         let id = event.eventID
-        guard let data = try? await session.send({ CalendarWrite.getRequest(accessToken: $0, eventID: id) }, for: event.account) else { return "" }
-        return CalendarWrite.notes(from: data)
+        guard let data = try? await session.send({ CalendarWrite.getRequest(accessToken: $0, eventID: id) }, for: event.account) else { return nil }
+        return CalendarWrite.details(from: data)
     }
 
     /// Creates the event in the account's calendar, or changes it; Google sends the invitations.
-    public func save(_ draft: EventDraft, account: String, editing: CalendarEventRow?) async throws {
+    public func save(_ draft: EventDraft, account: String, editing: CalendarEventRow?, original: EventDraft? = nil,
+                     details: EventDetails? = nil) async throws {
         let requestID = UUID().uuidString, zone = TimeZone.current
         let data = try await session.send({ token in
-            if let editing { return CalendarWrite.patchRequest(accessToken: token, event: editing, draft: draft, timeZone: zone, requestID: requestID) }
+            if let editing {
+                return CalendarWrite.patchRequest(accessToken: token, event: editing, original: original ?? EventDraft(event: editing, notes: ""),
+                                                  draft: draft, details: details, timeZone: zone, requestID: requestID)
+            }
             return CalendarWrite.insertRequest(accessToken: token, draft: draft, timeZone: zone, requestID: requestID)
         }, for: account)
         writable[account] = true
         if let row = try CalendarWrite.event(from: data, account: account) {
             try CalendarStore(database).applyGoogle(account: account, changed: [row], cancelled: [], at: Date())
         }
-        await runLinks()
+        // The copies in Paul's other calendars follow at once (review of 14/11).
+        await syncAll()
     }
 
     /// Deletes the event; its guests are told by Google.
@@ -121,6 +127,7 @@ public final class AgendaLibrary: ObservableObject {
         let id = event.eventID
         _ = try await session.send({ CalendarWrite.deleteRequest(accessToken: $0, eventID: id) }, for: event.account)
         try CalendarStore(database).applyGoogle(account: event.account, changed: [], cancelled: [id], at: Date())
+        await syncAll()
     }
 
     /// Connects the account again, to grant writing: Google's page opens on it.
@@ -139,7 +146,8 @@ public final class AgendaLibrary: ObservableObject {
     /// The calendar's name for a recording that starts: the event of the same Meet code at that time (14/11).
     public nonisolated static func eventTitle(in database: AppDatabase, code: String?, at date: Date) -> String? {
         guard let code, let events = try? CalendarStore(database).events(meetCode: code) else { return nil }
-        return Linker.event(forCode: code, at: date, among: events)?.title
+        // An untitled event leaves the tab's title (review of 14/11).
+        return Linker.event(forCode: code, at: date, among: events).map(\.title).flatMap { $0 == "(sans titre)" ? nil : $0 }
     }
 
     /// The loop of 13/11, away from the main thread.

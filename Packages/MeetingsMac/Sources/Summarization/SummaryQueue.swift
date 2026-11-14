@@ -13,6 +13,8 @@ public actor SummaryQueue {
     private let now: @Sendable () -> Date
     private var busy = false
     private var current: (meetingID: UUID, task: Task<Void, Never>)?
+    /// The model's assets were missing: nothing starts before this (review of 14/11, Important 5).
+    private var retryAfter: Date?
 
     public init(database: AppDatabase, engine: any SummaryEngine, otherWork: @escaping @Sendable () async -> Bool = { false },
                 now: @escaping @Sendable () -> Date = Date.init) {
@@ -28,7 +30,8 @@ public actor SummaryQueue {
 
     /// At launch: what was running goes back to the queue.
     public func start() async {
-        _ = try? store.resetRunning(at: now())
+        // Not the one the timer may have started meanwhile (review of 14/11, minor).
+        if current == nil { _ = try? store.resetRunning(at: now()) }
         await wake()
     }
 
@@ -44,6 +47,7 @@ public actor SummaryQueue {
 
     /// Starts the newest waiting summary, if nothing runs and nothing stops it.
     public func wake() async {
+        if let retryAfter, now() < retryAfter { return }
         guard !busy, current == nil, engine.unavailableReason == nil, await !otherWork(), !busy, current == nil,
               let meetingID = try? store.nextPending() else { return }
         try? store.start(meetingID: meetingID, at: now())
@@ -63,27 +67,26 @@ public actor SummaryQueue {
     }
 
     private func run(_ meetingID: UUID) async {
+        let otherWork = otherWork
         do {
             let meetings = MeetingStore(database)
             let lines = try TranscriptStore(database).utterances(meetingID: meetingID)
             let title = try meetings.meeting(id: meetingID)?.title ?? ""
             let participants = try ContactStore(database).participants(meetingID: meetingID).map(\.name)
-            let summary = try await Summarizer.make(lines: lines, title: title, participants: participants, engine: engine)
+            // A transcription that starts stops the summary: the Mac computes one thing at a time (review of 14/11).
+            let summary = try await Summarizer.make(lines: lines, title: title, participants: participants, engine: engine,
+                                                    shouldStop: { await otherWork() })
             try store.finish(meetingID: meetingID, summary: summary.map(SummaryText.markdown),
                              actions: SummaryText.actionRows(summary?.actions ?? [], at: now()), at: now())
-        } catch is CancellationError {
-            try? store.stopped(meetingID: meetingID, at: now())
-        } catch let error as SummaryError {
-            if case .unavailable = error {
-                try? store.stopped(meetingID: meetingID, at: now())
-            } else {
-                try? store.fail(meetingID: meetingID, error: error.description, at: now())
-            }
         } catch {
-            if Task.isCancelled {
+            if Task.isCancelled || error is CancellationError {
+                // A meeting or a transcription stopped it, whatever the model called it (review, Important 4).
                 try? store.stopped(meetingID: meetingID, at: now())
+            } else if case SummaryError.unavailable = error {
+                try? store.stopped(meetingID: meetingID, at: now())
+                retryAfter = now().addingTimeInterval(60)
             } else {
-                try? store.fail(meetingID: meetingID, error: error.localizedDescription, at: now())
+                try? store.fail(meetingID: meetingID, error: (error as? SummaryError)?.description ?? error.localizedDescription, at: now())
             }
         }
         current = nil

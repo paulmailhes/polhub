@@ -58,6 +58,18 @@ import Testing
         #expect(SummaryChecks.clean(summary, transcript: "", participants: []).actions.map(\.due) == [nil, nil, "vendredi", nil, nil])
     }
 
+    /// 14/11, first real summary: « (vide) », « (à venir) », « (dans pas longtemps) », and a date the action
+    /// already says.
+    @Test func dueDatesThatSayNothingOrRepeatTheActionGoAway() {
+        let summary = MeetingSummary(overview: "", decisions: [], actions: [
+            SummaryAction(text: "a", due: "vide"), SummaryAction(text: "b", due: "à venir"), SummaryAction(text: "c", due: "dans pas longtemps"),
+            SummaryAction(text: "d", due: "Bientôt"), SummaryAction(text: "e", due: "prochainement"),
+            SummaryAction(text: "Aller voir en début de semaine prochaine", due: "début de semaine prochaine"),
+            SummaryAction(text: "Vérifier le suivi", due: "demain"),
+        ])
+        #expect(SummaryChecks.clean(summary, transcript: "", participants: []).actions.map(\.due) == [nil, nil, nil, nil, nil, nil, "demain"])
+    }
+
     @Test func duplicatesGoAndListsStayShort() {
         let decisions = ["Garder WordPress.", "garder wordpress", ""] + (1...12).map { "Décision \($0)" }
         let actions = (1...14).map { SummaryAction(text: "Action \($0)") } + [SummaryAction(text: "action 1")]

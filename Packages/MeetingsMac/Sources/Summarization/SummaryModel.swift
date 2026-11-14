@@ -96,7 +96,8 @@ public enum SummaryChecks {
     public static let maxDecisions = 8
     public static let maxActions = 10
     static let nobody: Set<String> = ["", "les autres", "l'equipe", "equipe", "l’equipe", "tous", "nous", "on", "personne", "?", "inconnu", "non specifie"]
-    static let vagueDue = ["non ", "non-", "determin", "precis", "specifi", "inconnu", "aucun", "pas de", "?", "n/a", "immediat"]
+    static let vagueDue = ["non ", "non-", "determin", "precis", "specifi", "inconnu", "aucun", "pas de", "?", "n/a", "immediat",
+                           "vide", "a venir", "bientot", "prochainement", "plus tard", "pas longtemps"]
 
     public static func clean(_ summary: MeetingSummary, transcript: String, participants: [String]) -> MeetingSummary {
         let words = Set(tokens(transcript + " " + participants.joined(separator: " ")))
@@ -105,7 +106,9 @@ public enum SummaryChecks {
         for action in summary.actions {
             let text = capitalized(action.text.trimmingCharacters(in: .whitespacesAndNewlines))
             guard !text.isEmpty, seen.insert(fold(text)).inserted else { continue }
-            actions.append(SummaryAction(text: text, owner: owner(action.owner, known: words), due: due(action.due)))
+            // A date the action already says is not repeated after it.
+            let when = due(action.due).flatMap { fold(text).contains(fold($0)) ? nil : $0 }
+            actions.append(SummaryAction(text: text, owner: owner(action.owner, known: words), due: when))
         }
         var decisions: [String] = []
         var seenDecisions = Set<String>()
@@ -170,19 +173,42 @@ public enum Summarizer {
     /// Under this, there is nothing to summarize.
     public static let minimumCharacters = 300
 
-    public static func make(lines: [UtteranceRow], title: String, participants: [String], engine: any SummaryEngine) async throws -> MeetingSummary? {
+    /// Notes longer than this go through another round of notes before the summary.
+    static let reductionRounds = 3
+
+    public static func make(lines: [UtteranceRow], title: String, participants: [String], engine: any SummaryEngine,
+                            maxCharacters: Int = SummaryPlan.maxCharacters,
+                            shouldStop: @Sendable () async -> Bool = { false }) async throws -> MeetingSummary? {
         let text = SummaryPlan.lines(lines)
         let transcript = text.joined(separator: "\n")
         guard transcript.count >= minimumCharacters else { return nil }
-        let chunks = SummaryPlan.chunks(text)
-        var notes: [String] = []
-        for (index, chunk) in chunks.enumerated() {
+        func check() async throws {
             try Task.checkCancellation()
-            notes.append(try await engine.notes(for: chunk, part: index + 1, of: chunks.count))
+            if await shouldStop() { throw CancellationError() }
         }
-        try Task.checkCancellation()
+        var notes = try await notesOf(SummaryPlan.chunks(text, maxCharacters: maxCharacters), engine: engine, check: check)
+        // A long meeting's notes do not fit the model's window: they are summarized again, in groups (review of
+        // 14/11, Important 6), a few rounds at most, then cut.
+        var round = 0
+        while notes.joined(separator: "\n\n").count > maxCharacters, notes.count > 1, round < reductionRounds {
+            notes = try await notesOf(SummaryPlan.chunks(notes, maxCharacters: maxCharacters), engine: engine, check: check)
+            round += 1
+        }
+        let merged = notes.joined(separator: "\n\n")
+        if merged.count > maxCharacters { notes = [String(merged.prefix(maxCharacters))] }
+        try await check()
         let summary = try await engine.summary(of: notes, title: title)
         try Task.checkCancellation()
         return SummaryChecks.clean(summary, transcript: transcript, participants: participants)
     }
+
+    static func notesOf(_ chunks: [String], engine: any SummaryEngine, check: () async throws -> Void) async throws -> [String] {
+        var notes: [String] = []
+        for (index, chunk) in chunks.enumerated() {
+            try await check()
+            notes.append(try await engine.notes(for: chunk, part: index + 1, of: chunks.count))
+        }
+        return notes
+    }
+
 }
