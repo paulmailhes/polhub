@@ -4,9 +4,11 @@ import Combine
 import Domain
 import GRDB
 import Mail
+import MailFormat
 import Persistence
 import PolhubDesign
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// The three tabs of the list (Paul, 14/11): what people wrote; what services send on their own; the
 /// newsletters and promotions. Gmail's own categories decide, unless Paul moved a sender.
@@ -37,6 +39,27 @@ public enum MailTab: String, Hashable, Sendable, CaseIterable {
         case "updates": .notifications
         case "promotions", "social": .newsletters
         default: .personnes
+        }
+    }
+}
+
+/// Where the list looks: the inbox, the drafts, what Paul sent (14/11).
+public enum MailFolder: String, Hashable, Sendable, CaseIterable {
+    case inbox, drafts, sent
+
+    var title: String {
+        switch self {
+        case .inbox: "Boîte de réception"
+        case .drafts: "Brouillons"
+        case .sent: "Envoyés"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .inbox: "tray"
+        case .drafts: "doc"
+        case .sent: "paperplane"
         }
     }
 }
@@ -83,6 +106,23 @@ public final class MailLibrary: ObservableObject {
     @Published public var message: String?
     /// The new mails of the main tab, for the notifications (set by the app).
     public var onArrival: (([(threadKey: String, sender: String, subject: String)]) -> Void)?
+    /// A mail that did not leave, for the notifications (set by the app): its subject, its thread.
+    public var onSendFailed: ((String, String?) -> Void)?
+
+    // Writing (step « Écrire »)
+    @Published public var folder: MailFolder = .inbox { didSet { selected = []; refreshFolders() } }
+    @Published public private(set) var drafts: [MailDraftRow] = []
+    /// The drafts Gmail holds that Polhub did not make.
+    @Published public private(set) var gmailDrafts: [MailMessageRow] = []
+    @Published public private(set) var sent: [MailThreadRow] = []
+    /// The draft open over the list: a new mail, a draft taken from the list.
+    @Published public var composing: String?
+    /// The mail leaving: Paul has ten seconds to call it back.
+    @Published public private(set) var sending: (draftID: String, subject: String, at: Date)?
+    /// New mails written while several mailboxes show: they leave only once Paul has chosen the mailbox.
+    @Published public private(set) var unconfirmed: Set<String> = []
+    private var pushes: [String: Task<Void, Never>] = [:]
+    private var sendTask: Task<Void, Never>?
 
     public let agenda: AgendaLibrary
     let store: MailStore
@@ -105,7 +145,11 @@ public final class MailLibrary: ObservableObject {
         }, flavor: flavor, onNew: { rows in Task { @MainActor in relay.handler?(rows) } })
         relay.handler = { [weak self] rows in self?.arrived(rows) }
         observations = [
-            store.observeInbox { [weak self] in self?.inbox = $0 },
+            store.observeInbox { [weak self] in
+                self?.inbox = $0
+                self?.refreshFolders()
+            },
+            store.observeDrafts { [weak self] in self?.drafts = $0 },
             store.observeCursors { [weak self] rows in self?.cursors = Dictionary(uniqueKeysWithValues: rows.map { ($0.account, $0) }) },
             store.observeSenders { [weak self] in self?.senders = $0 },
         ]
@@ -359,5 +403,243 @@ public final class MailLibrary: ObservableObject {
     /// « Toujours pour cet expéditeur ».
     public func alwaysShowImages(from sender: String) {
         try? store.remember(address: sender, images: true, at: Date())
+    }
+
+    // MARK: - Writing (step « Écrire », 14/11)
+
+    /// Paul's own addresses.
+    var mine: Set<String> { Set(agenda.accounts.map(\.email)) }
+
+    /// A mail leaving, or about to: the app's updates wait for it.
+    public var isSending: Bool { sending != nil }
+
+    func refreshFolders() {
+        guard folder != .inbox else { return }
+        sent = (try? store.sentThreads(accounts: Set(accounts.map(\.email)).subtracting(hidden))) ?? []
+        gmailDrafts = ((try? store.gmailOnlyDrafts()) ?? []).filter { !hidden.contains($0.account) }
+    }
+
+    /// Who Paul writes to: his contacts and his correspondents, matching what he types.
+    public func suggestions(for text: String) -> [MailAddress] {
+        let query = text.trimmingCharacters(in: .whitespaces).folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        guard query.count >= 2 else { return [] }
+        var seen: Set<String> = [], result: [MailAddress] = []
+        let people = agenda.contacts.compactMap { contact in contact.email.map { MailAddress(name: contact.name, email: $0) } }
+            + inbox.flatMap(\.senders)
+        for person in people where !mine.contains(person.email) && !seen.contains(person.email) {
+            let haystack = "\(person.name ?? "") \(person.email)".folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+            guard haystack.contains(query) else { continue }
+            seen.insert(person.email)
+            result.append(person)
+            if result.count == 6 { break }
+        }
+        return result
+    }
+
+    /// A new mail, from the mailbox shown if only one is; otherwise Paul chooses it before it can leave.
+    public func newMail() {
+        let shown = accounts.filter { !hidden.contains($0.email) }
+        guard let account = (shown.count == 1 ? shown.first : shown.first ?? accounts.first)?.email else { return }
+        let draft = MailDraftRow(account: account, mode: .new, createdAt: Date())
+        try? store.saveDraft(draft)
+        if shown.count != 1 { unconfirmed.insert(draft.id) }
+        composing = draft.id
+    }
+
+    /// The mailbox a new mail leaves from; it moves with its files.
+    public func setAccount(_ account: String, for draftID: String) {
+        unconfirmed.remove(draftID)
+        edit(draftID) { $0.account = account }
+    }
+
+    /// Reply, reply to all, forward: a draft below the thread, its people and its quote ready. A draft already
+    /// begun for the same message is taken up.
+    public func startReply(_ mode: MailDraftRow.Mode, to message: MailMessageRow, in thread: MailThreadRow) async -> String? {
+        if let existing = drafts.first(where: { $0.replyToKey == message.id && $0.mode == mode }) { return existing.id }
+        do {
+            let source = try await engine.replySource(for: message)
+            let people = ReplyBuilder.recipients(mode, source: source, mine: mine)
+            let threading = ReplyBuilder.threading(source)
+            var draft = MailDraftRow(account: thread.account, mode: mode, threadKey: thread.id, replyToKey: message.id, to: people.to, cc: people.cc,
+                                     subject: ReplyBuilder.subject(mode, original: message.subject), quoteHTML: ReplyBuilder.quoteHTML(mode, source: source),
+                                     quoteText: ReplyBuilder.quoteText(mode, source: source), inReplyTo: threading.inReplyTo,
+                                     references: threading.references, createdAt: Date())
+            if mode == .forward {
+                // The files go with a forward, as in Gmail.
+                let folder = engine.files.draftFolder(draft)
+                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                for file in message.files {
+                    let source = try await engine.file(file, of: message)
+                    let target = folder.appending(path: AttachmentSafety.cleanName(file.filename))
+                    try? FileManager.default.removeItem(at: target)
+                    try FileManager.default.copyItem(at: source, to: target)
+                    draft.files.append(MailDraftFile(filename: target.lastPathComponent, mimeType: file.mimeType, size: file.size))
+                }
+            }
+            try store.saveDraft(draft)
+            return draft.id
+        } catch {
+            self.message = "Réponse impossible : \(error)"
+            return nil
+        }
+    }
+
+    /// Paul changed a draft: kept on the Mac now, given to Gmail three seconds after his last change. Only the
+    /// fields he writes are taken: what Gmail answered meanwhile stays.
+    public func edit(_ draftID: String, _ change: (inout MailDraftRow) -> Void) {
+        guard var draft = try? store.draft(draftID) else { return }
+        let before = draft
+        change(&draft)
+        guard draft != before else { return }
+        draft.updatedAt = Date()
+        draft.lastError = nil
+        try? store.saveDraft(draft)
+        schedulePush(draftID)
+    }
+
+    private func schedulePush(_ draftID: String, after delay: Duration = .seconds(3)) {
+        pushes[draftID]?.cancel()
+        pushes[draftID] = Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled, let self else { return }
+            do {
+                try await self.engine.push(draftID)
+            } catch GoogleError.readOnlyBuild {
+            } catch {
+                try? self.store.markDraftError(draftID, error: "\(error)")
+            }
+            self.pushes[draftID] = nil
+        }
+    }
+
+    /// Files joined to a draft: copied beside it, 25 Mo in all at most (Gmail's limit).
+    public func attach(_ urls: [URL], to draftID: String) {
+        guard let draft = try? store.draft(draftID) else { return }
+        let folder = engine.files.draftFolder(draft)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        var files = draft.files, total = draft.files.reduce(0) { $0 + $1.size }
+        for url in urls {
+            let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+            guard total + size <= MIMEBuilder.maximumFiles else {
+                message = "« \(url.lastPathComponent) » dépasserait 25 Mo de pièces jointes, la limite de Gmail."
+                continue
+            }
+            var name = AttachmentSafety.cleanName(url.lastPathComponent)
+            if files.contains(where: { $0.filename == name }) { name = "\(UUID().uuidString.prefix(4))-\(name)" }
+            let target = folder.appending(path: name)
+            do {
+                try FileManager.default.copyItem(at: url, to: target)
+            } catch {
+                message = "« \(url.lastPathComponent) » n'a pas pu être joint : \(error.localizedDescription)"
+                continue
+            }
+            let type = UTType(filenameExtension: (name as NSString).pathExtension)?.preferredMIMEType ?? "application/octet-stream"
+            files.append(MailDraftFile(filename: name, mimeType: type, size: size))
+            total += size
+        }
+        edit(draftID) { $0.files = files }
+    }
+
+    public func removeFile(_ file: MailDraftFile, from draftID: String) {
+        guard let draft = try? store.draft(draftID) else { return }
+        try? FileManager.default.removeItem(at: engine.files.draftFolder(draft).appending(path: file.filename))
+        edit(draftID) { $0.files.removeAll { $0 == file } }
+    }
+
+    /// Why a draft cannot leave yet; `nil` when it can.
+    public func sendProblem(_ draft: MailDraftRow) -> String? {
+        if unconfirmed.contains(draft.id) { return "Choisis la boîte d'envoi (De)." }
+        if (draft.to + draft.cc + draft.bcc).isEmpty { return "Ajoute un destinataire." }
+        if let bad = (draft.to + draft.cc + draft.bcc).first(where: { !MIMEBuilder.isValid($0.email) }) { return "L'adresse « \(bad.email) » n'est pas valide." }
+        if !draft.isSendable { return "Le mail est vide." }
+        return nil
+    }
+
+    /// Paul's click: the mail leaves in ten seconds, unless he calls it back. Nothing of it is kept in the base:
+    /// if Polhub quits meanwhile, nothing leaves and the draft stays.
+    public func send(_ draftID: String) {
+        guard sending == nil, let draft = try? store.draft(draftID) else { return }
+        if let problem = sendProblem(draft) {
+            message = problem
+            return
+        }
+        pushes[draftID]?.cancel()
+        pushes[draftID] = nil
+        if composing == draftID { composing = nil }
+        let subject = draft.subject.isEmpty ? "(sans objet)" : draft.subject
+        sending = (draftID, subject, Date().addingTimeInterval(10))
+        sendTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(10))
+            guard !Task.isCancelled, let self else { return }
+            do {
+                try await self.engine.send(draftID)
+                self.sending = nil
+                self.message = "Mail envoyé : « \(subject) »."
+            } catch {
+                self.sending = nil
+                try? self.store.markDraftError(draftID, error: "\(error)")
+                self.message = "Mail non envoyé : \(error). Il t'attend dans Brouillons."
+                self.onSendFailed?(subject, draft.threadKey)
+            }
+            self.sendTask = nil
+        }
+    }
+
+    /// « Annuler » while the mail waits: it stays a draft.
+    public func cancelSend() {
+        guard let sending else { return }
+        sendTask?.cancel()
+        sendTask = nil
+        self.sending = nil
+        message = "Envoi annulé : le mail t'attend dans Brouillons."
+        if (try? store.draft(sending.draftID))?.threadKey == nil { composing = sending.draftID }
+    }
+
+    /// The draft goes, here and in Gmail.
+    public func discard(_ draftID: String) {
+        pushes[draftID]?.cancel()
+        pushes[draftID] = nil
+        unconfirmed.remove(draftID)
+        if composing == draftID { composing = nil }
+        Task {
+            do { try await engine.discard(draftID) } catch { message = "Brouillon impossible à supprimer : \(error)" }
+        }
+    }
+
+    /// Closing a new mail keeps it as a draft, unless nothing was written.
+    public func closeComposer() {
+        guard let id = composing else { return }
+        composing = nil
+        if let draft = try? store.draft(id), (draft.to + draft.cc + draft.bcc).isEmpty, draft.subject.isEmpty,
+           draft.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, draft.files.isEmpty {
+            discard(id)
+        }
+    }
+
+    /// A draft from the list: a reply opens in its thread, a new mail over the list.
+    public func open(_ draft: MailDraftRow, router: WindowRouter) {
+        if let thread = draft.threadKey, (try? store.thread(thread)) != nil {
+            router.mailSelection = thread
+        } else {
+            composing = draft.id
+        }
+    }
+
+    /// A draft written in Gmail (the phone), taken up here.
+    public func resume(_ message: MailMessageRow, router: WindowRouter) {
+        Task {
+            do {
+                let draft = try await engine.resume(gmailDraft: message)
+                refreshFolders()
+                open(draft, router: router)
+            } catch {
+                self.message = "Brouillon impossible à reprendre : \(error)"
+            }
+        }
+    }
+
+    /// The signature a mailbox adds, as text, to show under a draft.
+    public func signature(of account: String) -> String? {
+        cursors[account]?.signature.map(HTMLText.plain).flatMap { $0.isEmpty ? nil : $0 }
     }
 }

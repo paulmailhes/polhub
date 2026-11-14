@@ -53,7 +53,9 @@ public actor MailEngine {
             loops[account] = nil
             backlog[account] = nil
         }
-        if let existing = try? CalendarStore(store.database).accounts().map(\.email) { files.keepOnly(accounts: existing) }
+        if let existing = try? CalendarStore(store.database).accounts().map(\.email), let drafts = try? store.drafts().map(\.id) {
+            files.keepOnly(accounts: existing, drafts: drafts)
+        }
         for account in wanted where loops[account] == nil {
             loops[account] = Task {
                 self.repairCharsets(account)

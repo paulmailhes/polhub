@@ -88,6 +88,14 @@ public final class NotificationHub: ObservableObject {
         for notice in NotificationPlan.mailNotices(mails, now: Date()) { await client.deliverNow(notice, sound: settings().sound) }
     }
 
+    /// A mail Paul sent that did not leave: told even when the window is closed. A click opens its thread.
+    public func mailNotSent(subject: String, threadKey: String?) async {
+        await client.deliverNow(PlannedNotice(id: "non-envoye|\(Int(Date().timeIntervalSince1970))", fireDate: Date(), title: "Mail non envoyé",
+                                              body: "« \(subject) » t'attend dans Brouillons.", eventID: nil, meetCode: nil, account: nil,
+                                              threadKey: threadKey, kind: .mail),
+                                sound: settings().sound)
+    }
+
     /// « Envoyer une notification d'essai ».
     public func test() async {
         _ = await SystemNotifications.requestAuthorization()

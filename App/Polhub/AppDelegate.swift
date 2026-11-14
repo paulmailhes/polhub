@@ -301,6 +301,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         agenda.notifications = hub
         // The new mails of the main tab (14/11).
         mails?.onArrival = { arrived in Task { await hub.mailsArrived(arrived) } }
+        mails?.onSendFailed = { subject, thread in Task { await hub.mailNotSent(subject: subject, threadKey: thread) } }
         SystemNotifications.registerCategories()
         Task { @MainActor in
             _ = await SystemNotifications.requestAuthorization()
@@ -377,6 +378,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         case .idle, .paused: break
         }
         if await transcription?.isRunning ?? false { return false }
+        // A mail leaving waits ten seconds in memory: an update now would call it back (14/11).
+        if mails?.isSending == true { return false }
         return !(await summaries?.isRunning ?? false)
     }
 

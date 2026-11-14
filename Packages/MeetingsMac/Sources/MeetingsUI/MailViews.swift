@@ -41,7 +41,13 @@ struct MailSectionView: View {
                     }
             }
         }
+        .overlay {
+            if let draft = mails.composing {
+                FloatingPanel(close: { mails.closeComposer() }) { NewMailPanel(draftID: draft, mails: mails).id(draft) }
+            }
+        }
         .animation(.snappy(duration: 0.25), value: router.mailSelection)
+        .animation(.snappy(duration: 0.25), value: mails.composing)
         .overlay(alignment: .bottom) { MailUndoBar(mails: mails) }
     }
 }
@@ -52,7 +58,16 @@ struct MailUndoBar: View {
 
     var body: some View {
         Group {
-            if let undo = mails.undoable {
+            if let sending = mails.sending {
+                TimelineView(.periodic(from: .now, by: 0.5)) { context in
+                    let left = max(0, Int(sending.at.timeIntervalSince(context.date).rounded(.up)))
+                    HStack(spacing: Space.m) {
+                        Image(systemName: "paperplane.fill").foregroundStyle(Color.accentColor)
+                        Text(left > 0 ? "« \(sending.subject) » part dans \(left) s" : "Envoi de « \(sending.subject) »…").lineLimit(1)
+                        Button("Annuler") { mails.cancelSend() }.buttonStyle(.glass).keyboardShortcut("z", modifiers: .command).disabled(left == 0)
+                    }
+                }
+            } else if let undo = mails.undoable {
                 HStack(spacing: Space.m) {
                     Text(undo.text)
                     Button("Annuler") { mails.undo() }.buttonStyle(.glass).keyboardShortcut("z", modifiers: .command)
@@ -67,7 +82,7 @@ struct MailUndoBar: View {
         .padding(.horizontal, Space.l).padding(.vertical, Space.s)
         .glassEffect(.regular, in: Capsule())
         .padding(.bottom, Space.l)
-        .opacity(mails.undoable == nil && mails.message == nil ? 0 : 1)
+        .opacity(mails.undoable == nil && mails.message == nil && mails.sending == nil ? 0 : 1)
         .animation(.snappy, value: mails.undoable?.text)
     }
 }
@@ -150,25 +165,13 @@ struct MailListView: View {
     }
 
     var body: some View {
-        let threads = mails.shown
+        let threads = mails.folder == .sent ? mails.sent : mails.shown
         let mine = Set(mails.agenda.accounts.map(\.email))
         VStack(spacing: 0) {
-            if let failure = mails.failure {
-                banner(icon: "exclamationmark.triangle", tint: .orange, text: "\(AccountStyle.label(for: failure.account)) : \(failure.text)") {
-                    Button("Comptes Google") { router.openSettings(.accounts) }
-                }
-            }
-            if mails.found == nil, mails.tab != .personnes {
-                banner(icon: "info.circle", tint: .secondary,
-                       text: "\(mails.tab.explanation) Un mail qui n'a rien à faire ici : clic droit › « Déplacer vers ».") { EmptyView() }
-            }
-            if threads.isEmpty {
-                ContentUnavailableView(mails.found != nil ? "Aucun mail trouvé" : (mails.progress != nil ? "Lecture de tes boîtes…" : "Rien ici"),
-                                       systemImage: mails.found != nil ? "magnifyingglass" : "tray",
-                                       description: Text(mails.found != nil ? "" : mails.tab.explanation))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if mails.folder == .drafts {
+                MailDraftListView(mails: mails, router: router)
             } else {
-                list(threads, mine: mine)
+                content(threads, mine: mine)
             }
             if let progress = mails.progress {
                 Divider()
@@ -180,7 +183,31 @@ struct MailListView: View {
         .searchable(text: $query, placement: .toolbar, prompt: "Chercher dans Gmail")
         .onSubmit(of: .search) { Task { await mails.search(query) } }
         .onChange(of: query) { _, text in if text.isEmpty { mails.endSearch() } }
-        .windowTitle("Mails", subtitle: mails.searching ? "Recherche…" : (mails.found != nil ? "Résultats de la recherche" : mails.tab.title))
+        .windowTitle("Mails", subtitle: mails.searching ? "Recherche…" : (mails.found != nil ? "Résultats de la recherche"
+                                                                          : (mails.folder == .inbox ? mails.tab.title : mails.folder.title)))
+    }
+
+    @ViewBuilder
+    private func content(_ threads: [MailThreadRow], mine: Set<String>) -> some View {
+        VStack(spacing: 0) {
+            if let failure = mails.failure {
+                banner(icon: "exclamationmark.triangle", tint: .orange, text: "\(AccountStyle.label(for: failure.account)) : \(failure.text)") {
+                    Button("Comptes Google") { router.openSettings(.accounts) }
+                }
+            }
+            if mails.found == nil, mails.folder == .inbox, mails.tab != .personnes {
+                banner(icon: "info.circle", tint: .secondary,
+                       text: "\(mails.tab.explanation) Un mail qui n'a rien à faire ici : clic droit › « Déplacer vers ».") { EmptyView() }
+            }
+            if threads.isEmpty {
+                ContentUnavailableView(mails.found != nil ? "Aucun mail trouvé" : (mails.progress != nil ? "Lecture de tes boîtes…" : "Rien ici"),
+                                       systemImage: mails.found != nil ? "magnifyingglass" : mails.folder.icon,
+                                       description: Text(mails.found != nil || mails.folder != .inbox ? "" : mails.tab.explanation))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                list(threads, mine: mine)
+            }
+        }
     }
 
     /// One line above the list. (A text left free to grow in height here kept the whole window from drawing.)
@@ -270,6 +297,21 @@ struct MailListView: View {
 
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
+        ToolbarItem(placement: .navigation) {
+            Menu {
+                Picker("Dossier", selection: $mails.folder) {
+                    ForEach(MailFolder.allCases, id: \.self) { folder in
+                        let count = folder == .drafts ? mails.drafts.count + mails.gmailDrafts.count : 0
+                        Label(count > 0 ? "\(folder.title) (\(count))" : folder.title, systemImage: folder.icon).tag(folder)
+                    }
+                }
+                .pickerStyle(.inline)
+            } label: {
+                Label(mails.folder.title, systemImage: mails.folder.icon).labelStyle(.titleAndIcon)
+            }
+            .help("Boîte de réception, Brouillons, Envoyés")
+        }
+        if mails.folder == .inbox {
         ToolbarItem(placement: .principal) {
             Picker("Onglet", selection: $mails.tab) {
                 ForEach(MailTab.allCases, id: \.self) { tab in
@@ -281,6 +323,7 @@ struct MailListView: View {
             .labelsHidden()
             .disabled(mails.found != nil)
             .help(MailTab.allCases.map { "\($0.title) : \($0.explanation)" }.joined(separator: "\n"))
+        }
         }
         if mails.selecting || !mails.selected.isEmpty {
             ToolbarItemGroup(placement: .primaryAction) {
@@ -304,17 +347,22 @@ struct MailListView: View {
             ToolbarItemGroup(placement: .primaryAction) {
                 ForEach(mails.accounts) { account in
                     let shown = !mails.hidden.contains(account.email)
+                    // A dot per mailbox, in its color: full when shown, empty when hidden; its name on hover.
                     Button {
                         if shown { mails.hidden.insert(account.email) } else { mails.hidden.remove(account.email) }
                     } label: {
                         Label(AccountStyle.label(for: account.email), systemImage: shown ? "circle.fill" : "circle")
-                            .labelStyle(.titleAndIcon)
-                            .foregroundStyle(shown ? mails.color(for: account.email) : .secondary)
+                            .labelStyle(.iconOnly)
+                            .foregroundStyle(mails.color(for: account.email))
                     }
-                    .help(shown ? "Masquer la boîte \(account.email)" : "Afficher la boîte \(account.email)")
+                    .help(shown ? "\(AccountStyle.label(for: account.email)) · \(account.email) — cliquer pour masquer cette boîte"
+                                : "\(AccountStyle.label(for: account.email)) · \(account.email) — masquée, cliquer pour l'afficher")
                 }
             }
             ToolbarItemGroup(placement: .primaryAction) {
+                Button { mails.newMail() } label: { Label("Nouveau mail", systemImage: "square.and.pencil") }
+                    .help("Nouveau mail (⌘N)")
+                    .keyboardShortcut("n", modifiers: .command)
                 Button { mails.refresh() } label: { Label("Relever", systemImage: "arrow.clockwise") }.help("Relever les mails maintenant")
                 Button { mails.selecting = true } label: { Label("Sélectionner", systemImage: "checklist") }
                     .help("Sélectionner plusieurs mails (⌘-clic, ⇧-clic, ⌘A)")
@@ -575,6 +623,8 @@ struct MailThreadView: View {
     let close: (() -> Void)?
     @StateObject private var model: MailThreadModel
     @State private var thread: MailThreadRow?
+    /// The draft just begun: the page scrolls to it.
+    @State private var replying: String?
 
     init(key: String, mails: MailLibrary, router: WindowRouter, close: (() -> Void)?) {
         self.key = key
@@ -586,6 +636,16 @@ struct MailThreadView: View {
 
     private func back() {
         if let close { close() } else { router.mailSelection = nil }
+    }
+
+    /// The last message of the thread, the one a reply answers.
+    private var last: MailMessageRow? { model.messages.last }
+
+    private func reply(_ mode: MailDraftRow.Mode, to message: MailMessageRow? = nil) {
+        guard let thread, let message = message ?? last else { return }
+        Task {
+            if let id = await mails.startReply(mode, to: message, in: thread) { replying = id }
+        }
     }
 
     private func go(_ offset: Int) {
@@ -610,13 +670,14 @@ struct MailThreadView: View {
         VStack(spacing: 0) {
             header
             Divider()
+            ScrollViewReader { scroll in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(model.items) { item in
                         switch item {
                         case .message(let message):
                             MailMessageView(message: message, thread: thread, model: model, mails: mails, mine: mine,
-                                            collapseQuote: message.id != model.messages.first?.id)
+                                            collapseQuote: message.id != model.messages.first?.id, reply: { mode in reply(mode, to: message) })
                         case .more(let count):
                             Button { model.showAll = true } label: {
                                 Text("\(count) messages plus anciens").font(.callout.weight(.medium))
@@ -629,12 +690,23 @@ struct MailThreadView: View {
                         }
                         Divider()
                     }
-                    if let thread {
-                        HStack {
-                            Button { NSWorkspace.shared.open(mails.gmailURL(thread)) } label: { Label("Répondre dans Gmail", systemImage: "arrowshape.turn.up.left") }
-                                .buttonStyle(.glass)
-                                .help("L'écriture arrive à la prochaine étape ; d'ici là, la réponse s'écrit dans Gmail.")
+                    ForEach(mails.drafts.filter { $0.threadKey == key }) { draft in
+                        ComposeView(draftID: draft.id, mails: mails)
+                            .padding(.top, Space.l)
+                            .id(draft.id)
+                    }
+                    if thread != nil, last != nil {
+                        HStack(spacing: Space.s) {
+                            Button { reply(.reply) } label: { Label("Répondre", systemImage: "arrowshape.turn.up.left") }
+                                .keyboardShortcut("r", modifiers: .command)
+                                .help("Répondre (⌘R)")
+                            Button { reply(.replyAll) } label: { Label("Répondre à tous", systemImage: "arrowshape.turn.up.left.2") }
+                                .keyboardShortcut("r", modifiers: [.command, .shift])
+                                .help("Répondre à tous (⇧⌘R)")
+                            Button { reply(.forward) } label: { Label("Transférer", systemImage: "arrowshape.turn.up.right") }
+                                .help("Transférer")
                         }
+                        .buttonStyle(.glass)
                         .padding(.top, Space.l)
                     }
                 }
@@ -642,6 +714,11 @@ struct MailThreadView: View {
                 .padding(.bottom, PageMetrics.bottom + 40)
                 .frame(maxWidth: PageMetrics.readingWidth, alignment: .leading)
                 .frame(maxWidth: .infinity)
+            }
+            .onChange(of: replying) { _, id in
+                guard let id else { return }
+                withAnimation { scroll.scrollTo(id, anchor: .top) }
+            }
             }
         }
         .toolbar {
@@ -697,7 +774,10 @@ struct MailThreadView: View {
                 Button { gesture(.markUnread) } label: { Image(systemName: "envelope.badge") }.help("Marquer comme non lu")
                 Menu {
                     if let thread {
-                        Button("Répondre dans Gmail") { NSWorkspace.shared.open(mails.gmailURL(thread)) }
+                        Button("Répondre") { reply(.reply) }
+                        Button("Répondre à tous") { reply(.replyAll) }
+                        Button("Transférer") { reply(.forward) }
+                        Divider()
                         Button("Ouvrir dans Gmail") { NSWorkspace.shared.open(mails.gmailURL(thread)) }
                         MailTabChoice(thread: thread, mails: mails)
                     }
@@ -726,6 +806,8 @@ struct MailMessageView: View {
     @ObservedObject var mails: MailLibrary
     let mine: Set<String>
     let collapseQuote: Bool
+    /// Reply, reply to all, forward: to this message.
+    var reply: (MailDraftRow.Mode) -> Void = { _ in }
     @Environment(\.colorScheme) private var scheme
     @State private var height: CGFloat = 60
     @State private var details = false
@@ -783,11 +865,13 @@ struct MailMessageView: View {
             Spacer(minLength: Space.m)
             Text(MailText.longDate(message.date)).font(.caption).foregroundStyle(.secondary)
             HStack(spacing: Space.xs) {
-                if let thread {
-                    Button { NSWorkspace.shared.open(mails.gmailURL(thread)) } label: { Image(systemName: "arrowshape.turn.up.left") }
-                        .help("Répondre dans Gmail")
-                }
+                Button { reply(.reply) } label: { Image(systemName: "arrowshape.turn.up.left") }
+                    .help("Répondre à ce message")
                 Menu {
+                    Button("Répondre") { reply(.reply) }
+                    Button("Répondre à tous") { reply(.replyAll) }
+                    Button("Transférer") { reply(.forward) }
+                    Divider()
                     if let thread { Button("Ouvrir dans Gmail") { NSWorkspace.shared.open(mails.gmailURL(thread)) } }
                     if let email = message.sender?.email {
                         Button("Copier l'adresse de l'expéditeur") {

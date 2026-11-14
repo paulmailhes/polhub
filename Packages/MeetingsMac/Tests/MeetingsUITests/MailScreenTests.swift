@@ -277,6 +277,22 @@ struct MailScreenTests {
         mails.tab = .newsletters
         router.mailSelection = MailThreadRow.key(account: "moi@exemple.fr", threadID: "b")
         try await capture("mails-lettre-sombre", dark: true)
+        // 14/11, step « Écrire »: a reply below its thread, a new mail over the list, the drafts.
+        mails.tab = .personnes
+        try store.saveDraft(MailDraftRow(account: "moi@exemple.fr", mode: .reply, threadKey: MailThreadRow.key(account: "moi@exemple.fr", threadID: "a"),
+                                         replyToKey: "moi@exemple.fr|a3", to: [camille], subject: "Re: Maquette v2 du site",
+                                         body: "Merci Camille, c'est parfait.\nJe valide la page contact.", quoteText: "> Parfait. J'ai aussi corrigé la page contact.",
+                                         createdAt: Date()))
+        try await Task.sleep(for: .milliseconds(300))
+        router.mailSelection = MailThreadRow.key(account: "moi@exemple.fr", threadID: "a")
+        try await capture("mails-reponse")
+        router.mailSelection = nil
+        mails.newMail()
+        try await capture("mails-nouveau")
+        mails.closeComposer()
+        mails.folder = .drafts
+        try await capture("mails-brouillons")
+        mails.folder = .inbox
         UserDefaults.standard.set(false, forKey: Preferences.Key.floatingPages)
         try await capture("mails-lettre-page-sombre", dark: true)
         try await capture("mails-lettre-page")

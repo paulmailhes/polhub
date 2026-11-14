@@ -174,9 +174,13 @@ public struct MailFiles: Sendable {
         folder(account: message.account).appending(path: "\(message.messageID).\(message.bodyIsHTML ? "html" : "txt")")
     }
 
-    /// The files Paul joined to a draft, kept beside it until it leaves.
+    /// The files Paul joined to a draft, kept beside it until it leaves (whatever the mailbox it leaves from).
     public func draftFolder(_ draft: MailDraftRow) -> URL {
-        folder(account: draft.account).appending(path: "brouillons/\(draft.id)", directoryHint: .isDirectory)
+        draftFolder(id: draft.id)
+    }
+
+    public func draftFolder(id: String) -> URL {
+        root.appending(path: "brouillons/\(id)", directoryHint: .isDirectory)
     }
 
     public func attachment(_ attachment: MailAttachment, of message: MailMessageRow) -> URL {
@@ -196,11 +200,17 @@ public struct MailFiles: Sendable {
         try? target.setResourceValues(values)
     }
 
-    /// The mailboxes whose account is gone lose their folder.
-    public func keepOnly(accounts: [String]) {
-        let kept = Set(accounts.map { $0.lowercased() })
+    /// The mailboxes whose account is gone lose their folder, and the drafts that are gone theirs.
+    public func keepOnly(accounts: [String], drafts: [String]) {
+        let kept = Set(accounts.map { $0.lowercased() } + ["brouillons"])
         for folder in (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
         where !kept.contains(folder.lastPathComponent) {
+            try? FileManager.default.removeItem(at: folder)
+        }
+        let draftsKept = Set(drafts)
+        let draftsRoot = root.appending(path: "brouillons", directoryHint: .isDirectory)
+        for folder in (try? FileManager.default.contentsOfDirectory(at: draftsRoot, includingPropertiesForKeys: nil)) ?? []
+        where !draftsKept.contains(folder.lastPathComponent) {
             try? FileManager.default.removeItem(at: folder)
         }
     }
