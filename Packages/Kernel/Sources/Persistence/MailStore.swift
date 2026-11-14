@@ -35,6 +35,13 @@ public struct MailStore: Sendable {
         try writer.read { try String.fetchSet($0, sql: "SELECT messageID FROM mail_message WHERE account = ?", arguments: [account.lowercased()]) }
     }
 
+    /// The labels the copy holds for each message of a mailbox.
+    public func labels(account: String) throws -> [String: [String]] {
+        try writer.read { db in
+            Dictionary(uniqueKeysWithValues: try MailMessageRow.filter(Column("account") == account.lowercased()).fetchAll(db).map { ($0.messageID, $0.labels) })
+        }
+    }
+
     /// Gmail's news for one mailbox: whole messages (new, or read again), labels of messages already known, and
     /// messages Gmail no longer has. The gestures still waiting are applied again on top: what Paul just did is
     /// never undone by a reading that started before.

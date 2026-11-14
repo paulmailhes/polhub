@@ -60,7 +60,7 @@ let package = Package(
             .product(name: "Persistence", package: "Kernel"),
         ]),
         // Gmail, spoken to directly: the client and the measures of step 0 (14/11).
-        .target(name: "Mail", dependencies: ["GoogleKit", .product(name: "Domain", package: "Kernel")]),
+        .target(name: "Mail", dependencies: ["GoogleKit", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         // The projects module: board, views, project page.
         .target(name: "ProjectsUI", dependencies: [
             "PolhubDesign",
@@ -143,7 +143,7 @@ let package = Package(
         .testTarget(name: "SummarizationTests", dependencies: ["Summarization", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "AgendaTests", dependencies: ["Agenda", "GoogleKit", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "GoogleKitTests", dependencies: ["GoogleKit"]),
-        .testTarget(name: "MailTests", dependencies: ["Mail", "GoogleKit", .product(name: "Domain", package: "Kernel")]),
+        .testTarget(name: "MailTests", dependencies: ["Mail", "GoogleKit", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "TranscriptionTests", dependencies: ["Transcription", .product(name: "Domain", package: "Kernel")]),
         .testTarget(name: "MeetingDetectionTests", dependencies: ["MeetingDetection"], resources: [.copy("Fixtures")]),
         .testTarget(name: "MeetingsUITests", dependencies: ["MeetingsUI", "ProjectsUI", "PolhubDesign", "Notifications", "Agenda", "GoogleKit", "Mail", "Updates", "Pipeline", "Recording", "AudioCapture", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),

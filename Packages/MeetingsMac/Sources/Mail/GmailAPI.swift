@@ -12,7 +12,7 @@ public enum GmailAPI {
     /// What a call costs in Google's quota units (table in force since May 2026); 6 000 a minute per account.
     public enum Cost {
         public static let profile = 1, label = 1, history = 2, messageList = 5, threadList = 10
-        public static let metadata = 20, full = 60, batchModify = 50, untrash = 5
+        public static let metadata = 20, full = 60, batchModify = 50, untrash = 5, thread = 120, attachment = 20
     }
 
     // MARK: - Requests
@@ -64,9 +64,19 @@ public enum GmailAPI {
     }
 
     /// What changed since a cursor; a 404 means Gmail forgot it.
-    public static func historyRequest(accessToken: String, startHistoryID: String) -> URLRequest {
-        request("/history", [URLQueryItem(name: "startHistoryId", value: startHistoryID), URLQueryItem(name: "maxResults", value: "1")],
-                accessToken: accessToken)
+    public static func historyRequest(accessToken: String, startHistoryID: String, pageToken: String? = nil, maxResults: Int = 1) -> URLRequest {
+        request("/history", [URLQueryItem(name: "startHistoryId", value: startHistoryID), URLQueryItem(name: "maxResults", value: String(maxResults))]
+            + (pageToken.map { [URLQueryItem(name: "pageToken", value: $0)] } ?? []), accessToken: accessToken)
+    }
+
+    /// A whole thread with its messages.
+    public static func threadRequest(accessToken: String, id: String, format: Format) -> URLRequest {
+        request("/threads/\(id)", [URLQueryItem(name: "format", value: format.rawValue)], accessToken: accessToken)
+    }
+
+    /// The bytes of a file a message carries.
+    public static func attachmentRequest(accessToken: String, messageID: String, attachmentID: String) -> URLRequest {
+        request("/messages/\(messageID)/attachments/\(attachmentID)", accessToken: accessToken)
     }
 
     /// Labels added to and removed from these messages only: a gesture never reaches a message Paul has not seen.
@@ -111,10 +121,38 @@ public enum GmailAPI {
         public var threadId: String?
         public var labelIds: [String]?
         public var sizeEstimate: Int?
+        public var snippet: String?
+        /// When Gmail received it, in milliseconds since 1970, as text.
+        public var internalDate: String?
         public var payload: Part?
     }
 
+    public struct Thread: Decodable, Sendable, Equatable {
+        public var id: String
+        public var messages: [Message]?
+    }
+
+    /// What changed in a mailbox since a cursor.
+    public struct HistoryPage: Decodable, Sendable, Equatable {
+        public struct Change: Decodable, Sendable, Equatable {
+            public var message: Message
+        }
+
+        public struct Record: Decodable, Sendable, Equatable {
+            public var messagesAdded: [Change]?
+            public var messagesDeleted: [Change]?
+            public var labelsAdded: [Change]?
+            public var labelsRemoved: [Change]?
+        }
+
+        public var history: [Record]?
+        public var nextPageToken: String?
+        /// The cursor to resume from next time.
+        public var historyId: String?
+    }
+
     public struct Part: Decodable, Sendable, Equatable {
+        public var partId: String?
         public var mimeType: String?
         public var filename: String?
         public var headers: [Header]?
