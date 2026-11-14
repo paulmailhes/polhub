@@ -109,16 +109,19 @@ final class CountingServer: @unchecked Sendable {
         <body background="\(base)/fond.gif" onload="fetch('\(base)/onload')"><p>Bonjour</p><img src="\(base)/pixel.gif" width="1" height="1">
         <iframe src="\(base)/cadre.html"></iframe><form action="\(base)/formulaire" method="post"><input name="a"><input type="submit"></form>
         <div style="background:url(\(base)/css-fond.gif)">x</div><video src="\(base)/video.mp4" autoplay></video>
-        <object data="\(base)/objet"></object><embed src="\(base)/embed"><script>new Image().src='\(base)/js-image'</script></body></html>
+        <object data="\(base)/objet"></object><embed src="\(base)/embed"><script>new Image().src='\(base)/js-image'</script>
+        <img src="\(base)/track/open?u=42" width="1" height="1"></body></html>
         """
         let heights = Heights()
         try await render(hostile, images: false, heights: heights)
         #expect(server.paths == [])
         // The app's own script ran all the same: it measured the page.
         #expect(heights.last > 10)
+        // The known spy pixels (simplify-trackers) stay blocked, images allowed or not; the list compiles.
+        #expect(await MailContentRules.list(images: true) != nil && MailTrackers.filters.count > 250)
         try await render(hostile, images: true)
         let asked = Set(server.paths)
-        #expect(asked.contains("/pixel.gif"))
+        #expect(asked.contains("/pixel.gif") && !asked.contains { $0.hasPrefix("/track/open") })
         #expect(asked.isSubset(of: ["/pixel.gif", "/fond.gif", "/css-fond.gif"]))
     }
 

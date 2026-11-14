@@ -58,3 +58,7 @@ l'app ne charge jamais de modèle.
 ## Licence
 
 MIT, voir [LICENSE](LICENSE).
+
+La liste des pixels espions bloqués dans les mails vient de
+[simplify-trackers](https://github.com/leggett/simplify-trackers) (© 2021 Michael Leggett, simpl.fyi) ; sa
+notice est reprise dans `Packages/MeetingsMac/Sources/Mail/MailTrackers.swift`.

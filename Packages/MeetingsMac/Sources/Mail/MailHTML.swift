@@ -46,9 +46,14 @@ public enum MailHTML {
 
     /// The second lock, WebKit's own content rules: every remote load is blocked, but the images when allowed.
     public static func contentRules(images: Bool) -> String {
-        let block = #"{"trigger":{"url-filter":"^https?://"},"action":{"type":"block"}}"#
-        let allow = #"{"trigger":{"url-filter":"^https?://","resource-type":["image"]},"action":{"type":"ignore-previous-rules"}}"#
-        return "[\(block)\(images ? ",\(allow)" : "")]"
+        var rules: [[String: Any]] = [["trigger": ["url-filter": "^https?://"], "action": ["type": "block"]]]
+        if images {
+            rules.append(["trigger": ["url-filter": "^https?://", "resource-type": ["image"]], "action": ["type": "ignore-previous-rules"]])
+            // The known spy pixels stay blocked, images allowed or not (simplify-trackers).
+            rules += MailTrackers.filters.map { ["trigger": ["url-filter": $0], "action": ["type": "block"]] }
+        }
+        let data = (try? JSONSerialization.data(withJSONObject: rules, options: [.withoutEscapingSlashes])) ?? Data("[]".utf8)
+        return String(decoding: data, as: UTF8.self)
     }
 
     /// The app's own script, run in its own world while the mail's scripts stay off: the height of the page, a

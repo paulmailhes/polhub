@@ -3,6 +3,12 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.15.1 — 14 novembre 2026
+
+- **Mails : les pixels espions connus sont bloqués**, même quand les images s'affichent (la liste libre
+  simplify-trackers : Mailchimp, HubSpot, SendGrid, Mailtrack… près de 280 motifs). L'expéditeur ne sait
+  pas que tu as ouvert son mail par ces pixels-là.
+
 ## 0.15.0 — 14 novembre 2026
 
 **Mails : tes agents.** Claude Code lit tes mails par Polhub et te prépare des réponses ; toi seul envoies.
