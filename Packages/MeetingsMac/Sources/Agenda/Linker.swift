@@ -68,6 +68,16 @@ public enum Linker {
             .split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
     }
 
+    /// The event a recording starting at `date` belongs to: the same Meet code, from 30 min before its start
+    /// to 30 min after its end, the nearest start first (14/11).
+    public static func event(forCode code: String?, at date: Date, among events: [CalendarEventRow]) -> CalendarEventRow? {
+        guard let code else { return nil }
+        let margin: TimeInterval = 30 * 60
+        return events.filter {
+            !$0.allDay && $0.meetCode == code && date >= $0.startAt.addingTimeInterval(-margin) && date <= $0.endAt.addingTimeInterval(margin)
+        }.min { abs($0.startAt.timeIntervalSince(date)) < abs($1.startAt.timeIntervalSince(date)) }
+    }
+
     /// The recording of an event: same Meet code around the same time, else a meeting covering half of
     /// the shorter of the two. An imported meeting is only found by Google's id.
     public static func meeting(for event: CalendarEventRow, among meetings: [MeetingRow]) -> MeetingRow? {

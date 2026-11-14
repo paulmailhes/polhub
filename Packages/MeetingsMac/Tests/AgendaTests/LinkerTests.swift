@@ -75,6 +75,22 @@ import Testing
         #expect(Linker.meeting(for: event(code: "abc-defg-hij"), among: [lastWeek, today])?.id == today.id)
     }
 
+    /// 14/11: at the start of a recording, the event of the same Meet code within 30 min names it; a
+    /// series that reuses its code every week only gives this week's.
+    @Test func theEventOfACodeIsTheOneAroundThatTime() {
+        let week = 7 * 86_400.0
+        func event(_ id: String, _ offset: TimeInterval, code: String? = "abc-defg-hij", allDay: Bool = false) -> CalendarEventRow {
+            CalendarEventRow(account: "moi@exemple.fr", eventID: id, title: id, startAt: start.addingTimeInterval(offset),
+                             endAt: start.addingTimeInterval(offset + 1_800), allDay: allDay, meetCode: code, updatedAt: start)
+        }
+        let events = [event("semaine-passee", -week), event("cette-semaine", 0), event("autre-code", 60, code: "zzz-zzzz-zzz"),
+                      event("journee", 0, allDay: true)]
+        #expect(Linker.event(forCode: "abc-defg-hij", at: start.addingTimeInterval(-25 * 60), among: events)?.eventID == "cette-semaine")
+        #expect(Linker.event(forCode: "abc-defg-hij", at: start.addingTimeInterval(1_800 + 20 * 60), among: events)?.eventID == "cette-semaine")
+        #expect(Linker.event(forCode: "abc-defg-hij", at: start.addingTimeInterval(-3_600), among: events) == nil)
+        #expect(Linker.event(forCode: nil, at: start, among: events) == nil)
+    }
+
     @Test func withoutCodeTheMeetingMustCoverHalfOfTheShorterOne() {
         let overlapping = meeting(at: 600, minutes: 40)
         let barely = meeting(at: 3_300, minutes: 30)

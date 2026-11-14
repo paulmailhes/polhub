@@ -89,6 +89,12 @@ public final class AgendaLibrary: ObservableObject {
         await runLinks()
     }
 
+    /// The calendar's name for a recording that starts: the event of the same Meet code at that time (14/11).
+    public nonisolated static func eventTitle(in database: AppDatabase, code: String?, at date: Date) -> String? {
+        guard let code, let events = try? CalendarStore(database).events(meetCode: code) else { return nil }
+        return Linker.event(forCode: code, at: date, among: events)?.title
+    }
+
     /// The loop of 13/11, away from the main thread.
     public func runLinks() async {
         let database = database

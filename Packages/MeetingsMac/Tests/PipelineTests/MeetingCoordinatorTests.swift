@@ -68,14 +68,14 @@ final class FakeFactory: RecorderFactory, @unchecked Sendable {
 
     func coordinator(
         freeBytes: Int64? = 200_000_000_000, canResume: @escaping (MeetingRow) -> Bool = { _ in true },
-        lastWrite: @escaping (MeetingRow) -> Date? = { _ in nil }
+        lastWrite: @escaping (MeetingRow) -> Date? = { _ in nil }, eventTitle: @escaping (String?, Date) -> String? = { _, _ in nil }
     ) -> MeetingCoordinator {
         let clock = clock
         return MeetingCoordinator(
             store: store, paths: paths, recorders: factory, presenter: presenter, detector: MeetingDetector(),
             clock: { clock.t }, now: { Date(timeIntervalSince1970: 1_763_000_000 + clock.t) },
             availableBytes: { freeBytes }, deviceName: { $0 == "casque" ? "Casque" : $0 }, log: nil,
-            canResume: canResume, lastWrite: lastWrite
+            canResume: canResume, lastWrite: lastWrite, eventTitle: eventTitle
         )
     }
 
@@ -259,6 +259,22 @@ final class FakeFactory: RecorderFactory, @unchecked Sendable {
     }
 
     // Revue finale, Important 7 : une fin lente ne laisse pas la réunion suivante s'intercaler.
+    /// 14/11: the calendar knows the meeting's name before the tab does, and better.
+    @Test func theCalendarsTitleComesFirstAndTheTabDoesNotReplaceIt() async throws {
+        var asked: [String?] = []
+        let c = coordinator(eventTitle: { code, _ in
+            asked.append(code)
+            return code == "abc-defg-hij" ? "Atelier maquette Alpha" : nil
+        })
+        await at(100, c, .tabs([tab(title: "Meet")], complete: true))
+        #expect(presenter.prompts == ["Atelier maquette Alpha"])
+        await at(101, c, .tabs([tab(title: "Meet – Point hebdo")], complete: true))
+        let row = try #require(try store.recent(limit: 1).first)
+        #expect(row.title == "Atelier maquette Alpha" && row.tabTitle == "Meet – Point hebdo")
+        #expect(presenter.retitles.isEmpty)
+        #expect(asked.first == "abc-defg-hij")
+    }
+
     @Test func aSlowStopDoesNotLetTheNextMeetingInterleave() async throws {
         let gate = Gate()
         factory.stopGate = gate

@@ -87,6 +87,11 @@ public struct CalendarStore: Sendable {
         }
     }
 
+    /// The events of a Meet code, for a recording that starts (14/11).
+    public func events(meetCode: String) throws -> [CalendarEventRow] {
+        try writer.read { try CalendarEventRow.filter(Column("meetCode") == meetCode).fetchAll($0) }
+    }
+
     public func allEvents() throws -> [CalendarEventRow] {
         try writer.read { try CalendarEventRow.order(Column("startAt")).fetchAll($0) }
     }

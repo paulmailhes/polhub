@@ -159,7 +159,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             canResume: { row in
                 RecoveryPolicy.canResume(lastWrite: RecoveryPolicy.lastWrite(of: row, paths: paths), bootTime: RecoveryPolicy.bootTime(), now: Date())
             },
-            lastWrite: { row in RecoveryPolicy.lastWrite(of: row, paths: paths) }
+            lastWrite: { row in RecoveryPolicy.lastWrite(of: row, paths: paths) },
+            eventTitle: { [database = store.database] code, date in AgendaLibrary.eventTitle(in: database, code: code, at: date) }
         )
         self.coordinator = coordinator
         try? coordinator.recoverAfterLaunch()
@@ -317,7 +318,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         case .idle, .presumedEnded, .paused:
             model.tabMeeting = false
         }
-        if status == .idle { refreshRecent() }
+        if status == .idle {
+            refreshRecent()
+            // The meeting that ended gets its event's project, title and guests now, not at the next sync.
+            Task { await agenda?.runLinks() }
+        }
     }
 
     func refreshRecent() {

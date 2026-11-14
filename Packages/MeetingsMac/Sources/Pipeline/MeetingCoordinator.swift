@@ -88,6 +88,8 @@ public final class MeetingCoordinator {
     private let log: TraceWriter?
     private let canResume: (MeetingRow) -> Bool
     private let lastWrite: (MeetingRow) -> Date?
+    /// The calendar's name for a Meet code at that time, if an event has it (14/11).
+    private let eventTitle: (String?, Date) -> String?
 
     private var current: Current?
     /// Dia's tabs became unreadable during a meeting: said at its end, if they still are (13/11).
@@ -102,8 +104,10 @@ public final class MeetingCoordinator {
         store: MeetingStore, paths: AppPaths, recorders: any RecorderFactory, presenter: any MeetingPresenter,
         detector: MeetingDetector, clock: @escaping () -> Double, now: @escaping () -> Date,
         availableBytes: @escaping () -> Int64?, deviceName: @escaping (String) -> String, log: TraceWriter?,
-        canResume: @escaping (MeetingRow) -> Bool = { _ in true }, lastWrite: @escaping (MeetingRow) -> Date? = { _ in nil }
+        canResume: @escaping (MeetingRow) -> Bool = { _ in true }, lastWrite: @escaping (MeetingRow) -> Date? = { _ in nil },
+        eventTitle: @escaping (String?, Date) -> String? = { _, _ in nil }
     ) {
+        self.eventTitle = eventTitle
         self.canResume = canResume
         self.lastWrite = lastWrite
         self.store = store
@@ -172,7 +176,9 @@ public final class MeetingCoordinator {
               tab.title != meeting.row.tabTitle
         else { return }
         meeting.row.tabTitle = tab.title
-        let title = MeetingTitle.make(tabTitle: tab.title, code: meeting.row.meetCode, source: .dia, micOnly: false)
+        // The calendar's name stays: the tab only says « Meet » or a shortened title.
+        let title = eventTitle(meeting.row.meetCode, meeting.row.startedAt)
+            ?? MeetingTitle.make(tabTitle: tab.title, code: meeting.row.meetCode, source: .dia, micOnly: false)
         let changed = title != meeting.row.title
         meeting.row.title = title
         save(&meeting)
@@ -287,7 +293,8 @@ public final class MeetingCoordinator {
         let row = MeetingRow(
             createdAt: now(), status: status, source: source, candidateKey: candidate.key, tabID: candidate.tabID,
             meetCode: candidate.code, authUser: candidate.authUser, tabTitle: candidate.tabTitle,
-            title: MeetingTitle.make(tabTitle: candidate.tabTitle, code: candidate.code, source: source, micOnly: candidate.source == .micOnly),
+            title: eventTitle(candidate.code, startedAt)
+                ?? MeetingTitle.make(tabTitle: candidate.tabTitle, code: candidate.code, source: source, micOnly: candidate.source == .micOnly),
             startedAt: startedAt
         )
         await record(row, recording: source, at: time)
