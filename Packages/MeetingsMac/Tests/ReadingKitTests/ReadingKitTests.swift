@@ -52,6 +52,17 @@ struct Fixture {
         #expect(try fixture.reader.meeting(String(fixture.hebdo.id.uuidString.prefix(8)).lowercased(), page: 1).contains("# Point hebdo Studio"))
     }
 
+    /// 14/11: Claude Code reads the summary and its actions first, then the dialogue.
+    @Test func theFirstPageStartsWithTheSummaryAndItsActions() throws {
+        let fixture = try Fixture()
+        try SummaryStore(fixture.meetings.database).finish(meetingID: fixture.hebdo.id, summary: "## Résumé\n\nLe budget est validé.", actions: [
+            ActionRow(text: "Envoyer le devis (vendredi)", owner: "Moi", position: 0, createdAt: fixture.now),
+            ActionRow(text: "Relire la maquette", done: true, position: 1, createdAt: fixture.now),
+        ], at: fixture.now)
+        let text = try fixture.reader.meeting("1", page: 1)
+        #expect(text.contains("## Résumé\n\nLe budget est validé.\n\n## Actions\n\n- [ ] Envoyer le devis (vendredi) — Moi\n- [x] Relire la maquette\n\n## Dialogue"))
+    }
+
     @Test func aLongTranscriptIsPaged() throws {
         let fixture = try Fixture()
         try fixture.transcripts.replaceUtterances(meetingID: fixture.hebdo.id, (0..<450).map {

@@ -3,6 +3,18 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.7.0 — 14 novembre 2026
+
+- **Comptes rendus** : après la transcription, chaque réunion reçoit son résumé, ses décisions et ses
+  actions, écrits sur le Mac par le modèle d'Apple intégré à macOS (rien à télécharger, rien ne sort du
+  Mac). Jamais pendant une réunion ; les réunions déjà enregistrées suivent, des plus récentes aux
+  plus anciennes. Il faut Apple Intelligence activée.
+- Les actions se cochent sur la page de la réunion ; « Ajouter au projet » en fait une action du projet.
+- **Page d'une réunion** revue : en-tête avec projet et participants, compte rendu, dialogue en
+  paragraphes, lecteur flottant en bas ; les gestes rares (refaire le compte rendu, copier la
+  transcription, retranscrire, Finder, supprimer) dans le menu « … ».
+- Claude Code (outil `reunion`) lit le compte rendu et ses actions avant le dialogue.
+
 ## 0.6.0 — 14 novembre 2026
 
 - **Chaque agenda a sa couleur** : le perso en orange, les comptes pro en violet, vert, bleu… dans

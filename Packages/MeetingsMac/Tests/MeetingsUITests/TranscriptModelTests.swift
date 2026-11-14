@@ -62,3 +62,50 @@ import Testing
         #expect(TranscriptModel.badge(nil) == nil)
     }
 }
+
+/// 14/11: the dialogue reads in paragraphs, one per turn of speech; the transcript copies as text; the
+/// summary says where it is.
+@Suite struct ParagraphTests {
+    let id = UUID()
+
+    func line(_ speaker: Speaker, _ start: Double, _ end: Double, _ text: String) -> UtteranceRow {
+        UtteranceRow(meetingID: id, speaker: speaker, startMs: Int(start * 1_000), endMs: Int(end * 1_000), text: text, doubtful: false)
+    }
+
+    @Test func linesOfOneVoiceCloseInTimeMakeOneParagraph() {
+        let lines = [line(.moi, 0, 3, "Bonjour."), line(.moi, 4, 6, "On commence ?"), line(.autres, 6.5, 8, "Oui."),
+                     line(.autres, 14, 16, "Autre sujet."), line(.unknown, 20, 20, "Importé un."), line(.unknown, 20, 20, "Importé deux.")]
+        let paragraphs = TranscriptModel.paragraphs(lines)
+        #expect(paragraphs.map(\.text) == ["Bonjour. On commence ?", "Oui.", "Autre sujet.", "Importé un.", "Importé deux."])
+        #expect(paragraphs.map(\.lines) == [0..<2, 2..<3, 3..<4, 4..<5, 5..<6])
+        #expect(paragraphs.first?.speaker == .moi && paragraphs.first?.startMs == 0)
+    }
+
+    @Test func theParagraphBeingHeardHoldsTheCurrentLine() {
+        let paragraphs = TranscriptModel.paragraphs([line(.moi, 0, 3, "a"), line(.moi, 4, 6, "b"), line(.autres, 7, 8, "c")])
+        #expect(TranscriptModel.paragraph(containing: 1, in: paragraphs) == 0)
+        #expect(TranscriptModel.paragraph(containing: 2, in: paragraphs) == 1)
+        #expect(TranscriptModel.paragraph(containing: nil, in: paragraphs) == nil)
+    }
+
+    @Test func theTranscriptCopiesAsPlainText() {
+        let text = TranscriptModel.plainText([line(.moi, 65, 66, "Bonjour."), line(.autres, 70, 72, "Salut.")], title: "Point maquette")
+        #expect(text == "Point maquette\n\n[1:05] Moi : Bonjour.\n[1:10] Les autres : Salut.\n")
+    }
+
+    @Test func theSummarySaysWhereItIs() {
+        let now = Date(timeIntervalSince1970: 1_794_562_920)
+        #expect(TranscriptModel.summaryText(nil, hasSummary: false, unavailable: nil) == nil)
+        #expect(TranscriptModel.summaryText(SummaryJobRow(meetingID: id, state: .queued, updatedAt: now), hasSummary: false, unavailable: nil)
+                == "Compte rendu en attente : il se fait après la transcription, jamais pendant une réunion.")
+        #expect(TranscriptModel.summaryText(SummaryJobRow(meetingID: id, state: .running, updatedAt: now), hasSummary: false, unavailable: nil)
+                == "Compte rendu en cours d'écriture…")
+        #expect(TranscriptModel.summaryText(SummaryJobRow(meetingID: id, state: .failed, error: "délai", updatedAt: now), hasSummary: false, unavailable: nil)
+                == "Le compte rendu n'a pas pu se faire : délai")
+        #expect(TranscriptModel.summaryText(SummaryJobRow(meetingID: id, state: .queued, updatedAt: now), hasSummary: false, unavailable: "Active Apple Intelligence.")
+                == "Active Apple Intelligence.")
+        #expect(TranscriptModel.summaryText(SummaryJobRow(meetingID: id, state: .done, updatedAt: now), hasSummary: false, unavailable: nil)
+                == "Trop peu de paroles pour un compte rendu.")
+        #expect(TranscriptModel.summaryText(SummaryJobRow(meetingID: id, state: .done, updatedAt: now), hasSummary: true, unavailable: nil) == nil)
+    }
+}

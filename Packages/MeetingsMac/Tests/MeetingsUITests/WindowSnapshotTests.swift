@@ -29,8 +29,12 @@ struct WindowSnapshotTests {
             UtteranceRow(meetingID: row.id, speaker: index % 2 == 0 ? .autres : .moi, startMs: index * 20_000, endMs: index * 20_000 + 15_000,
                          text: String(repeating: "Une phrase de la réunion qui continue assez longtemps. ", count: index % 3 + 1), doubtful: index == 5)
         })
+        try SummaryStore(database).finish(meetingID: row.id, summary: "## Résumé\n\nLe client valide la refonte ; la maquette de l'accueil part vendredi.\n\n## Décisions\n\n- Garder WordPress.\n- Une page par expertise.",
+                                          actions: [ActionRow(text: "Envoyer la maquette (vendredi)", owner: "Moi", position: 0, createdAt: start),
+                                                    ActionRow(text: "Rassembler les photos", owner: "Camille", position: 1, createdAt: start)], at: start)
         let library = MeetingLibrary(store: store)
         let router = WindowRouter()
+        router.section = .meetings
         router.selection = row.id
         try await Task.sleep(for: .milliseconds(300))
 
@@ -41,14 +45,15 @@ struct WindowSnapshotTests {
         measure("liste", MeetingListView(library: library, selection: .constant(row.id)))
         measure("fiche", MeetingDetailView(row: row, store: store, paths: paths, transcripts: library.transcripts, queue: nil,
                                            job: nil, meetingActive: false, router: router))
-        measure("en-tête de transcription", TranscriptHeader(status: .done(doubtful: true), meetingID: row.id, queue: nil, canRetranscribe: true))
-        measure("répliques", DialogueRows(lines: try TranscriptStore(database).utterances(meetingID: row.id), current: nil, seek: { _ in }))
+        measure("en-tête de transcription", TranscriptHeader(status: .done(doubtful: true), meetingID: row.id, queue: nil))
+        measure("répliques", DialogueParagraphs(lines: try TranscriptStore(database).utterances(meetingID: row.id), current: nil, seek: { _ in }))
         measure("ligne de liste", MeetingRowView(row: row, now: Date(), badge: "Transcription 50 %"))
 
         for width in [860.0, 1_000, 1_280] {
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: width, height: 700), styleMask: [.titled, .resizable, .closable],
                                   backing: .buffered, defer: false)
             window.isReleasedWhenClosed = false
+            window.appearance = NSAppearance(named: .aqua)
             window.contentView = NSHostingView(rootView: MainWindowView(library: library, router: router, paths: paths) { EmptyView() })
             window.setContentSize(NSSize(width: width, height: 700))
             window.layoutIfNeeded()

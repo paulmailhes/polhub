@@ -18,6 +18,7 @@ let package = Package(
         .library(name: "ProjectsUI", targets: ["ProjectsUI"]),
         .library(name: "Updates", targets: ["Updates"]),
         .library(name: "Agenda", targets: ["Agenda"]),
+        .library(name: "Summarization", targets: ["Summarization"]),
         .executable(name: "polhub-calcul", targets: ["PolhubCalcul"]),
         .executable(name: "polhub", targets: ["PolhubCLI"]),
     ],
@@ -35,6 +36,11 @@ let package = Package(
         // Updates from the versions published on GitHub, never during a meeting.
         .target(name: "Updates"),
         // Google calendars, contacts, and the automatic links between events, meetings, contacts and projects.
+        // The meetings' summaries, by the model built into macOS: nothing to download, nothing leaves the Mac (14/11).
+        .target(name: "Summarization", dependencies: [
+            .product(name: "Domain", package: "Kernel"),
+            .product(name: "Persistence", package: "Kernel"),
+        ]),
         .target(name: "Agenda", dependencies: [
             .product(name: "Domain", package: "Kernel"),
             .product(name: "Persistence", package: "Kernel"),
@@ -76,6 +82,7 @@ let package = Package(
             "Updates",
             "Agenda",
             "VaultImport",
+            "Summarization",
             .product(name: "Domain", package: "Kernel"),
             .product(name: "Persistence", package: "Kernel"),
             .product(name: "GRDB", package: "GRDB.swift"),
@@ -111,6 +118,7 @@ let package = Package(
         .testTarget(name: "VaultImportTests", dependencies: ["VaultImport", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")], resources: [.copy("Fixtures")]),
         .testTarget(name: "ProjectsUITests", dependencies: ["ProjectsUI", "VaultImport", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "UpdatesTests", dependencies: ["Updates"]),
+        .testTarget(name: "SummarizationTests", dependencies: ["Summarization", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "AgendaTests", dependencies: ["Agenda", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "TranscriptionTests", dependencies: ["Transcription", .product(name: "Domain", package: "Kernel")]),
         .testTarget(name: "MeetingDetectionTests", dependencies: ["MeetingDetection"], resources: [.copy("Fixtures")]),

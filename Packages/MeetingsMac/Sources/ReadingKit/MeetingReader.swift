@@ -44,6 +44,15 @@ public struct MeetingReader: Sendable {
         let row = try resolve(which)
         let lines = try transcripts.utterances(meetingID: row.id)
         var text = "# \(row.title)\n\(date(row.startedAt)) · \(duration(row)) · \(state(row, try transcripts.job(for: row.id))) · id \(row.id.uuidString.lowercased())\n"
+        // The summary and its actions come first, on the first page (14/11).
+        if page == 1, let summary = try meetings.summary(meetingID: row.id), !summary.isEmpty {
+            text += "\n" + summary + "\n"
+            let actions = try ProjectStore(meetings.database).actions(meetingID: row.id)
+            if !actions.isEmpty {
+                text += "\n## Actions\n\n" + actions.map { "- [\($0.done ? "x" : " ")] \($0.text)\($0.owner.map { " — \($0)" } ?? "")" }.joined(separator: "\n") + "\n"
+            }
+            if !lines.isEmpty { text += "\n## Dialogue\n" }
+        }
         guard !lines.isEmpty else {
             return text + "\n" + (row.transcribedAt == nil ? "Pas encore transcrite." : "Personne n'a parlé, ou rien n'a pu être transcrit.")
         }

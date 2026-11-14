@@ -268,6 +268,17 @@ public final class AppDatabase: Sendable {
                 t.add(column: "color", .text)
             }
         }
+        // The meetings' summaries, made on the Mac (14/11).
+        migrator.registerMigration("v6") { db in
+            try db.create(table: "summary_job") { t in
+                t.primaryKey("meetingID", .text).references("meeting", onDelete: .cascade)
+                t.column("state", .text).notNull()
+                t.column("attempts", .integer).notNull()
+                t.column("error", .text)
+                t.column("sourceTranscribedAt", .datetime)
+                t.column("updatedAt", .datetime).notNull()
+            }
+        }
         return migrator
     }
 }

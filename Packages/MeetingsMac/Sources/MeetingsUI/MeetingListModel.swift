@@ -3,6 +3,7 @@ import Foundation
 import Pipeline
 import GRDB
 import Persistence
+import Summarization
 
 public struct DaySection: Equatable, Identifiable, Sendable {
     public var id: String { title }
@@ -54,6 +55,10 @@ public final class MeetingLibrary: ObservableObject {
     public let transcripts: TranscriptStore
     /// Set by the app: « Réessayer » and « Retranscrire » go through it.
     public var queue: TranscriptionQueue?
+    /// Set by the app: « Refaire le compte rendu » goes through it (14/11).
+    public var summaries: SummaryQueue?
+    /// Why no summary can be made (Apple Intelligence off…), said on the meeting's page.
+    @Published public var summaryUnavailable: String?
     private var observations: [AnyDatabaseCancellable] = []
 
     public init(store: MeetingStore) {

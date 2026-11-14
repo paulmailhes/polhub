@@ -9,6 +9,7 @@ import Pipeline
 import ProbeKit
 import ProjectsUI
 import Recording
+import Summarization
 import SwiftUI
 import Updates
 
@@ -26,6 +27,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var agendaTimer: Timer?
     /// Step 2: the transcriptions, run by `polhub-calcul` outside meetings.
     private var transcription: TranscriptionQueue?
+    /// The meetings' summaries, after their transcription (14/11).
+    private var summaries: SummaryQueue?
     private var transcriptionTimer: Timer?
     /// Updates from GitHub, installed on their own when all is quiet.
     private var updates: UpdateService?
@@ -197,8 +200,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         library?.queue = queue
         // The first minute after launch belongs to the meeting the app may be resuming after a crash.
         Task { await queue.start(holdSeconds: 45) }
-        transcriptionTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in
+        let engine = AppleSummaryEngine()
+        let summaries = SummaryQueue(database: store.database, engine: engine, otherWork: { await queue.isRunning })
+        self.summaries = summaries
+        library?.summaries = summaries
+        library?.summaryUnavailable = engine.unavailableReason
+        DispatchQueue.main.asyncAfter(deadline: .now() + 60) {
+            Task { await summaries.start() }
+        }
+        transcriptionTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { await queue.wake() }
+            Task { await summaries.wake() }
+            MainActor.assumeIsolated { self?.library?.summaryUnavailable = engine.unavailableReason }
         }
     }
 
@@ -312,6 +325,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         library?.meetingActive = busy
         Task { await transcription?.meetingActivity(busy) }
+        Task { await summaries?.meetingActivity(busy) }
         switch status {
         case .prompting, .recording:
             model.tabMeeting = true

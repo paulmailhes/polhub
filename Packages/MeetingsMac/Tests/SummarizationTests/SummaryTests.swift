@@ -1,0 +1,83 @@
+import Domain
+import Foundation
+import Persistence
+import Testing
+@testable import Summarization
+
+/// The summary of a meeting, made on the Mac by Apple's model (14/11): the pure parts.
+@Suite struct SummaryPlanTests {
+    let id = UUID()
+
+    func line(_ speaker: Speaker, _ seconds: Int, _ text: String) -> UtteranceRow {
+        UtteranceRow(meetingID: id, speaker: speaker, startMs: seconds * 1_000, endMs: seconds * 1_000 + 900, text: text, doubtful: false)
+    }
+
+    @Test func linesSayWhoAndWhen() {
+        #expect(SummaryPlan.lines([line(.moi, 65, "On part sur la maquette."), line(.autres, 3_725, "D'accord.")])
+                == ["[01:05] Moi : On part sur la maquette.", "[62:05] Les autres : D'accord."])
+        #expect(SummaryPlan.lines([line(.unknown, 0, "Un paragraphe importé.")]) == ["Un paragraphe importé."])
+    }
+
+    @Test func chunksCutBetweenLinesAndNeverLoseOne() {
+        let lines = (0..<10).map { "ligne \($0) " + String(repeating: "x", count: 40) }
+        let chunks = SummaryPlan.chunks(lines, maxCharacters: 150)
+        #expect(chunks.count == 4)
+        #expect(chunks.allSatisfy { $0.count <= 150 })
+        #expect(chunks.joined().components(separatedBy: "\n").filter { !$0.isEmpty } == lines)
+    }
+
+    @Test func aLineLongerThanAChunkIsCutAlone() {
+        let chunks = SummaryPlan.chunks(["court", String(repeating: "y", count: 250)], maxCharacters: 100)
+        #expect(chunks.count == 4)
+        #expect(chunks.allSatisfy { $0.count <= 100 })
+    }
+}
+
+@Suite struct SummaryChecksTests {
+    let transcript = "[00:10] Les autres : Irène envoie la charte vendredi.\n[00:20] Moi : Je prépare le plan du site."
+
+    @Test func ownersAreMeAKnownNameOrNoOne() {
+        let summary = MeetingSummary(overview: "Un point.", decisions: [], actions: [
+            SummaryAction(text: "préparer le plan", owner: "Moi"),
+            SummaryAction(text: "envoyer la charte", owner: "Irène"),
+            SummaryAction(text: "relancer le client", owner: "Gaston"),
+            SummaryAction(text: "valider la maquette", owner: "Camille Martin"),
+            SummaryAction(text: "choisir les photos", owner: "l'équipe"),
+            SummaryAction(text: "écrire les textes", owner: " "),
+        ])
+        let clean = SummaryChecks.clean(summary, transcript: transcript, participants: ["Camille Martin"])
+        #expect(clean.actions.map(\.owner) == ["Moi", "Irène", "Interlocuteur", "Camille Martin", nil, nil])
+        #expect(clean.actions.first?.text == "Préparer le plan")
+    }
+
+    @Test func vagueDueDatesGoAway() {
+        let summary = MeetingSummary(overview: "", decisions: [], actions: [
+            SummaryAction(text: "a", due: "non spécifiée"), SummaryAction(text: "b", due: "À déterminer"), SummaryAction(text: "c", due: "vendredi"),
+            SummaryAction(text: "d", due: "Non précisée"), SummaryAction(text: "e", due: ""),
+        ])
+        #expect(SummaryChecks.clean(summary, transcript: "", participants: []).actions.map(\.due) == [nil, nil, "vendredi", nil, nil])
+    }
+
+    @Test func duplicatesGoAndListsStayShort() {
+        let decisions = ["Garder WordPress.", "garder wordpress", ""] + (1...12).map { "Décision \($0)" }
+        let actions = (1...14).map { SummaryAction(text: "Action \($0)") } + [SummaryAction(text: "action 1")]
+        let clean = SummaryChecks.clean(MeetingSummary(overview: "  Résumé.  ", decisions: decisions, actions: actions), transcript: "", participants: [])
+        #expect(clean.overview == "Résumé.")
+        #expect(clean.decisions.count == SummaryChecks.maxDecisions && clean.decisions.prefix(2) == ["Garder WordPress.", "Décision 1"])
+        #expect(clean.actions.count == SummaryChecks.maxActions && Set(clean.actions.map(\.text)).count == SummaryChecks.maxActions)
+    }
+
+    @Test func theTextHasTheSummaryAndTheDecisions() {
+        let text = SummaryText.markdown(MeetingSummary(overview: "On lance la refonte.", decisions: ["Garder WordPress."], actions: [SummaryAction(text: "X")]))
+        #expect(text == "## Résumé\n\nOn lance la refonte.\n\n## Décisions\n\n- Garder WordPress.")
+        #expect(SummaryText.markdown(MeetingSummary(overview: "Court.", decisions: [], actions: [])) == "## Résumé\n\nCourt.")
+    }
+
+    @Test func actionsBecomeRowsWithTheirDueDateInTheText() {
+        let now = Date(timeIntervalSince1970: 1_794_562_920)
+        let rows = SummaryText.actionRows([SummaryAction(text: "Envoyer la charte", owner: "Irène", due: "vendredi"), SummaryAction(text: "Relire")], at: now)
+        #expect(rows.map(\.text) == ["Envoyer la charte (vendredi)", "Relire"])
+        #expect(rows.map(\.owner) == ["Irène", nil])
+        #expect(rows.map(\.position) == [0, 1])
+    }
+}

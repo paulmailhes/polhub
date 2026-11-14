@@ -162,7 +162,8 @@ public struct MainWindowView<Diagnostic: View>: View {
                         if let id = router.selection, let row = library.rows.first(where: { $0.id == id }) {
                             MeetingDetailView(row: row, store: library.store, paths: paths, transcripts: library.transcripts,
                                               projects: projects?.projects ?? [],
-                                              queue: library.queue, job: library.jobs[row.id], meetingActive: library.meetingActive,
+                                              queue: library.queue, summaries: library.summaries, summaryUnavailable: library.summaryUnavailable,
+                                              job: library.jobs[row.id], meetingActive: library.meetingActive,
                                               router: router)
                                 .id(id)
                         } else {

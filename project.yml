@@ -52,6 +52,8 @@ targets:
         product: MeetingsUI
       - package: MeetingsMac
         product: ProjectsUI
+      - package: MeetingsMac
+        product: Summarization
       # Step 2: the computing process and the command line, in Contents/Helpers.
       - target: PolhubCalcul
         embed: true

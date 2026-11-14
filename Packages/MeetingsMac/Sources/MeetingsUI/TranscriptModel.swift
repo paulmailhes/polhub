@@ -55,6 +55,59 @@ public enum TranscriptModel {
         return lines.lastIndex { $0.startMs <= ms }
     }
 
+    /// One turn of speech: the lines of one voice, each starting within 4 s of the previous one's end (14/11).
+    public struct Paragraph: Equatable, Sendable {
+        public var speaker: Speaker
+        public var startMs: Int
+        public var text: String
+        public var doubtful: Bool
+        /// The lines it gathers, as indices in the dialogue.
+        public var lines: Range<Int>
+    }
+
+    public static let paragraphGapMs = 4_000
+
+    public static func paragraphs(_ lines: [UtteranceRow]) -> [Paragraph] {
+        var result: [Paragraph] = []
+        for (index, line) in lines.enumerated() {
+            if var last = result.last, line.speaker != .unknown, last.speaker == line.speaker,
+               line.startMs - lines[last.lines.upperBound - 1].endMs <= paragraphGapMs {
+                last.text += " " + line.text
+                last.doubtful = last.doubtful || line.doubtful
+                last.lines = last.lines.lowerBound..<(index + 1)
+                result[result.count - 1] = last
+            } else {
+                result.append(Paragraph(speaker: line.speaker, startMs: line.startMs, text: line.text, doubtful: line.doubtful, lines: index..<(index + 1)))
+            }
+        }
+        return result
+    }
+
+    /// The paragraph holding the line being heard.
+    public static func paragraph(containing line: Int?, in paragraphs: [Paragraph]) -> Int? {
+        guard let line else { return nil }
+        return paragraphs.firstIndex { $0.lines.contains(line) }
+    }
+
+    /// The dialogue as text, for « Copier la transcription ».
+    public static func plainText(_ lines: [UtteranceRow], title: String) -> String {
+        title + "\n\n" + lines.map { line in
+            line.speaker == .unknown ? line.text : "[\(timestamp(line.startMs))] \(line.speaker.label) : \(line.text)"
+        }.joined(separator: "\n") + "\n"
+    }
+
+    /// The sentence of the summary's card, or `nil` when the summary is there (or not started).
+    public static func summaryText(_ job: SummaryJobRow?, hasSummary: Bool, unavailable: String?) -> String? {
+        guard let job, !hasSummary || job.state == .running else { return nil }
+        if let unavailable, job.state != .done { return unavailable }
+        switch job.state {
+        case .queued: return "Compte rendu en attente : il se fait après la transcription, jamais pendant une réunion."
+        case .running: return "Compte rendu en cours d'écriture…"
+        case .failed: return "Le compte rendu n'a pas pu se faire : \(job.error ?? "raison inconnue.")"
+        case .done: return "Trop peu de paroles pour un compte rendu."
+        }
+    }
+
     /// `1:05`, or `1:02:05` past an hour.
     public static func timestamp(_ ms: Int) -> String {
         let total = ms / 1_000
