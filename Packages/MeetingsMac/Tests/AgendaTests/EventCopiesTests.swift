@@ -84,6 +84,32 @@ import Testing
         #expect(EventCopies.merge(rows, accounts: Array(accounts.prefix(2))).first?.projectID == alpha.id)
     }
 
+    /// Review of 14/11: a copy whose sibling has its recording never takes the next meeting's.
+    @Test func aCopyNeverTakesTheNextMeetingsRecording() throws {
+        let database = try AppDatabase.inMemory()
+        let calendar = CalendarStore(database), meetings = MeetingStore(database)
+        let first = MeetingRow(createdAt: now, status: .ended, source: .dia, candidateKey: "t/1", meetCode: "abc-defg-hij", title: "Point",
+                               startedAt: now, endedAt: now.addingTimeInterval(1_200))
+        let next = MeetingRow(createdAt: now, status: .ended, source: .dia, candidateKey: "t/2", meetCode: "xyz-wxyz-xyz", title: "Suivant",
+                              startedAt: now.addingTimeInterval(1_800), endedAt: now.addingTimeInterval(5_400))
+        try meetings.save(first)
+        try meetings.save(next)
+        for account in accounts.prefix(2) {
+            try calendar.addAccount(email: account.email, at: account.addedAt)
+            var event = copy(account.email, organizer: "client@ailleurs.fr")
+            event.endAt = now.addingTimeInterval(3_600)
+            try calendar.applyGoogle(account: account.email, changed: [event], cancelled: [], at: now)
+        }
+        try calendar.applyGoogle(account: "paul@exemple.fr", changed: [
+            CalendarEventRow(account: "paul@exemple.fr", eventID: "c", title: "Suivant", startAt: now.addingTimeInterval(1_800),
+                             endAt: now.addingTimeInterval(5_400), meetCode: "xyz-wxyz-xyz", updatedAt: now),
+        ], cancelled: [], at: now)
+        try LinkRunner(database: database).run(now: now)
+        let rows = try calendar.allEvents()
+        #expect(rows.filter { $0.eventID == "e1" }.compactMap(\.meetingID) == [first.id])
+        #expect(rows.first { $0.eventID == "c" }?.meetingID == next.id)
+    }
+
     @Test func paulsChoiceOnOneCopyFilesEveryCopyAndTheLoopKeepsIt() throws {
         let database = try AppDatabase.inMemory()
         let calendar = CalendarStore(database)

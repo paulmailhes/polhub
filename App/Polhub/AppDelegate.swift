@@ -261,7 +261,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         case .prompting, .recording, .presumedEnded: return false
         case .idle, .paused: break
         }
-        return !(await transcription?.isRunning ?? false)
+        if await transcription?.isRunning ?? false { return false }
+        return !(await summaries?.isRunning ?? false)
     }
 
     /// Reads Dia and feeds the coordinator, or stops doing so.

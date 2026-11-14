@@ -44,6 +44,8 @@ struct CalendarView: View {
     @ObservedObject var router: WindowRouter
     @State private var weekStart = CalendarView.monday(of: .now)
     @State private var selection: String?
+    /// The day of the block clicked: an event over several days opens one card, there (review of 14/11).
+    @State private var selectedDay: Date?
     /// The editor of an event, new or existing (14/11).
     @State private var editor: EditorRequest?
 
@@ -116,6 +118,7 @@ struct CalendarView: View {
         guard let event = agenda.shown.first(where: { $0.id == id || $0.eventID == id }) else { return }
         weekStart = Self.monday(of: event.startAt)
         selection = event.id
+        selectedDay = Self.calendar.startOfDay(for: event.startAt)
     }
 
     // MARK: - No account yet
@@ -125,7 +128,7 @@ struct CalendarView: View {
             Image(systemName: "calendar").font(.system(size: 44, weight: .light)).foregroundStyle(.secondary)
             Text("Connecte tes agendas Google").font(.title2.bold())
             if agenda.hasGoogleKey {
-                Text("Polhub lit tes rendez-vous en lecture seule : les invités deviennent des contacts, rangés dans les projets de leurs rendez-vous.")
+                Text("Polhub lit tes rendez-vous, et crée ou modifie ceux que tu lui demandes : les invités deviennent des contacts, rangés dans les projets de leurs rendez-vous.")
                     .multilineTextAlignment(.center).foregroundStyle(.secondary).frame(maxWidth: 460)
                 Button("Ajouter un compte Google…") { Task { await agenda.connect() } }
                     .buttonStyle(.glassProminent).controlSize(.large)
@@ -191,8 +194,11 @@ struct CalendarView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(color.opacity(0.22), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
                             .contentShape(Rectangle())
-                            .onTapGesture { selection = event.id }
-                            .popover(isPresented: shows(event), arrowEdge: .bottom) { popover(event) }
+                            .onTapGesture {
+                                selection = event.id
+                                selectedDay = day
+                            }
+                            .popover(isPresented: shows(event, on: day), arrowEdge: .bottom) { popover(event) }
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -239,9 +245,9 @@ struct CalendarView: View {
                     let width = geometry.size.width / CGFloat(slot.columns)
                     let top = offset(max(event.startAt, start), from: start)
                     let height = max(20, offset(min(event.endAt, end), from: start) - top)
-                    eventBlock(event, height: height - 2)
+                    eventBlock(event, height: height - 2, day: start)
                         .frame(width: max(0, width - 4), height: height - 2)
-                        .popover(isPresented: shows(event), arrowEdge: .trailing) { popover(event) }
+                        .popover(isPresented: shows(event, on: start), arrowEdge: .trailing) { popover(event) }
                         .padding(.leading, CGFloat(slot.column) * width + 2)
                         .padding(.top, top + 1)
                 }
@@ -262,8 +268,9 @@ struct CalendarView: View {
         CGFloat(date.timeIntervalSince(start) / 3_600) * Self.hourHeight
     }
 
-    private func shows(_ event: CalendarEventRow) -> Binding<Bool> {
-        Binding(get: { selection == event.id }, set: { if !$0, selection == event.id { selection = nil } })
+    private func shows(_ event: CalendarEventRow, on day: Date) -> Binding<Bool> {
+        Binding(get: { selection == event.id && selectedDay == day },
+                set: { if !$0, selection == event.id, selectedDay == day { selection = nil } })
     }
 
     private func popover(_ event: CalendarEventRow) -> some View {
@@ -273,7 +280,7 @@ struct CalendarView: View {
         }) { selection = nil }
     }
 
-    private func eventBlock(_ event: CalendarEventRow, height: CGFloat) -> some View {
+    private func eventBlock(_ event: CalendarEventRow, height: CGFloat, day: Date) -> some View {
         let declined = event.attendees.first(where: \.isSelf)?.response == "declined"
         let color = agenda.color(for: event.account)
         let selected = selection == event.id
@@ -297,7 +304,10 @@ struct CalendarView: View {
         .overlay { if selected { RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(color, lineWidth: 1) } }
         .opacity(declined ? 0.45 : 1)
         .contentShape(Rectangle())
-        .onTapGesture { selection = event.id }
+        .onTapGesture {
+            selection = event.id
+            selectedDay = day
+        }
         .help(event.title)
     }
 

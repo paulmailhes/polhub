@@ -59,10 +59,14 @@ public struct CalendarStore: Sendable {
 
     /// What Google sent: new or changed events replace their copy, keeping what the app added (project,
     /// recorded meeting); cancelled ones go.
-    public func applyGoogle(account: String, changed: [CalendarEventRow], cancelled: [String], at date: Date) throws {
+    /// `keepingNewerThan`: a row written after that date (by Polhub, while a sync was reading Google) stays as it is
+    /// (review of 14/11).
+    public func applyGoogle(account: String, changed: [CalendarEventRow], cancelled: [String], at date: Date,
+                            keepingNewerThan: Date? = nil) throws {
         try writer.write { db in
             for var event in changed {
                 if let known = try CalendarEventRow.fetchOne(db, key: event.id) {
+                    if let keepingNewerThan, known.updatedAt > keepingNewerThan { continue }
                     event.projectID = known.projectID
                     event.projectOrigin = known.projectOrigin
                     event.meetingID = known.meetingID

@@ -3,6 +3,27 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.9.1 — 14 novembre 2026
+
+Corrections de deux relectures complètes, pour que rien ne se perde :
+
+- **Comptes rendus** : une réunion qui avait déjà un compte rendu (celui d'Obsidian, repris à l'import de
+  l'historique) le garde ; « Refaire le compte rendu » reste possible. Un compte rendu refait garde les
+  actions cochées ou ajoutées au projet, sans doublon. Une réunion ou une transcription qui commence
+  l'interrompt sans jamais compter un échec ; les longues réunions ont aussi le leur ; plus d'échéances
+  vides (« à venir », « vide »).
+- **Calendrier** : une modification n'envoie à Google que ce que tu as changé (la description et les
+  invités ne sont plus réécrits, les invités facultatifs le restent) et attend d'avoir lu le rendez-vous ;
+  une synchronisation en cours ne défait plus ce que tu viens d'écrire ; passer de « toute la journée » à
+  une heure propose 9 h–10 h ; un rendez-vous de plusieurs jours n'ouvre qu'une fiche ; une série est
+  signalée (seul le rendez-vous choisi change).
+- Toutes les copies d'un rendez-vous prennent le projet de sa réunion, et une copie ne prend plus la
+  réunion suivante.
+- Accueil › Priorité 1 ouvre le projet cliqué ; la page d'un projet garde ses deux colonnes ; l'échéance
+  affichée à la création d'un projet est bien enregistrée.
+- Une mise à jour attend aussi la fin d'un compte rendu.
+- Pages publiques et écran de connexion à jour : Polhub écrit dans tes agendas, à ta demande.
+
 ## 0.9.0 — 14 novembre 2026
 
 - **Calendrier en écriture** : « + » dans la barre du haut, ou un double-clic dans la grille, crée un

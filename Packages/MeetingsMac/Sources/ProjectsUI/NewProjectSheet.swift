@@ -41,6 +41,8 @@ struct NewProjectSheet: View {
                     TextField("Client", text: text(\.client))
                     TextField("Prochaine étape", text: text(\.todo), prompt: Text("La prochaine chose à faire"))
                     Toggle("Échéance", isOn: $hasDue)
+                        // The date shown is the one saved, even untouched (review of 14/11).
+                        .onChange(of: hasDue) { _, on in draft.dueDate = on ? (draft.dueDate ?? Calendar.current.startOfDay(for: Date())) : nil }
                     if hasDue {
                         DatePicker("Date", selection: Binding(get: { draft.dueDate ?? Date() }, set: { draft.dueDate = $0 }),
                                    displayedComponents: .date)

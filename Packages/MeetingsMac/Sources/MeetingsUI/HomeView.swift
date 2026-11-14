@@ -124,7 +124,7 @@ struct HomeView: View {
         HomeCard(title: "Priorité 1", systemImage: "flag") {
             if urgent.isEmpty { Text("Aucun projet en priorité 1.").foregroundStyle(.secondary) }
             ForEach(urgent) { project in
-                Button { router.section = .projects } label: {
+                Button { router.openProject(project.id) } label: {
                     HStack(alignment: .firstTextBaseline, spacing: 10) {
                         Circle().fill(ProjectViews.cardHex(project.color).map(Color.init(hex:)) ?? .accentColor).frame(width: 8, height: 8)
                         VStack(alignment: .leading, spacing: 1) {

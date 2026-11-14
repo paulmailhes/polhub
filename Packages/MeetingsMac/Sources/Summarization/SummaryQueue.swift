@@ -25,6 +25,9 @@ public actor SummaryQueue {
         self.now = now
     }
 
+    /// A summary is being written: an update waits for it (review of 14/11).
+    public var isRunning: Bool { current != nil }
+
     /// Why no summary can be made now, if so.
     public var unavailableReason: String? { engine.unavailableReason }
 

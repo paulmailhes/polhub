@@ -123,6 +123,30 @@ import Testing
         #expect(try calendar.accounts().first?.lastSyncAt == now)
     }
 
+    /// Review of 14/11: what Paul writes while a sync reads Google is neither deleted nor put back by it.
+    @Test func aWriteDuringASyncSurvivesIt() async throws {
+        let database = try AppDatabase.inMemory()
+        let calendar = CalendarStore(database)
+        let now = ISO8601DateFormatter().date(from: "2026-11-13T12:00:00Z")!
+        try calendar.addAccount(email: "moi@exemple.fr", at: now)
+        let old = #"{"items":[{"id":"e1","status":"confirmed","summary":"Ancien titre","start":{"dateTime":"2026-11-20T10:00:00Z"},"end":{"dateTime":"2026-11-20T10:30:00Z"}}]}"#
+        try await CalendarSync(fetch: { _ in (Data(old.utf8), 200) }).sync(account: "moi@exemple.fr", accessToken: "a1", store: calendar, now: now)
+        let later = now.addingTimeInterval(600)
+        // The next sync reads Google; meanwhile Paul renames e1 and creates e9 from Polhub.
+        let sync = CalendarSync(fetch: { _ in
+            var renamed = CalendarEventRow(account: "moi@exemple.fr", eventID: "e1", title: "Nouveau titre", startAt: now, endAt: now, updatedAt: now)
+            renamed.startAt = ISO8601DateFormatter().date(from: "2026-11-20T10:00:00Z")!
+            renamed.endAt = renamed.startAt.addingTimeInterval(1_800)
+            let created = CalendarEventRow(account: "moi@exemple.fr", eventID: "e9", title: "Créé", startAt: renamed.startAt, endAt: renamed.endAt, updatedAt: now)
+            try calendar.applyGoogle(account: "moi@exemple.fr", changed: [renamed, created], cancelled: [], at: later.addingTimeInterval(5))
+            return (Data(old.utf8), 200)
+        })
+        try await sync.sync(account: "moi@exemple.fr", accessToken: "a1", store: calendar, now: later)
+        let rows = try calendar.allEvents()
+        #expect(Set(rows.map(\.eventID)) == ["e1", "e9"])
+        #expect(rows.first { $0.eventID == "e1" }?.title == "Nouveau titre")
+    }
+
     @Test func aRefusedTokenIsAnError() async throws {
         let calendar = CalendarStore(try AppDatabase.inMemory())
         await #expect(throws: GoogleError.self) {

@@ -22,6 +22,8 @@ struct ProjectPage: View {
     @State private var editingNotes = false
     @State private var showingDone = false
     @State private var choosingFolder = false
+    /// Two columns when the page is wide enough: decided from its width, not from its texts' (review of 14/11).
+    @State private var wide = true
 
     init(project: ProjectRow, library: ProjectLibrary) {
         self.project = project
@@ -35,16 +37,20 @@ struct ProjectPage: View {
         Page {
             header
             nextStep
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top, spacing: Space.xl) {
-                    main.frame(minWidth: 420, maxWidth: .infinity)
-                    side.frame(width: 320)
-                }
-                VStack(alignment: .leading, spacing: Space.xl) {
-                    main
-                    side
+            Group {
+                if wide {
+                    HStack(alignment: .top, spacing: Space.xl) {
+                        main.frame(maxWidth: .infinity)
+                        side.frame(width: 320)
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: Space.xl) {
+                        main
+                        side
+                    }
                 }
             }
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { wide = $0 >= 760 }
         }
         .toolbar {
             ToolbarItem(placement: .navigation) {

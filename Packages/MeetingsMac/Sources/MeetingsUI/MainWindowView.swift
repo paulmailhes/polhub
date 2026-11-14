@@ -69,6 +69,8 @@ public final class WindowRouter: ObservableObject {
     @Published public var contactSelection: UUID?
     /// An event Accueil asked Calendrier to open (14/11).
     @Published public var eventSelection: String?
+    /// A project Accueil asked Projets to open (review of 14/11).
+    @Published public var projectSelection: UUID?
 
     public init() {}
 
@@ -78,6 +80,11 @@ public final class WindowRouter: ObservableObject {
     }
 
     /// The menu's « Diagnostic… », the first launch and the alerts.
+    public func openProject(_ id: UUID) {
+        section = .projects
+        projectSelection = id
+    }
+
     public func openEvent(_ id: String) {
         section = .calendar
         eventSelection = id
@@ -156,7 +163,9 @@ public struct MainWindowView<Diagnostic: View>: View {
                         .onAppear {
                             projects.openMeeting = { [weak router] id in router?.open(meetingID: id, at: nil) }
                             projects.openContact = { [weak router] id in router?.openContact(id) }
+                            openAskedProject(projects)
                         }
+                        .onChange(of: router.projectSelection) { _, _ in openAskedProject(projects) }
                 } else {
                     ContentUnavailableView("Projets indisponibles", systemImage: "square.grid.3x2")
                 }
@@ -201,6 +210,12 @@ public struct MainWindowView<Diagnostic: View>: View {
             }
         }
         .frame(minWidth: Self.minimumWidth, minHeight: 520)
+    }
+
+    private func openAskedProject(_ projects: ProjectLibrary) {
+        guard let id = router.projectSelection else { return }
+        router.projectSelection = nil
+        projects.selected = id
 
     }
 }

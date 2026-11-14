@@ -81,17 +81,30 @@ public struct SummaryStore: Sendable {
     public func finish(meetingID: UUID, summary: String?, actions: [ActionRow], at date: Date) throws {
         try writer.write { db in
             try db.execute(sql: "UPDATE meeting SET summary = ? WHERE id = ?", arguments: [summary, Self.key(meetingID)])
-            // The ones Paul put in a project stay.
-            // The ones Paul checked stay too.
-            try db.execute(sql: "DELETE FROM action WHERE meetingID = ? AND projectID IS NULL AND done = 0", arguments: [Self.key(meetingID)])
-            for var action in actions {
+            // An action found again keeps its row (ticked, put in a project, its place); the untouched ones that are
+            // gone leave; the new ones come in (review of 14/11).
+            let existing = try ActionRow.filter(Column("meetingID") == Self.key(meetingID)).fetchAll(db)
+            let fresh = Set(actions.map { Self.fold($0.text) })
+            for row in existing where row.projectID == nil && !row.done && !fresh.contains(Self.fold(row.text)) {
+                _ = try row.delete(db)
+            }
+            let known = Set(existing.map { Self.fold($0.text) })
+            var position = (existing.map(\.position).max() ?? -1) + 1
+            for var action in actions where !known.contains(Self.fold(action.text)) {
                 action.meetingID = meetingID
                 action.projectID = nil
+                action.position = position
+                position += 1
                 try action.insert(db)
             }
             try update(db, meetingID, at: date) { $0.state = .done; $0.error = nil }
         }
     }
+
+    static func fold(_ text: String) -> String {
+        text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "fr_FR")).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
 
     /// A failure counts; after the second one, the summary waits for Paul's « Refaire ».
     public func fail(meetingID: UUID, error: String, at date: Date) throws {

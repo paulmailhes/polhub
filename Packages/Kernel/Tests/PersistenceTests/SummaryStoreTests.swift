@@ -116,6 +116,33 @@ import Testing
         #expect(Set(try ProjectStore(database).actions(meetingID: row.id).map(\.text)) == ["Faite", "Nouvelle"])
     }
 
+    /// Review of 14/11: a summary made again keeps the rows of the actions it finds again (ticked, in a project)
+    /// and adds only the new ones.
+    @Test func aSummaryMadeAgainMatchesTheActionsItAlreadyHas() throws {
+        let (store, meetings, transcripts, database) = try base()
+        let row = try meeting(meetings, transcripts, hoursAgo: 2)
+        let project = try ProjectStore(database).addProject(name: "Atelier Nord", status: .priorite1, at: now)
+        try store.finish(meetingID: row.id, summary: "A", actions: [
+            ActionRow(text: "Envoyer le devis", position: 0, createdAt: now), ActionRow(text: "Relire la maquette", position: 1, createdAt: now),
+            ActionRow(text: "Appeler Camille", position: 2, createdAt: now),
+        ], at: now)
+        let actions = ProjectStore(database)
+        var sent = try #require(try actions.actions(meetingID: row.id).first { $0.text == "Envoyer le devis" })
+        sent.projectID = project.id
+        try actions.saveAction(sent)
+        var read = try #require(try actions.actions(meetingID: row.id).first { $0.text == "Relire la maquette" })
+        read.done = true
+        try actions.saveAction(read)
+        try store.finish(meetingID: row.id, summary: "B", actions: [
+            ActionRow(text: "envoyer le devis", position: 0, createdAt: now), ActionRow(text: "Relire la maquette", position: 1, createdAt: now),
+            ActionRow(text: "Préparer le planning", position: 2, createdAt: now),
+        ], at: now)
+        let after = try actions.actions(meetingID: row.id)
+        #expect(after.map(\.text).sorted() == ["Envoyer le devis", "Préparer le planning", "Relire la maquette"])
+        #expect(after.first { $0.text == "Envoyer le devis" }?.projectID == project.id)
+        #expect(after.first { $0.text == "Relire la maquette" }?.done == true)
+    }
+
     @Test func importedAndDeletedMeetingsAreLeftAlone() throws {
         let (store, meetings, transcripts, _) = try base()
         try meeting(meetings, transcripts, hoursAgo: 3, source: .imported)

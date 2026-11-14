@@ -106,6 +106,7 @@ public final class AgendaLibrary: ObservableObject {
     /// Creates the event in the account's calendar, or changes it; Google sends the invitations.
     public func save(_ draft: EventDraft, account: String, editing: CalendarEventRow?, original: EventDraft? = nil,
                      details: EventDetails? = nil) async throws {
+        await waitForSync()
         let requestID = UUID().uuidString, zone = TimeZone.current
         let data = try await session.send({ token in
             if let editing {
@@ -119,15 +120,23 @@ public final class AgendaLibrary: ObservableObject {
             try CalendarStore(database).applyGoogle(account: account, changed: [row], cancelled: [], at: Date())
         }
         // The copies in Paul's other calendars follow at once (review of 14/11).
+        await waitForSync()
         await syncAll()
     }
 
     /// Deletes the event; its guests are told by Google.
     public func delete(_ event: CalendarEventRow) async throws {
+        await waitForSync()
         let id = event.eventID
         _ = try await session.send({ CalendarWrite.deleteRequest(accessToken: $0, eventID: id) }, for: event.account)
         try CalendarStore(database).applyGoogle(account: event.account, changed: [], cancelled: [id], at: Date())
+        await waitForSync()
         await syncAll()
+    }
+
+    /// A sync that reads Google while Polhub writes would put back what it read: writes wait for it (review of 14/11).
+    private func waitForSync() async {
+        for _ in 0..<300 where syncing { try? await Task.sleep(for: .milliseconds(100)) }
     }
 
     /// Connects the account again, to grant writing: Google's page opens on it.

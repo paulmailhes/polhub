@@ -81,6 +81,13 @@ struct EventEditor: View {
                 }
                 Section {
                     Toggle("Toute la journée", isOn: $draft.allDay)
+                        // Back to a time: an hour from 9:00 that day, not 00:00–00:00 (review of 14/11).
+                        .onChange(of: draft.allDay) { _, allDay in
+                            guard !allDay else { return }
+                            let day = Calendar.current.startOfDay(for: draft.start)
+                            draft.start = Calendar.current.date(byAdding: .hour, value: 9, to: day) ?? draft.start
+                            draft.end = Calendar.current.date(byAdding: .hour, value: 10, to: day) ?? draft.end
+                        }
                     DatePicker("Début", selection: Binding(get: { draft.start }, set: { moveStart(to: $0) }),
                                displayedComponents: draft.allDay ? [.date] : [.date, .hourAndMinute])
                     DatePicker("Fin", selection: $draft.end, in: draft.start..., displayedComponents: draft.allDay ? [.date] : [.date, .hourAndMinute])
@@ -131,6 +138,7 @@ struct EventEditor: View {
             .formStyle(.grouped)
             footer
         }
+        .interactiveDismissDisabled(saving)
         .frame(width: 520, height: 680)
         .windowTitle(editing == nil ? "Nouveau rendez-vous" : "Modifier le rendez-vous")
         .task {
@@ -160,6 +168,9 @@ struct EventEditor: View {
                 }
             } else if let otherFailure {
                 Label(otherFailure, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+            } else if editing?.recurringEventID != nil {
+                Label("Ce rendez-vous fait partie d'une série : seul celui-ci change.", systemImage: "repeat")
+                    .font(.caption).foregroundStyle(.secondary)
             } else if editing != nil, detailsRead, details == nil {
                 Label("Google n'a pas pu être lu : la description et les invités ne changent que si tu les modifies.", systemImage: "info.circle")
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -170,12 +181,13 @@ struct EventEditor: View {
                 }
                 Spacer()
                 if saving { ProgressView().controlSize(.small) }
-                Button("Annuler", role: .cancel) { dismiss() }.keyboardShortcut(.cancelAction)
+                Button("Annuler", role: .cancel) { dismiss() }.keyboardShortcut(.cancelAction).disabled(saving)
                 Button(editing == nil ? "Créer" : "Enregistrer", action: save)
                     .buttonStyle(.glassProminent)
                     .tint(color)
                     .keyboardShortcut(.defaultAction)
-                    .disabled(saving || draft.title.trimmingCharacters(in: .whitespaces).isEmpty || account.isEmpty || (editing != nil && !detailsRead))
+                    .disabled(saving || (editing == nil && draft.title.trimmingCharacters(in: .whitespaces).isEmpty) || account.isEmpty
+                              || (editing != nil && !detailsRead))
             }
         }
         .padding(Space.l)

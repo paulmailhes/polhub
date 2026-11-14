@@ -139,14 +139,18 @@ public struct LinkRunner: Sendable {
         let byGoogleID = Dictionary(try allMeetings.compactMap { meeting in try meetings.googleEventID(meetingID: meeting.id).map { ($0, meeting) } },
                                     uniquingKeysWith: { first, _ in first })
         var taken = Set(events.compactMap(\.meetingID))
+        // The copies of one event share its recording: a copy whose sibling has it never looks for another one
+        // (review of 14/11).
+        var recorded = Set(events.filter { $0.meetingID != nil }.map(\.eventID))
         for index in events.indices {
             let event = events[index]
-            let found = byGoogleID[event.eventID] ?? (event.meetingID == nil
+            let found = byGoogleID[event.eventID] ?? (event.meetingID == nil && !recorded.contains(event.eventID)
                 ? Linker.meeting(for: event, among: allMeetings.filter { !taken.contains($0.id) }) : nil)
             if let found, found.id != event.meetingID {
                 try calendar.setMeeting(eventID: event.id, meetingID: found.id)
                 events[index].meetingID = found.id
                 taken.insert(found.id)
+                recorded.insert(event.eventID)
             }
         }
         let meetingByID = Dictionary(try meetings.recent(limit: 100_000).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
