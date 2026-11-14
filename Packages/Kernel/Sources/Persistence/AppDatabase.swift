@@ -285,6 +285,73 @@ public final class AppDatabase: Sendable {
                 t.add(column: "grantedScopes", .text)
             }
         }
+        // The mails, step « Lire » (14/11): a copy of the mailboxes that follows Gmail. Everything goes with its
+        // account. The HTML and the attachments live in files beside the base, never here.
+        migrator.registerMigration("v8") { db in
+            try db.create(table: "mail_thread") { t in
+                t.primaryKey("id", .text)
+                t.column("account", .text).notNull().indexed().references("google_account", onDelete: .cascade)
+                t.column("threadID", .text).notNull()
+                t.column("subject", .text).notNull()
+                t.column("snippet", .text).notNull()
+                t.column("senders", .text).notNull()
+                t.column("lastMessageAt", .datetime).notNull().indexed()
+                t.column("messageCount", .integer).notNull()
+                t.column("unread", .boolean).notNull()
+                t.column("inInbox", .boolean).notNull()
+                t.column("hidden", .boolean).notNull()
+                t.column("hasAttachment", .boolean).notNull()
+                t.column("category", .text)
+                t.column("lastSender", .text)
+                t.column("paulWrote", .boolean).notNull()
+            }
+            try db.create(table: "mail_message") { t in
+                t.primaryKey("id", .text)
+                t.column("account", .text).notNull().indexed()
+                t.column("messageID", .text).notNull()
+                t.column("threadKey", .text).notNull().indexed().references("mail_thread", onDelete: .cascade)
+                t.column("date", .datetime).notNull()
+                t.column("sender", .text)
+                t.column("to", .text).notNull()
+                t.column("cc", .text).notNull()
+                t.column("subject", .text).notNull()
+                t.column("snippet", .text).notNull()
+                t.column("labels", .text).notNull()
+                t.column("rfcMessageID", .text)
+                t.column("authenticated", .boolean).notNull()
+                t.column("listUnsubscribe", .text)
+                t.column("listUnsubscribePost", .text)
+                t.column("hasBody", .boolean).notNull()
+                t.column("bodyIsHTML", .boolean).notNull()
+                t.column("attachments", .text).notNull()
+            }
+            try db.create(table: "mail_cursor") { t in
+                t.primaryKey("account", .text).references("google_account", onDelete: .cascade)
+                t.column("historyID", .text)
+                t.column("total", .integer).notNull()
+                t.column("done", .integer).notNull()
+                t.column("finishedAt", .datetime)
+                t.column("lastSyncAt", .datetime)
+                t.column("lastError", .text)
+            }
+            // Paul's gestures on their way to Gmail. Never a send: a send is never a row.
+            try db.create(table: "mail_outbox") { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("account", .text).notNull().indexed().references("google_account", onDelete: .cascade)
+                t.column("threadKey", .text).notNull()
+                t.column("kind", .text).notNull()
+                t.column("messageIDs", .text).notNull()
+                t.column("attempts", .integer).notNull()
+                t.column("error", .text)
+                t.column("createdAt", .datetime).notNull()
+            }
+            try db.create(table: "mail_sender") { t in
+                t.primaryKey("address", .text)
+                t.column("principal", .boolean).notNull()
+                t.column("images", .boolean).notNull()
+                t.column("createdAt", .datetime).notNull()
+            }
+        }
         return migrator
     }
 }

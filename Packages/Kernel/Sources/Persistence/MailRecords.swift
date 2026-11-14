@@ -1,0 +1,252 @@
+import Foundation
+import GRDB
+
+/// Someone in a mail: a name when the header gives one, and an address in lowercase.
+public struct MailAddress: Codable, Equatable, Hashable, Sendable {
+    public var name: String?
+    public var email: String
+
+    public init(name: String? = nil, email: String) {
+        let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.name = trimmed?.isEmpty == false ? trimmed : nil
+        self.email = email.lowercased()
+    }
+
+    /// The name, or the address when there is none.
+    public var display: String { name ?? email }
+}
+
+/// A file a message carries. `inline` ones are the images the HTML shows by `cid:`.
+public struct MailAttachment: Codable, Equatable, Hashable, Sendable {
+    public var partID: String
+    public var filename: String
+    public var mimeType: String
+    public var size: Int
+    public var attachmentID: String?
+    public var contentID: String?
+    public var inline: Bool
+
+    public init(partID: String, filename: String, mimeType: String, size: Int, attachmentID: String?, contentID: String?, inline: Bool) {
+        self.partID = partID
+        self.filename = filename
+        self.mimeType = mimeType
+        self.size = size
+        self.attachmentID = attachmentID
+        self.contentID = contentID
+        self.inline = inline
+    }
+}
+
+/// One message of a mailbox, as Gmail has it. Its HTML lives in a file beside the base, never here.
+public struct MailMessageRow: Codable, Equatable, Identifiable, Sendable, FetchableRecord, PersistableRecord {
+    public static let databaseTableName = "mail_message"
+
+    /// `account|messageID`.
+    public var id: String
+    public var account: String
+    public var messageID: String
+    public var threadKey: String
+    public var date: Date
+    public var sender: MailAddress?
+    public var to: [MailAddress]
+    public var cc: [MailAddress]
+    public var subject: String
+    public var snippet: String
+    /// Gmail's labels: `INBOX`, `UNREAD`, `SENT`, `TRASH`, `CATEGORY_UPDATES`…
+    public var labels: [String]
+    public var rfcMessageID: String?
+    /// Gmail checked that the mail comes from who it says (`dmarc=pass` in its own header).
+    public var authenticated: Bool
+    public var listUnsubscribe: String?
+    public var listUnsubscribePost: String?
+    /// The body is in its file.
+    public var hasBody: Bool
+    public var bodyIsHTML: Bool
+    public var attachments: [MailAttachment]
+
+    public init(account: String, messageID: String, threadID: String, date: Date, sender: MailAddress?, to: [MailAddress] = [],
+                cc: [MailAddress] = [], subject: String, snippet: String, labels: [String], rfcMessageID: String? = nil,
+                authenticated: Bool = false, listUnsubscribe: String? = nil, listUnsubscribePost: String? = nil, hasBody: Bool = false,
+                bodyIsHTML: Bool = false, attachments: [MailAttachment] = []) {
+        let account = account.lowercased()
+        self.id = Self.key(account: account, messageID: messageID)
+        self.account = account
+        self.messageID = messageID
+        self.threadKey = MailThreadRow.key(account: account, threadID: threadID)
+        self.date = date
+        self.sender = sender
+        self.to = to
+        self.cc = cc
+        self.subject = subject
+        self.snippet = snippet
+        self.labels = labels
+        self.rfcMessageID = rfcMessageID
+        self.authenticated = authenticated
+        self.listUnsubscribe = listUnsubscribe
+        self.listUnsubscribePost = listUnsubscribePost
+        self.hasBody = hasBody
+        self.bodyIsHTML = bodyIsHTML
+        self.attachments = attachments
+    }
+
+    public static func key(account: String, messageID: String) -> String { "\(account.lowercased())|\(messageID)" }
+
+    /// In the trash, in the spam or a draft: kept, but out of what the list shows.
+    public var isAside: Bool { labels.contains("TRASH") || labels.contains("SPAM") || labels.contains("DRAFT") }
+    public var isUnread: Bool { labels.contains("UNREAD") }
+    /// The files to show under the message: not the images the HTML already shows.
+    public var files: [MailAttachment] { attachments.filter { !$0.inline } }
+}
+
+/// One thread of one mailbox: what the list shows, recomputed from its messages at each change.
+public struct MailThreadRow: Codable, Equatable, Identifiable, Sendable, FetchableRecord, PersistableRecord {
+    public static let databaseTableName = "mail_thread"
+
+    /// `account|threadID`.
+    public var id: String
+    public var account: String
+    public var threadID: String
+    public var subject: String
+    public var snippet: String
+    /// Who wrote in the thread, in order, once each.
+    public var senders: [MailAddress]
+    public var lastMessageAt: Date
+    public var messageCount: Int
+    public var unread: Bool
+    public var inInbox: Bool
+    /// Every message is in the trash or the spam: the thread stays in the base (an undo brings it back) but
+    /// shows nowhere.
+    public var hidden: Bool
+    public var hasAttachment: Bool
+    /// Gmail's category of the last message received: `personal`, `updates`, `promotions`, `social`, `forums`.
+    public var category: String?
+    /// The address of the last message Paul did not write.
+    public var lastSender: String?
+    public var paulWrote: Bool
+
+    public static func key(account: String, threadID: String) -> String { "\(account.lowercased())|\(threadID)" }
+
+    /// Gmail's own tabs: what it files as notifications, promotions or social is automatic mail.
+    public static let automaticCategories: Set<String> = ["updates", "promotions", "social"]
+
+    /// The thread, from its messages; `nil` without any. `mine` holds Paul's own addresses.
+    public static func aggregate(account: String, threadID: String, messages: [MailMessageRow], mine: Set<String>) -> MailThreadRow? {
+        let all = messages.sorted { $0.date < $1.date }
+        guard let first = all.first else { return nil }
+        let shown = all.filter { !$0.isAside }
+        let visible = shown.isEmpty ? all : shown
+        func isMine(_ message: MailMessageRow) -> Bool {
+            message.labels.contains("SENT") || message.sender.map { mine.contains($0.email) } == true
+        }
+        var senders: [MailAddress] = []
+        for sender in visible.compactMap(\.sender) where !senders.contains(where: { $0.email == sender.email }) { senders.append(sender) }
+        let received = visible.last { !isMine($0) }
+        let category = received?.labels.first { $0.hasPrefix("CATEGORY_") }.map { String($0.dropFirst("CATEGORY_".count)).lowercased() }
+        return MailThreadRow(
+            id: key(account: account, threadID: threadID), account: account.lowercased(), threadID: threadID,
+            subject: (visible.first ?? first).subject, snippet: visible.last?.snippet ?? "", senders: senders,
+            lastMessageAt: visible.last?.date ?? first.date, messageCount: visible.count, unread: shown.contains(where: \.isUnread),
+            inInbox: shown.contains { $0.labels.contains("INBOX") }, hidden: shown.isEmpty,
+            hasAttachment: visible.contains { !$0.files.isEmpty }, category: category, lastSender: received?.sender?.email,
+            paulWrote: visible.contains(where: isMine)
+        )
+    }
+}
+
+/// Where the reading of a mailbox stands.
+public struct MailCursorRow: Codable, Equatable, Sendable, FetchableRecord, PersistableRecord {
+    public static let databaseTableName = "mail_cursor"
+
+    public var account: String
+    /// Gmail's point to resume from; `nil` before the first reading starts.
+    public var historyID: String?
+    /// The first reading: how many messages the mailbox holds, how many are read, when it ended.
+    public var total: Int
+    public var done: Int
+    public var finishedAt: Date?
+    public var lastSyncAt: Date?
+    public var lastError: String?
+
+    public init(account: String, historyID: String? = nil, total: Int = 0, done: Int = 0, finishedAt: Date? = nil, lastSyncAt: Date? = nil,
+                lastError: String? = nil) {
+        self.account = account.lowercased()
+        self.historyID = historyID
+        self.total = total
+        self.done = done
+        self.finishedAt = finishedAt
+        self.lastSyncAt = lastSyncAt
+        self.lastError = lastError
+    }
+}
+
+/// What Paul does to a thread. Never a send: a send is never a row (14/11).
+public enum MailGestureKind: String, Codable, Sendable, CaseIterable {
+    case archive, unarchive, markRead, markUnread, trash, untrash
+
+    /// Gmail's labels the gesture adds and removes.
+    public var add: [String] {
+        switch self {
+        case .unarchive, .untrash: ["INBOX"]
+        case .markUnread: ["UNREAD"]
+        case .trash: ["TRASH"]
+        case .archive, .markRead: []
+        }
+    }
+
+    public var remove: [String] {
+        switch self {
+        case .archive, .trash: ["INBOX"]
+        case .markRead: ["UNREAD"]
+        case .untrash: ["TRASH"]
+        case .unarchive, .markUnread: []
+        }
+    }
+
+    /// What undoes it.
+    public var inverse: MailGestureKind {
+        switch self {
+        case .archive: .unarchive
+        case .unarchive: .archive
+        case .markRead: .markUnread
+        case .markUnread: .markRead
+        case .trash: .untrash
+        case .untrash: .trash
+        }
+    }
+
+    func apply(to labels: [String]) -> [String] {
+        var result = labels.filter { !remove.contains($0) }
+        for label in add where !result.contains(label) { result.append(label) }
+        return result
+    }
+}
+
+/// A gesture waiting to reach Gmail. It names its messages: a reply that came meanwhile is never carried along.
+public struct MailGestureRow: Codable, Equatable, Identifiable, Sendable, FetchableRecord, MutablePersistableRecord {
+    public static let databaseTableName = "mail_outbox"
+
+    public var id: Int64?
+    public var account: String
+    public var threadKey: String
+    public var kind: MailGestureKind
+    public var messageIDs: [String]
+    public var attempts: Int
+    public var error: String?
+    public var createdAt: Date
+
+    public mutating func didInsert(_ inserted: InsertionSuccess) {
+        id = inserted.rowID
+    }
+}
+
+/// What Paul said once about a sender, kept for the next mails.
+public struct MailSenderRow: Codable, Equatable, Sendable, FetchableRecord, PersistableRecord {
+    public static let databaseTableName = "mail_sender"
+
+    public var address: String
+    /// Its mails go to the main tab, whatever Gmail's category.
+    public var principal: Bool
+    /// Its remote images show without asking.
+    public var images: Bool
+    public var createdAt: Date
+}
