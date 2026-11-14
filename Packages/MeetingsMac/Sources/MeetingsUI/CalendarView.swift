@@ -74,10 +74,8 @@ struct CalendarView: View {
             if agenda.accounts.isEmpty {
                 setup
             } else {
-                VStack(spacing: 0) {
-                    AccountLegend(agenda: agenda, router: router)
-                    week
-                }
+                // No legend: the accounts and their colors live in Réglages › Calendrier (Paul, 14/11).
+                week
             }
         }
         .windowTitle("Calendrier", subtitle: weekTitle)
@@ -160,7 +158,12 @@ struct CalendarView: View {
                     }
                     .padding(.top, 8)
                 }
-                .defaultScrollAnchor(UnitPoint(x: 0, y: CGFloat(min(max(0, dayStartHour), 22)) / 22))
+                // The hour of Réglages › Calendrier at the top of the grid, once it is laid out (14/11: an anchor
+                // put that hour at the same fraction of the screen, not at its top).
+                .task(id: dayStartHour) {
+                    try? await Task.sleep(for: .milliseconds(80))
+                    scroll.scrollTo(min(max(0, dayStartHour), 23), anchor: .top)
+                }
             }
         }
     }
@@ -330,32 +333,6 @@ struct NowLine: View {
         .frame(height: 8)
         .offset(x: -4)
         .allowsHitTesting(false)
-    }
-}
-
-/// The accounts, each in its color, to read the week; a click opens Réglages › Calendrier, where they are
-/// managed (Paul, 14/11).
-struct AccountLegend: View {
-    @ObservedObject var agenda: AgendaLibrary
-    @ObservedObject var router: WindowRouter
-
-    var body: some View {
-        HStack(spacing: 14) {
-            ForEach(agenda.accounts) { account in
-                HStack(spacing: 6) {
-                    ColorDot(agenda.color(for: account.email), size: 10)
-                    Text(AccountStyle.label(for: account.email)).font(.callout)
-                    if account.lastError != nil { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange).font(.caption) }
-                }
-                .help(account.email)
-            }
-            Button { router.openSettings(.calendar) } label: { Image(systemName: "slider.horizontal.3") }
-                .buttonStyle(.borderless)
-                .help("Réglages du Calendrier : comptes, couleurs, nouveaux rendez-vous")
-            Spacer()
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 10)
     }
 }
 

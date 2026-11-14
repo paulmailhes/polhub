@@ -20,6 +20,8 @@ GitHub, et l'app la montre dans Réglages › Mises à jour.
   maintenant visible et réglable).
 - Un seul déclencheur d'enregistrement, la détection des onglets de Dia : les notifications ne font
   qu'ouvrir le Meet, rien ne peut lancer deux enregistrements.
+- **Calendrier** : la légende des comptes disparaît du haut de la grille (ils se règlent dans Réglages ›
+  Calendrier) ; la grille s'ouvre bien à l'heure choisie dans les réglages.
 
 ## 0.10.2 — 14 novembre 2026
 
