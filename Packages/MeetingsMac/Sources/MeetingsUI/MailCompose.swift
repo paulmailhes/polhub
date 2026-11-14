@@ -50,7 +50,7 @@ struct RecipientField: View {
                         let known = isKnown(address.email)
                         HStack(spacing: 3) {
                             if !known, valid { Image(systemName: "questionmark.circle").font(.caption) }
-                            // A stranger's name never hides its address: « baptiste@client.fr » could be anyone's.
+                            // A stranger's name never hides its address: « camille@client.exemple » could be anyone's.
                             Text(known ? (address.name ?? address.email) : [address.name, address.email].compactMap { $0 }.joined(separator: " · "))
                                 .lineLimit(1)
                             Button { addresses.removeAll { $0.email == address.email } } label: { Image(systemName: "xmark").font(.caption2.bold()) }
