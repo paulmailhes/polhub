@@ -38,6 +38,13 @@ public enum EventCopies {
                 shown.projectOrigin = filed.projectOrigin
             }
             if shown.meetingID == nil { shown.meetingID = copies.compactMap(\.meetingID).first }
+            // Paul's answer on any of his addresses counts: accepted on one, declined on the other is accepted
+            // (review of 14/11).
+            let answers = copies.compactMap { $0.attendees.first(where: \.isSelf)?.response }
+            if let best = ["accepted", "tentative"].first(where: answers.contains), let index = shown.attendees.firstIndex(where: \.isSelf),
+               shown.attendees[index].response != best, shown.attendees[index].response != "accepted" {
+                shown.attendees[index].response = best
+            }
             return shown
         }
     }

@@ -283,7 +283,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     /// Réglages › Notifications (14/11). The development version notifies nothing: no double with the installed one.
     private func startNotifications(agenda: AgendaLibrary) {
         guard !isDevelopment else { return }
-        startup = StartupControl(read: { RelaunchAgent.isEnabled }, write: { $0 ? RelaunchAgent.enable() : RelaunchAgent.disable() })
+        startup = StartupControl(read: { RelaunchAgent.isEnabled }, write: { $0 ? RelaunchAgent.enable() : RelaunchAgent.disable() },
+                                 busy: { [weak self] in
+                                     switch self?.model.status {
+                                     case .prompting?, .recording?, .presumedEnded?: true
+                                     default: false
+                                     }
+                                 },
+                                 handsOver: LaunchContext.current == .user)
         let hub = NotificationHub(agenda: agenda)
         notifications = hub
         agenda.notifications = hub
@@ -296,12 +303,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         notificationTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
-                let recording: Bool
+                let recording: Bool, paused: Bool
                 switch self.model.status {
-                case .prompting, .recording, .presumedEnded: recording = true
-                case .idle, .paused: recording = false
+                case .prompting, .recording, .presumedEnded: (recording, paused) = (true, false)
+                case .idle: (recording, paused) = (false, false)
+                case .paused: (recording, paused) = (false, true)
                 }
-                Task { await hub.tick(recording: recording) }
+                // Detection off (the development version, a pause): nothing is « non enregistrée ».
+                Task { await hub.tick(recording: recording, paused: paused || !self.model.detectionOn) }
             }
         }
     }
@@ -321,10 +330,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let meet = info[NoticeKey.meet] as? String, account = info[NoticeKey.account] as? String
         let event = info[NoticeKey.event] as? String, meeting = (info[NoticeKey.meeting] as? String).flatMap(UUID.init(uuidString:))
         let action = response.actionIdentifier
+        let kind = (info[NoticeKey.kind] as? String).flatMap(PlannedNotice.Kind.init(rawValue:))
+        // A click joins only a reminder or a meeting not recorded; a new event, days ahead, opens its card (review
+        // of 14/11). « Rejoindre » always joins.
+        let join = action == NoticeKey.joinAction
+            || (action == UNNotificationDefaultActionIdentifier && (kind == .reminder || kind == .unrecorded))
         completionHandler()
         Task { @MainActor in
-            self.open(meet: meet, account: account, event: event, meeting: meeting,
-                      join: action == NoticeKey.joinAction || action == UNNotificationDefaultActionIdentifier)
+            self.open(meet: meet, account: account, event: event, meeting: meeting, join: join)
         }
     }
 
@@ -336,6 +349,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             showMainWindow()
         } else if let event {
             router.openEvent(event)
+            showMainWindow()
+        } else {
+            // « Nouveaux rendez-vous » (several at once): the Calendrier.
+            router.section = .calendar
             showMainWindow()
         }
     }

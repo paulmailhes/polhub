@@ -141,18 +141,29 @@ struct GeneralSettingsPane: View {
 struct StartupToggle: View {
     @ObservedObject var startup: StartupControl
     @State private var confirmingOff = false
+    @State private var confirmingOn = false
 
     var body: some View {
+        // The dialogs hang on the switch itself (review of 14/11: on an EmptyView in a Form they never showed).
         Toggle("Ouvrir Polhub à l'ouverture de session", isOn: Binding(get: { startup.isOn }, set: { on in
-            if on { startup.set(true) } else { confirmingOff = true }
-        }))
-        if let message = startup.message { Text(message).font(.caption).foregroundStyle(.orange) }
-        EmptyView()
-            .confirmationDialog("Ne plus ouvrir Polhub à l'ouverture de session ?", isPresented: $confirmingOff) {
-                Button("Ne plus l'ouvrir", role: .destructive) { startup.set(false) }
-            } message: {
-                Text("Polhub se ferme aussitôt et ne se relance plus seul après un arrêt : les réunions ne s'enregistrent que s'il est ouvert. Tu le rouvres depuis Applications.")
+            guard startup.canChange() else { return }
+            if on {
+                if startup.handsOver { confirmingOn = true } else { startup.set(true) }
+            } else {
+                confirmingOff = true
             }
+        }))
+        .confirmationDialog("Ne plus ouvrir Polhub à l'ouverture de session ?", isPresented: $confirmingOff) {
+            Button("Ne plus l'ouvrir", role: .destructive) { startup.set(false) }
+        } message: {
+            Text("Polhub se ferme aussitôt et ne se relance plus seul après un arrêt : les réunions ne s'enregistrent que s'il est ouvert. Tu le rouvres depuis Applications.")
+        }
+        .confirmationDialog("Ouvrir Polhub à l'ouverture de session ?", isPresented: $confirmingOn) {
+            Button("Ouvrir à la session") { startup.set(true) }
+        } message: {
+            Text("macOS prend Polhub sous sa garde : cette fenêtre se ferme, rouvre-la par l'icône de la barre des menus.")
+        }
+        if let message = startup.message { Text(message).font(.caption).foregroundStyle(.orange) }
     }
 }
 

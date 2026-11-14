@@ -55,11 +55,11 @@ import Testing
         let calendar = CalendarStore(database)
         try calendar.addAccount(email: "paul@exemple.fr", at: now)
         try calendar.applyGoogle(account: "paul@exemple.fr", changed: [event("a", inMinutes: 60)], cancelled: [], at: now)
-        let before = Set(try calendar.allEvents().map(\.id))
+        let before = Set(try calendar.allEvents().map(\.eventID))
         try calendar.applyGoogle(account: "paul@exemple.fr", changed: [event("b", inMinutes: 90), event("c", inMinutes: 120)], cancelled: [], at: now)
         let center = Center()
         let hub = hub(center)
-        hub.madeFromPolhub(CalendarEventRow.key(account: "paul@exemple.fr", eventID: "c"))
+        hub.madeFromPolhub("c")
         await hub.afterSync(before: before, firstReading: [], now: now)
         #expect(center.delivered.map(\.title) == ["Nouveau rendez-vous"])
         #expect(center.delivered.first?.eventID == CalendarEventRow.key(account: "paul@exemple.fr", eventID: "b"))
@@ -80,6 +80,38 @@ import Testing
         await hub.tick(recording: false, now: now)
         #expect(center.delivered.map(\.title) == ["Réunion non enregistrée"])
         #expect(center.delivered.first?.joinable == true)
+    }
+
+    /// Review of 14/11: a meeting recorded and stopped early, declined at the prompt, or on « jamais pour ce
+    /// lien » is not « non enregistrée »; nor anything while detection is paused.
+    @Test func aMeetingAlreadyHandledIsNeverFlagged() async throws {
+        let calendar = CalendarStore(database), meetings = MeetingStore(database)
+        try calendar.addAccount(email: "paul@exemple.fr", at: now)
+        var recorded = event("enregistree", inMinutes: -20)
+        recorded.meetCode = "aaa-bbbb-ccc"
+        var declined = event("refusee-au-pop-up", inMinutes: -15)
+        declined.meetCode = "ddd-eeee-fff"
+        var never = event("jamais", inMinutes: -10)
+        never.meetCode = "ggg-hhhh-iii"
+        try calendar.applyGoogle(account: "paul@exemple.fr", changed: [recorded, declined, never], cancelled: [], at: now)
+        try meetings.save(MeetingRow(createdAt: now, status: .ended, source: .dia, candidateKey: "t/1", meetCode: "aaa-bbbb-ccc", title: "x",
+                                     startedAt: now.addingTimeInterval(-19 * 60), endedAt: now.addingTimeInterval(-12 * 60)))
+        try meetings.save(MeetingRow(createdAt: now, status: .discarded, source: .dia, candidateKey: "t/2", meetCode: "ddd-eeee-fff", title: "y",
+                                     startedAt: now.addingTimeInterval(-14 * 60), deletedAt: now.addingTimeInterval(-14 * 60)))
+        try meetings.addNeverCode("ggg-hhhh-iii", at: now)
+        let center = Center()
+        let hub = hub(center)
+        await hub.tick(recording: false, now: now)
+        #expect(center.delivered.isEmpty)
+    }
+
+    @Test func nothingIsFlaggedWhileDetectionIsPaused() async throws {
+        let calendar = CalendarStore(database)
+        try calendar.addAccount(email: "paul@exemple.fr", at: now)
+        try calendar.applyGoogle(account: "paul@exemple.fr", changed: [event("en-cours", inMinutes: -8)], cancelled: [], at: now)
+        let center = Center()
+        await hub(center).tick(recording: false, paused: true, now: now)
+        #expect(center.delivered.isEmpty)
     }
 
     @Test func aSummaryReadyIsAnnouncedUnlessTurnedOff() async {

@@ -42,12 +42,29 @@ import Testing
     }
 
     @Test func newEventsAreThoseThatAppearedAfterAPreviousReading() {
-        let before: Set<String> = ["paul@exemple.fr|a"]
+        let before: Set<String> = ["a"]
         let after = [event("a", inMinutes: 60), event("b", inMinutes: 90), event("c", inMinutes: -30), event("d", inMinutes: 120, response: "declined"),
                      event("e", inMinutes: 200, allDay: true), event("f", inMinutes: 300, account: "perso@gmail.com"), event("g", inMinutes: 400)]
-        let found = NotificationPlan.newEvents(before: before, after: after, firstReading: ["perso@gmail.com"], madeHere: ["paul@exemple.fr|g"], now: now)
+        let found = NotificationPlan.newEvents(before: before, after: after, firstReading: ["perso@gmail.com"], madeHere: ["g"],
+                                               windowEnds: [:], now: now)
         #expect(found.map(\.eventID) == ["b"])
         #expect(NotificationPlan.newEventNotice(found[0], now: now).title == "Nouveau rendez-vous")
+    }
+
+    /// Review of 14/11: the reading window slides 60 days ahead; an occurrence of a series that enters it is
+    /// not new; and an event known under another account (its shown copy changed) is not new either.
+    @Test func whatEntersTheSlidingWindowOrChangesAccountIsNotNew() {
+        let windowEnd = now.addingTimeInterval(60 * 86_400)
+        let after = [event("serie_occurrence", inMinutes: 60 * 1_440 + 5), event("vraiment-nouveau", inMinutes: 90),
+                     event("autre-copie", inMinutes: 120, account: "perso@gmail.com")]
+        let found = NotificationPlan.newEvents(before: ["autre-copie"], after: after, firstReading: [], madeHere: [],
+                                               windowEnds: ["paul@exemple.fr": windowEnd, "perso@gmail.com": windowEnd], now: now)
+        #expect(found.map(\.eventID) == ["vraiment-nouveau"])
+    }
+
+    @Test func remindersReachAWeekAheadForAClosedApp() {
+        let plan = NotificationPlan.reminders(for: [event("lundi", inMinutes: 3 * 1_440)], now: now, minutes: [10], meetOnly: false)
+        #expect(plan.count == 1)
     }
 
     @Test func aMeetingNotRecordedFiveMinutesInIsFlaggedOnce() {
@@ -80,7 +97,9 @@ import Testing
         let new = PlannedNotice(id: "rappel|b|1", fireDate: now.addingTimeInterval(60), title: "B", body: "", eventID: "b", meetCode: nil, account: nil)
         await ReminderSync.apply([keep, new], to: center, sound: true)
         #expect(center.removed == ["rappel|ancien|1"])
-        #expect(center.added.map(\.id) == ["rappel|b|1"])
+        // Every planned one is given again: macOS replaces a pending one with the same id, so a Meet added to
+        // an event, a new title or the sound turned off reach the reminders already planned (review of 14/11).
+        #expect(center.added.map(\.id) == ["rappel|a|10", "rappel|b|1"])
         #expect(Set(center.pending) == ["autre-chose", "rappel|a|10", "rappel|b|1"])
     }
 }

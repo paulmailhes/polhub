@@ -82,8 +82,11 @@ public final class AgendaLibrary: ObservableObject {
         defer { syncing = false }
         let store = CalendarStore(database)
         // What the notifications compare with: the events before this reading, the accounts never read yet.
-        let before = Set(((try? store.allEvents()) ?? []).map(\.id))
+        let before = Set(((try? store.allEvents()) ?? []).map(\.eventID))
         let firstReading = Set(accounts.filter { $0.lastSyncAt == nil }.map(\.email))
+        // The end of each account's previous reading window: what lies beyond only entered the sliding window.
+        let windowEnds = Dictionary(accounts.compactMap { account in account.lastSyncAt.map { (account.email, $0.addingTimeInterval(CalendarSync.future)) } },
+                                    uniquingKeysWith: { first, _ in first })
         for account in accounts {
             do {
                 let token = try await session.accessToken(for: account.email)
@@ -93,7 +96,7 @@ public final class AgendaLibrary: ObservableObject {
             }
         }
         await runLinks()
-        await notifications?.afterSync(before: before, firstReading: firstReading)
+        await notifications?.afterSync(before: before, firstReading: firstReading, windowEnds: windowEnds)
     }
 
     // MARK: - Writing (14/11)
@@ -119,7 +122,7 @@ public final class AgendaLibrary: ObservableObject {
             return CalendarWrite.insertRequest(accessToken: token, draft: draft, timeZone: zone, requestID: requestID)
         }, for: account)
         if let row = try CalendarWrite.event(from: data, account: account) {
-            notifications?.madeFromPolhub(row.id)
+            notifications?.madeFromPolhub(row.eventID)
             try CalendarStore(database).applyGoogle(account: account, changed: [row], cancelled: [], at: Date())
         }
         // The copies in Paul's other calendars follow at once (review of 14/11).

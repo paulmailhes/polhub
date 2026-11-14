@@ -42,8 +42,9 @@ public struct PlannedNotice: Equatable, Sendable {
 public enum NotificationPlan {
     /// macOS keeps a limited number of pending notifications per app: the nearest ones only.
     public static let limit = 48
-    /// Reminders are planned this far ahead, and planned again at each reading of the calendars.
-    public static let horizon: TimeInterval = 36 * 3_600
+    /// Reminders are planned this far ahead (a week: they still come when Polhub is closed for a weekend), and
+    /// planned again at each reading of the calendars; `limit` keeps under macOS's cap (review of 14/11).
+    public static let horizon: TimeInterval = 7 * 86_400
     /// A meeting with a Meet still not recorded after this long is flagged.
     public static let unrecordedDelay: TimeInterval = 5 * 60
     static let reminderPrefix = "rappel|"
@@ -66,13 +67,15 @@ public enum NotificationPlan {
         return Array(notices.sorted { ($0.fireDate, $0.id) < ($1.fireDate, $1.id) }.prefix(limit))
     }
 
-    /// The coming events that appeared since the previous reading: never at an account's first reading (no flood
-    /// when an account is connected), nor those Paul made from Polhub, declined ones, whole days.
+    /// The coming events that appeared since the previous reading, by Google's id (a copy shown under another
+    /// account is not new): never at an account's first reading (no flood when an account is connected), nor those
+    /// Paul made from Polhub, declined ones, whole days. The reading window slides ahead: an event beyond the end
+    /// of the previous window (`windowEnds`, per account) only entered it, it is not new (review of 14/11).
     public static func newEvents(before: Set<String>, after: [CalendarEventRow], firstReading: Set<String>, madeHere: Set<String>,
-                                 now: Date) -> [CalendarEventRow] {
+                                 windowEnds: [String: Date], now: Date) -> [CalendarEventRow] {
         after.filter { event in
-            !before.contains(event.id) && !firstReading.contains(event.account) && !madeHere.contains(event.id) && attends(event)
-                && event.startAt > now
+            !before.contains(event.eventID) && !firstReading.contains(event.account) && !madeHere.contains(event.eventID) && attends(event)
+                && event.startAt > now && windowEnds[event.account].map { event.startAt < $0 } ?? true
         }
         .sorted { $0.startAt < $1.startAt }
     }
@@ -125,8 +128,9 @@ public enum ReminderSync {
         let wanted = Set(plan.map(\.id))
         let stale = pending.filter { $0.hasPrefix(NotificationPlan.reminderPrefix) && !wanted.contains($0) }
         if !stale.isEmpty { await center.removePending(stale) }
-        let present = Set(pending)
-        for notice in plan where !present.contains(notice.id) {
+        // Every planned one is given again: macOS replaces a pending request with the same id, so a Meet added, a
+        // new title or the sound turned off reach the reminders already planned (review of 14/11).
+        for notice in plan {
             await center.schedule(notice, sound: sound)
         }
     }

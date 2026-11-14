@@ -53,6 +53,17 @@ import Testing
         #expect(shown?.projectID == project && shown?.projectOrigin == .paul && shown?.meetingID == meeting)
     }
 
+    /// Review of 14/11: accepted on one address and declined on the other, the meeting counts as accepted.
+    @Test func paulsAnswerOnAnyCopyCounts() {
+        var personal = copy("moi@gmail.com", organizer: "ami@gmail.com")
+        personal.attendees = [Attendee(email: "moi@gmail.com", response: "declined", isSelf: true)]
+        var work = copy("paul@exemple.fr", organizer: "ami@gmail.com")
+        work.attendees = [Attendee(email: "paul@exemple.fr", response: "accepted", isSelf: true)]
+        let shown = EventCopies.merge([personal, work], accounts: accounts).first
+        #expect(shown?.account == "moi@gmail.com")
+        #expect(shown?.attendees.first(where: \.isSelf)?.response == "accepted")
+    }
+
     @Test func theJoinLinkNamesTheAccount() {
         #expect(MeetJoin.url(code: "abc-defg-hij", account: "paul+agenda@exemple.fr").absoluteString
                 == "https://meet.google.com/abc-defg-hij?authuser=paul%2Bagenda@exemple.fr")

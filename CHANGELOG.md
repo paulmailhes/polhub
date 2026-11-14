@@ -7,17 +7,19 @@ GitHub, et l'app la montre dans Réglages › Mises à jour.
 
 - **Notifications**, réglables dans Réglages › Notifications :
   - **Rappels avant un rendez-vous** : 10 min et 1 min avant par défaut (30, 15, 10, 5 ou 1 min au choix),
-    éventuellement seulement pour ceux avec une visio. Ils sont confiés à macOS : ils arrivent même si
-    Polhub est fermé. Un clic, ou « Rejoindre », ouvre le Meet avec le bon compte dans Dia, où la réunion
-    s'enregistre.
-  - **Nouveau rendez-vous** dans tes agendas (pas ceux que tu crées depuis Polhub, pas à la connexion
-    d'un compte).
+    éventuellement seulement pour ceux avec une visio. Ils sont confiés à macOS une semaine à l'avance : ils
+    arrivent même si Polhub est fermé. Un clic, ou « Rejoindre », ouvre le Meet avec le bon compte dans Dia,
+    où la réunion s'enregistre. Un changement (lien Meet ajouté, titre, son) suit dans les rappels prévus.
+  - **Nouveau rendez-vous** dans tes agendas : pas ceux que tu crées depuis Polhub, pas à la connexion
+    d'un compte, pas les occurrences d'une série qui entrent dans les 60 jours lus. Un clic ouvre sa fiche ;
+    « Rejoindre » rejoint.
   - **Réunion commencée sans enregistrement** : cinq minutes après le début d'un rendez-vous avec Meet, si
-    rien n'enregistre, une alerte pour le rejoindre.
+    rien n'enregistre, une alerte pour le rejoindre ; jamais pour une réunion déjà enregistrée, refusée au
+    pop-up ou marquée « jamais », ni pendant une pause de la détection.
   - **Compte rendu prêt** ; un clic ouvre la réunion.
   - Le son, et un bouton pour envoyer un essai.
 - **Réglages › Général** : « Ouvrir Polhub à l'ouverture de session » (c'était déjà le cas ; c'est
-  maintenant visible et réglable).
+  maintenant visible et réglable, jamais pendant une réunion).
 - Un seul déclencheur d'enregistrement, la détection des onglets de Dia : les notifications ne font
   qu'ouvrir le Meet, rien ne peut lancer deux enregistrements.
 - **Calendrier** : la légende des comptes disparaît du haut de la grille (ils se règlent dans Réglages ›

@@ -115,6 +115,15 @@ public struct MeetingStore: Sendable {
         try writer.read { try JournalEntry.order(Column("createdAt").desc).limit(limit).fetchAll($0) }
     }
 
+    /// A meeting of that Meet code started in that span, whatever became of it (ended, declined at the prompt,
+    /// in the Trash): the notifications' « non enregistrée » is then wrong (14/11).
+    public func anyMeeting(code: String, from: Date, to: Date) throws -> Bool {
+        try writer.read { db in
+            try Bool.fetchOne(db, sql: "SELECT EXISTS (SELECT 1 FROM meeting WHERE meetCode = ? AND startedAt >= ? AND startedAt <= ?)",
+                              arguments: [code, from, to]) ?? false
+        }
+    }
+
     public func neverCodes() throws -> Set<String> {
         try writer.read { try String.fetchSet($0, sql: "SELECT code FROM never_link") }
     }
