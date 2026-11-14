@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var projects: ProjectLibrary?
     /// Calendars, contacts and the loop of 13/11.
     private var agenda: AgendaLibrary?
+    private var mails: MailLibrary?
     private var agendaTimer: Timer?
     /// The notifications (14/11): reminders, new events, meetings not recorded, summaries ready.
     private var notifications: NotificationHub?
@@ -270,6 +271,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let projects = projects
         let agenda = AgendaLibrary(database: database, vaultPath: { projects?.vaultPath })
         self.agenda = agenda
+        // The mails (14/11): the mailboxes that granted them are followed from the launch, window open or not.
+        let mails = MailLibrary(agenda: agenda, root: paths.root)
+        self.mails = mails
+        mails.start()
         router.section = .home
         agendaTimer = Timer.scheduledTimer(withTimeInterval: 600, repeats: true) { _ in
             Task { @MainActor in await agenda.syncAll() }
@@ -458,7 +463,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         }
         if mainWindow == nil {
             let diagnostic = diagnostic
-            let view = MainWindowView(library: library, projects: projects, agenda: agenda, updates: updates, notifications: notifications,
+            let view = MainWindowView(library: library, projects: projects, agenda: agenda, mails: mails, updates: updates, notifications: notifications,
                                       startup: startup, router: router, paths: paths) {
                 if let diagnostic {
                     DiagnosticView(model: diagnostic) { [weak self] in self?.showProbeWindow() }

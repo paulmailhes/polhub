@@ -30,9 +30,9 @@
   <p>Polhub ne crée, ne modifie et ne supprime un rendez-vous que lorsque l'utilisateur le fait lui-même dans
   l'application ; Google envoie alors les invitations comme d'habitude. De même, il n'archive et ne met un message
   à la corbeille que sur un geste de l'utilisateur. Polhub ne touche à rien d'autre dans le compte Google.</p>
-  <p>La lecture des messages dans Polhub n'est pas encore publiée. D'ici là, sur les boîtes autorisées, Polhub ne
-  fait que compter (combien de messages, quelles tailles, quels formats) pour préparer cette fonction, et peut,
-  à la demande de l'utilisateur, mettre à la corbeille puis rétablir un message d'essai qu'il s'est envoyé.</p>
+  <p>Sur les boîtes autorisées, Polhub lit les messages pour les afficher, et en garde une copie sur le Mac. Cette
+  copie suit Gmail : ce qui disparaît là-bas disparaît ici. L'écriture et l'envoi de messages ne sont pas encore
+  publiés : une réponse s'écrit dans Gmail.</p>
 
   <h2>Usage</h2>
   <p>Ces données servent uniquement à des fonctions visibles par l'utilisateur dans l'application : afficher ses
@@ -44,13 +44,17 @@
   <h2>Stockage</h2>
   <ul>
     <li>Les rendez-vous et les contacts sont enregistrés dans la base de données locale de l'application, sur le
-    Mac de l'utilisateur. Aucun message n'y est encore enregistré : les mesures ne gardent que des nombres, dans
-    un rapport local, sans objet, sans texte et sans adresse de correspondant.</li>
+    Mac de l'utilisateur. Les messages des boîtes autorisées y sont copiés aussi ; leur contenu et les pièces
+    jointes que l'utilisateur ouvre sont rangés en fichiers à côté de cette base, sur le même Mac.</li>
     <li>Le jeton d'accès au compte Google est conservé dans le Trousseau de macOS. Il n'est jamais écrit ailleurs.</li>
     <li>Rien n'est envoyé à un serveur de l'éditeur ni à un tiers. Les seules connexions réseau vont aux services de
     Google, pour lire les agendas et les boîtes autorisées et y écrire ce que l'utilisateur fait lui-même, et à
     GitHub, pour vérifier
     qu'une nouvelle version de l'application existe (sans aucune donnée de l'utilisateur).</li>
+    <li>Une seule exception : afficher les images distantes d'un message contacte le serveur de son expéditeur, qui
+    voit alors l'adresse IP du Mac et l'heure d'ouverture. Polhub ne les charge que pour les expéditeurs que
+    l'utilisateur connaît (ses contacts, les personnes à qui il a écrit) quand Gmail confirme l'origine du message,
+    ou quand l'utilisateur le demande. Un clic sur un lien d'un message ouvre le navigateur de l'utilisateur.</li>
   </ul>
 
   <h2>Assistants branchés par l'utilisateur</h2>
@@ -69,7 +73,8 @@
 
   <h2>Contrôle et suppression</h2>
   <ul>
-    <li>Dans Polhub, « Déconnecter ce compte » retire le jeton du Trousseau et efface les rendez-vous de ce compte.</li>
+    <li>Dans Polhub, « Déconnecter ce compte » retire le jeton du Trousseau et efface les rendez-vous et les
+    messages de ce compte.</li>
     <li>L'accès peut aussi être révoqué à tout moment depuis la page
     <a href="https://myaccount.google.com/permissions">Applications tierces</a> du compte Google.</li>
     <li>Supprimer l'application et son dossier de données efface tout le reste.</li>

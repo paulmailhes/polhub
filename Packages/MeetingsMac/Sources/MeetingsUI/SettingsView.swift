@@ -12,13 +12,14 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
     let updates: UpdateService?
     let projects: ProjectLibrary?
     let agenda: AgendaLibrary?
+    let hasMails: Bool
     @ObservedObject var library: MeetingLibrary
     let notifications: NotificationHub?
     let startup: StartupControl?
     let diagnostic: Diagnostic
     let journal: Journal
 
-    init(router: WindowRouter, updates: UpdateService?, projects: ProjectLibrary?, agenda: AgendaLibrary? = nil, library: MeetingLibrary,
+    init(router: WindowRouter, updates: UpdateService?, projects: ProjectLibrary?, agenda: AgendaLibrary? = nil, hasMails: Bool = false, library: MeetingLibrary,
          notifications: NotificationHub? = nil, startup: StartupControl? = nil,
          @ViewBuilder diagnostic: () -> Diagnostic, @ViewBuilder journal: () -> Journal) {
         self.notifications = notifications
@@ -27,6 +28,7 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
         self.updates = updates
         self.projects = projects
         self.agenda = agenda
+        self.hasMails = hasMails
         self.library = library
         self.diagnostic = diagnostic()
         self.journal = journal()
@@ -52,7 +54,7 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
 
     private var families: some View {
         Form {
-            ForEach(Array(SettingsPane.families(hasAgenda: agenda != nil, hasProjects: projects != nil).enumerated()), id: \.offset) { _, group in
+            ForEach(Array(SettingsPane.families(hasAgenda: agenda != nil, hasProjects: projects != nil, hasMails: hasMails).enumerated()), id: \.offset) { _, group in
                 Section {
                     ForEach(group, id: \.self) { pane in
                         Button { router.settingsPane = pane } label: { SettingsRow(pane: pane) }
@@ -77,6 +79,8 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
             if let agenda { AccountsSettingsPane(agenda: agenda) }
         case .calendar:
             if let agenda { CalendarSettingsPane(agenda: agenda) }
+        case .mails:
+            MailSettingsPane()
         case .projects:
             ProjectsSettingsPane()
         case .meetings:

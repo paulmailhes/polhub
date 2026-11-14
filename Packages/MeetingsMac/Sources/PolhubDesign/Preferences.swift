@@ -67,6 +67,9 @@ public struct Preferences: @unchecked Sendable {
         public static let unrecorded = "notifications.nonEnregistree"
         public static let summaryReady = "notifications.compteRendu"
         public static let sound = "notifications.son"
+        /// Réglages › Mails (14/11): when remote images load; the mailboxes hidden from the list.
+        public static let mailImages = "mails.images"
+        public static let mailHiddenAccounts = "mails.boitesMasquees"
     }
 
     public enum Default {

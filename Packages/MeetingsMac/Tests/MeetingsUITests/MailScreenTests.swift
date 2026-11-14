@@ -1,0 +1,227 @@
+import AppKit
+import Domain
+import Foundation
+import Mail
+import Network
+import Persistence
+import SwiftUI
+import Testing
+import WebKit
+@testable import MeetingsUI
+
+/// A local server that answers any request with a tiny image and remembers the paths asked.
+final class CountingServer: @unchecked Sendable {
+    final class Log: @unchecked Sendable {
+        private let lock = NSLock()
+        private var asked: [String] = []
+        func add(_ path: String) { lock.withLock { asked.append(path) } }
+        var all: [String] { lock.withLock { asked } }
+    }
+
+    private let log = Log()
+    private let listener: NWListener
+    let port: UInt16
+
+    var paths: [String] { log.all }
+
+    init() async throws {
+        let parameters = NWParameters.tcp
+        parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: .any)
+        let listener = try NWListener(using: parameters)
+        self.listener = listener
+        final class Box: @unchecked Sendable { var resumed = false }
+        let box = Box()
+        port = try await withCheckedThrowingContinuation { continuation in
+            listener.stateUpdateHandler = { state in
+                guard !box.resumed else { return }
+                switch state {
+                case .ready: box.resumed = true; continuation.resume(returning: listener.port?.rawValue ?? 0)
+                case .failed(let error): box.resumed = true; continuation.resume(throwing: error)
+                default: break
+                }
+            }
+            listener.newConnectionHandler = { _ in }
+            listener.start(queue: .global())
+        }
+        listener.newConnectionHandler = { [log] connection in
+            connection.start(queue: .global())
+            connection.receive(minimumIncompleteLength: 1, maximumLength: 16_384) { data, _, _, _ in
+                let line = String(decoding: data ?? Data(), as: UTF8.self).components(separatedBy: "\r\n").first ?? ""
+                let path = line.split(separator: " ").dropFirst().first.map(String.init) ?? "?"
+                log.add(path)
+                let gif = Data(base64Encoded: "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")!
+                var response = Data("HTTP/1.1 200 OK\r\nContent-Type: image/gif\r\nContent-Length: \(gif.count)\r\nConnection: close\r\n\r\n".utf8)
+                response.append(gif)
+                connection.send(content: response, completion: .contentProcessed { _ in connection.cancel() })
+            }
+        }
+    }
+
+    func stop() { listener.cancel() }
+}
+
+/// 14/11, step « Lire »: a mail shows as its sender wrote it, and loads nothing Paul did not allow.
+@MainActor @Suite struct MailBodyTests {
+    final class Heights: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value: CGFloat = 0
+        func set(_ height: CGFloat) { lock.withLock { value = height } }
+        var last: CGFloat { lock.withLock { value } }
+    }
+
+    struct Host: View {
+        let document: String
+        let images: Bool
+        let heights: Heights
+        @State private var height: CGFloat = 10
+
+        var body: some View {
+            MailBodyView(document: document, images: images, inline: { _ in nil }, onLink: { _ in }, height: $height)
+                .frame(width: 600, height: max(height, 10))
+                .onChange(of: height) { _, new in heights.set(new) }
+        }
+    }
+
+    /// Shows the page in a window that never comes on screen, and waits for it to settle.
+    func render(_ body: String, images: Bool, heights: Heights = Heights()) async throws {
+        let document = MailHTML.document(body: body, isHTML: true, images: images, collapseQuote: false)
+        let window = NSWindow(contentViewController: NSHostingController(rootView: Host(document: document, images: images, heights: heights)))
+        window.isReleasedWhenClosed = false
+        window.setContentSize(NSSize(width: 600, height: 400))
+        window.layoutIfNeeded()
+        try await Task.sleep(for: .milliseconds(2_500))
+        window.close()
+    }
+
+    /// Scripts, frames, forms, style sheets, a refresh, fonts, a video: a hostile mail gets nothing out. With the
+    /// images allowed, only its images load.
+    @Test func aHostileMailLoadsNothingButItsImagesWhenAllowed() async throws {
+        let server = try await CountingServer()
+        defer { server.stop() }
+        let base = "http://127.0.0.1:\(server.port)"
+        let hostile = """
+        <html><head><script src="\(base)/script.js"></script><link rel="stylesheet" href="\(base)/style.css">
+        <meta http-equiv="refresh" content="0;url=\(base)/refresh"><link rel="dns-prefetch" href="\(base)/prefetch">
+        <style>@font-face{font-family:x;src:url(\(base)/police.woff)} @import url(\(base)/import.css); p{font-family:x}</style></head>
+        <body background="\(base)/fond.gif" onload="fetch('\(base)/onload')"><p>Bonjour</p><img src="\(base)/pixel.gif" width="1" height="1">
+        <iframe src="\(base)/cadre.html"></iframe><form action="\(base)/formulaire" method="post"><input name="a"><input type="submit"></form>
+        <div style="background:url(\(base)/css-fond.gif)">x</div><video src="\(base)/video.mp4" autoplay></video>
+        <object data="\(base)/objet"></object><embed src="\(base)/embed"><script>new Image().src='\(base)/js-image'</script></body></html>
+        """
+        let heights = Heights()
+        try await render(hostile, images: false, heights: heights)
+        #expect(server.paths == [])
+        // The app's own script ran all the same: it measured the page.
+        #expect(heights.last > 10)
+        try await render(hostile, images: true)
+        let asked = Set(server.paths)
+        #expect(asked.contains("/pixel.gif"))
+        #expect(asked.isSubset(of: ["/pixel.gif", "/fond.gif", "/css-fond.gif"]))
+    }
+
+    /// A measure for macOS's Lockdown Mode on the mail view: which image formats still show. Read its output.
+    @Test func whatLockdownModeDoesToImages() async throws {
+        let png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+        let webp = "UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA"
+        let gif = "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+        let html = #"<img id="png" src="data:image/png;base64,\#(png)"><img id="webp" src="data:image/webp;base64,\#(webp)"><img id="gif" src="data:image/gif;base64,\#(gif)">"#
+        for lockdown in [false, true] {
+            let configuration = WKWebViewConfiguration()
+            let preferences = WKWebpagePreferences()
+            preferences.allowsContentJavaScript = false
+            preferences.isLockdownModeEnabled = lockdown
+            configuration.defaultWebpagePreferences = preferences
+            let view = WKWebView(frame: NSRect(x: 0, y: 0, width: 300, height: 200), configuration: configuration)
+            view.loadHTMLString(MailHTML.document(body: html, isHTML: true, images: false, collapseQuote: false), baseURL: nil)
+            try await Task.sleep(for: .milliseconds(1_500))
+            let widths = try await view.callAsyncJavaScript(
+                "return ['png','webp','gif'].map(function (id) { return id + '=' + document.getElementById(id).naturalWidth; }).join(' ')",
+                arguments: [:], in: nil, contentWorld: .defaultClient) as? String ?? "?"
+            print("MESURE mode Isolement \(lockdown ? "actif" : "inactif") : \(widths)")
+            #expect(widths.contains("png=1") && widths.contains("gif=1"))
+        }
+    }
+}
+
+/// The mail screens with made-up mails (14/11): `POLHUB_LIVE=1 POLHUB_SNAPSHOTS=<dossier> swift test --filter MailScreenTests`.
+@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"] != nil))
+struct MailScreenTests {
+    @Test func theMailScreens() async throws {
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let root = FileManager.default.temporaryDirectory.appending(path: "mails \(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let database = try AppDatabase.inMemory()
+        let calendar = CalendarStore(database)
+        let both = "openid https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.modify"
+        for (index, email) in ["moi@exemple.fr", "perso@gmail.com", "paul@atelier-nord.fr"].enumerated() {
+            try calendar.addAccount(email: email, at: Date().addingTimeInterval(Double(index)))
+            try calendar.setGrantedScopes(email: email, scopes: both)
+        }
+        let store = MailStore(database), files = MailFiles(root: root)
+        func mail(_ id: String, _ account: String, thread: String, from: MailAddress, subject: String, snippet: String, hours: Double,
+                  labels: [String], html: String, files attached: [MailAttachment] = []) throws -> MailMessageRow {
+            let row = MailMessageRow(account: account, messageID: id, threadID: thread, date: Date().addingTimeInterval(-hours * 3_600), sender: from,
+                                     to: [MailAddress(email: account)], subject: subject, snippet: snippet, labels: labels, authenticated: true,
+                                     hasBody: true, bodyIsHTML: true, attachments: attached)
+            let url = files.body(of: row)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(html.utf8).write(to: url)
+            return row
+        }
+        let camille = MailAddress(name: "Camille Martin", email: "camille.martin@exemple-studio.fr")
+        let jules = MailAddress(name: "Jules Durand", email: "jules@atelier-nord.fr")
+        let pdf = MailAttachment(partID: "2", filename: "maquette-v2.pdf", mimeType: "application/pdf", size: 1_240_000, attachmentID: "a", contentID: nil, inline: false)
+        let letter = """
+        <table width="600" align="center" style="font-family:Georgia,serif;border:1px solid #eee"><tr><td style="background:#1f2a44;color:#fff;padding:24px;font-size:22px">La Lettre du design</td></tr>
+        <tr><td style="padding:24px"><img src="https://images.exemple.fr/une.jpg" width="552" height="120" alt=""><h2>Cinq tendances pour le printemps</h2>
+        <p>Des grilles plus libres, des couleurs franches, et le retour des empattements.</p>
+        <p><a href="https://pirate.exemple/suivi">www.lettre-du-design.exemple</a></p></td></tr></table>
+        """
+        try store.apply(account: "moi@exemple.fr", upserts: [
+            try mail("a1", "moi@exemple.fr", thread: "a", from: camille, subject: "Maquette v2 du site", snippet: "Bonjour, voici la deuxième version de la maquette.",
+                     hours: 30, labels: ["CATEGORY_PERSONAL"], html: "<p>Bonjour,</p><p>Voici la <b>deuxième version</b> de la maquette. Le pied de page a changé.</p><p>Camille</p>", files: [pdf]),
+            try mail("a2", "moi@exemple.fr", thread: "a", from: MailAddress(name: "Moi", email: "moi@exemple.fr"), subject: "Re: Maquette v2 du site",
+                     snippet: "Merci, je regarde ça demain matin.", hours: 26, labels: ["SENT"], html: "<p>Merci, je regarde ça demain matin.</p>"),
+            try mail("a3", "moi@exemple.fr", thread: "a", from: camille, subject: "Re: Maquette v2 du site", snippet: "Parfait. J'ai aussi corrigé la page contact.",
+                     hours: 1, labels: ["INBOX", "UNREAD", "CATEGORY_PERSONAL"],
+                     html: #"<div>Parfait. J'ai aussi corrigé la page contact, dis-moi si le formulaire te convient.</div><div class="gmail_quote"><blockquote>Merci, je regarde ça demain matin.</blockquote></div>"#),
+            try mail("b1", "moi@exemple.fr", thread: "b", from: MailAddress(name: "La Lettre du design", email: "lettre@lettre-du-design.exemple"),
+                     subject: "Cinq tendances pour le printemps", snippet: "Des grilles plus libres, des couleurs franches…", hours: 5,
+                     labels: ["INBOX", "UNREAD", "CATEGORY_PROMOTIONS"], html: letter),
+        ])
+        try store.apply(account: "perso@gmail.com", upserts: [
+            try mail("c1", "perso@gmail.com", thread: "c", from: MailAddress(name: "Paiements Exemple", email: "recus@paiements.exemple"),
+                     subject: "Votre reçu n° 1042", snippet: "Merci pour votre paiement de 24,00 €.", hours: 3, labels: ["INBOX", "CATEGORY_UPDATES"],
+                     html: "<p>Merci pour votre paiement de <b>24,00 €</b>.</p>"),
+            try mail("d1", "perso@gmail.com", thread: "d", from: MailAddress(name: "Nina Roche", email: "nina.roche@exemple.fr"),
+                     subject: "Photos du week-end", snippet: "Je t'envoie les photos de dimanche, elles sont superbes.", hours: 20,
+                     labels: ["INBOX", "CATEGORY_PERSONAL"], html: "<p>Je t'envoie les photos de dimanche, elles sont superbes.</p>"),
+        ])
+        try store.apply(account: "paul@atelier-nord.fr", upserts: [
+            try mail("e1", "paul@atelier-nord.fr", thread: "e", from: jules, subject: "Planning de mars", snippet: "Voici le planning mis à jour pour mars.",
+                     hours: 50, labels: ["INBOX", "CATEGORY_PERSONAL"], html: "<p>Voici le planning mis à jour pour mars.</p>"),
+            try mail("f1", "paul@atelier-nord.fr", thread: "f", from: jules, subject: "Devis signé", snippet: "Le client a signé, on peut lancer.",
+                     hours: 8, labels: ["INBOX", "UNREAD", "CATEGORY_PERSONAL"], html: "<p>Le client a signé, on peut lancer.</p>"),
+        ])
+        let agenda = AgendaLibrary(database: database)
+        let mails = MailLibrary(agenda: agenda, root: root, defaults: UserDefaults(suiteName: "mails-\(UUID().uuidString)")!)
+        let library = MeetingLibrary(store: MeetingStore(database))
+        let router = WindowRouter()
+        router.section = .mails
+        try await Task.sleep(for: .milliseconds(500))
+        func capture(_ name: String) async throws {
+            try await LiveWindow.capture(MainWindowView(library: library, agenda: agenda, mails: mails, router: router,
+                                                        paths: AppPaths(root: root, logs: root)) { EmptyView() },
+                                         to: output.appending(path: "\(name).png"), size: NSSize(width: 1_180, height: 780))
+        }
+        try await capture("mails-principale")
+        mails.tab = .automatiques
+        try await capture("mails-automatiques")
+        mails.tab = .principale
+        router.mailSelection = MailThreadRow.key(account: "moi@exemple.fr", threadID: "a")
+        try await capture("mails-fil")
+        router.mailSelection = MailThreadRow.key(account: "moi@exemple.fr", threadID: "b")
+        try await capture("mails-lettre")
+    }
+}

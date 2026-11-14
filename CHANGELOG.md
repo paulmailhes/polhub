@@ -3,6 +3,38 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.12.0 — 14 novembre 2026
+
+**Mails : lire.** Tes trois boîtes Gmail dans Polhub.
+
+- **La section « Mails »**, entre Calendrier et Contacts : une seule liste pour tes boîtes, chaque ligne avec la
+  pastille de couleur de sa boîte. Les pastilles en haut à droite affichent ou masquent une boîte. Le nombre à
+  côté de « Mails » compte les fils non lus de l'onglet Principale.
+- **Deux onglets** : « Principale » (les personnes) et « Automatiques » (ce que Gmail classe en notifications,
+  promotions et réseaux sociaux). Clic droit › « Déplacer vers Principale » : Polhub le retient pour cet
+  expéditeur.
+- **Un clic ouvre le fil à la place de la liste.** Le mail s'affiche en HTML comme son expéditeur l'a écrit, à sa
+  largeur, sur fond blanc ; les messages lus sont repliés, le texte cité est derrière « ••• ».
+- **Archiver, supprimer, lu et non lu** : l'écran change tout de suite, Gmail suit en quelques secondes.
+  « Annuler » reste quelques secondes (ou ⌘Z). Supprimer met à la corbeille de Gmail. Un geste ne touche que les
+  messages que tu voyais : une réponse arrivée entre-temps reste en boîte de réception.
+- **Recherche** : ton texte part à Gmail tel quel, avec ses opérateurs (`from:`, `has:attachment`…).
+- **Pièces jointes** : aperçu pour les images, PDF et documents ; le reste s'enregistre seulement. macOS les
+  marque comme venant d'un mail.
+- **Images distantes** : affichées seules pour les expéditeurs que tu connais (tes contacts, les personnes à qui
+  tu as écrit) quand Gmail confirme que le mail vient bien d'eux ; pour les autres, « Afficher les images » et
+  « Toujours pour cet expéditeur ». Réglage dans Réglages › Mails.
+- **Sécurité de l'affichage** : les scripts du mail sont coupés, rien d'autre que les images permises ne se
+  charge (vérifié sur un mail piégé), aucun cookie n'est gardé, le mode Isolement de macOS est actif sur
+  l'affichage, et l'info-bulle d'un lien montre sa vraie adresse, avec un avertissement si le texte en affiche
+  une autre.
+- **Copie locale** : tous tes mails sont copiés sur le Mac, du plus récent au plus ancien, en arrière-plan ; une
+  ligne sous la liste dit où en est la lecture. Ensuite Polhub demande à Gmail « quoi de neuf » toutes les
+  30 secondes quand il est devant, chaque minute sinon. « Déconnecter » un compte efface sa copie.
+- **Répondre** : pas encore. « Répondre dans Gmail » et « Ouvrir dans Gmail » ouvrent le fil sous le bon compte ;
+  l'écriture est la prochaine étape.
+- La section « Mesures avant les mails » a quitté Réglages › Comptes Google.
+
 ## 0.11.1 — 14 novembre 2026
 
 Première marche des **mails** dans Polhub : autoriser et mesurer. Rien ne s'affiche encore de tes mails.

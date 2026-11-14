@@ -7,7 +7,7 @@ import Updates
 
 /// The sidebar keeps the work; the app's own pages (diagnostic, journal) live in Réglages (Paul, 13/11).
 public enum SidebarItem: String, Hashable, Sendable {
-    case home, projects, meetings, calendar, contacts, settings
+    case home, projects, meetings, calendar, mails, contacts, settings
 
     var title: String {
         switch self {
@@ -15,6 +15,7 @@ public enum SidebarItem: String, Hashable, Sendable {
         case .projects: "Projets"
         case .meetings: "Réunions"
         case .calendar: "Calendrier"
+        case .mails: "Mails"
         case .contacts: "Contacts"
         case .settings: "Réglages"
         }
@@ -26,6 +27,7 @@ public enum SidebarItem: String, Hashable, Sendable {
         case .projects: "square.grid.3x2"
         case .meetings: "waveform"
         case .calendar: "calendar"
+        case .mails: "envelope"
         case .contacts: "person.2"
         case .settings: "gearshape"
         }
@@ -33,16 +35,16 @@ public enum SidebarItem: String, Hashable, Sendable {
 
     /// The work; Réglages sits apart, at the bottom of the sidebar (Paul, 14/11). Accueil, Calendrier and
     /// Contacts need the agenda (13/11).
-    static func visible(hasProjects: Bool, hasAgenda: Bool) -> [SidebarItem] {
-        [hasAgenda ? .home : nil, hasProjects ? .projects : nil, .meetings, hasAgenda ? .calendar : nil, hasAgenda ? .contacts : nil]
-            .compactMap { $0 }
+    static func visible(hasProjects: Bool, hasAgenda: Bool, hasMails: Bool = false) -> [SidebarItem] {
+        [hasAgenda ? .home : nil, hasProjects ? .projects : nil, .meetings, hasAgenda ? .calendar : nil, hasMails ? .mails : nil,
+         hasAgenda ? .contacts : nil].compactMap { $0 }
     }
 }
 
 /// The families of Réglages, entered one by one, as in Apple's settings (Paul, 14/11). Every new feature puts
 /// its settings in its family.
 public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
-    case general, notifications, accounts, calendar, projects, meetings, updates, diagnostic, journal
+    case general, notifications, accounts, calendar, mails, projects, meetings, updates, diagnostic, journal
 
     public var title: String {
         switch self {
@@ -50,6 +52,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .notifications: "Notifications"
         case .accounts: "Comptes Google"
         case .calendar: "Calendrier"
+        case .mails: "Mails"
         case .projects: "Projets"
         case .meetings: "Réunions"
         case .updates: "Mises à jour"
@@ -64,6 +67,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .notifications: "bell.badge.fill"
         case .accounts: "person.crop.circle.fill"
         case .calendar: "calendar"
+        case .mails: "envelope.fill"
         case .projects: "square.grid.3x2.fill"
         case .meetings: "waveform"
         case .updates: "arrow.down.circle.fill"
@@ -78,6 +82,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .notifications: Palette.red
         case .accounts: Palette.teal
         case .calendar: Palette.orange
+        case .mails: Palette.pink
         case .projects: Palette.blue
         case .meetings: Palette.violet
         case .updates: Palette.gray
@@ -92,6 +97,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .notifications: "Rappels de rendez-vous, nouveaux rendez-vous, comptes rendus"
         case .accounts: "Comptes, couleurs, accès à l'agenda et aux mails"
         case .calendar: "Nouveaux rendez-vous, affichage"
+        case .mails: "Images distantes"
         case .projects: "Taille des cartes du Kanban"
         case .meetings: "Comptes rendus, langue des transcriptions"
         case .updates: "Version installée, installation automatique"
@@ -101,9 +107,9 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
     }
 
     /// The whole app first, then Paul's tools, then the app's own pages.
-    static func families(hasAgenda: Bool, hasProjects: Bool) -> [[SettingsPane]] {
+    static func families(hasAgenda: Bool, hasProjects: Bool, hasMails: Bool = false) -> [[SettingsPane]] {
         [[.general, .notifications],
-         [hasAgenda ? .accounts : nil, hasAgenda ? .calendar : nil, hasProjects ? .projects : nil, .meetings].compactMap { $0 },
+         [hasAgenda ? .accounts : nil, hasAgenda ? .calendar : nil, hasMails ? .mails : nil, hasProjects ? .projects : nil, .meetings].compactMap { $0 },
          [.updates, .diagnostic, .journal]]
     }
 }
@@ -123,6 +129,8 @@ public final class WindowRouter: ObservableObject {
     @Published public var eventSelection: String?
     /// A project Accueil asked Projets to open (review of 14/11).
     @Published public var projectSelection: UUID?
+    /// The thread open in Mails (`account|threadID`); `nil` for the list (14/11).
+    @Published public var mailSelection: String?
 
     public init() {}
 
@@ -140,6 +148,11 @@ public final class WindowRouter: ObservableObject {
     public func openEvent(_ id: String) {
         section = .calendar
         eventSelection = id
+    }
+
+    public func openMail(_ threadKey: String?) {
+        section = .mails
+        mailSelection = threadKey
     }
 
     public func openDiagnostic() {
@@ -166,6 +179,7 @@ public struct MainWindowView<Diagnostic: View>: View {
     @ObservedObject var library: MeetingLibrary
     let projects: ProjectLibrary?
     let agenda: AgendaLibrary?
+    let mails: MailLibrary?
     let updates: UpdateService?
     let notifications: NotificationHub?
     let startup: StartupControl?
@@ -175,8 +189,8 @@ public struct MainWindowView<Diagnostic: View>: View {
     @State private var columns: NavigationSplitViewVisibility = .all
 
     public init(
-        library: MeetingLibrary, projects: ProjectLibrary? = nil, agenda: AgendaLibrary? = nil, updates: UpdateService? = nil,
-        notifications: NotificationHub? = nil, startup: StartupControl? = nil, router: WindowRouter,
+        library: MeetingLibrary, projects: ProjectLibrary? = nil, agenda: AgendaLibrary? = nil, mails: MailLibrary? = nil,
+        updates: UpdateService? = nil, notifications: NotificationHub? = nil, startup: StartupControl? = nil, router: WindowRouter,
         paths: AppPaths, @ViewBuilder diagnostic: () -> Diagnostic
     ) {
         self.notifications = notifications
@@ -184,6 +198,7 @@ public struct MainWindowView<Diagnostic: View>: View {
         self.library = library
         self.projects = projects
         self.agenda = agenda
+        self.mails = mails
         self.updates = updates
         self.router = router
         self.paths = paths
@@ -193,8 +208,12 @@ public struct MainWindowView<Diagnostic: View>: View {
     public var body: some View {
         NavigationSplitView(columnVisibility: $columns) {
             List(selection: $router.section) {
-                ForEach(SidebarItem.visible(hasProjects: projects != nil, hasAgenda: agenda != nil), id: \.self) { item in
-                    Label(item.title, systemImage: item.icon).tag(item)
+                ForEach(SidebarItem.visible(hasProjects: projects != nil, hasAgenda: agenda != nil, hasMails: mails != nil), id: \.self) { item in
+                    if item == .mails, let mails {
+                        MailSidebarLabel(mails: mails).tag(item)
+                    } else {
+                        Label(item.title, systemImage: item.icon).tag(item)
+                    }
                 }
             }
             .navigationSplitViewColumnWidth(min: 170, ideal: 190)
@@ -232,6 +251,8 @@ public struct MainWindowView<Diagnostic: View>: View {
                 if let agenda { CalendarView(agenda: agenda, router: router) }
             case .contacts:
                 if let agenda { ContactsView(agenda: agenda, router: router) }
+            case .mails:
+                if let mails { MailSectionView(mails: mails, router: router) }
             case .projects:
                 if let projects {
                     ProjectsView(library: projects)
@@ -277,7 +298,7 @@ public struct MainWindowView<Diagnostic: View>: View {
                 .windowTitle("Réunions", subtitle: router.selection.flatMap { id in library.rows.first { $0.id == id }?.title } ?? "")
                 .searchable(text: $router.query, placement: .toolbar, prompt: "Chercher dans les transcriptions")
             case .settings:
-                SettingsPage(router: router, updates: updates, projects: projects, agenda: agenda, library: library,
+                SettingsPage(router: router, updates: updates, projects: projects, agenda: agenda, hasMails: mails != nil, library: library,
                              notifications: notifications, startup: startup) {
                     diagnostic
                 } journal: {
@@ -293,6 +314,15 @@ public struct MainWindowView<Diagnostic: View>: View {
         router.projectSelection = nil
         projects.selected = id
 
+    }
+}
+
+/// « Mails » in the sidebar, with the unread threads of the main tab: what waits for Paul.
+struct MailSidebarLabel: View {
+    @ObservedObject var mails: MailLibrary
+
+    var body: some View {
+        Label(SidebarItem.mails.title, systemImage: SidebarItem.mails.icon).badge(mails.unreadCount)
     }
 }
 
