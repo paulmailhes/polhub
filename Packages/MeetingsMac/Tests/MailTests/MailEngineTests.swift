@@ -4,6 +4,7 @@ import GoogleKit
 import Persistence
 import Testing
 @testable import Mail
+import MailFormat
 
 /// A mailbox of Gmail's, faked in memory: it answers the engine's requests and remembers what it was asked.
 final class FakeGmail: @unchecked Sendable {

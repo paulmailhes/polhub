@@ -76,6 +76,13 @@ public struct ProjectDesk: Sendable {
             text += "Contacts : \(project.contacts.joined(separator: ", "))\n"
         }
 
+        // Step « Agents »: only how many, the mails themselves through `mails`.
+        if let mails = MailDesk(database: projects.database, root: URL(fileURLWithPath: "/"), scope: .tout, projects: nil, now: now)
+            .count(projectID: project.id), mails.threads > 0 {
+            text += "Mails : \(mails.threads) fil\(mails.threads > 1 ? "s" : "") ces 30 derniers jours"
+                + (mails.unread > 0 ? ", dont \(mails.unread) non lu\(mails.unread > 1 ? "s" : "")" : "") + " (outil `mails` avec ce projet).\n"
+        }
+
         let open = try openActions(project)
         text += "\n## Actions ouvertes (\(open.count))\n"
         let shown = all ? open : Array(open.prefix(Self.briefActions))

@@ -89,6 +89,7 @@ let package = Package(
         .executableTarget(name: "PolhubCalcul", dependencies: ["Compute", "Transcription"]),
         // Claude Code reads the meetings through these, read-only.
         .target(name: "ReadingKit", dependencies: [
+            "MailFormat",
             .product(name: "Domain", package: "Kernel"),
             .product(name: "Persistence", package: "Kernel"),
         ]),
@@ -139,7 +140,7 @@ let package = Package(
         ]),
         .testTarget(name: "AudioCaptureTests", dependencies: ["AudioCapture"]),
         .testTarget(name: "ComputeTests", dependencies: ["Compute", "Transcription", "Recording", .product(name: "Domain", package: "Kernel")], resources: [.copy("Fixtures")]),
-        .testTarget(name: "ReadingKitTests", dependencies: ["ReadingKit", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
+        .testTarget(name: "ReadingKitTests", dependencies: ["ReadingKit", "MailFormat", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "VaultImportTests", dependencies: ["VaultImport", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")], resources: [.copy("Fixtures")]),
         .testTarget(name: "ProjectsUITests", dependencies: ["ProjectsUI", "PolhubDesign", "VaultImport", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "UpdatesTests", dependencies: ["Updates"]),

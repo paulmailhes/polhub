@@ -145,6 +145,14 @@ struct ComposeView: View {
                 fields(draft)
                 Divider()
                 if let conflict = draft.conflict { conflictBanner(conflict) }
+                if draft.origin == .agent {
+                    Label("Préparé par un agent : relis-le avant d'envoyer. Une adresse en orange n'est ni un contact ni une personne à qui tu as écrit.",
+                          systemImage: "sparkles")
+                        .font(.callout)
+                        .padding(Space.m)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
+                }
                 TextEditor(text: $text)
                     .font(.body)
                     .scrollContentBackground(.hidden)
@@ -421,7 +429,7 @@ struct MailDraftListView: View {
                 LazyVStack(spacing: 0) {
                     ForEach(mine) { draft in
                         row(account: draft.account, people: draft.to.map { $0.name ?? $0.email }, subject: draft.subject,
-                            extract: draft.body, date: draft.updatedAt, error: draft.lastError) { mails.open(draft, router: router) }
+                            extract: draft.body, date: draft.updatedAt, error: draft.lastError, agent: draft.origin == .agent) { mails.open(draft, router: router) }
                             .contextMenu { Button("Supprimer le brouillon", role: .destructive) { mails.discard(draft.id) } }
                         Divider().padding(.leading, 64)
                     }
@@ -442,7 +450,7 @@ struct MailDraftListView: View {
         }
     }
 
-    private func row(account: String, people: [String], subject: String, extract: String, date: Date, error: String?,
+    private func row(account: String, people: [String], subject: String, extract: String, date: Date, error: String?, agent: Bool = false,
                      open: @escaping () -> Void) -> some View {
         HStack(spacing: 0) {
             RoundedRectangle(cornerRadius: 1.5).fill(mails.color(for: account)).frame(width: 3, height: 22).padding(.leading, Space.m)
@@ -451,6 +459,9 @@ struct MailDraftListView: View {
             (Text(subject.isEmpty ? "(sans objet)" : subject).fontWeight(.medium)
                 + Text(extract.isEmpty ? "" : "  —  \(extract.replacingOccurrences(of: "\n", with: " "))").foregroundStyle(.secondary))
                 .lineLimit(1).frame(maxWidth: .infinity, alignment: .leading).padding(.leading, Space.s)
+            if agent {
+                Label("préparé par un agent", systemImage: "sparkles").font(.caption).foregroundStyle(Color.accentColor).padding(.leading, Space.s)
+            }
             if error != nil { Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange).help(error ?? "") }
             Text(MailText.date(date)).font(.callout).foregroundStyle(.secondary).frame(width: 92, alignment: .trailing).padding(.trailing, Space.l)
         }

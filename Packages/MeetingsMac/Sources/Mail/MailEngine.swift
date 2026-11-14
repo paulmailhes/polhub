@@ -641,6 +641,53 @@ public actor MailEngine {
         return draft
     }
 
+    // MARK: - The agents' drafts (step « Agents », 14/11)
+
+    /// What the agents dropped, made into drafts marked « préparé par un agent ». A reply gets its people,
+    /// its subject and its quote from the thread's last message, as Paul's would: never from the agent.
+    /// Nothing reaches Gmail until Paul changes the draft, and only his click sends. A drop whose thread or
+    /// mailbox is gone is let go; one that cannot be prepared now (offline) waits for the next pass.
+    @discardableResult
+    public func adoptAgentDrafts() async -> [MailDraftRow] {
+        guard let dropped = try? store.agentDrafts(), !dropped.isEmpty else { return [] }
+        let mine = (try? store.filingRules().mine) ?? []
+        let accounts = Set((try? store.mailAccounts()) ?? [])
+        var adopted: [MailDraftRow] = []
+        for row in dropped {
+            do {
+                let draft: MailDraftRow
+                switch row.mode {
+                case .reply, .replyAll:
+                    guard let key = row.threadKey, let thread = try store.thread(key), accounts.contains(thread.account),
+                          let last = try store.messages(threadKey: key).last(where: { !$0.labels.contains("DRAFT") }) else {
+                        try store.discardAgentDraft(row.id)
+                        continue
+                    }
+                    let source = try await replySource(for: last)
+                    let people = ReplyBuilder.recipients(row.mode, source: source, mine: mine)
+                    let threading = ReplyBuilder.threading(source)
+                    draft = MailDraftRow(account: thread.account, mode: row.mode, threadKey: key, replyToKey: last.id, to: people.to, cc: people.cc,
+                                         subject: ReplyBuilder.subject(row.mode, original: last.subject), body: row.body,
+                                         quoteHTML: ReplyBuilder.quoteHTML(row.mode, source: source), quoteText: ReplyBuilder.quoteText(row.mode, source: source),
+                                         inReplyTo: threading.inReplyTo, references: threading.references, origin: .agent, createdAt: row.createdAt,
+                                         updatedAt: now())
+                default:
+                    guard let account = row.account, accounts.contains(account) else {
+                        try store.discardAgentDraft(row.id)
+                        continue
+                    }
+                    draft = MailDraftRow(account: account, mode: .new, to: row.to, cc: row.cc, subject: row.subject, body: row.body, origin: .agent,
+                                         createdAt: row.createdAt, updatedAt: now())
+                }
+                try store.adopt(row.id, as: draft)
+                adopted.append(draft)
+            } catch {
+                continue
+            }
+        }
+        return adopted
+    }
+
     // MARK: - Reading more (14/11)
 
     /// The message as it travelled, headers first: « Afficher l'original ». At most 400 ko of it.

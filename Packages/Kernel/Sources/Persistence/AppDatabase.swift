@@ -403,6 +403,21 @@ public final class AppDatabase: Sendable {
                 t.column("createdAt", .datetime).notNull()
             }
         }
+        // Step « Agents » (14/11): what an agent drops, in a table of its own. Text only, no Gmail id, nothing
+        // that sends: the app makes a draft of it, and only Paul's click sends.
+        migrator.registerMigration("v11") { db in
+            try db.create(table: "mail_agent_draft") { t in
+                t.primaryKey("id", .text)
+                t.column("mode", .text).notNull()
+                t.column("account", .text)
+                t.column("threadKey", .text)
+                t.column("to", .text).notNull()
+                t.column("cc", .text).notNull()
+                t.column("subject", .text).notNull()
+                t.column("body", .text).notNull()
+                t.column("createdAt", .datetime).notNull()
+            }
+        }
         return migrator
     }
 }

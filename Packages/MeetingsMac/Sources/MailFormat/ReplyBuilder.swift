@@ -169,6 +169,28 @@ public enum HTMLText {
             .replacingOccurrences(of: #"\n(?=</)"#, with: "", options: .regularExpression)
     }
 
+    /// The words a reader sees, for an agent (step « Agents »): what the mail hides (`display:none`, zero
+    /// size, `hidden`, white on white is not caught) and the invisible characters are taken out, as best as
+    /// can be. A hidden text is the usual way to slip an order to an assistant.
+    public static func visible(_ html: String) -> String {
+        var text = html
+        let hidden = #"(?is)<(\w+)\b[^>]*(?:display\s*:\s*none|visibility\s*:\s*hidden|font-size\s*:\s*0(?:px|pt|em|rem|%)?\s*[;"']|opacity\s*:\s*0(?:\.0+)?\s*[;"']|max-height\s*:\s*0(?:px)?\s*[;"']|\shidden(?:\s|>|=))[^>]*>.*?</\1\s*>"#
+        // Twice: a hidden block inside another goes with the first pass's leftovers.
+        for _ in 0..<2 { text = text.replacingOccurrences(of: hidden, with: "", options: .regularExpression) }
+        return clean(plain(text))
+    }
+
+    /// No invisible character: zero widths, direction marks, tags, private use.
+    public static func clean(_ text: String) -> String {
+        String(String.UnicodeScalarView(text.unicodeScalars.filter { scalar in
+            switch scalar.properties.generalCategory {
+            case .format, .privateUse, .unassigned, .surrogate: return false
+            case .control: return scalar == "\n" || scalar == "\t"
+            default: return true
+            }
+        }))
+    }
+
     /// Gmail's draft has formatting a plain text would lose: links, images, lists, emphasis, tables.
     public static func isFormatted(_ html: String) -> Bool {
         html.range(of: #"<(?:a\s[^>]*href|(?:img|table|ul|ol|b|strong|i|em|u|font|h[1-6]|blockquote)[\s>/])"#, options: [.regularExpression, .caseInsensitive]) != nil

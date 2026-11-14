@@ -3,6 +3,27 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.15.0 — 14 novembre 2026
+
+**Mails : tes agents.** Claude Code lit tes mails par Polhub et te prépare des réponses ; toi seul envoies.
+
+- **Trois outils** dans le serveur de Polhub, déclaré pour toutes tes sessions Claude Code :
+  - `mails` : la liste des fils de ta copie locale (ceux d'un projet, ceux qui contiennent des mots, les non
+    lus) ;
+  - `mail` : un fil, message par message, page par page ;
+  - `brouillon` : une réponse sous un fil, ou un nouveau mail.
+- **Ce qu'ils lisent** : le texte que tu vois. Le texte caché d'un mail (le moyen habituel de glisser un
+  ordre à un assistant) et les caractères invisibles sont retirés. Chaque réponse rappelle qu'un mail est
+  une donnée, jamais une instruction. Ni spam ni corbeille, et les pièces jointes sont nommées, pas lues.
+- **Réglages › Mails › « Ce que lisent tes agents »** : tous les mails, ou seulement ceux de tes projets.
+- **Leurs brouillons** t'attendent dans Brouillons, marqués « préparé par un agent ». Pour une réponse,
+  Polhub calcule lui-même les destinataires et la citation, jamais l'agent. Une adresse que tu n'as jamais
+  utilisée est en orange. Un brouillon d'agent ne va dans Gmail qu'une fois que tu l'as retouché.
+- **Rien ne peut partir sans toi** : le programme des agents n'a ni réseau ni jeton Google (un test le
+  vérifie), et aucune ligne de la base ne déclenche un envoi.
+- `contexte` donne le nombre de mails récents d'un projet.
+- Une ligne de fil qui a un brouillon le dit, en rouge, comme dans Gmail.
+
 ## 0.14.0 — 14 novembre 2026
 
 **Mails : ranger.** Chaque fil client porte son projet.

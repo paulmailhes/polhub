@@ -223,6 +223,53 @@ public struct MailStore: Sendable {
         }
     }
 
+    // MARK: - The agents (step « Agents », 14/11)
+
+    /// Whether the base knows the agents' drafts (an app of 0.15 or later opened it once).
+    public func acceptsAgentDrafts() throws -> Bool {
+        try writer.read { try $0.tableExists(MailAgentDraftRow.databaseTableName) }
+    }
+
+    /// An agent's draft, dropped by `polhub mcp`.
+    public func drop(_ draft: MailAgentDraftRow) throws {
+        try writer.write { try draft.insert($0) }
+    }
+
+    public func agentDrafts() throws -> [MailAgentDraftRow] {
+        try writer.read { try MailAgentDraftRow.order(Column("createdAt")).fetchAll($0) }
+    }
+
+    /// The app made a draft of what the agent dropped: the draft takes its place, in one transaction.
+    public func adopt(_ agentDraftID: String, as draft: MailDraftRow) throws {
+        try writer.write { db in
+            guard try MailAgentDraftRow.fetchOne(db, key: agentDraftID) != nil else { return }
+            try draft.insert(db)
+            _ = try MailAgentDraftRow.deleteOne(db, key: agentDraftID)
+        }
+    }
+
+    public func discardAgentDraft(_ id: String) throws {
+        _ = try writer.write { try MailAgentDraftRow.deleteOne($0, key: id) }
+    }
+
+    public func observeAgentDrafts(onChange: @escaping @MainActor @Sendable ([MailAgentDraftRow]) -> Void) -> AnyDatabaseCancellable {
+        ValueObservation
+            .tracking { try MailAgentDraftRow.fetchAll($0) }
+            .start(in: writer, scheduling: .async(onQueue: .main), onError: { _ in }, onChange: { rows in
+                MainActor.assumeIsolated { onChange(rows) }
+            })
+    }
+
+    /// The threads the agents may read: shown somewhere (neither spam nor trash), the most recent first.
+    public func readableThreads(limit: Int = 5_000) throws -> [MailThreadRow] {
+        try writer.read { try MailThreadRow.filter(Column("hidden") == false).order(Column("lastMessageAt").desc).limit(limit).fetchAll($0) }
+    }
+
+    /// Paul's mailboxes that granted the mails, oldest first.
+    public func mailAccounts() throws -> [String] {
+        try writer.read { try String.fetchAll($0, sql: "SELECT email FROM google_account WHERE grantedScopes LIKE '%gmail.modify%' ORDER BY addedAt") }
+    }
+
     // MARK: - The case (step « Ranger », 14/11)
 
     /// Paul's case for a thread; `nil` gives it back to the rules.

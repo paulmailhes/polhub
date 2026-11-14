@@ -441,9 +441,9 @@ struct MailRow: View {
                 }
             }
             .frame(width: 40)
-            Text(MailText.senders(thread, mine: mine))
+            (Text(MailText.senders(thread, mine: mine)).foregroundStyle(thread.unread ? Color.primary : Color.secondary)
+                + (mails.drafts.contains { $0.threadKey == thread.id } ? Text(" Brouillon").foregroundStyle(Color.red) : Text("")))
                 .fontWeight(thread.unread ? .semibold : .regular)
-                .foregroundStyle(thread.unread ? .primary : .secondary)
                 .lineLimit(1)
                 .frame(width: 190, alignment: .leading)
             MailFilingChip(thread: thread, mails: mails, always: hovering && mails.filing(of: thread) == nil && mails.tab(of: thread) == .personnes)
@@ -1115,6 +1115,7 @@ struct AttachmentTile: View {
 /// Réglages › Mails (14/11): when remote images load.
 struct MailSettingsPane: View {
     @AppStorage(Preferences.Key.mailImages) private var images = MailImages.connus.rawValue
+    @AppStorage(Preferences.Key.mailAgentsScope) private var agents = "tout"
 
     var body: some View {
         Form {
@@ -1124,6 +1125,14 @@ struct MailSettingsPane: View {
                 }
             } footer: {
                 Text("Une image distante qui se charge montre à son expéditeur l'adresse IP de ton Mac et l'heure d'ouverture. « Pour les expéditeurs connus » : tes contacts, les personnes à qui tu as écrit, et ceux pour qui tu as dit « Toujours », quand Gmail confirme que le mail vient bien d'eux. Les images jointes au mail s'affichent toujours.")
+            }
+            Section {
+                Picker("Ce que lisent tes agents", selection: $agents) {
+                    Text("Tous les mails").tag("tout")
+                    Text("Les mails de tes projets").tag("projets")
+                }
+            } footer: {
+                Text("Tes agents Claude Code lisent la copie de tes mails par le serveur de Polhub (outils mails, mail et brouillon), hors spam et corbeille. Ce qu'ils lisent part chez Anthropic. Ils ne peuvent rien envoyer : leurs brouillons t'attendent ici, marqués « préparé par un agent ».")
             }
         }
         .formStyle(.grouped)

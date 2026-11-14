@@ -65,7 +65,12 @@ do {
             desk = ProjectDesk(projects: ProjectStore(tools), meetings: MeetingStore(tools),
                                workingDirectory: FileManager.default.currentDirectoryPath)
         }
-        let server = MCPServer(reader: reader, desk: desk, version: HelperVersion.read(helper: helper) ?? "0.0.0",
+        // The mails (step « Agents »): the copy, read; drafts dropped for the app. No network here.
+        var mails: MailDesk?
+        if let tools = try? AppDatabase.forTools(path: basePath), (try? MailStore(tools).acceptsAgentDrafts()) == true {
+            mails = MailDesk(database: tools, root: URL(fileURLWithPath: basePath).deletingLastPathComponent(), scope: .current(), projects: desk)
+        }
+        let server = MCPServer(reader: reader, desk: desk, mails: mails, version: HelperVersion.read(helper: helper) ?? "0.0.0",
                                onWrite: { ExternalChangeSignal.post() })
         while let line = readLine(strippingNewline: true) {
             guard !line.trimmingCharacters(in: .whitespaces).isEmpty, let answer = server.handle(line) else { continue }

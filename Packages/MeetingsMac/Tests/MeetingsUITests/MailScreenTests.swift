@@ -10,6 +10,7 @@ import Testing
 import WebKit
 @testable import MeetingsUI
 import ProjectsUI
+import MailFormat
 
 /// A local server that answers any request with a tiny image and remembers the paths asked.
 final class CountingServer: @unchecked Sendable {
@@ -310,6 +311,8 @@ struct MailScreenTests {
         mails.composing = changed.id
         try await capture("mails-conflit")
         mails.composing = nil
+        try store.saveDraft(MailDraftRow(account: "moi@exemple.fr", mode: .new, to: [MailAddress(name: "Jules Durand", email: "jules@atelier-nord.fr")],
+                                         subject: "Planning d'avril", body: "Bonjour Jules, voici une proposition de planning.", origin: .agent, createdAt: Date()))
         mails.folder = .drafts
         try await capture("mails-brouillons")
         mails.folder = .subscriptions

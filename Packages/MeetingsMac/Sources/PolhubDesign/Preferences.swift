@@ -74,6 +74,8 @@ public struct Preferences: @unchecked Sendable {
         /// Only the mails filed in a project are told (step « Ranger »).
         public static let mailNoticesProjects = "notifications.mails.projets"
         /// The senders Paul left from Polhub, with the day (shown in « Abonnements »).
+        /// What the agents read: `tout`, or `projets` (read by `polhub mcp` from the app's preferences).
+        public static let mailAgentsScope = "mails.agents.portee"
         /// The new mails whose mailbox Paul has not chosen yet.
         public static let mailUnconfirmed = "mails.boiteAChoisir"
         public static let mailUnsubscribed = "mails.desabonnements"

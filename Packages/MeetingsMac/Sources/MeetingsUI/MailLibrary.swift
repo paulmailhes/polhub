@@ -150,6 +150,16 @@ public final class MailLibrary: ObservableObject {
             },
             store.observeCursors { [weak self] rows in self?.cursors = Dictionary(uniqueKeysWithValues: rows.map { ($0.account, $0) }) },
             store.observeSenders { [weak self] in self?.senders = $0 },
+            // What an agent dropped (step « Agents »): the app makes a draft of it at once.
+            store.observeAgentDrafts { [weak self] rows in
+                guard let self, !rows.isEmpty else { return }
+                Task {
+                    let adopted = await self.engine.adoptAgentDrafts()
+                    if let draft = adopted.last {
+                        self.message = "Un agent a préparé « \(draft.subject.isEmpty ? "(sans objet)" : draft.subject) » : il t'attend dans Brouillons."
+                    }
+                }
+            },
             store.observeFilingRules { [weak self] rules in
                 self?.rules = rules
                 self?.correspondents = rules.correspondents

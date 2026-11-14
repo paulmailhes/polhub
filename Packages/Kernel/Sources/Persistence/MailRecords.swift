@@ -264,6 +264,36 @@ public struct MailSenderRow: Codable, Equatable, Sendable, FetchableRecord, Pers
     public var filing: String? = nil
 }
 
+/// A draft an agent dropped (step « Agents »): its text, and for a new mail its people. For a reply the app
+/// works out who it goes to, never the agent. Nothing here reaches Gmail or sends.
+public struct MailAgentDraftRow: Codable, Equatable, Identifiable, Sendable, FetchableRecord, PersistableRecord {
+    public static let databaseTableName = "mail_agent_draft"
+
+    public var id: String
+    /// `new`, `reply` or `replyAll`.
+    public var mode: MailDraftRow.Mode
+    public var account: String?
+    public var threadKey: String?
+    public var to: [MailAddress]
+    public var cc: [MailAddress]
+    public var subject: String
+    public var body: String
+    public var createdAt: Date
+
+    public init(id: String = UUID().uuidString.lowercased(), mode: MailDraftRow.Mode, account: String? = nil, threadKey: String? = nil,
+                to: [MailAddress] = [], cc: [MailAddress] = [], subject: String = "", body: String, createdAt: Date) {
+        self.id = id
+        self.mode = mode
+        self.account = account?.lowercased()
+        self.threadKey = threadKey
+        self.to = to
+        self.cc = cc
+        self.subject = subject
+        self.body = body
+        self.createdAt = createdAt
+    }
+}
+
 /// Paul's case for one thread (step « Ranger »): never recomputed.
 public struct MailFilingRow: Codable, Equatable, Sendable, FetchableRecord, PersistableRecord {
     public static let databaseTableName = "mail_filing"

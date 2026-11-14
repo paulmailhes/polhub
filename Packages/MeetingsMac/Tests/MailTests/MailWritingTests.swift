@@ -237,6 +237,30 @@ import Testing
         #expect(try store.gmailOnlyDrafts().isEmpty)
     }
 
+    /// Step « Agents »: what an agent drops becomes a draft marked as his, its people worked out by Polhub
+    /// from the thread, never by the agent; nothing reaches Gmail and nothing leaves on its own.
+    @Test func anAgentsDropBecomesADraftAndNeverLeavesOnItsOwn() async throws {
+        let (engine, gmail, store, root) = try await setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try CalendarStore(store.database).setGrantedScopes(email: account, scopes: "openid https://www.googleapis.com/auth/gmail.modify")
+        let thread = MailThreadRow.key(account: account, threadID: "t1")
+        try store.drop(MailAgentDraftRow(mode: .reply, account: account, threadKey: thread, to: [MailAddress(email: "pirate@exemple.org")],
+                                         subject: "Autre chose", body: "Merci, je regarde.", createdAt: Date()))
+        try store.drop(MailAgentDraftRow(mode: .new, account: account, to: [MailAddress(email: "nina@exemple.net")], subject: "Devis", body: "Bonjour", createdAt: Date()))
+        try store.drop(MailAgentDraftRow(mode: .new, account: "pas-une-boite@exemple.fr", to: [MailAddress(email: "nina@exemple.net")], subject: "x", body: "y",
+                                         createdAt: Date()))
+        let adopted = await engine.adoptAgentDrafts()
+        #expect(adopted.count == 2)
+        #expect(try store.agentDrafts().isEmpty)
+        let reply = try #require(adopted.first)
+        #expect(reply.origin == .agent && reply.mode == .reply && reply.threadKey == thread)
+        #expect(reply.to.map(\.email) == ["camille@exemple.fr"] && reply.subject == "Re: Maquette v2" && reply.quoteHTML != nil && reply.gmailDraftID == nil)
+        #expect(adopted.last?.to.map(\.email) == ["nina@exemple.net"] && adopted.last?.origin == .agent)
+        await engine.step(account)
+        #expect(!gmail.calls.contains { $0.hasPrefix("POST") || $0.hasPrefix("PUT") })
+        #expect(try store.drafts().count == 2)
+    }
+
     @Test func filesJoinedToADraftLeaveWithIt() async throws {
         let (engine, gmail, store, root) = try await setUp()
         defer { try? FileManager.default.removeItem(at: root) }
