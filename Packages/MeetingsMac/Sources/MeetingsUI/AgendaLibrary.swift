@@ -3,6 +3,7 @@ import AppKit
 import Domain
 import Foundation
 import GRDB
+import Mail
 import Persistence
 import ProjectsUI
 import PolhubDesign
@@ -35,10 +36,13 @@ public final class AgendaLibrary: ObservableObject {
     let vaultPath: @MainActor () -> String?
     private var observations: [AnyDatabaseCancellable] = []
 
-    public init(database: AppDatabase, session: GoogleSession = GoogleSession(), sync: CalendarSync = CalendarSync(),
+    public init(database: AppDatabase, session: GoogleSession? = nil, sync: CalendarSync = CalendarSync(),
                 vaultPath: @escaping @MainActor () -> String? = { nil }) {
         self.database = database
-        self.session = session
+        // One session for the calendar and the mails; what each account granted is kept in the base (14/11).
+        self.session = session ?? GoogleSession(onGrant: { email, scopes in
+            try? CalendarStore(database).setGrantedScopes(email: email, scopes: scopes)
+        })
         self.sync = sync
         self.vaultPath = vaultPath
         observations = [
@@ -58,16 +62,58 @@ public final class AgendaLibrary: ObservableObject {
 
     // MARK: - Google
 
-    /// Opens Google's page in the browser; the account comes back connected, then synced.
+    /// Opens Google's page in the browser; the account comes back connected, then synced. A new account is asked
+    /// for its calendar and its mails at once; it is kept as soon as it grants the calendar.
     public func connect() async {
         do {
-            let email = try await session.connect(open: { url in Task { @MainActor in NSWorkspace.shared.open(url) } })
-            try CalendarStore(database).addAccount(email: email, at: Date())
+            let email = try await session.connect(open: { url in Task { @MainActor in NSWorkspace.shared.open(url) } },
+                                                  requesting: [.calendarEvents, .gmailModify], mustKeep: [.calendarEvents])
+            try await keep(email)
             message = "Compte \(email) connecté."
             await syncAll()
         } catch {
             message = "Connexion impossible : \(error)"
         }
+    }
+
+    /// The account is in the base, with what it has just granted.
+    private func keep(_ email: String) async throws {
+        let store = CalendarStore(database)
+        try store.addAccount(email: email, at: Date())
+        if let scopes = await session.scopes(for: email) { try store.setGrantedScopes(email: email, scopes: scopes) }
+    }
+
+    // MARK: - Mails (14/11)
+
+    /// Whether this account granted the mails, from its last token.
+    public func mailGranted(_ account: GoogleAccountRow) -> Bool {
+        GoogleOAuth.grants(.gmailModify, in: account.grantedScopes)
+    }
+
+    /// Opens Google's page to add the mails to an account already connected. An answer without the calendar is
+    /// thrown away: asking for the mails never costs the account its calendar.
+    public func authorizeMail(_ email: String) async {
+        do {
+            let granted = try await session.connect(open: { url in Task { @MainActor in NSWorkspace.shared.open(url) } },
+                                                    requesting: [.calendarEvents, .gmailModify], mustKeep: [.calendarEvents], loginHint: email)
+            try await keep(granted)
+            let mails = await session.grants(.gmailModify, for: granted) ?? false
+            if granted != email.lowercased() {
+                message = "C'est \(granted) qui a été autorisé, pas \(email)."
+            } else if mails {
+                message = "Mails autorisés pour \(granted)."
+            } else {
+                message = "Google n'a pas donné l'accès aux mails de \(granted) : la case des mails est restée décochée."
+            }
+            await syncAll()
+        } catch {
+            message = "Autorisation impossible : \(error)"
+        }
+    }
+
+    /// Sends Gmail requests under an account; a refusal says why (`GmailAPI.error`).
+    func mailSend(for email: String) -> MailProbe.Send {
+        { [session] build in try await session.send(build, for: email, mapping: { GmailAPI.error(status: $0, data: $1) }) }
     }
 
     public func disconnect(_ email: String) async {

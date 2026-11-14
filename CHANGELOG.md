@@ -3,6 +3,26 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.11.1 — 14 novembre 2026
+
+Première marche des **mails** dans Polhub : autoriser et mesurer. Rien ne s'affiche encore de tes mails.
+
+- **Réglages › Comptes Google** : tes comptes ont maintenant leur propre famille (ils quittent Réglages ›
+  Calendrier), avec leur couleur, l'état de leur agenda et celui de leurs mails.
+- **« Autoriser les mails »**, compte par compte : le bouton ouvre la page de Google. L'agenda du compte reste
+  connecté quoi que tu répondes : une réponse sans l'agenda est jetée, l'ancienne connexion est gardée. Si
+  l'administrateur d'un compte bloque Polhub, le message dit ce qu'il doit approuver.
+- **Mesures avant les mails**, dans la même page : combien de messages sur six mois, combien de fils en boîte
+  de réception, le débit de lecture sans dépasser le quota de Google, les formats et les en-têtes d'un
+  échantillon. Le rapport ne garde que des nombres : aucun objet, aucun texte, aucune adresse de
+  correspondant. Deux essais courts : ouvrir un fil dans Gmail, et mettre à la corbeille puis rétablir un mail
+  d'essai que tu t'es envoyé (objet « Polhub essai »).
+- `scripts/configurer-google.command` : quand la clé est déjà en place, il ouvre les deux pages de la console
+  qui ouvrent Gmail à Polhub.
+- Sous le capot : le code Google commun au calendrier et aux mails a son module, et ce que chaque compte a
+  autorisé est gardé d'un lancement à l'autre. La version de développement n'écrit jamais dans une vraie
+  boîte.
+
 ## 0.11.0 — 14 novembre 2026
 
 - **Notifications**, réglables dans Réglages › Notifications :

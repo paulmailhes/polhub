@@ -1,5 +1,6 @@
 import Domain
 import Foundation
+import GoogleKit
 import Persistence
 
 /// The Google Calendar API, version 3: the events of the primary calendar.
@@ -92,10 +93,7 @@ public struct CalendarSync: Sendable {
         self.fetch = fetch
     }
 
-    public static let live: @Sendable (URLRequest) async throws -> (Data, Int) = { request in
-        let (data, response) = try await URLSession.shared.data(for: request)
-        return (data, (response as? HTTPURLResponse)?.statusCode ?? 0)
-    }
+    public static let live: @Sendable (URLRequest) async throws -> (Data, Int) = GoogleHTTP.live
 
     public func sync(account: String, accessToken: String, store: CalendarStore, now: Date) async throws {
         let from = now.addingTimeInterval(-Self.past), to = now.addingTimeInterval(Self.future)
@@ -117,59 +115,5 @@ public struct CalendarSync: Sendable {
         }
         try store.applyGoogle(account: account, changed: events, cancelled: cancelled + gone.map(\.eventID), at: now, keepingNewerThan: now)
         try store.recordSync(email: account, syncToken: nil, error: nil, at: now)
-    }
-}
-
-/// Access tokens, refreshed from the Keychain's refresh tokens.
-public actor GoogleSession {
-    let config: @Sendable () throws -> GoogleClientConfig
-    let vault: any TokenVault
-    let fetch: @Sendable (URLRequest) async throws -> (Data, Int)
-    private var cache: [String: (token: String, until: Date)] = [:]
-    /// What each account granted, from its last token (14/11: read only before, read and write since).
-    private var granted: [String: String] = [:]
-
-    public init(config: @escaping @Sendable () throws -> GoogleClientConfig = GoogleClientConfig.load, vault: any TokenVault = KeychainVault(),
-                fetch: @escaping @Sendable (URLRequest) async throws -> (Data, Int) = CalendarSync.live) {
-        self.config = config
-        self.vault = vault
-        self.fetch = fetch
-    }
-
-    public func accessToken(for email: String, now: Date = Date()) async throws -> String {
-        if let cached = cache[email], cached.until > now.addingTimeInterval(60) { return cached.token }
-        guard let refresh = vault.refreshToken(for: email) else { throw GoogleError.expired }
-        let (data, _) = try await fetch(GoogleOAuth.refreshRequest(config: try config(), refreshToken: refresh))
-        let tokens = try GoogleOAuth.tokens(from: data)
-        cache[email] = (tokens.accessToken, now.addingTimeInterval(TimeInterval(tokens.expiresIn)))
-        if let scope = tokens.scope { granted[email] = scope }
-        return tokens.accessToken
-    }
-
-    /// Whether the account can be written to; `nil` before its first token.
-    public func canWrite(_ email: String) -> Bool? {
-        granted[email].map { GoogleOAuth.canWrite(scope: $0) }
-    }
-
-    /// The browser opens on Google's page; the account comes back connected. Returns its address.
-    public func connect(open: @escaping @Sendable (URL) -> Void, loginHint: String? = nil, timeout: TimeInterval = 300) async throws -> String {
-        let config = try config()
-        let receiver = try await LoopbackReceiver.start()
-        let verifier = PKCE.verifier(), state = UUID().uuidString
-        open(GoogleOAuth.authorizationURL(config: config, redirect: receiver.redirect, challenge: PKCE.challenge(for: verifier), state: state, loginHint: loginHint))
-        let line = try await receiver.nextRequestLine(timeout: timeout)
-        let code = try GoogleOAuth.code(fromRequestLine: line, state: state)
-        let (data, _) = try await fetch(GoogleOAuth.exchangeRequest(config: config, code: code, verifier: verifier, redirect: receiver.redirect))
-        let tokens = try GoogleOAuth.tokens(from: data)
-        guard let email = tokens.email, let refresh = tokens.refreshToken else { throw GoogleError.badAnswer }
-        try vault.save(refreshToken: refresh, for: email)
-        cache[email] = (tokens.accessToken, Date().addingTimeInterval(TimeInterval(tokens.expiresIn)))
-        if let scope = tokens.scope { granted[email] = scope }
-        return email
-    }
-
-    public func forget(_ email: String) {
-        cache[email] = nil
-        vault.remove(for: email)
     }
 }

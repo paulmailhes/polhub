@@ -90,6 +90,22 @@ import Testing
         let account = try #require(try calendar.accounts().first)
         #expect(account.email == "moi@exemple.fr" && account.syncToken == "jeton-1" && account.lastSyncAt == now)
     }
+
+    /// Base v7 (14/11): what an account granted (calendar, mails) is kept between launches.
+    @Test func accountsKeepWhatTheyGranted() throws {
+        let calendar = CalendarStore(try AppDatabase.inMemory())
+        try calendar.addAccount(email: "moi@exemple.fr", at: now)
+        #expect(try calendar.accounts().first?.grantedScopes == nil)
+        let both = "openid https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.modify"
+        try calendar.setGrantedScopes(email: "Moi@Exemple.fr", scopes: both)
+        // A sync, a color: the grants stay.
+        try calendar.recordSync(email: "moi@exemple.fr", syncToken: nil, error: nil, at: now)
+        try calendar.setColor(email: "moi@exemple.fr", hex: "#8B5CF6")
+        #expect(try calendar.accounts().first?.grantedScopes == both)
+        // An account the base does not know is not created by its grants.
+        try calendar.setGrantedScopes(email: "autre@exemple.fr", scopes: both)
+        #expect(try calendar.accounts().map(\.email) == ["moi@exemple.fr"])
+    }
 }
 
 @Suite struct ImportedMeetingTests {

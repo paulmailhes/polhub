@@ -73,6 +73,8 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
             GeneralSettingsPane(startup: startup)
         case .notifications:
             NotificationsSettingsPane(hub: notifications)
+        case .accounts:
+            if let agenda { AccountsSettingsPane(agenda: agenda) }
         case .calendar:
             if let agenda { CalendarSettingsPane(agenda: agenda) }
         case .projects:

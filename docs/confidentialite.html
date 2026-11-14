@@ -16,16 +16,23 @@
   l'éditeur de Polhub ne reçoit, ne voit et ne stocke aucune donnée de ses utilisateurs.</p>
 
   <h2>Données Google utilisées</h2>
-  <p>Quand l'utilisateur connecte un compte Google, Polhub demande trois autorisations :</p>
+  <p>Quand l'utilisateur connecte un compte Google, Polhub demande ces autorisations :</p>
   <ul>
     <li><code>openid</code> et <code>email</code> : l'adresse du compte, pour savoir quel compte est connecté ;</li>
     <li><code>calendar.events</code> : les rendez-vous de l'agenda principal (titre, horaires, lieu, lien Google
     Meet, organisateur, invités et leurs réponses), en lecture, et en écriture pour ceux que l'utilisateur crée,
-    modifie ou supprime dans Polhub.</li>
+    modifie ou supprime dans Polhub ;</li>
+    <li><code>gmail.modify</code>, seulement si l'utilisateur clique « Autoriser les mails » pour ce compte : les
+    messages de cette boîte (en-têtes, contenu, pièces jointes), pour les lire et les afficher dans Polhub, et pour
+    les marquer, les archiver ou les mettre à la corbeille quand l'utilisateur le fait lui-même. Jamais de
+    suppression définitive. L'agenda fonctionne sans cette autorisation.</li>
   </ul>
   <p>Polhub ne crée, ne modifie et ne supprime un rendez-vous que lorsque l'utilisateur le fait lui-même dans
-  l'application ; Google envoie alors les invitations comme d'habitude. Polhub ne touche à rien d'autre dans le
-  compte Google.</p>
+  l'application ; Google envoie alors les invitations comme d'habitude. De même, il n'archive et ne met un message
+  à la corbeille que sur un geste de l'utilisateur. Polhub ne touche à rien d'autre dans le compte Google.</p>
+  <p>La lecture des messages dans Polhub n'est pas encore publiée. D'ici là, sur les boîtes autorisées, Polhub ne
+  fait que compter (combien de messages, quelles tailles, quels formats) pour préparer cette fonction, et peut,
+  à la demande de l'utilisateur, mettre à la corbeille puis rétablir un message d'essai qu'il s'est envoyé.</p>
 
   <h2>Usage</h2>
   <p>Ces données servent uniquement à des fonctions visibles par l'utilisateur dans l'application : afficher ses
@@ -37,10 +44,12 @@
   <h2>Stockage</h2>
   <ul>
     <li>Les rendez-vous et les contacts sont enregistrés dans la base de données locale de l'application, sur le
-    Mac de l'utilisateur.</li>
+    Mac de l'utilisateur. Aucun message n'y est encore enregistré : les mesures ne gardent que des nombres, dans
+    un rapport local, sans objet, sans texte et sans adresse de correspondant.</li>
     <li>Le jeton d'accès au compte Google est conservé dans le Trousseau de macOS. Il n'est jamais écrit ailleurs.</li>
     <li>Rien n'est envoyé à un serveur de l'éditeur ni à un tiers. Les seules connexions réseau vont aux services de
-    Google, pour lire les agendas et y écrire ce que l'utilisateur crée ou modifie, et à GitHub, pour vérifier
+    Google, pour lire les agendas et les boîtes autorisées et y écrire ce que l'utilisateur fait lui-même, et à
+    GitHub, pour vérifier
     qu'une nouvelle version de l'application existe (sans aucune donnée de l'utilisateur).</li>
   </ul>
 

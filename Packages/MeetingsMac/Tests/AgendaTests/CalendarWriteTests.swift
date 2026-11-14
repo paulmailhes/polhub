@@ -3,6 +3,7 @@ import Foundation
 import Persistence
 import Testing
 @testable import Agenda
+@testable import GoogleKit
 
 /// Calendrier writes (Paul, 14/11): create, change and delete his events, sent to Google.
 @Suite struct CalendarWriteTests {

@@ -55,6 +55,14 @@ public struct CalendarStore: Sendable {
         }
     }
 
+    /// What Google says the account granted, at each of its tokens (14/11).
+    public func setGrantedScopes(email: String, scopes: String) throws {
+        try writer.write { db in
+            try db.execute(sql: "UPDATE google_account SET grantedScopes = ? WHERE email = ? AND grantedScopes IS NOT ?",
+                           arguments: [scopes, email.lowercased(), scopes])
+        }
+    }
+
     // MARK: - Events
 
     /// What Google sent: new or changed events replace their copy, keeping what the app added (project,

@@ -279,6 +279,12 @@ public final class AppDatabase: Sendable {
                 t.column("updatedAt", .datetime).notNull()
             }
         }
+        // What each Google account granted (calendar, mails), kept between launches (14/11).
+        migrator.registerMigration("v7") { db in
+            try db.alter(table: "google_account") { t in
+                t.add(column: "grantedScopes", .text)
+            }
+        }
         return migrator
     }
 }

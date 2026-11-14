@@ -1,5 +1,6 @@
 import Domain
 import Foundation
+import GoogleKit
 import Persistence
 
 /// An event as Paul fills it in Polhub's editor (14/11).
@@ -248,9 +249,6 @@ extension EventCopies {
 extension GoogleSession {
     /// Sends a request with the account's token; a refusal says why, in French.
     public func send(_ build: @Sendable (String) -> URLRequest, for email: String) async throws -> Data {
-        let token = try await accessToken(for: email)
-        let (data, status) = try await fetch(build(token))
-        guard (200..<300).contains(status) else { throw CalendarWrite.error(status: status, data: data) }
-        return data
+        try await send(build, for: email, mapping: { CalendarWrite.error(status: $0, data: $1) })
     }
 }

@@ -3,6 +3,7 @@ import Foundation
 import Persistence
 import Testing
 @testable import Agenda
+@testable import GoogleKit
 
 /// The Google connection (desktop app, PKCE, local return address) and the reading of calendars (13/11).
 @Suite struct GoogleOAuthTests {

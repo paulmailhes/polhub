@@ -164,16 +164,19 @@ public struct GoogleAccountRow: Codable, Equatable, Identifiable, Sendable, Fetc
     public var lastError: String?
     /// `#RRGGBB` chosen by Paul; `nil` takes the default (see `AccountStyle`).
     public var color: String?
+    /// What the account granted at its last token, space-separated as Google gives it; `nil` before.
+    public var grantedScopes: String?
 
     public var id: String { email }
 
     public init(email: String, addedAt: Date, lastSyncAt: Date? = nil, syncToken: String? = nil, lastError: String? = nil,
-                color: String? = nil) {
+                color: String? = nil, grantedScopes: String? = nil) {
         self.email = email.lowercased()
         self.addedAt = addedAt
         self.lastSyncAt = lastSyncAt
         self.syncToken = syncToken
         self.lastError = lastError
         self.color = color
+        self.grantedScopes = grantedScopes
     }
 }

@@ -42,12 +42,13 @@ public enum SidebarItem: String, Hashable, Sendable {
 /// The families of Réglages, entered one by one, as in Apple's settings (Paul, 14/11). Every new feature puts
 /// its settings in its family.
 public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
-    case general, notifications, calendar, projects, meetings, updates, diagnostic, journal
+    case general, notifications, accounts, calendar, projects, meetings, updates, diagnostic, journal
 
     public var title: String {
         switch self {
         case .general: "Général"
         case .notifications: "Notifications"
+        case .accounts: "Comptes Google"
         case .calendar: "Calendrier"
         case .projects: "Projets"
         case .meetings: "Réunions"
@@ -61,6 +62,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         switch self {
         case .general: "gearshape.fill"
         case .notifications: "bell.badge.fill"
+        case .accounts: "person.crop.circle.fill"
         case .calendar: "calendar"
         case .projects: "square.grid.3x2.fill"
         case .meetings: "waveform"
@@ -74,6 +76,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         switch self {
         case .general: Palette.gray
         case .notifications: Palette.red
+        case .accounts: Palette.teal
         case .calendar: Palette.orange
         case .projects: Palette.blue
         case .meetings: Palette.violet
@@ -87,7 +90,8 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         switch self {
         case .general: "Ouverture à la session"
         case .notifications: "Rappels de rendez-vous, nouveaux rendez-vous, comptes rendus"
-        case .calendar: "Comptes Google, couleurs, nouveaux rendez-vous, affichage"
+        case .accounts: "Comptes, couleurs, accès à l'agenda et aux mails"
+        case .calendar: "Nouveaux rendez-vous, affichage"
         case .projects: "Taille des cartes du Kanban"
         case .meetings: "Comptes rendus, langue des transcriptions"
         case .updates: "Version installée, installation automatique"
@@ -98,7 +102,8 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
 
     /// The whole app first, then Paul's tools, then the app's own pages.
     static func families(hasAgenda: Bool, hasProjects: Bool) -> [[SettingsPane]] {
-        [[.general, .notifications], [hasAgenda ? .calendar : nil, hasProjects ? .projects : nil, .meetings].compactMap { $0 },
+        [[.general, .notifications],
+         [hasAgenda ? .accounts : nil, hasAgenda ? .calendar : nil, hasProjects ? .projects : nil, .meetings].compactMap { $0 },
          [.updates, .diagnostic, .journal]]
     }
 }

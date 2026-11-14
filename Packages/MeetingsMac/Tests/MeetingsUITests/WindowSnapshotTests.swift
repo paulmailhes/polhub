@@ -192,6 +192,16 @@ struct WindowSnapshotTests {
                                                         paths: AppPaths(root: root, logs: root)) { EmptyView() },
                                          to: output.appending(path: "\(name).png"))
         }
+        // 14/11: Réglages › Comptes Google, one mailbox authorized, two still to authorize.
+        try calendar.setGrantedScopes(email: "moi@exemple.fr", scopes: "openid https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.modify")
+        try await Task.sleep(for: .milliseconds(300))
+        router.section = .settings
+        for pane in [SettingsPane.accounts, .calendar] {
+            router.settingsPane = pane
+            try await LiveWindow.capture(MainWindowView(library: library, projects: projects, agenda: agenda, router: router,
+                                                        paths: AppPaths(root: root, logs: root)) { EmptyView() },
+                                         to: output.appending(path: "reglages-\(pane.rawValue).png"), size: NSSize(width: 1_000, height: 860))
+        }
     }
     /// The event editor (14/11).
     @Test func theEventEditor() async throws {

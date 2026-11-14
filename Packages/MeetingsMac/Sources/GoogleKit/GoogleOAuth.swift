@@ -15,11 +15,21 @@ public enum GoogleError: Error, Equatable, CustomStringConvertible {
     case needsWrite
     /// Only the organizer changes an event.
     case notOrganizer
+    /// The account never granted this access (the mails, since 14/11).
+    case missingScope(GoogleScope)
+    /// Google asks to slow down: the request can be sent again later.
+    case rateLimited
+    case notFound
+    /// The development build never writes to a real mailbox.
+    case readOnlyBuild
 
     public var description: String {
         switch self {
         case .noKey: "la clé Google n'est pas encore en place (scripts/configurer-google.command)"
         case .badKey: "la clé Google n'est pas une clé « application de bureau »"
+        case .refused("admin_policy_enforced"):
+            "l'administrateur de ce compte bloque Polhub : il doit l'approuver dans la console d'administration Google (Sécurité › Commandes des API)"
+        case .refused("access_denied"): "l'autorisation a été refusée ou annulée ; rien n'a changé"
         case .refused(let reason): "Google a refusé la connexion (\(reason))"
         case .badAnswer: "réponse de Google illisible"
         case .expired: "la connexion à ce compte a expiré : reconnecte-le"
@@ -27,6 +37,11 @@ public enum GoogleError: Error, Equatable, CustomStringConvertible {
         case .timeout: "la connexion n'a pas été faite dans le navigateur à temps"
         case .needsWrite: "ce compte n'a autorisé que la lecture : reconnecte-le pour pouvoir modifier ses rendez-vous"
         case .notOrganizer: "seul l'organisateur peut modifier ce rendez-vous"
+        case .missingScope(.gmailModify): "ce compte n'a pas encore autorisé les mails (Réglages › Comptes Google)"
+        case .missingScope(.calendarEvents): "ce compte n'a pas autorisé l'agenda : reconnecte-le"
+        case .rateLimited: "Google demande de ralentir ; nouvel essai dans un instant"
+        case .notFound: "Google ne trouve plus cet élément"
+        case .readOnlyBuild: "la version de développement n'écrit jamais dans une vraie boîte"
         }
     }
 }
@@ -89,23 +104,46 @@ public struct GoogleTokens: Sendable {
     public var scope: String? = nil
 }
 
+/// What Polhub asks an account for: its calendar, its mails (14/11).
+public enum GoogleScope: String, Sendable, CaseIterable, Hashable {
+    /// Events in read and write.
+    case calendarEvents = "https://www.googleapis.com/auth/calendar.events"
+    /// Mails: read, labels, trash, drafts, send. Never a permanent deletion.
+    case gmailModify = "https://www.googleapis.com/auth/gmail.modify"
+}
+
 public enum GoogleOAuth {
     /// Events in read and write (14/11: Paul creates and changes his events from Polhub).
-    public static let scopes = "openid email https://www.googleapis.com/auth/calendar.events"
-    static let writeScope = "https://www.googleapis.com/auth/calendar.events"
+    public static let scopes = scopeText([.calendarEvents])
+    static let writeScope = GoogleScope.calendarEvents.rawValue
+
+    /// The `scope` parameter of a request: who the account is, then what is asked, in a fixed order.
+    public static func scopeText(_ scopes: Set<GoogleScope>) -> String {
+        (["openid", "email"] + GoogleScope.allCases.filter(scopes.contains).map(\.rawValue)).joined(separator: " ")
+    }
+
+    /// Whether the scopes Google granted (the `scope` of a token answer) hold this one.
+    public static func grants(_ scope: GoogleScope, in granted: String?) -> Bool {
+        let all = (granted ?? "").split(separator: " ")
+        switch scope {
+        case .calendarEvents: return all.contains { $0 == scope.rawValue || $0 == "https://www.googleapis.com/auth/calendar" }
+        case .gmailModify: return all.contains { $0 == scope.rawValue || $0 == "https://mail.google.com/" }
+        }
+    }
 
     /// The scopes Google granted (the `scope` of a token answer) allow writing events.
     public static func canWrite(scope: String?) -> Bool {
-        (scope ?? "").split(separator: " ").contains { $0 == writeScope || $0 == "https://www.googleapis.com/auth/calendar" }
+        grants(.calendarEvents, in: scope)
     }
 
-    public static func authorizationURL(config: GoogleClientConfig, redirect: URL, challenge: String, state: String, loginHint: String? = nil) -> URL {
+    public static func authorizationURL(config: GoogleClientConfig, redirect: URL, challenge: String, state: String, loginHint: String? = nil,
+                                        scopes: Set<GoogleScope> = [.calendarEvents]) -> URL {
         var components = URLComponents(url: config.authURI, resolvingAgainstBaseURL: false)!
         components.queryItems = [
             URLQueryItem(name: "client_id", value: config.clientID),
             URLQueryItem(name: "redirect_uri", value: redirect.absoluteString),
             URLQueryItem(name: "response_type", value: "code"),
-            URLQueryItem(name: "scope", value: scopes),
+            URLQueryItem(name: "scope", value: scopeText(scopes)),
             URLQueryItem(name: "code_challenge", value: challenge),
             URLQueryItem(name: "code_challenge_method", value: "S256"),
             URLQueryItem(name: "access_type", value: "offline"),
@@ -167,6 +205,16 @@ public enum GoogleOAuth {
         while payload.count % 4 != 0 { payload += "=" }
         guard let data = Data(base64Encoded: payload), let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         return (json["email"] as? String)?.lowercased()
+    }
+}
+
+/// How a request really leaves: injected everywhere, so the tests never touch the network.
+public enum GoogleHTTP {
+    public typealias Fetch = @Sendable (URLRequest) async throws -> (Data, Int)
+
+    public static let live: Fetch = { request in
+        let (data, response) = try await URLSession.shared.data(for: request)
+        return (data, (response as? HTTPURLResponse)?.statusCode ?? 0)
     }
 }
 

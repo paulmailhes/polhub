@@ -16,7 +16,7 @@ import Testing
     /// 14/11: Réglages opens on its families, as Apple's; each family is entered.
     @Test func reglagesListsItsFamilies() {
         let families = SettingsPane.families(hasAgenda: true, hasProjects: true)
-        #expect(families.map { $0.map(\.title) } == [["Général", "Notifications"], ["Calendrier", "Projets", "Réunions"], ["Mises à jour", "Diagnostic", "Journal"]])
+        #expect(families.map { $0.map(\.title) } == [["Général", "Notifications"], ["Comptes Google", "Calendrier", "Projets", "Réunions"], ["Mises à jour", "Diagnostic", "Journal"]])
         #expect(SettingsPane.families(hasAgenda: false, hasProjects: false).map { $0.map(\.title) } == [["Général", "Notifications"], ["Réunions"], ["Mises à jour", "Diagnostic", "Journal"]])
     }
 

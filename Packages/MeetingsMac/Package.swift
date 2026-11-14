@@ -18,6 +18,8 @@ let package = Package(
         .library(name: "ProjectsUI", targets: ["ProjectsUI"]),
         .library(name: "Updates", targets: ["Updates"]),
         .library(name: "Agenda", targets: ["Agenda"]),
+        .library(name: "GoogleKit", targets: ["GoogleKit"]),
+        .library(name: "Mail", targets: ["Mail"]),
         .library(name: "Summarization", targets: ["Summarization"]),
         .library(name: "PolhubDesign", targets: ["PolhubDesign"]),
         .library(name: "Notifications", targets: ["Notifications"]),
@@ -50,10 +52,15 @@ let package = Package(
             .product(name: "Domain", package: "Kernel"),
             .product(name: "Persistence", package: "Kernel"),
         ]),
+        // What every Google service shares: sign-in, Keychain, one session per app (14/11).
+        .target(name: "GoogleKit"),
         .target(name: "Agenda", dependencies: [
+            "GoogleKit",
             .product(name: "Domain", package: "Kernel"),
             .product(name: "Persistence", package: "Kernel"),
         ]),
+        // Gmail, spoken to directly: the client and the measures of step 0 (14/11).
+        .target(name: "Mail", dependencies: ["GoogleKit", .product(name: "Domain", package: "Kernel")]),
         // The projects module: board, views, project page.
         .target(name: "ProjectsUI", dependencies: [
             "PolhubDesign",
@@ -91,6 +98,8 @@ let package = Package(
             "ProjectsUI",
             "Updates",
             "Agenda",
+            "GoogleKit",
+            "Mail",
             "VaultImport",
             "Summarization",
             "PolhubDesign",
@@ -132,10 +141,12 @@ let package = Package(
         .testTarget(name: "UpdatesTests", dependencies: ["Updates"]),
         .testTarget(name: "NotificationsTests", dependencies: ["Notifications", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "SummarizationTests", dependencies: ["Summarization", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
-        .testTarget(name: "AgendaTests", dependencies: ["Agenda", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
+        .testTarget(name: "AgendaTests", dependencies: ["Agenda", "GoogleKit", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
+        .testTarget(name: "GoogleKitTests", dependencies: ["GoogleKit"]),
+        .testTarget(name: "MailTests", dependencies: ["Mail", "GoogleKit", .product(name: "Domain", package: "Kernel")]),
         .testTarget(name: "TranscriptionTests", dependencies: ["Transcription", .product(name: "Domain", package: "Kernel")]),
         .testTarget(name: "MeetingDetectionTests", dependencies: ["MeetingDetection"], resources: [.copy("Fixtures")]),
-        .testTarget(name: "MeetingsUITests", dependencies: ["MeetingsUI", "ProjectsUI", "PolhubDesign", "Notifications", "Agenda", "Updates", "Pipeline", "Recording", "AudioCapture", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
+        .testTarget(name: "MeetingsUITests", dependencies: ["MeetingsUI", "ProjectsUI", "PolhubDesign", "Notifications", "Agenda", "GoogleKit", "Mail", "Updates", "Pipeline", "Recording", "AudioCapture", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "RecordingTests", dependencies: ["Recording", "AudioCapture", "MeetingDetection", .product(name: "Observability", package: "Kernel"), .product(name: "Domain", package: "Kernel")]),
         .testTarget(name: "PipelineTests", dependencies: ["Pipeline", "MeetingDetection", "Recording", "Transcription", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "ProbeKitTests", dependencies: ["ProbeKit", "Recording", "AudioCapture", "MeetingDetection", .product(name: "Domain", package: "Kernel"), .product(name: "Observability", package: "Kernel")]),
