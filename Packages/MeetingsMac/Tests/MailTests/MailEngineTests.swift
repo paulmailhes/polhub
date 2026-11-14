@@ -301,6 +301,40 @@ final class FakeGmail: @unchecked Sendable {
         #expect(try store.inbox().count == 1)
     }
 
+    /// 14/11: Gmail gives UTF-8 even when the part says iso-8859-1; a real Latin-1 body still reads right.
+    @Test func accentsReadRightWhateverTheDeclaredSet() throws {
+        let utf8 = Data("avec un accès limité à".utf8)
+        #expect(MailParser.text(utf8, declared: "iso-8859-1") == "avec un accès limité à")
+        let latin = "Réunion à 14 h".data(using: .isoLatin1)!
+        #expect(MailParser.text(latin, declared: "iso-8859-1") == "Réunion à 14 h")
+        #expect(MailParser.text(latin, declared: "utf-8") == "Réunion à 14 h")
+        #expect(MailParser.text(Data([0x93, 0x6F, 0x6B, 0x94]), declared: "us-ascii") == "“ok”")
+        // A body kept before the fix is put right, a sound one is left alone.
+        let broken = String(data: utf8, encoding: .isoLatin1)!
+        #expect(broken.contains("Ã¨") && MailParser.repaired(broken) == "avec un accès limité à")
+        #expect(MailParser.repaired("avec un accès limité à") == nil)
+        #expect(MailParser.repaired("rien à réparer : Ãtrange") == nil)
+        // Encoded words in a header take the same road.
+        #expect(MailParser.decodedWords("=?ISO-8859-1?Q?R=E9union?=") == "Réunion")
+    }
+
+    @Test func theBodiesKeptInTheWrongSetArePutRightOnce() async throws {
+        let (engine, _, _, root) = try setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let folder = engine.files.folder(account: account)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let broken = String(data: Data("<p>accès limité</p>".utf8), encoding: .isoLatin1)!
+        try Data(broken.utf8).write(to: folder.appending(path: "m1.html"))
+        try Data("<p>déjà bon</p>".utf8).write(to: folder.appending(path: "m2.html"))
+        await engine.repairCharsets(account)
+        #expect(try String(contentsOf: folder.appending(path: "m1.html"), encoding: .utf8) == "<p>accès limité</p>")
+        #expect(try String(contentsOf: folder.appending(path: "m2.html"), encoding: .utf8) == "<p>déjà bon</p>")
+        // Done once: a body written afterwards is never touched again.
+        try Data(broken.utf8).write(to: folder.appending(path: "m3.html"))
+        await engine.repairCharsets(account)
+        #expect(try String(contentsOf: folder.appending(path: "m3.html"), encoding: .utf8) == broken)
+    }
+
     @Test func aMessageIsReadAsItsSenderWroteIt() throws {
         let html = Data(#"<html><body>Bonjour <img src="cid:logo@exemple"></body></html>"#.utf8).base64EncodedString()
         let png = Data([0x89, 0x50, 0x4E, 0x47]).base64EncodedString()

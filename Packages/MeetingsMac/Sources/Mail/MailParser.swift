@@ -21,7 +21,7 @@ public enum MailParser {
         let html = htmlIndex.map { parts[$0] }
         let chosenIndex = htmlIndex ?? plainIndex
         let chosen = chosenIndex.map { parts[$0] }
-        let body = chosen.flatMap { part in part.body?.bytes.flatMap { MailProbe.text($0, charset: MailProbe.charset(of: part)) ?? String(decoding: $0, as: UTF8.self) } }
+        let body = chosen.flatMap { part in part.body?.bytes.map { text($0, declared: MailProbe.charset(of: part)) } }
         let lowerHTML = html != nil ? body?.lowercased() : nil
         var attachments: [MailAttachment] = []
         var inline: [String: Data] = [:]
@@ -49,6 +49,25 @@ public enum MailParser {
             hasBody: body != nil, bodyIsHTML: html != nil && body != nil, attachments: attachments
         )
         return ParsedMail(row: row, body: body, inline: inline)
+    }
+
+    /// The text of a part. Gmail hands the bytes over in UTF-8 even when the mail declares another set (measured
+    /// on 14/11: 75 mails of 900 showed « accÃ¨s » for « accès »): valid UTF-8 wins, then the declared set, then
+    /// Windows' Latin set, which accepts any byte.
+    public static func text(_ bytes: Data, declared charset: String) -> String {
+        if let utf8 = String(data: bytes, encoding: .utf8) { return utf8 }
+        if let declared = MailProbe.text(bytes, charset: charset) { return declared }
+        return String(data: bytes, encoding: .windowsCP1252) ?? String(decoding: bytes, as: UTF8.self)
+    }
+
+    /// A body kept before 14/11 and read in the wrong set: the UTF-8 it really was. `nil` when it is fine.
+    public static func repaired(_ text: String) -> String? {
+        let markers = ["Ã©", "Ã¨", "Ã ", "Ã\u{a0}", "Ã§", "Ãª", "Ã‰", "Ã´", "Ã®", "Ã¹", "Ã»", "Ã¢", "Ã«", "Ã¯", "â€™", "â€œ", "â€\u{9d}", "â€“", "â€¦"]
+        guard markers.contains(where: text.contains) else { return nil }
+        for encoding in [String.Encoding.isoLatin1, .windowsCP1252] {
+            if let bytes = text.data(using: encoding), let fixed = String(data: bytes, encoding: .utf8), fixed != text { return fixed }
+        }
+        return nil
     }
 
     /// `Camille Martin <camille@exemple.fr>, "Durand, Jules" <jules@exemple.fr>, seul@exemple.fr`.
@@ -103,7 +122,7 @@ public enum MailParser {
                 }
                 bytes = data
             }
-            if let bytes, let decoded = MailProbe.text(bytes, charset: result[charset].lowercased()) { result.replaceSubrange(whole, with: decoded) }
+            if let bytes { result.replaceSubrange(whole, with: MailParser.text(bytes, declared: result[charset].lowercased())) }
         }
         return result
     }

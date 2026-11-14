@@ -54,8 +54,25 @@ public actor MailEngine {
         }
         if let existing = try? CalendarStore(store.database).accounts().map(\.email) { files.keepOnly(accounts: existing) }
         for account in wanted where loops[account] == nil {
-            loops[account] = Task { await self.run(account) }
+            loops[account] = Task {
+                self.repairCharsets(account)
+                await self.run(account)
+            }
         }
+    }
+
+    /// Once per mailbox: the bodies kept before 14/11 in the wrong character set are put right, on the Mac,
+    /// without reading them again from Gmail.
+    func repairCharsets(_ account: String) {
+        let folder = files.folder(account: account), mark = folder.appending(path: ".jeux-de-caracteres-2")
+        guard !FileManager.default.fileExists(atPath: mark.path(percentEncoded: false)),
+              let names = try? FileManager.default.contentsOfDirectory(atPath: folder.path(percentEncoded: false)) else { return }
+        for name in names where name.hasSuffix(".html") || name.hasSuffix(".txt") {
+            let url = folder.appending(path: name)
+            guard let text = try? String(contentsOf: url, encoding: .utf8), let fixed = MailParser.repaired(text) else { continue }
+            try? Data(fixed.utf8).write(to: url, options: .atomic)
+        }
+        try? Data().write(to: mark)
     }
 
     /// App in front: Gmail is asked every 30 seconds; behind, every minute.

@@ -86,7 +86,7 @@ struct MailBodyView: NSViewRepresentable {
                 controller.removeAllContentRuleLists()
                 if let rules = await MailContentRules.list(images: images) { controller.add(rules) }
                 guard self.loaded == document else { return }
-                view.loadHTMLString(document, baseURL: nil)
+                view.load(Data(document.utf8), mimeType: "text/html", characterEncodingName: "UTF-8", baseURL: URL(string: "about:blank")!)
             }
         }
 
