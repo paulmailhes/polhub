@@ -42,29 +42,12 @@ public struct ProjectsView: View {
                     Text("Ramène tes projets d'Obsidian : l'app lit ton coffre, sans jamais y écrire.")
                 } actions: {
                     Button("Importer depuis Obsidian") { startImport() }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.glassProminent)
                         .controlSize(.large)
                         .disabled(reading)
                 }
             } else {
                 VStack(spacing: 0) {
-                    HStack {
-                        Picker("Vue", selection: $mode) {
-                            ForEach(ProjectsMode.allCases) { Text($0.rawValue).tag($0) }
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-                        .fixedSize()
-                        Spacer(minLength: 8)
-                        Menu {
-                            Button("Importer depuis Obsidian…") { startImport() }
-                            Button("Choisir le dossier du coffre…") { choosingVault = true }
-                        } label: { Image(systemName: "ellipsis.circle") }
-                            .menuStyle(.borderlessButton)
-                            .fixedSize()
-                    }
-                    .padding(.horizontal, 16).padding(.vertical, 10)
-                    Divider()
                     switch mode {
                     case .board: BoardView(library: library, includeDone: false)
                     case .all: BoardView(library: library, includeDone: true)
@@ -73,8 +56,25 @@ public struct ProjectsView: View {
                     case .watch: WatchTable(library: library)
                     }
                 }
+                .toolbar {
+                    ToolbarItem(placement: .principal) {
+                        Picker("Vue", selection: $mode) {
+                            ForEach(ProjectsMode.allCases) { Text($0.rawValue).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .fixedSize()
+                    }
+                    ToolbarItem(placement: .primaryAction) {
+                        Menu {
+                            Button("Importer depuis Obsidian…") { startImport() }
+                            Button("Choisir le dossier du coffre…") { choosingVault = true }
+                        } label: { Label("Plus", systemImage: "ellipsis") }
+                    }
+                }
             }
         }
+        .navigationTitle(library.project(library.selected)?.name ?? "Projets")
         .overlay {
             if reading {
                 ProgressView("Lecture du coffre…").padding(24).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))

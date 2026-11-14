@@ -202,6 +202,20 @@ struct WindowSnapshotTests {
             CalendarEventRow(account: "moi@exemple.fr", eventID: "d", title: "Déjeuner", startAt: at(3, 12.5), endAt: at(3, 13.5), updatedAt: Date()),
             CalendarEventRow(account: "moi@exemple.fr", eventID: "e", title: "Férié", startAt: at(4, 0), endAt: at(5, 0), allDay: true, updatedAt: Date()),
         ], cancelled: [], at: Date())
+        // 14/11: three accounts in their colors, and an invitation present in two of them.
+        try calendar.addAccount(email: "perso@gmail.com", at: Date().addingTimeInterval(1))
+        try calendar.addAccount(email: "paul@atelier-nord.fr", at: Date().addingTimeInterval(2))
+        try calendar.applyGoogle(account: "perso@gmail.com", changed: [
+            CalendarEventRow(account: "perso@gmail.com", eventID: "f", title: "Dentiste", startAt: at(1, 9), endAt: at(1, 9.75), updatedAt: Date()),
+            CalendarEventRow(account: "perso@gmail.com", eventID: "c", title: "Revue Site vitrine", startAt: at(2, 14), endAt: at(2, 15), attendees: guests, updatedAt: Date()),
+        ], cancelled: [], at: Date())
+        try calendar.applyGoogle(account: "paul@atelier-nord.fr", changed: [
+            CalendarEventRow(account: "paul@atelier-nord.fr", eventID: "g", title: "Atelier Nord · sprint", startAt: at(1, 14), endAt: at(1, 16),
+                             meetCode: "xyz-abcd-efg", organizer: "paul@atelier-nord.fr", updatedAt: Date()),
+            CalendarEventRow(account: "paul@atelier-nord.fr", eventID: "h", title: "Point client", startAt: at(3, 9.5), endAt: at(3, 10), updatedAt: Date()),
+            CalendarEventRow(account: "paul@atelier-nord.fr", eventID: "i", title: "Atelier Nord · revue des maquettes", startAt: Date().addingTimeInterval(1_200),
+                             endAt: Date().addingTimeInterval(4_800), meetCode: "qrs-tuvw-xyz", organizer: "paul@atelier-nord.fr", updatedAt: Date()),
+        ], cancelled: [], at: Date())
         try calendar.setProject(eventID: CalendarEventRow.key(account: "moi@exemple.fr", eventID: "a"), projectID: alpha.id, origin: .invites)
         try calendar.setProject(eventID: CalendarEventRow.key(account: "moi@exemple.fr", eventID: "c"), projectID: beta.id, origin: .titre)
         let contacts = ContactStore(database)

@@ -3,6 +3,20 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.6.0 — 14 novembre 2026
+
+- **Chaque agenda a sa couleur** : le perso en orange, les comptes pro en violet, vert, bleu… dans
+  l'ordre où tu les as connectés. Un clic sur un compte, en haut du Calendrier, change sa couleur.
+- **Un clic sur un rendez-vous** ouvre sa fiche : **Rejoindre** ouvre le Meet dans Dia avec le bon
+  compte Google (celui du rendez-vous), son projet, sa réunion enregistrée, ses invités.
+- Un rendez-vous présent dans deux de tes agendas ne s'affiche plus qu'une fois, sous le compte avec
+  lequel le rejoindre ; le ranger dans un projet range toutes ses copies.
+- **Accueil** : le prochain rendez-vous en tête, avec « Rejoindre ».
+- **Une réunion qui démarre prend le nom de son rendez-vous** dès le pop-up ; son projet, son titre et
+  ses participants arrivent dès qu'elle se termine.
+- Interface plus légère, dans l'esprit Liquid Glass : les commandes de chaque écran passent dans la
+  barre du haut, le calendrier est redessiné (jour courant, ligne de l'heure, week-end).
+
 ## 0.5.1 — 13 novembre 2026
 
 Corrections de la relecture de la 0.5.0, pour que rien de ce que tu fais ne se perde :

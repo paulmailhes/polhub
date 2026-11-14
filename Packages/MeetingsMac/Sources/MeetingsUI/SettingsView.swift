@@ -23,14 +23,6 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("Réglages", selection: $tab) {
-                ForEach(SettingsTab.visible(hasProjects: projects != nil), id: \.self) { Text($0.title).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
-            .padding(12)
-            Divider()
             Group {
                 switch tab {
                 case .updates:
@@ -49,6 +41,17 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+        .navigationTitle("Réglages")
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Picker("Réglages", selection: $tab) {
+                    ForEach(SettingsTab.visible(hasProjects: projects != nil), id: \.self) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+            }
         }
     }
 }

@@ -36,17 +36,20 @@ enum DayLayout {
     }
 }
 
-/// Calendrier: the week of every connected Google calendar, an event's details, its project.
+/// Calendrier: the week of every connected Google calendar, each account in its color; a click opens the
+/// event, from which Paul joins it with the right account (14/11).
 struct CalendarView: View {
     @ObservedObject var agenda: AgendaLibrary
     @ObservedObject var router: WindowRouter
     @State private var weekStart = CalendarView.monday(of: .now)
     @State private var selection: String?
 
-    static let hourHeight: CGFloat = 46
+    static let hourHeight: CGFloat = 48
+    static let gutter: CGFloat = 52
+    static let locale = Locale(identifier: "fr_FR")
     static var calendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.locale = Locale(identifier: "fr_FR")
+        calendar.locale = locale
         calendar.firstWeekday = 2
         return calendar
     }
@@ -58,76 +61,65 @@ struct CalendarView: View {
     var days: [Date] { (0..<7).compactMap { Self.calendar.date(byAdding: .day, value: $0, to: weekStart) } }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider()
+        Group {
             if agenda.accounts.isEmpty {
                 setup
             } else {
-                HStack(spacing: 0) {
+                VStack(spacing: 0) {
+                    AccountLegend(agenda: agenda)
                     week
-                    if let id = selection, let event = agenda.events.first(where: { $0.id == id }) {
-                        Divider()
-                        EventInspector(event: event, agenda: agenda, router: router) { selection = nil }
-                            .frame(width: 320)
-                    }
                 }
             }
         }
+        .navigationTitle(weekTitle)
+        .toolbar { toolbar }
+        .onAppear(perform: openAsked)
+        .onChange(of: router.eventSelection) { _, _ in openAsked() }
     }
 
-    // MARK: - Header
+    // MARK: - Toolbar
 
-    private var header: some View {
-        HStack(spacing: 10) {
-            Button { move(-7) } label: { Image(systemName: "chevron.left") }
+    @ToolbarContentBuilder
+    private var toolbar: some ToolbarContent {
+        ToolbarItemGroup(placement: .navigation) {
+            Button { move(-7) } label: { Label("Semaine précédente", systemImage: "chevron.left") }
             Button("Aujourd'hui") { weekStart = Self.monday(of: .now) }
-            Button { move(7) } label: { Image(systemName: "chevron.right") }
-            Text(weekTitle).font(.headline)
-            Spacer()
-            if let failed = agenda.accounts.first(where: { $0.lastError != nil }) {
-                Label("\(failed.email) : \(failed.lastError ?? "")", systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.orange).lineLimit(1).truncationMode(.tail).frame(maxWidth: 320)
-            } else if let last = agenda.accounts.compactMap(\.lastSyncAt).max() {
-                Text("À jour à \(last.formatted(date: .omitted, time: .shortened))").foregroundStyle(.secondary).font(.callout)
-            }
-            if agenda.syncing { ProgressView().controlSize(.small) }
-            Button("Synchroniser") { Task { await agenda.syncAll() } }.disabled(agenda.syncing || agenda.accounts.isEmpty)
-            Menu("Comptes") {
-                ForEach(agenda.accounts) { account in
-                    Menu(account.email) {
-                        Button("Déconnecter ce compte", role: .destructive) { Task { await agenda.disconnect(account.email) } }
-                    }
-                }
-                Divider()
-                Button("Ajouter un compte Google…") { Task { await agenda.connect() } }.disabled(!agenda.hasGoogleKey)
-            }
-            .fixedSize()
+            Button { move(7) } label: { Label("Semaine suivante", systemImage: "chevron.right") }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        ToolbarItem(placement: .primaryAction) {
+            SyncStatus(agenda: agenda)
+        }
     }
 
     private var weekTitle: String {
-        let format = Date.FormatStyle(date: .long, time: .omitted).locale(Locale(identifier: "fr_FR"))
-        guard let last = days.last else { return "" }
-        return "Semaine du \(weekStart.formatted(.dateTime.day().locale(Locale(identifier: "fr_FR")))) au \(last.formatted(format))"
+        let month = weekStart.formatted(.dateTime.month(.wide).year().locale(Self.locale))
+        return month.prefix(1).uppercased() + month.dropFirst()
     }
 
     private func move(_ days: Int) {
         weekStart = Self.calendar.date(byAdding: .day, value: days, to: weekStart) ?? weekStart
     }
 
+    /// Accueil asked for an event: its week, and its card open.
+    private func openAsked() {
+        guard let id = router.eventSelection else { return }
+        router.eventSelection = nil
+        guard let event = agenda.shown.first(where: { $0.id == id || $0.eventID == id }) else { return }
+        weekStart = Self.monday(of: event.startAt)
+        selection = event.id
+    }
+
     // MARK: - No account yet
 
     private var setup: some View {
         VStack(spacing: 14) {
-            Image(systemName: "calendar").font(.system(size: 40)).foregroundStyle(.secondary)
-            Text("Connecte tes agendas Google").font(.title3.bold())
+            Image(systemName: "calendar").font(.system(size: 44, weight: .light)).foregroundStyle(.secondary)
+            Text("Connecte tes agendas Google").font(.title2.bold())
             if agenda.hasGoogleKey {
                 Text("Polhub lit tes rendez-vous en lecture seule : les invités deviennent des contacts, rangés dans les projets de leurs rendez-vous.")
                     .multilineTextAlignment(.center).foregroundStyle(.secondary).frame(maxWidth: 460)
-                Button("Ajouter un compte Google…") { Task { await agenda.connect() } }.buttonStyle(.borderedProminent)
+                Button("Ajouter un compte Google…") { Task { await agenda.connect() } }
+                    .buttonStyle(.glassProminent).controlSize(.large)
             } else {
                 Text("La clé Google n'est pas encore en place : lance « configurer-google.command », dans le dossier scripts de Polhub, puis reviens ici.")
                     .multilineTextAlignment(.center).foregroundStyle(.secondary).frame(maxWidth: 460)
@@ -141,52 +133,75 @@ struct CalendarView: View {
 
     private var week: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                Color.clear.frame(width: 48, height: 0)
-                ForEach(days, id: \.self) { day in
-                    let today = Self.calendar.isDateInToday(day)
-                    Text(day.formatted(.dateTime.weekday(.abbreviated).day().locale(Locale(identifier: "fr_FR"))))
-                        .font(.callout.weight(today ? .bold : .regular))
-                        .foregroundStyle(today ? Color.accentColor : Color.primary)
-                        .frame(maxWidth: .infinity)
-                }
-            }
-            .padding(.vertical, 6)
+            dayHeader
             allDayRow
             Divider()
             ScrollViewReader { scroll in
                 ScrollView {
                     HStack(alignment: .top, spacing: 0) {
-                        VStack(spacing: 0) {
-                            ForEach(0..<24, id: \.self) { hour in
-                                Text(String(format: "%02d:00", hour)).font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
-                                    .frame(width: 48, height: Self.hourHeight, alignment: .topTrailing).padding(.trailing, 4).id(hour)
-                            }
-                        }
-                        ForEach(days, id: \.self) { day in
-                            dayColumn(day)
-                        }
+                        hourLabels
+                        ForEach(days, id: \.self) { day in dayColumn(day) }
                     }
+                    .padding(.top, 8)
                 }
-                .onAppear { scroll.scrollTo(8, anchor: .top) }
+                .onAppear { scroll.scrollTo(max(0, Self.calendar.component(.hour, from: .now) - 2), anchor: .top) }
             }
         }
     }
 
+    private var dayHeader: some View {
+        HStack(spacing: 0) {
+            Color.clear.frame(width: Self.gutter, height: 1)
+            ForEach(days, id: \.self) { day in
+                let today = Self.calendar.isDateInToday(day)
+                HStack(spacing: 6) {
+                    Text(day.formatted(.dateTime.weekday(.abbreviated).locale(Self.locale)).uppercased())
+                        .font(.caption.weight(.medium)).foregroundStyle(today ? Color.accentColor : .secondary)
+                    Text(day.formatted(.dateTime.day().locale(Self.locale)))
+                        .font(.title3.weight(today ? .bold : .regular).monospacedDigit())
+                        .foregroundStyle(today ? Color.white : .primary)
+                        .frame(minWidth: 30, minHeight: 30)
+                        .background { if today { Circle().fill(Color.accentColor) } }
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(.vertical, 8)
+    }
+
     private var allDayRow: some View {
-        let allDay = agenda.events.filter(\.allDay)
-        return HStack(spacing: 0) {
-            Color.clear.frame(width: 48, height: 0)
+        let allDay = agenda.shown.filter(\.allDay)
+        return HStack(alignment: .top, spacing: 0) {
+            Color.clear.frame(width: Self.gutter, height: 1)
             ForEach(days, id: \.self) { day in
                 VStack(spacing: 2) {
                     ForEach(allDay.filter { $0.startAt <= day && $0.endAt > day }) { event in
-                        Text(event.title).font(.caption).lineLimit(1).padding(.horizontal, 4).frame(maxWidth: .infinity, alignment: .leading)
-                            .background(color(event).opacity(0.18), in: RoundedRectangle(cornerRadius: 4))
+                        let color = agenda.color(for: event.account)
+                        Text(event.title).font(.caption.weight(.medium)).lineLimit(1)
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(color.opacity(0.22), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                            .contentShape(Rectangle())
                             .onTapGesture { selection = event.id }
+                            .popover(isPresented: shows(event), arrowEdge: .bottom) { popover(event) }
                     }
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 2)
+            }
+        }
+        .padding(.bottom, 4)
+    }
+
+    private var hourLabels: some View {
+        VStack(spacing: 0) {
+            ForEach(0..<24, id: \.self) { hour in
+                Text(hour == 0 ? "" : String(format: "%02d h", hour))
+                    .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                    .frame(width: Self.gutter - 8, height: Self.hourHeight, alignment: .topTrailing)
+                    .offset(y: -6)
+                    .padding(.trailing, 8)
+                    .id(hour)
             }
         }
     }
@@ -194,52 +209,74 @@ struct CalendarView: View {
     private func dayColumn(_ day: Date) -> some View {
         let start = Self.calendar.startOfDay(for: day)
         let end = Self.calendar.date(byAdding: .day, value: 1, to: start) ?? start
-        let events = agenda.events.filter { !$0.allDay && $0.startAt < end && $0.endAt > start }
+        let events = agenda.shown.filter { !$0.allDay && $0.startAt < end && $0.endAt > start }
         let slots = DayLayout.place(events.map { (max($0.startAt, start), min($0.endAt, end)) })
+        let weekend = Self.calendar.isDateInWeekend(day)
         return GeometryReader { geometry in
             ZStack(alignment: .topLeading) {
                 VStack(spacing: 0) {
                     ForEach(0..<24, id: \.self) { _ in
-                        Rectangle().fill(Color.secondary.opacity(0.12)).frame(height: 1).frame(maxHeight: Self.hourHeight, alignment: .top)
+                        Rectangle().fill(Color.secondary.opacity(0.13)).frame(height: 0.5).frame(maxHeight: Self.hourHeight, alignment: .top)
                     }
-                }
-                if Self.calendar.isDateInToday(day) {
-                    Rectangle().fill(Color.red).frame(height: 1.5).offset(y: offset(Date(), from: start))
                 }
                 ForEach(Array(events.enumerated()), id: \.element.id) { index, event in
                     let slot = slots[index]
                     let width = geometry.size.width / CGFloat(slot.columns)
                     let top = offset(max(event.startAt, start), from: start)
-                    let height = max(18, offset(min(event.endAt, end), from: start) - top)
-                    eventBlock(event, height: height)
-                        .frame(width: width - 3, height: height - 2)
-                        .offset(x: CGFloat(slot.column) * width + 1, y: top + 1)
+                    let height = max(20, offset(min(event.endAt, end), from: start) - top)
+                    eventBlock(event, height: height - 2)
+                        .frame(width: max(0, width - 4), height: height - 2)
+                        .popover(isPresented: shows(event), arrowEdge: .trailing) { popover(event) }
+                        .padding(.leading, CGFloat(slot.column) * width + 2)
+                        .padding(.top, top + 1)
+                }
+                if Self.calendar.isDateInToday(day) {
+                    TimelineView(.periodic(from: .now, by: 60)) { context in
+                        NowLine().offset(y: offset(context.date, from: start) - 4)
+                    }
                 }
             }
         }
         .frame(height: Self.hourHeight * 24)
         .frame(maxWidth: .infinity)
-        .overlay(alignment: .leading) { Rectangle().fill(Color.secondary.opacity(0.15)).frame(width: 1) }
+        .background(weekend ? Color.secondary.opacity(0.04) : .clear)
+        .overlay(alignment: .leading) { Rectangle().fill(Color.secondary.opacity(0.13)).frame(width: 0.5) }
     }
 
     private func offset(_ date: Date, from start: Date) -> CGFloat {
         CGFloat(date.timeIntervalSince(start) / 3_600) * Self.hourHeight
     }
 
+    private func shows(_ event: CalendarEventRow) -> Binding<Bool> {
+        Binding(get: { selection == event.id }, set: { if !$0, selection == event.id { selection = nil } })
+    }
+
+    private func popover(_ event: CalendarEventRow) -> some View {
+        EventPopover(event: event, agenda: agenda, router: router) { selection = nil }
+    }
+
     private func eventBlock(_ event: CalendarEventRow, height: CGFloat) -> some View {
         let declined = event.attendees.first(where: \.isSelf)?.response == "declined"
+        let color = agenda.color(for: event.account)
+        let selected = selection == event.id
         return VStack(alignment: .leading, spacing: 1) {
-            Text(event.title).font(.caption.weight(.semibold)).lineLimit(height > 40 ? 2 : 1)
+            HStack(spacing: 3) {
+                Text(event.title).font(.caption.weight(.semibold)).lineLimit(height > 44 ? 2 : 1)
+                Spacer(minLength: 0)
+                if event.meetingID != nil { Image(systemName: "waveform").font(.caption2).foregroundStyle(color) }
+            }
             if height > 34 {
-                Text(event.startAt.formatted(date: .omitted, time: .shortened)
-                     + (project(event).map { " · \($0.name)" } ?? "")).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                Text(event.startAt.formatted(date: .omitted, time: .shortened) + (project(event).map { " · \($0.name)" } ?? ""))
+                    .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
             }
         }
-        .padding(.horizontal, 5)
+        .padding(.leading, 8)
+        .padding(.trailing, 4)
         .padding(.vertical, 3)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(color(event).opacity(selection == event.id ? 0.4 : 0.2), in: RoundedRectangle(cornerRadius: 5))
-        .overlay(alignment: .leading) { RoundedRectangle(cornerRadius: 1).fill(color(event)).frame(width: 3) }
+        .background(color.opacity(selected ? 0.38 : 0.2), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .overlay(alignment: .leading) { Capsule().fill(color).frame(width: 3).padding(.vertical, 3).padding(.leading, 2) }
+        .overlay { if selected { RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(color, lineWidth: 1) } }
         .opacity(declined ? 0.45 : 1)
         .contentShape(Rectangle())
         .onTapGesture { selection = event.id }
@@ -249,34 +286,165 @@ struct CalendarView: View {
     private func project(_ event: CalendarEventRow) -> ProjectRow? {
         event.projectID.flatMap { id in agenda.projects.first { $0.id == id } }
     }
+}
 
-    private func color(_ event: CalendarEventRow) -> Color {
-        guard let project = project(event) else { return .gray }
-        return ProjectViews.cardHex(project.color).map(Color.init(hex:)) ?? .accentColor
+/// The red line of the current time, with its dot.
+struct NowLine: View {
+    var body: some View {
+        HStack(spacing: 0) {
+            Circle().fill(Color.red).frame(width: 8, height: 8)
+            Rectangle().fill(Color.red).frame(height: 1.5)
+        }
+        .frame(height: 8)
+        .offset(x: -4)
+        .allowsHitTesting(false)
     }
 }
 
-/// One event: when, the Meet, its project (and why), its recording, its guests.
-struct EventInspector: View {
+/// The accounts, each in its color: a click changes the color, disconnects, or adds an account.
+struct AccountLegend: View {
+    @ObservedObject var agenda: AgendaLibrary
+    @State private var editing: String?
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ForEach(agenda.accounts) { account in
+                Button { editing = account.email } label: {
+                    HStack(spacing: 6) {
+                        Circle().fill(agenda.color(for: account.email)).frame(width: 10, height: 10)
+                        Text(AccountStyle.label(for: account.email)).font(.callout)
+                        if account.lastError != nil { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange).font(.caption) }
+                    }
+                }
+                .buttonStyle(.plain)
+                .help(account.email)
+                .popover(isPresented: Binding(get: { editing == account.email }, set: { if !$0 { editing = nil } }), arrowEdge: .bottom) {
+                    AccountCard(account: account, agenda: agenda) { editing = nil }
+                }
+            }
+            Button { Task { await agenda.connect() } } label: { Image(systemName: "plus") }
+                .buttonStyle(.borderless)
+                .help("Ajouter un compte Google")
+                .disabled(!agenda.hasGoogleKey)
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+    }
+}
+
+/// One account: its color, its state, and « Déconnecter ».
+struct AccountCard: View {
+    let account: GoogleAccountRow
+    @ObservedObject var agenda: AgendaLibrary
+    let close: () -> Void
+    @State private var confirming = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(AccountStyle.label(for: account.email)).font(.headline)
+                Text(account.email).font(.callout).foregroundStyle(.secondary)
+            }
+            HStack(spacing: 8) {
+                ForEach(AccountStyle.choices, id: \.self) { hex in
+                    let chosen = agenda.colors[account.email] == hex
+                    Button { agenda.setColor(hex, for: account.email) } label: {
+                        Circle().fill(Color(hex: hex)).frame(width: 22, height: 22)
+                            .overlay { if chosen { Image(systemName: "checkmark").font(.caption.bold()).foregroundStyle(.white) } }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            if let error = account.lastError {
+                Label(error, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if let last = account.lastSyncAt {
+                Text("Lu à \(last.formatted(date: .omitted, time: .shortened))").font(.caption).foregroundStyle(.secondary)
+            }
+            Divider()
+            Button("Déconnecter ce compte…", role: .destructive) { confirming = true }.buttonStyle(.borderless)
+        }
+        .padding(16)
+        .frame(width: 300, alignment: .leading)
+        .confirmationDialog("Déconnecter \(account.email) ?", isPresented: $confirming) {
+            Button("Déconnecter", role: .destructive) {
+                close()
+                Task { await agenda.disconnect(account.email) }
+            }
+        } message: {
+            Text("Ses rendez-vous disparaissent de Polhub ; rien ne change chez Google.")
+        }
+    }
+}
+
+/// When the calendars were last read, an error, and « Synchroniser ».
+struct SyncStatus: View {
+    @ObservedObject var agenda: AgendaLibrary
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if agenda.syncing {
+                ProgressView().controlSize(.small)
+            } else if let last = agenda.accounts.compactMap(\.lastSyncAt).max() {
+                Text("À jour à \(last.formatted(date: .omitted, time: .shortened))").font(.callout).foregroundStyle(.secondary)
+            }
+            Button { Task { await agenda.syncAll() } } label: { Label("Synchroniser", systemImage: "arrow.clockwise") }
+                .disabled(agenda.syncing || agenda.accounts.isEmpty)
+                .help("Relire les agendas maintenant")
+        }
+    }
+}
+
+/// One event, in a popover: when, « Rejoindre » with its account, its project (and why), its recording,
+/// its guests.
+struct EventPopover: View {
     let event: CalendarEventRow
     @ObservedObject var agenda: AgendaLibrary
     @ObservedObject var router: WindowRouter
     let close: () -> Void
 
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .top) {
-                    Text(event.title).font(.title3.bold()).fixedSize(horizontal: false, vertical: true)
-                    Spacer()
-                    Button(action: close) { Image(systemName: "xmark") }.buttonStyle(.borderless)
-                }
-                Text(when).foregroundStyle(.secondary)
-                if let code = event.meetCode, let url = URL(string: "https://meet.google.com/\(code)") {
-                    Link(destination: url) { Label("Google Meet · \(code)", systemImage: "video") }
-                }
-                if let location = event.location, !location.isEmpty { Label(location, systemImage: "mappin").foregroundStyle(.secondary) }
+    private var color: Color { agenda.color(for: event.account) }
 
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 10) {
+                RoundedRectangle(cornerRadius: 2).fill(color).frame(width: 4).frame(maxHeight: .infinity)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(event.title).font(.title3.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
+                    Text(when).foregroundStyle(.secondary)
+                    Text("\(AccountStyle.label(for: event.account)) · \(event.account)").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+
+            if event.meetCode != nil {
+                Button {
+                    agenda.join(event)
+                    close()
+                } label: {
+                    Label("Rejoindre", systemImage: "video.fill").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.glassProminent)
+                .tint(color)
+                .controlSize(.large)
+                .keyboardShortcut(.defaultAction)
+                .help("Ouvre le Meet dans Dia avec le compte \(event.account)")
+            }
+            if let meetingID = event.meetingID {
+                Button {
+                    close()
+                    router.open(meetingID: meetingID, at: nil)
+                } label: {
+                    Label("Ouvrir la réunion enregistrée", systemImage: "waveform").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.glass)
+            }
+            if let location = event.location, !location.isEmpty, !location.hasPrefix("http") {
+                Label(location, systemImage: "mappin.and.ellipse").font(.callout).foregroundStyle(.secondary)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
                 Picker("Projet", selection: Binding(
                     get: { event.projectID },
                     set: { id in Task { await agenda.setProject(event, projectID: id) } }
@@ -288,54 +456,89 @@ struct EventInspector: View {
                     }
                 }
                 if let reason { Text(reason).font(.caption).foregroundStyle(.secondary) }
+            }
 
-                if let meetingID = event.meetingID {
-                    Button { router.open(meetingID: meetingID, at: nil) } label: { Label("Ouvrir la réunion enregistrée", systemImage: "waveform") }
-                }
-
-                if !event.guests.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Invités (\(event.guests.count))").font(.headline)
-                        ForEach(event.guests, id: \.email) { guest in
-                            let contact = agenda.contact(email: guest.email)
-                            Button {
-                                if let contact { router.openContact(contact.id) }
-                            } label: {
-                                VStack(alignment: .leading, spacing: 1) {
-                                    Text(contact?.name ?? Linker.name(for: guest)).foregroundStyle(.primary)
-                                    Text([contact?.company, guest.email].compactMap { $0 }.joined(separator: " · "))
-                                        .font(.caption).foregroundStyle(.secondary)
-                                }
-                            }
-                            .buttonStyle(.plain)
-                        }
+            if !event.guests.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Invités · \(event.guests.count)").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    ForEach(event.guests.prefix(8), id: \.email) { guest in
+                        GuestRow(guest: guest, agenda: agenda, router: router, close: close)
+                    }
+                    if event.guests.count > 8 {
+                        Text("et \(event.guests.count - 8) autres").font(.caption).foregroundStyle(.secondary)
                     }
                 }
-                if let link = event.htmlLink.flatMap(URL.init(string:)) {
-                    Link("Ouvrir dans Google Agenda", destination: link).font(.callout)
-                }
-                Text(event.account).font(.caption).foregroundStyle(.tertiary)
             }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            if let link = event.htmlLink.flatMap(URL.init(string:)) {
+                Link("Ouvrir dans Google Agenda", destination: link).font(.caption)
+            }
         }
+        .padding(16)
+        .frame(width: 320, alignment: .leading)
     }
 
     private var when: String {
-        let locale = Locale(identifier: "fr_FR")
-        if event.allDay { return event.startAt.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(locale)) + ", toute la journée" }
-        return event.startAt.formatted(.dateTime.weekday(.wide).day().month(.wide).hour().minute().locale(locale))
+        let locale = CalendarView.locale
+        let day = event.startAt.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(locale))
+        let capitalized = day.prefix(1).uppercased() + day.dropFirst()
+        if event.allDay { return capitalized + ", toute la journée" }
+        return capitalized + ", " + event.startAt.formatted(.dateTime.hour().minute().locale(locale))
             + " – " + event.endAt.formatted(.dateTime.hour().minute().locale(locale))
     }
 
     private var reason: String? {
         switch event.projectOrigin {
-        case .paul?: "Rangé par toi."
+        case .paul?: event.projectID == nil ? "Sorti de tout projet par toi." : "Rangé par toi."
         case .reunion?: "D'après la réunion enregistrée."
         case .serie?: "D'après les autres rendez-vous de la série."
         case .invites?: "D'après les projets des invités."
         case .titre?: "D'après le titre."
         case nil: event.projectID == nil ? "Pas de projet trouvé : choisis-le, les invités suivront." : nil
         }
+    }
+}
+
+/// A guest: initials, name, company; a click opens the contact.
+struct GuestRow: View {
+    let guest: Attendee
+    @ObservedObject var agenda: AgendaLibrary
+    @ObservedObject var router: WindowRouter
+    let close: () -> Void
+
+    var body: some View {
+        let contact = agenda.contact(email: guest.email)
+        Button {
+            guard let contact else { return }
+            close()
+            router.openContact(contact.id)
+        } label: {
+            HStack(spacing: 8) {
+                InitialsBadge(text: contact?.initials ?? String(Linker.name(for: guest).prefix(1)), size: 24)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(contact?.name ?? Linker.name(for: guest)).font(.callout).foregroundStyle(.primary)
+                    if let company = contact?.company ?? Linker.company(forEmail: guest.email) {
+                        Text(company).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                Spacer(minLength: 0)
+                if guest.response == "declined" { Image(systemName: "xmark.circle").foregroundStyle(.secondary).help("A refusé") }
+                if guest.response == "accepted" { Image(systemName: "checkmark.circle").foregroundStyle(.green).help("A accepté") }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// Initials in a soft circle.
+struct InitialsBadge: View {
+    let text: String
+    var size: CGFloat = 30
+
+    var body: some View {
+        Text(text.isEmpty ? "?" : text)
+            .font(.system(size: size * 0.4, weight: .semibold))
+            .frame(width: size, height: size)
+            .background(Color.accentColor.opacity(0.15), in: Circle())
     }
 }

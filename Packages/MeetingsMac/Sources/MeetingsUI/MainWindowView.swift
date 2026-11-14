@@ -66,6 +66,8 @@ public final class WindowRouter: ObservableObject {
     @Published public var query = ""
     @Published public var settingsTab: SettingsTab = .updates
     @Published public var contactSelection: UUID?
+    /// An event Accueil asked Calendrier to open (14/11).
+    @Published public var eventSelection: String?
 
     public init() {}
 
@@ -75,6 +77,11 @@ public final class WindowRouter: ObservableObject {
     }
 
     /// The menu's « Diagnostic… », the first launch and the alerts.
+    public func openEvent(_ id: String) {
+        section = .calendar
+        eventSelection = id
+    }
+
     public func openDiagnostic() {
         section = .settings
         settingsTab = .diagnostic
@@ -165,6 +172,8 @@ public struct MainWindowView<Diagnostic: View>: View {
                     }
                     .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
                 }
+                .navigationTitle("Réunions")
+                .searchable(text: $router.query, placement: .toolbar, prompt: "Chercher dans les transcriptions")
             case .settings:
                 SettingsPage(tab: $router.settingsTab, updates: updates, projects: projects, agenda: agenda) {
                     diagnostic
@@ -174,7 +183,6 @@ public struct MainWindowView<Diagnostic: View>: View {
             }
         }
         .frame(minWidth: Self.minimumWidth, minHeight: 520)
-        .searchable(text: $router.query, placement: .toolbar, prompt: "Chercher dans les transcriptions")
     }
 }
 

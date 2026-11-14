@@ -27,18 +27,18 @@ struct ContactsView: View {
     var body: some View {
         HStack(spacing: 0) {
             VStack(spacing: 0) {
-                TextField("Chercher un contact", text: $query).textFieldStyle(.roundedBorder).padding(10)
                 if agenda.contacts.isEmpty {
                     empty
                 } else {
                     List(shown, selection: $router.contactSelection) { contact in
                         HStack(spacing: 10) {
-                            Initials(contact: contact)
+                            InitialsBadge(text: contact.initials)
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(contact.name)
                                 if let company = contact.company { Text(company).font(.caption).foregroundStyle(.secondary) }
                             }
                         }
+                        .padding(.vertical, 2)
                         .tag(contact.id)
                     }
                 }
@@ -53,6 +53,8 @@ struct ContactsView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .navigationTitle("Contacts")
+        .searchable(text: $query, placement: .toolbar, prompt: "Chercher un contact")
     }
 
     private var empty: some View {
@@ -69,17 +71,6 @@ struct ContactsView: View {
     }
 }
 
-struct Initials: View {
-    let contact: ContactRow
-
-    var body: some View {
-        Text(contact.initials.isEmpty ? "?" : contact.initials)
-            .font(.caption.weight(.semibold))
-            .frame(width: 30, height: 30)
-            .background(Color.accentColor.opacity(0.15), in: Circle())
-    }
-}
-
 /// One contact: details, projects (removable, addable), meetings and events.
 struct ContactPage: View {
     @State var contact: ContactRow
@@ -92,7 +83,7 @@ struct ContactPage: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(spacing: 14) {
-                    Initials(contact: contact).scaleEffect(1.6).frame(width: 50, height: 50)
+                    InitialsBadge(text: contact.initials, size: 56)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(contact.name).font(.title2.bold())
                         if let company = contact.company { Text(company).foregroundStyle(.secondary) }
@@ -122,8 +113,8 @@ struct ContactPage: View {
                                 .buttonStyle(.borderless)
                                 .help("Retirer de ce projet : le lien ne reviendra pas tout seul.")
                         }
-                        .padding(.horizontal, 8).padding(.vertical, 4)
-                        .background(Color.secondary.opacity(0.12), in: Capsule())
+                        .padding(.horizontal, 10).padding(.vertical, 5)
+                        .background(Color.primary.opacity(0.06), in: Capsule())
                     }
                     Menu("Ajouter à un projet") {
                         ForEach(agenda.projects.filter { project in project.status != .termine && !projects.contains { $0.id == project.id } }
