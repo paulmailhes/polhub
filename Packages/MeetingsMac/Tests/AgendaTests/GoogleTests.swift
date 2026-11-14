@@ -24,11 +24,12 @@ import Testing
         #expect((43...128).contains(verifier.count) && verifier.allSatisfy { $0.isLetter || $0.isNumber || "-._~".contains($0) })
     }
 
-    @Test func theAuthorizationAsksForAnOfflineReadOnlyCalendar() throws {
+    @Test func theAuthorizationAsksForOfflineCalendarEvents() throws {
         let url = GoogleOAuth.authorizationURL(config: config, redirect: URL(string: "http://127.0.0.1:53682")!, challenge: "c", state: "s")
         let items = Dictionary(uniqueKeysWithValues: (URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []).map { ($0.name, $0.value ?? "") })
         #expect(items["client_id"] == config.clientID && items["redirect_uri"] == "http://127.0.0.1:53682")
-        #expect(items["scope"] == "openid email https://www.googleapis.com/auth/calendar.readonly")
+        // 14/11: Paul creates and changes his events from Polhub.
+        #expect(items["scope"] == "openid email https://www.googleapis.com/auth/calendar.events")
         #expect(items["access_type"] == "offline" && items["prompt"] == "consent")
         #expect(items["code_challenge"] == "c" && items["code_challenge_method"] == "S256" && items["state"] == "s")
     }

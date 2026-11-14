@@ -21,6 +21,8 @@ public final class AgendaLibrary: ObservableObject {
     @Published public private(set) var colors: [String: String] = [:]
     @Published public private(set) var contacts: [ContactRow] = []
     @Published public private(set) var projects: [ProjectRow] = []
+    /// Whether each account can be written to (read only when connected before 14/11).
+    @Published public private(set) var writable: [String: Bool] = [:]
     @Published public private(set) var syncing = false
     @Published public private(set) var importing = false
     /// The last thing to tell Paul: a sync error, an import's report.
@@ -87,7 +89,51 @@ public final class AgendaLibrary: ObservableObject {
                 try? store.recordSync(email: account.email, syncToken: nil, error: "\(error)", at: Date())
             }
         }
+        for account in accounts { writable[account.email] = await session.canWrite(account.email) ?? writable[account.email] }
         await runLinks()
+    }
+
+    // MARK: - Writing (14/11)
+
+    /// The description of an event, read from Google before changing it.
+    public func notes(of event: CalendarEventRow) async -> String {
+        let id = event.eventID
+        guard let data = try? await session.send({ CalendarWrite.getRequest(accessToken: $0, eventID: id) }, for: event.account) else { return "" }
+        return CalendarWrite.notes(from: data)
+    }
+
+    /// Creates the event in the account's calendar, or changes it; Google sends the invitations.
+    public func save(_ draft: EventDraft, account: String, editing: CalendarEventRow?) async throws {
+        let requestID = UUID().uuidString, zone = TimeZone.current
+        let data = try await session.send({ token in
+            if let editing { return CalendarWrite.patchRequest(accessToken: token, event: editing, draft: draft, timeZone: zone, requestID: requestID) }
+            return CalendarWrite.insertRequest(accessToken: token, draft: draft, timeZone: zone, requestID: requestID)
+        }, for: account)
+        writable[account] = true
+        if let row = try CalendarWrite.event(from: data, account: account) {
+            try CalendarStore(database).applyGoogle(account: account, changed: [row], cancelled: [], at: Date())
+        }
+        await runLinks()
+    }
+
+    /// Deletes the event; its guests are told by Google.
+    public func delete(_ event: CalendarEventRow) async throws {
+        let id = event.eventID
+        _ = try await session.send({ CalendarWrite.deleteRequest(accessToken: $0, eventID: id) }, for: event.account)
+        try CalendarStore(database).applyGoogle(account: event.account, changed: [], cancelled: [id], at: Date())
+    }
+
+    /// Connects the account again, to grant writing: Google's page opens on it.
+    public func reconnect(_ email: String) async {
+        do {
+            let connected = try await session.connect(open: { url in Task { @MainActor in NSWorkspace.shared.open(url) } }, loginHint: email)
+            try CalendarStore(database).addAccount(email: connected, at: Date())
+            writable[connected] = await session.canWrite(connected)
+            message = "Compte \(connected) reconnecté."
+            await syncAll()
+        } catch {
+            message = "Reconnexion impossible : \(error)"
+        }
     }
 
     /// The calendar's name for a recording that starts: the event of the same Meet code at that time (14/11).

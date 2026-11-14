@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Polhub : la clé Google qui lui permet de lire tes agendas (lecture seule), une seule fois.
+# Polhub : la clé Google qui lui permet de lire tes agendas et d'y créer tes rendez-vous, une seule fois.
 # Ouvre chaque page de la console Google au bon endroit, puis range tout seul le fichier téléchargé dans
 # ~/Library/Application Support/Polhub/google-client.json (jamais affiché, jamais dans le dépôt).
 # Le projet est publié « en production » : les connexions tiennent, sans rien refaire tous les 7 jours.

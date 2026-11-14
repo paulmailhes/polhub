@@ -3,6 +3,15 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.9.0 — 14 novembre 2026
+
+- **Calendrier en écriture** : « + » dans la barre du haut, ou un double-clic dans la grille, crée un
+  rendez-vous (titre, agenda, horaires, visio Google Meet, lieu, invités pris dans tes contacts, notes) ;
+  « Modifier » dans sa fiche le change ou le supprime. Google envoie les invitations.
+- Seuls les rendez-vous que tu organises se modifient ; une invitation reste à son organisateur.
+- Un compte connecté avant cette version reste en lecture : « Autoriser la modification », dans sa fiche
+  (clic sur le compte, en haut du Calendrier), le reconnecte.
+
 ## 0.8.0 — 14 novembre 2026
 
 - **Un système de design commun, dans l'esprit Liquid Glass** : barre du haut en verre sur chaque écran,

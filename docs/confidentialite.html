@@ -10,7 +10,7 @@
 <main>
   <p><a href="index.html">← Polhub</a></p>
   <h1>Règles de confidentialité</h1>
-  <p class="meta">En vigueur le 13 novembre 2026.</p>
+  <p class="meta">En vigueur le 14 novembre 2026.</p>
 
   <p>Polhub est une application macOS installée sur l'ordinateur de son utilisateur. Elle n'a pas de serveur :
   l'éditeur de Polhub ne reçoit, ne voit et ne stocke aucune donnée de ses utilisateurs.</p>
@@ -19,10 +19,13 @@
   <p>Quand l'utilisateur connecte un compte Google, Polhub demande trois autorisations :</p>
   <ul>
     <li><code>openid</code> et <code>email</code> : l'adresse du compte, pour savoir quel compte est connecté ;</li>
-    <li><code>calendar.readonly</code> : la lecture seule des rendez-vous de l'agenda principal (titre, horaires,
-    lieu, lien Google Meet, organisateur, invités et leurs réponses).</li>
+    <li><code>calendar.events</code> : les rendez-vous de l'agenda principal (titre, horaires, lieu, lien Google
+    Meet, organisateur, invités et leurs réponses), en lecture, et en écriture pour ceux que l'utilisateur crée,
+    modifie ou supprime dans Polhub.</li>
   </ul>
-  <p>Polhub ne modifie, ne crée et ne supprime jamais rien dans les agendas ni dans le compte Google.</p>
+  <p>Polhub ne crée, ne modifie et ne supprime un rendez-vous que lorsque l'utilisateur le fait lui-même dans
+  l'application ; Google envoie alors les invitations comme d'habitude. Polhub ne touche à rien d'autre dans le
+  compte Google.</p>
 
   <h2>Usage</h2>
   <p>Ces données servent uniquement à des fonctions visibles par l'utilisateur dans l'application : afficher ses

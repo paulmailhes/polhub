@@ -44,6 +44,8 @@ struct CalendarView: View {
     @ObservedObject var router: WindowRouter
     @State private var weekStart = CalendarView.monday(of: .now)
     @State private var selection: String?
+    /// The editor of an event, new or existing (14/11).
+    @State private var editor: EditorRequest?
 
     static let hourHeight: CGFloat = 48
     static let gutter: CGFloat = 52
@@ -75,6 +77,7 @@ struct CalendarView: View {
         .windowTitle("Calendrier", subtitle: weekTitle)
         .toolbar { toolbar }
         .onAppear(perform: openAsked)
+        .sheet(item: $editor) { request in EventEditor(agenda: agenda, request: request) }
         .onChange(of: router.eventSelection) { _, _ in openAsked() }
     }
 
@@ -89,6 +92,11 @@ struct CalendarView: View {
         }
         ToolbarItem(placement: .primaryAction) {
             SyncStatus(agenda: agenda)
+        }
+        ToolbarItem(placement: .primaryAction) {
+            Button { editor = EditorRequest() } label: { Label("Nouveau rendez-vous", systemImage: "plus") }
+                .help("Nouveau rendez-vous (ou double-clic dans la grille)")
+                .disabled(agenda.accounts.isEmpty)
         }
     }
 
@@ -220,6 +228,12 @@ struct CalendarView: View {
                         Rectangle().fill(Color.secondary.opacity(0.13)).frame(height: 0.5).frame(maxHeight: Self.hourHeight, alignment: .top)
                     }
                 }
+                .contentShape(Rectangle())
+                // A double click on the grid: a new event at that half hour.
+                .onTapGesture(count: 2, coordinateSpace: .local) { point in
+                    let halfHours = max(0, min(47, Int(point.y / (Self.hourHeight / 2))))
+                    editor = EditorRequest(start: Self.calendar.date(byAdding: .minute, value: halfHours * 30, to: start))
+                }
                 ForEach(Array(events.enumerated()), id: \.element.id) { index, event in
                     let slot = slots[index]
                     let width = geometry.size.width / CGFloat(slot.columns)
@@ -253,7 +267,10 @@ struct CalendarView: View {
     }
 
     private func popover(_ event: CalendarEventRow) -> some View {
-        EventPopover(event: event, agenda: agenda, router: router) { selection = nil }
+        EventPopover(event: event, agenda: agenda, router: router, edit: {
+            selection = nil
+            editor = EditorRequest(event: event)
+        }) { selection = nil }
     }
 
     private func eventBlock(_ event: CalendarEventRow, height: CGFloat) -> some View {
@@ -363,6 +380,15 @@ struct AccountCard: View {
             } else if let last = account.lastSyncAt {
                 Text("Lu à \(last.formatted(date: .omitted, time: .shortened))").font(.caption).foregroundStyle(.secondary)
             }
+            if agenda.writable[account.email] == false {
+                Label("Lecture seule : reconnecte ce compte pour créer et modifier ses rendez-vous depuis Polhub.", systemImage: "lock")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Button("Autoriser la modification") {
+                    close()
+                    Task { await agenda.reconnect(account.email) }
+                }
+                .buttonStyle(.glassProminent)
+            }
             Divider()
             Button("Déconnecter ce compte…", role: .destructive) { confirming = true }.buttonStyle(.borderless)
         }
@@ -403,6 +429,8 @@ struct EventPopover: View {
     let event: CalendarEventRow
     @ObservedObject var agenda: AgendaLibrary
     @ObservedObject var router: WindowRouter
+    /// Opens the editor (only for the events Paul organizes).
+    var edit: (() -> Void)?
     let close: () -> Void
 
     private var color: Color { agenda.color(for: event.account) }
@@ -416,8 +444,16 @@ struct EventPopover: View {
                     Text(when).foregroundStyle(.secondary)
                     Text("\(AccountStyle.label(for: event.account)) · \(event.account)").font(.caption).foregroundStyle(.secondary)
                 }
+                Spacer(minLength: 0)
+                if EventCopies.canEdit(event), let edit {
+                    Button("Modifier", action: edit).buttonStyle(.glass).controlSize(.small)
+                }
             }
             .fixedSize(horizontal: false, vertical: true)
+            if !EventCopies.canEdit(event), let organizer = event.organizer {
+                Text("Invitation de \(agenda.contact(email: organizer)?.name ?? organizer) : seul l'organisateur la modifie.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
 
             if event.meetCode != nil {
                 Button {

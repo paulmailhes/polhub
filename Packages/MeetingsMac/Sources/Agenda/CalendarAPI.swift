@@ -34,26 +34,31 @@ public enum CalendarAPI {
                 page.cancelled.append(id)
                 continue
             }
-            guard let (start, allDay) = date(item["start"]), let (end, _) = date(item["end"]) else { continue }
-            let video = ((item["conferenceData"] as? [String: Any])?["entryPoints"] as? [[String: Any]])?
-                .first { $0["entryPointType"] as? String == "video" }?["uri"] as? String
-            let link = (item["hangoutLink"] as? String) ?? video
-            let attendees = (item["attendees"] as? [[String: Any]] ?? []).compactMap { guest -> Attendee? in
-                guard let email = guest["email"] as? String else { return nil }
-                return Attendee(email: email, name: guest["displayName"] as? String, response: guest["responseStatus"] as? String,
-                                isSelf: guest["self"] as? Bool ?? false, isOrganizer: guest["organizer"] as? Bool ?? false,
-                                isResource: guest["resource"] as? Bool ?? email.hasSuffix("resource.calendar.google.com"))
-            }
-            let title = (item["summary"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            page.events.append(CalendarEventRow(
-                account: account, eventID: id, recurringEventID: item["recurringEventId"] as? String,
-                title: title?.isEmpty == false ? title! : "(sans titre)", startAt: start, endAt: end, allDay: allDay,
-                meetCode: link.flatMap { MeetLink.parse($0)?.code }, location: item["location"] as? String,
-                htmlLink: item["htmlLink"] as? String, organizer: (item["organizer"] as? [String: Any])?["email"] as? String,
-                attendees: attendees, updatedAt: Date()
-            ))
+            if let event = event(from: item, account: account) { page.events.append(event) }
         }
         return page
+    }
+
+    /// One event of Google's answer; `nil` without an id or dates.
+    static func event(from item: [String: Any], account: String) -> CalendarEventRow? {
+        guard let id = item["id"] as? String, let (start, allDay) = date(item["start"]), let (end, _) = date(item["end"]) else { return nil }
+        let video = ((item["conferenceData"] as? [String: Any])?["entryPoints"] as? [[String: Any]])?
+            .first { $0["entryPointType"] as? String == "video" }?["uri"] as? String
+        let link = (item["hangoutLink"] as? String) ?? video
+        let attendees = (item["attendees"] as? [[String: Any]] ?? []).compactMap { guest -> Attendee? in
+            guard let email = guest["email"] as? String else { return nil }
+            return Attendee(email: email, name: guest["displayName"] as? String, response: guest["responseStatus"] as? String,
+                            isSelf: guest["self"] as? Bool ?? false, isOrganizer: guest["organizer"] as? Bool ?? false,
+                            isResource: guest["resource"] as? Bool ?? email.hasSuffix("resource.calendar.google.com"))
+        }
+        let title = (item["summary"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return CalendarEventRow(
+            account: account, eventID: id, recurringEventID: item["recurringEventId"] as? String,
+            title: title?.isEmpty == false ? title! : "(sans titre)", startAt: start, endAt: end, allDay: allDay,
+            meetCode: link.flatMap { MeetLink.parse($0)?.code }, location: item["location"] as? String,
+            htmlLink: item["htmlLink"] as? String, organizer: (item["organizer"] as? [String: Any])?["email"] as? String,
+            attendees: attendees, updatedAt: Date()
+        )
     }
 
     /// `{"dateTime": …}` or, for a whole day, `{"date": "2026-11-14"}` (a local day).
@@ -118,6 +123,8 @@ public actor GoogleSession {
     let vault: any TokenVault
     let fetch: @Sendable (URLRequest) async throws -> (Data, Int)
     private var cache: [String: (token: String, until: Date)] = [:]
+    /// What each account granted, from its last token (14/11: read only before, read and write since).
+    private var granted: [String: String] = [:]
 
     public init(config: @escaping @Sendable () throws -> GoogleClientConfig = GoogleClientConfig.load, vault: any TokenVault = KeychainVault(),
                 fetch: @escaping @Sendable (URLRequest) async throws -> (Data, Int) = CalendarSync.live) {
@@ -132,15 +139,21 @@ public actor GoogleSession {
         let (data, _) = try await fetch(GoogleOAuth.refreshRequest(config: try config(), refreshToken: refresh))
         let tokens = try GoogleOAuth.tokens(from: data)
         cache[email] = (tokens.accessToken, now.addingTimeInterval(TimeInterval(tokens.expiresIn)))
+        if let scope = tokens.scope { granted[email] = scope }
         return tokens.accessToken
     }
 
+    /// Whether the account can be written to; `nil` before its first token.
+    public func canWrite(_ email: String) -> Bool? {
+        granted[email].map { GoogleOAuth.canWrite(scope: $0) }
+    }
+
     /// The browser opens on Google's page; the account comes back connected. Returns its address.
-    public func connect(open: @escaping @Sendable (URL) -> Void, timeout: TimeInterval = 300) async throws -> String {
+    public func connect(open: @escaping @Sendable (URL) -> Void, loginHint: String? = nil, timeout: TimeInterval = 300) async throws -> String {
         let config = try config()
         let receiver = try await LoopbackReceiver.start()
         let verifier = PKCE.verifier(), state = UUID().uuidString
-        open(GoogleOAuth.authorizationURL(config: config, redirect: receiver.redirect, challenge: PKCE.challenge(for: verifier), state: state))
+        open(GoogleOAuth.authorizationURL(config: config, redirect: receiver.redirect, challenge: PKCE.challenge(for: verifier), state: state, loginHint: loginHint))
         let line = try await receiver.nextRequestLine(timeout: timeout)
         let code = try GoogleOAuth.code(fromRequestLine: line, state: state)
         let (data, _) = try await fetch(GoogleOAuth.exchangeRequest(config: config, code: code, verifier: verifier, redirect: receiver.redirect))
@@ -148,6 +161,7 @@ public actor GoogleSession {
         guard let email = tokens.email, let refresh = tokens.refreshToken else { throw GoogleError.badAnswer }
         try vault.save(refreshToken: refresh, for: email)
         cache[email] = (tokens.accessToken, Date().addingTimeInterval(TimeInterval(tokens.expiresIn)))
+        if let scope = tokens.scope { granted[email] = scope }
         return email
     }
 

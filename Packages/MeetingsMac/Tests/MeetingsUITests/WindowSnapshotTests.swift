@@ -193,6 +193,21 @@ struct WindowSnapshotTests {
                                          to: output.appending(path: "\(name).png"))
         }
     }
+    /// The event editor (14/11).
+    @Test func theEventEditor() async throws {
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let database = try AppDatabase.inMemory()
+        try CalendarStore(database).addAccount(email: "paul@atelier-nord.fr", at: Date())
+        try ContactStore(database).upsert(email: "camille.martin@exemple-studio.fr", name: "Camille Martin", company: "Exemple Studio", at: Date())
+        let agenda = AgendaLibrary(database: database)
+        try await Task.sleep(for: .milliseconds(300))
+        let event = CalendarEventRow(account: "paul@atelier-nord.fr", eventID: "e", title: "Revue des maquettes", startAt: Date(), endAt: Date().addingTimeInterval(3_600),
+                                     meetCode: "abc-defg-hij", location: "Atelier", organizer: "paul@atelier-nord.fr",
+                                     attendees: [Attendee(email: "camille.martin@exemple-studio.fr", response: "accepted")], updatedAt: Date())
+        try await LiveWindow.capture(EventEditor(agenda: agenda, request: EditorRequest(event: event)), to: output.appending(path: "editeur.png"),
+                                     size: NSSize(width: 520, height: 680))
+    }
 }
 
 /// A window as the app makes it. With `POLHUB_LIVE=1`, it is shown on screen and captured by the system, glass

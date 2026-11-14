@@ -32,4 +32,14 @@ import Testing
         #expect(HomeModel.when(event("b", -5), now: now) == "en cours")
         #expect(HomeModel.when(event("c", 150), now: now).hasPrefix("à "))
     }
+
+    /// 14/11: « Nouveau rendez-vous » starts at the next half hour.
+    @Test func aNewEventStartsAtTheNextHalfHour() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Paris")!
+        let ten = calendar.date(from: DateComponents(year: 2026, month: 11, day: 17, hour: 10, minute: 10, second: 42))!
+        #expect(calendar.dateComponents([.hour, .minute, .second], from: EventEditor.nextSlot(after: ten, calendar: calendar)) == DateComponents(hour: 10, minute: 30, second: 0))
+        let late = calendar.date(from: DateComponents(year: 2026, month: 11, day: 17, hour: 10, minute: 40))!
+        #expect(calendar.dateComponents([.hour, .minute], from: EventEditor.nextSlot(after: late, calendar: calendar)) == DateComponents(hour: 11, minute: 0))
+    }
 }

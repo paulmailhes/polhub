@@ -11,6 +11,10 @@ public enum GoogleError: Error, Equatable, CustomStringConvertible {
     case expired
     case http(Int)
     case timeout
+    /// The account was connected for reading only (before 14/11).
+    case needsWrite
+    /// Only the organizer changes an event.
+    case notOrganizer
 
     public var description: String {
         switch self {
@@ -21,6 +25,8 @@ public enum GoogleError: Error, Equatable, CustomStringConvertible {
         case .expired: "la connexion à ce compte a expiré : reconnecte-le"
         case .http(let code): "Google répond \(code)"
         case .timeout: "la connexion n'a pas été faite dans le navigateur à temps"
+        case .needsWrite: "ce compte n'a autorisé que la lecture : reconnecte-le pour pouvoir modifier ses rendez-vous"
+        case .notOrganizer: "seul l'organisateur peut modifier ce rendez-vous"
         }
     }
 }
@@ -79,12 +85,21 @@ public struct GoogleTokens: Sendable {
     public let expiresIn: Int
     /// The account's address, from the ID token.
     public let email: String?
+    /// What Google granted, space-separated.
+    public var scope: String? = nil
 }
 
 public enum GoogleOAuth {
-    public static let scopes = "openid email https://www.googleapis.com/auth/calendar.readonly"
+    /// Events in read and write (14/11: Paul creates and changes his events from Polhub).
+    public static let scopes = "openid email https://www.googleapis.com/auth/calendar.events"
+    static let writeScope = "https://www.googleapis.com/auth/calendar.events"
 
-    public static func authorizationURL(config: GoogleClientConfig, redirect: URL, challenge: String, state: String) -> URL {
+    /// The scopes Google granted (the `scope` of a token answer) allow writing events.
+    public static func canWrite(scope: String?) -> Bool {
+        (scope ?? "").split(separator: " ").contains { $0 == writeScope || $0 == "https://www.googleapis.com/auth/calendar" }
+    }
+
+    public static func authorizationURL(config: GoogleClientConfig, redirect: URL, challenge: String, state: String, loginHint: String? = nil) -> URL {
         var components = URLComponents(url: config.authURI, resolvingAgainstBaseURL: false)!
         components.queryItems = [
             URLQueryItem(name: "client_id", value: config.clientID),
@@ -97,7 +112,7 @@ public enum GoogleOAuth {
             // Always a refresh token, even for an account connected before.
             URLQueryItem(name: "prompt", value: "consent"),
             URLQueryItem(name: "state", value: state),
-        ]
+        ] + (loginHint.map { [URLQueryItem(name: "login_hint", value: $0)] } ?? [])
         return components.url!
     }
 
@@ -141,7 +156,7 @@ public enum GoogleOAuth {
         if let error = json["error"] as? String { throw error == "invalid_grant" ? GoogleError.expired : GoogleError.refused(error) }
         guard let access = json["access_token"] as? String else { throw GoogleError.badAnswer }
         return GoogleTokens(accessToken: access, refreshToken: json["refresh_token"] as? String, expiresIn: json["expires_in"] as? Int ?? 3_600,
-                            email: (json["id_token"] as? String).flatMap(email(fromIDToken:)))
+                            email: (json["id_token"] as? String).flatMap(email(fromIDToken:)), scope: json["scope"] as? String)
     }
 
     /// The address in the ID token's payload (received straight from Google over TLS: no signature check needed).
