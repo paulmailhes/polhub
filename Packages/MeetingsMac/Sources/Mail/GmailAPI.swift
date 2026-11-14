@@ -6,7 +6,7 @@ public enum GmailAPI {
     static let base = "https://gmail.googleapis.com/gmail/v1/users/me"
 
     public enum Format: String, Sendable {
-        case minimal, metadata, full
+        case minimal, metadata, full, raw
     }
 
     /// What a call costs in Google's quota units (table in force since May 2026); 6 000 a minute per account.
@@ -167,6 +167,8 @@ public enum GmailAPI {
         /// When Gmail received it, in milliseconds since 1970, as text.
         public var internalDate: String?
         public var payload: Part?
+        /// The whole message as it travelled, in base64url (`format=raw` only).
+        public var raw: String?
     }
 
     public struct SendAsList: Decodable, Sendable, Equatable {

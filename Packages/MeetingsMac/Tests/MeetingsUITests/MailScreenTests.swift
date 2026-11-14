@@ -204,9 +204,10 @@ struct MailScreenTests {
         }
         let store = MailStore(database), files = MailFiles(root: root)
         func mail(_ id: String, _ account: String, thread: String, from: MailAddress, subject: String, snippet: String, hours: Double,
-                  labels: [String], html: String, files attached: [MailAttachment] = []) throws -> MailMessageRow {
+                  labels: [String], html: String, files attached: [MailAttachment] = [], list: String? = nil) throws -> MailMessageRow {
             let row = MailMessageRow(account: account, messageID: id, threadID: thread, date: Date().addingTimeInterval(-hours * 3_600), sender: from,
                                      to: [MailAddress(email: account)], subject: subject, snippet: snippet, labels: labels, authenticated: true,
+                                     listUnsubscribe: list, listUnsubscribePost: list == nil ? nil : "List-Unsubscribe=One-Click",
                                      hasBody: true, bodyIsHTML: true, attachments: attached)
             let url = files.body(of: row)
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -232,12 +233,15 @@ struct MailScreenTests {
                      html: #"<div>Parfait. J'ai aussi corrigé la page contact, dis-moi si le formulaire te convient.</div><div class="gmail_quote"><blockquote>Merci, je regarde ça demain matin.</blockquote></div>"#),
             try mail("b1", "moi@exemple.fr", thread: "b", from: MailAddress(name: "La Lettre du design", email: "lettre@lettre-du-design.exemple"),
                      subject: "Cinq tendances pour le printemps", snippet: "Des grilles plus libres, des couleurs franches…", hours: 5,
-                     labels: ["INBOX", "UNREAD", "CATEGORY_PROMOTIONS"], html: letter),
+                     labels: ["INBOX", "UNREAD", "CATEGORY_PROMOTIONS"], html: letter, list: "<https://lettre-du-design.exemple/depart>"),
+            try mail("b2", "moi@exemple.fr", thread: "b2", from: MailAddress(name: "La Lettre du design", email: "lettre@lettre-du-design.exemple"),
+                     subject: "Le numéro d'hiver", snippet: "Rétrospective de l'année…", hours: 24 * 9,
+                     labels: ["INBOX", "CATEGORY_PROMOTIONS"], html: letter, list: "<https://lettre-du-design.exemple/depart>"),
         ])
         try store.apply(account: "perso@gmail.com", upserts: [
             try mail("c1", "perso@gmail.com", thread: "c", from: MailAddress(name: "Paiements Exemple", email: "recus@paiements.exemple"),
                      subject: "Votre reçu n° 1042", snippet: "Merci pour votre paiement de 24,00 €.", hours: 3, labels: ["INBOX", "CATEGORY_UPDATES"],
-                     html: "<p>Merci pour votre paiement de <b>24,00 €</b>.</p>"),
+                     html: "<p>Merci pour votre paiement de <b>24,00 €</b>.</p>", list: "<mailto:depart@paiements.exemple?subject=desinscription>"),
             try mail("d1", "perso@gmail.com", thread: "d", from: MailAddress(name: "Nina Roche", email: "nina.roche@exemple.fr"),
                      subject: "Photos du week-end", snippet: "Je t'envoie les photos de dimanche, elles sont superbes.", hours: 20,
                      labels: ["INBOX", "CATEGORY_PERSONAL"], html: "<p>Je t'envoie les photos de dimanche, elles sont superbes.</p>"),
@@ -292,7 +296,13 @@ struct MailScreenTests {
         mails.closeComposer()
         mails.folder = .drafts
         try await capture("mails-brouillons")
+        mails.folder = .subscriptions
+        try await capture("mails-abonnements")
+        try await capture("mails-abonnements-sombre", dark: true)
         mails.folder = .inbox
+        mails.unreadOnly = true
+        try await capture("mails-non-lus")
+        mails.unreadOnly = false
         UserDefaults.standard.set(false, forKey: Preferences.Key.floatingPages)
         try await capture("mails-lettre-page-sombre", dark: true)
         try await capture("mails-lettre-page")

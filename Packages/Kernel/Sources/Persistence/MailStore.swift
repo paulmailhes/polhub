@@ -164,9 +164,10 @@ public struct MailStore: Sendable {
                 case .markRead: targets = shown.filter(\.isUnread)
                 // As Gmail does: the last message becomes unread again.
                 case .markUnread: targets = Array(shown.suffix(1))
-                case .trash: targets = shown
+                case .trash, .spam: targets = shown
                 case .unarchive: targets = Array(shown.suffix(1))
                 case .untrash: targets = all.filter { $0.labels.contains("TRASH") }
+                case .notSpam: targets = all.filter { $0.labels.contains("SPAM") }
                 }
             }
             guard !targets.isEmpty else { return nil }
@@ -219,6 +220,27 @@ public struct MailStore: Sendable {
             if let images { row.images = images }
             if row.tab != nil || row.images { try row.save(db) } else { _ = try MailSenderRow.deleteOne(db, key: address) }
         }
+    }
+
+    // MARK: - Subscriptions (14/11)
+
+    /// The senders whose mails carry a way to leave (List-Unsubscribe), the busiest first, since a date.
+    public func subscriptions(since: Date, accounts: Set<String>? = nil) throws -> [MailSubscription] {
+        let messages = try writer.read { db in
+            try MailMessageRow.filter(sql: "listUnsubscribe IS NOT NULL AND date >= ?", arguments: [since]).order(Column("date").desc).fetchAll(db)
+        }
+        var bySender: [String: MailSubscription] = [:]
+        for message in messages where !message.isAside && (accounts?.contains(message.account) ?? true) {
+            guard let sender = message.sender else { continue }
+            var subscription = bySender[sender.email] ?? MailSubscription(
+                sender: sender, count: 0, unread: 0, lastAt: message.date, listUnsubscribe: message.listUnsubscribe,
+                listUnsubscribePost: message.listUnsubscribePost, authenticated: message.authenticated, inboxThreads: [])
+            subscription.count += 1
+            if message.isUnread { subscription.unread += 1 }
+            if message.labels.contains("INBOX"), !subscription.inboxThreads.contains(message.threadKey) { subscription.inboxThreads.append(message.threadKey) }
+            bySender[sender.email] = subscription
+        }
+        return bySender.values.sorted { ($0.count, $0.lastAt) > ($1.count, $1.lastAt) }
     }
 
     // MARK: - Drafts (step « Écrire »)

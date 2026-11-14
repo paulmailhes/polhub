@@ -23,16 +23,19 @@
     Meet, organisateur, invités et leurs réponses), en lecture, et en écriture pour ceux que l'utilisateur crée,
     modifie ou supprime dans Polhub ;</li>
     <li><code>gmail.modify</code>, seulement si l'utilisateur clique « Autoriser les mails » pour ce compte : les
-    messages de cette boîte (en-têtes, contenu, pièces jointes), pour les lire et les afficher dans Polhub, et pour
-    les marquer, les archiver ou les mettre à la corbeille quand l'utilisateur le fait lui-même. Jamais de
-    suppression définitive. L'agenda fonctionne sans cette autorisation.</li>
+    messages de cette boîte (en-têtes, contenu, pièces jointes), pour les lire et les afficher dans Polhub ; pour
+    les marquer, les archiver, les mettre à la corbeille ou les signaler comme spam quand l'utilisateur le fait
+    lui-même ; pour enregistrer ses brouillons et envoyer les messages qu'il écrit, quand il clique « Envoyer » ;
+    pour lire le nom et la signature de la boîte, posés sous ses messages comme dans Gmail. Jamais de suppression
+    définitive. L'agenda fonctionne sans cette autorisation.</li>
   </ul>
   <p>Polhub ne crée, ne modifie et ne supprime un rendez-vous que lorsque l'utilisateur le fait lui-même dans
   l'application ; Google envoie alors les invitations comme d'habitude. De même, il n'archive et ne met un message
   à la corbeille que sur un geste de l'utilisateur. Polhub ne touche à rien d'autre dans le compte Google.</p>
   <p>Sur les boîtes autorisées, Polhub lit les messages pour les afficher, et en garde une copie sur le Mac. Cette
-  copie suit Gmail : ce qui disparaît là-bas disparaît ici. L'écriture et l'envoi de messages ne sont pas encore
-  publiés : une réponse s'écrit dans Gmail.</p>
+  copie suit Gmail : ce qui disparaît là-bas disparaît ici. Un brouillon est enregistré sur le Mac, puis dans Gmail,
+  pour que l'utilisateur le retrouve sur ses autres appareils. Polhub n'envoie un message que lorsque l'utilisateur
+  clique « Envoyer », et lui laisse dix secondes pour annuler.</p>
 
   <h2>Usage</h2>
   <p>Ces données servent uniquement à des fonctions visibles par l'utilisateur dans l'application : afficher ses
@@ -51,10 +54,15 @@
     Google, pour lire les agendas et les boîtes autorisées et y écrire ce que l'utilisateur fait lui-même, et à
     GitHub, pour vérifier
     qu'une nouvelle version de l'application existe (sans aucune donnée de l'utilisateur).</li>
-    <li>Une seule exception : afficher les images distantes d'un message contacte le serveur de son expéditeur, qui
+    <li>Première exception : afficher les images distantes d'un message contacte le serveur de son expéditeur, qui
     voit alors l'adresse IP du Mac et l'heure d'ouverture. Polhub ne les charge que pour les expéditeurs que
     l'utilisateur connaît (ses contacts, les personnes à qui il a écrit) quand Gmail confirme l'origine du message,
     ou quand l'utilisateur le demande. Un clic sur un lien d'un message ouvre le navigateur de l'utilisateur.</li>
+    <li>Seconde exception : quand l'utilisateur demande à se désabonner d'une liste de diffusion, Polhub suit ce que
+    l'expéditeur indique dans son message. Il envoie la demande de désabonnement à l'adresse de l'expéditeur, sans
+    cookie ni autre donnée, si le message est authentifié par Gmail. Sinon, il prépare un mail de désinscription que
+    l'utilisateur envoie lui-même, ou il ouvre la page de l'expéditeur dans le navigateur. Le domaine concerné est
+    montré avant toute demande.</li>
   </ul>
 
   <h2>Assistants branchés par l'utilisateur</h2>

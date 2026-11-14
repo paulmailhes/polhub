@@ -2,6 +2,7 @@ import Agenda
 import AppKit
 import GRDB
 import Mail
+import MailFormat
 import Persistence
 import PolhubDesign
 import QuickLook
@@ -49,6 +50,21 @@ struct MailSectionView: View {
         .animation(.snappy(duration: 0.25), value: router.mailSelection)
         .animation(.snappy(duration: 0.25), value: mails.composing)
         .overlay(alignment: .bottom) { MailUndoBar(mails: mails) }
+        .onAppear { mails.router = router }
+        .confirmationDialog("Se désabonner de \(mails.unsubscribeRequest?.name ?? "") ?",
+                            isPresented: Binding(get: { mails.unsubscribeRequest != nil }, set: { if !$0 { mails.unsubscribeRequest = nil } }),
+                            presenting: mails.unsubscribeRequest) { request in
+            Button("Se désabonner") { mails.unsubscribe(from: request.sender, by: request.method) }
+        } message: { request in
+            switch request.method {
+            case .oneClick: Text("La demande part vers \(request.method.domain), le serveur de l'expéditeur. Les mails déjà reçus restent.")
+            case .mail(let to, _): Text("Un mail de désinscription vers \(to) est préparé : tu l'envoies toi-même.")
+            case .page: Text("La page de désinscription de \(request.method.domain) s'ouvre dans ton navigateur.")
+            }
+        }
+        .sheet(isPresented: Binding(get: { mails.original != nil }, set: { if !$0 { mails.original = nil } })) {
+            if let original = mails.original { MailOriginalSheet(title: original.title, text: original.text) { mails.original = nil } }
+        }
     }
 }
 
@@ -156,7 +172,6 @@ enum MailText {
 struct MailListView: View {
     @ObservedObject var mails: MailLibrary
     @ObservedObject var router: WindowRouter
-    @State private var query = ""
     @FocusState private var listFocused: Bool
 
     private func open(_ key: String) {
@@ -170,6 +185,8 @@ struct MailListView: View {
         VStack(spacing: 0) {
             if mails.folder == .drafts {
                 MailDraftListView(mails: mails, router: router)
+            } else if mails.folder == .subscriptions {
+                MailSubscriptionsView(mails: mails)
             } else {
                 content(threads, mine: mine)
             }
@@ -180,9 +197,9 @@ struct MailListView: View {
             }
         }
         .toolbar { toolbar }
-        .searchable(text: $query, placement: .toolbar, prompt: "Chercher dans Gmail")
-        .onSubmit(of: .search) { Task { await mails.search(query) } }
-        .onChange(of: query) { _, text in if text.isEmpty { mails.endSearch() } }
+        .searchable(text: $mails.query, placement: .toolbar, prompt: "Chercher dans Gmail")
+        .onSubmit(of: .search) { Task { await mails.search(mails.query) } }
+        .onChange(of: mails.query) { _, text in if text.isEmpty { mails.endSearch() } }
         .windowTitle("Mails", subtitle: mails.searching ? "Recherche…" : (mails.found != nil ? "Résultats de la recherche"
                                                                           : (mails.folder == .inbox ? mails.tab.title : mails.folder.title)))
     }
@@ -200,7 +217,8 @@ struct MailListView: View {
                        text: "\(mails.tab.explanation) Un mail qui n'a rien à faire ici : clic droit › « Déplacer vers ».") { EmptyView() }
             }
             if threads.isEmpty {
-                ContentUnavailableView(mails.found != nil ? "Aucun mail trouvé" : (mails.progress != nil ? "Lecture de tes boîtes…" : "Rien ici"),
+                ContentUnavailableView(mails.found != nil ? "Aucun mail trouvé"
+                                       : (mails.progress != nil ? "Lecture de tes boîtes…" : (mails.unreadOnly && mails.folder == .inbox ? "Aucun non lu" : "Rien ici")),
                                        systemImage: mails.found != nil ? "magnifyingglass" : mails.folder.icon,
                                        description: Text(mails.found != nil || mails.folder != .inbox ? "" : mails.tab.explanation))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -363,9 +381,25 @@ struct MailListView: View {
                 Button { mails.newMail() } label: { Label("Nouveau mail", systemImage: "square.and.pencil") }
                     .help("Nouveau mail (⌘N)")
                     .keyboardShortcut("n", modifiers: .command)
-                Button { mails.refresh() } label: { Label("Relever", systemImage: "arrow.clockwise") }.help("Relever les mails maintenant")
-                Button { mails.selecting = true } label: { Label("Sélectionner", systemImage: "checklist") }
-                    .help("Sélectionner plusieurs mails (⌘-clic, ⇧-clic, ⌘A)")
+                if mails.folder == .inbox {
+                    Toggle(isOn: $mails.unreadOnly) {
+                        Label("Non lus", systemImage: mails.unreadOnly ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                    }
+                    .help(mails.unreadOnly ? "Afficher tous les mails" : "N'afficher que les non lus")
+                }
+                Menu {
+                    Button("Relever les mails maintenant") { mails.refresh() }
+                    if mails.folder == .inbox {
+                        Button("Sélectionner plusieurs mails") { mails.selecting = true }
+                        Button("Tout marquer comme lu dans « \(mails.tab.title) »") { mails.markAllRead() }
+                            .disabled(mails.unread(in: mails.tab) == 0)
+                    }
+                    Divider()
+                    Button("Abonnements") { mails.folder = .subscriptions }
+                } label: {
+                    Label("Plus", systemImage: "ellipsis.circle")
+                }
+                .help("Relever, sélectionner, tout marquer comme lu, abonnements")
             }
         }
     }
@@ -451,6 +485,11 @@ struct MailRow: View {
             Button(ticked ? "Désélectionner" : "Sélectionner") { mails.select(thread.id, extend: false) }
             Divider()
             MailTabChoice(thread: thread, mails: mails)
+            if let sender = thread.lastSender {
+                Button("Tous les mails de cet expéditeur") { mails.showAll(from: sender) }
+            }
+            Button("Signaler comme spam") { mails.reportSpam(thread) }
+            Divider()
             Button("Ouvrir dans Gmail") { NSWorkspace.shared.open(mails.gmailURL(thread)) }
         }
     }
@@ -778,8 +817,18 @@ struct MailThreadView: View {
                         Button("Répondre à tous") { reply(.replyAll) }
                         Button("Transférer") { reply(.forward) }
                         Divider()
-                        Button("Ouvrir dans Gmail") { NSWorkspace.shared.open(mails.gmailURL(thread)) }
                         MailTabChoice(thread: thread, mails: mails)
+                        if let message = model.messages.last(where: { $0.listUnsubscribe != nil }), let sender = message.sender,
+                           let method = mails.unsubscribeMethod(listUnsubscribe: message.listUnsubscribe, post: message.listUnsubscribePost,
+                                                                authenticated: message.authenticated) {
+                            Button("Se désabonner de \(sender.display)…") { mails.askUnsubscribe(sender: sender, method: method) }
+                        }
+                        Button("Signaler comme spam") {
+                            mails.reportSpam(thread)
+                            back()
+                        }
+                        Divider()
+                        Button("Ouvrir dans Gmail") { NSWorkspace.shared.open(mails.gmailURL(thread)) }
                     }
                 } label: {
                     Image(systemName: "ellipsis")
@@ -873,6 +922,7 @@ struct MailMessageView: View {
                     Button("Transférer") { reply(.forward) }
                     Divider()
                     if let thread { Button("Ouvrir dans Gmail") { NSWorkspace.shared.open(mails.gmailURL(thread)) } }
+                    Button("Afficher l'original") { mails.showOriginal(message) }
                     if let email = message.sender?.email {
                         Button("Copier l'adresse de l'expéditeur") {
                             NSPasteboard.general.clearContents()
@@ -1021,5 +1071,97 @@ struct MailSettingsPane: View {
         }
         .formStyle(.grouped)
         .frame(maxWidth: 640)
+    }
+}
+
+/// « Afficher l'original »: the message as it travelled, headers first.
+struct MailOriginalSheet: View {
+    let title: String
+    let text: String
+    let close: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            HStack {
+                Text("Original · \(title)").font(.headline).lineLimit(1)
+                Spacer()
+                Button("Copier") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(text, forType: .string)
+                }
+                Button("Fermer", action: close).keyboardShortcut(.cancelAction)
+            }
+            ScrollView {
+                Text(text).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(Space.l)
+        .frame(minWidth: 720, minHeight: 520)
+    }
+}
+
+/// « Abonnements » (14/11): the senders Paul could leave, the busiest first; leave one, or archive all it sent.
+struct MailSubscriptionsView: View {
+    @ObservedObject var mails: MailLibrary
+
+    var body: some View {
+        if mails.subscriptions.isEmpty {
+            ContentUnavailableView("Aucun abonnement", systemImage: "newspaper",
+                                   description: Text("Les expéditeurs dont tu peux te désabonner apparaissent ici, les plus bavards d'abord."))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    Text("Les 90 derniers jours, des plus bavards aux plus discrets.")
+                        .font(.callout).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, Space.l).padding(.vertical, Space.m)
+                    ForEach(mails.subscriptions) { subscription in
+                        row(subscription)
+                        Divider().padding(.leading, 64)
+                    }
+                }
+            }
+        }
+    }
+
+    private func row(_ subscription: MailSubscription) -> some View {
+        let method = mails.unsubscribeMethod(subscription)
+        let left = mails.unsubscribed[subscription.sender.email]
+        return HStack(spacing: Space.m) {
+            Avatar(String(subscription.sender.display.prefix(1)).uppercased(), size: 30, tint: MailText.tint(for: subscription.sender.email))
+                .padding(.leading, Space.l)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(subscription.sender.display).fontWeight(.medium).lineLimit(1)
+                Text(subscription.sender.email).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+            .frame(width: 280, alignment: .leading)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(subscription.count) mail\(subscription.count > 1 ? "s" : "")" + (subscription.unread > 0 ? " · \(subscription.unread) non lu\(subscription.unread > 1 ? "s" : "")" : ""))
+                Text("Dernier : \(MailText.date(subscription.lastAt))").font(.caption).foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            if !subscription.inboxThreads.isEmpty {
+                Button("Tout archiver (\(subscription.inboxThreads.count))") { mails.archiveAll(subscription) }
+                    .help("Archiver ses mails encore en boîte de réception")
+            }
+            if let left {
+                Label("Désabonné le \(left.formatted(.dateTime.day().month(.abbreviated).locale(MailText.locale)))", systemImage: "checkmark.circle")
+                    .font(.callout).foregroundStyle(.secondary)
+            } else if let method {
+                Button("Se désabonner") { mails.askUnsubscribe(sender: subscription.sender, method: method) }
+                    .help({
+                        switch method {
+                        case .oneClick: "En un clic, auprès de \(method.domain)"
+                        case .mail: "Par un mail que tu enverras toi-même"
+                        case .page: "Sur la page de \(method.domain)"
+                        }
+                    }())
+            }
+        }
+        .font(.callout)
+        .padding(.trailing, Space.l)
+        .frame(height: 54)
     }
 }

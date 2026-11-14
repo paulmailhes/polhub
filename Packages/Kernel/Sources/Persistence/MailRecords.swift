@@ -186,23 +186,25 @@ public struct MailCursorRow: Codable, Equatable, Sendable, FetchableRecord, Pers
 
 /// What Paul does to a thread. Never a send: a send is never a row (14/11).
 public enum MailGestureKind: String, Codable, Sendable, CaseIterable {
-    case archive, unarchive, markRead, markUnread, trash, untrash
+    case archive, unarchive, markRead, markUnread, trash, untrash, spam, notSpam
 
     /// Gmail's labels the gesture adds and removes.
     public var add: [String] {
         switch self {
-        case .unarchive, .untrash: ["INBOX"]
+        case .unarchive, .untrash, .notSpam: ["INBOX"]
         case .markUnread: ["UNREAD"]
         case .trash: ["TRASH"]
+        case .spam: ["SPAM"]
         case .archive, .markRead: []
         }
     }
 
     public var remove: [String] {
         switch self {
-        case .archive, .trash: ["INBOX"]
+        case .archive, .trash, .spam: ["INBOX"]
         case .markRead: ["UNREAD"]
         case .untrash: ["TRASH"]
+        case .notSpam: ["SPAM"]
         case .unarchive, .markUnread: []
         }
     }
@@ -216,6 +218,8 @@ public enum MailGestureKind: String, Codable, Sendable, CaseIterable {
         case .markUnread: .markRead
         case .trash: .untrash
         case .untrash: .trash
+        case .spam: .notSpam
+        case .notSpam: .spam
         }
     }
 
@@ -352,4 +356,19 @@ public struct MailDraftFile: Codable, Equatable, Hashable, Sendable {
         self.mimeType = mimeType
         self.size = size
     }
+}
+
+/// A sender who writes on his own (a list Paul could leave): how much, how to leave, what waits in the inbox.
+public struct MailSubscription: Equatable, Identifiable, Sendable {
+    public var sender: MailAddress
+    public var count: Int
+    public var unread: Int
+    public var lastAt: Date
+    public var listUnsubscribe: String?
+    public var listUnsubscribePost: String?
+    public var authenticated: Bool
+    /// Its threads still in the inbox.
+    public var inboxThreads: [String]
+
+    public var id: String { sender.email }
 }

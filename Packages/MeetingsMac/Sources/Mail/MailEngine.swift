@@ -531,4 +531,15 @@ public actor MailEngine {
         try store.saveDraft(draft)
         return draft
     }
+
+    // MARK: - Reading more (14/11)
+
+    /// The message as it travelled, headers first: « Afficher l'original ». At most 400 ko of it.
+    public func original(of message: MailMessageRow) async throws -> String {
+        let answer = try await get(GmailAPI.Message.self, message.account, cost: GmailAPI.Cost.full) {
+            GmailAPI.messageRequest(accessToken: $0, id: message.messageID, format: .raw)
+        }
+        guard let bytes = GmailAPI.Body(size: nil, data: answer.raw, attachmentId: nil).bytes else { throw GoogleError.badAnswer }
+        return MailParser.text(bytes.prefix(400_000), declared: "utf-8")
+    }
 }

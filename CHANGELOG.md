@@ -3,6 +3,37 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.13.0 — 14 novembre 2026
+
+**Mails : écrire, et faire le ménage.** Tu réponds, écris et envoies sans ouvrir Gmail.
+
+- **Trois onglets** à la place de Principale et Automatiques : « Personnes », « Notifications » (reçus,
+  confirmations, alertes) et « Newsletters » (lettres, promotions, réseaux sociaux). Clic droit › « Déplacer
+  vers » range un expéditeur dans un autre onglet, et Polhub le retient.
+- **Répondre** : ⌘R (ou ⇧⌘R pour répondre à tous) ouvre la réponse au bas du fil. « … » › Transférer. La ligne
+  « De » montre toujours la boîte qui envoie ; ta signature Gmail et le message cité sont posés dessous, comme
+  dans Gmail, pour que le fil reste propre chez ton correspondant.
+- **Nouveau mail** : ⌘N ou le crayon. À, Cc et Cci se complètent avec tes contacts et les personnes qui
+  t'écrivent. Pièces jointes par le trombone ou en glissant un fichier, 25 Mo au plus.
+- **Brouillons partagés avec Gmail** : un brouillon est enregistré sur le Mac, puis dans Gmail 3 secondes après
+  ta dernière frappe. Tu le retrouves sur ton téléphone ; un brouillon commencé ailleurs se reprend dans Polhub.
+- **Envoyer** : tu as 10 secondes pour annuler. Si l'app quitte pendant ces 10 secondes, rien ne part et le
+  brouillon reste. Un envoi raté laisse le brouillon et te prévient. La mise à jour de l'app attend la fin
+  d'un envoi.
+- **Le menu de la boîte** (en haut à gauche) : Boîte de réception, Brouillons, Envoyés, Abonnements.
+- **Abonnements** : les expéditeurs de lettres des 90 derniers jours, des plus bavards aux plus discrets. « Se
+  désabonner » montre d'abord le domaine concerné, puis agit en un clic quand l'expéditeur le permet et que Gmail
+  a vérifié le mail ; sinon il prépare le mail de désinscription, que tu envoies toi-même, ou ouvre sa page.
+  « Tout archiver » vide la boîte de réception de ses mails.
+- **Ménage** :
+  - le filtre « Non lus » dans la barre ;
+  - « … » › Tout marquer comme lu ;
+  - clic droit › Tous les mails de cet expéditeur, Signaler comme spam ;
+  - sur un fil, « … » › Se désabonner, Signaler comme spam ;
+  - sur un message, « … » › Afficher l'original (le mail tel qu'il a voyagé, avec ses en-têtes).
+- **Notifications** : seulement pour l'onglet Personnes.
+- La version de développement n'écrit jamais dans tes vraies boîtes : ni brouillon, ni envoi.
+
 ## 0.12.1 — 14 novembre 2026
 
 **Mails : tes retours sur la lecture.**

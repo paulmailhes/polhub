@@ -107,6 +107,35 @@ import Testing
         #expect(again.hasBody && again.bodyIsHTML && again.attachments == [file] && !again.isUnread)
     }
 
+    @Test func spamHidesAThreadAndUndoingBringsItBack() throws {
+        let mails = try store()
+        try mails.apply(account: account, upserts: [message("m1")])
+        let spam = try #require(try mails.enqueue(.spam, threadKey: key, at: now))
+        #expect(try mails.inbox().isEmpty && mails.thread(key)?.hidden == true)
+        try mails.enqueue(spam.kind.inverse, threadKey: key, messageIDs: spam.messageIDs, at: now)
+        #expect(try mails.inbox().first?.messageCount == 1)
+    }
+
+    /// The senders Paul could leave, the busiest first.
+    @Test func theSubscriptionsAreCountedBySender() throws {
+        let mails = try store()
+        func letter(_ id: String, from: String, minutes: Double, unread: Bool) -> MailMessageRow {
+            var row = message(id, thread: id, minutes: minutes, from: from, labels: unread ? ["INBOX", "UNREAD", "CATEGORY_PROMOTIONS"] : ["CATEGORY_PROMOTIONS"])
+            row.listUnsubscribe = "<https://liste.exemple/stop>"
+            row.listUnsubscribePost = "List-Unsubscribe=One-Click"
+            row.authenticated = true
+            return row
+        }
+        try mails.apply(account: account, upserts: [
+            letter("l1", from: "lettre@liste.exemple", minutes: 1, unread: true), letter("l2", from: "lettre@liste.exemple", minutes: 2, unread: false),
+            letter("l3", from: "promo@boutique.exemple", minutes: 3, unread: true), message("m1"),
+        ])
+        let subscriptions = try mails.subscriptions(since: now.addingTimeInterval(-86_400))
+        #expect(subscriptions.map(\.sender.email) == ["lettre@liste.exemple", "promo@boutique.exemple"])
+        #expect(subscriptions[0].count == 2 && subscriptions[0].unread == 1 && subscriptions[0].inboxThreads == ["moi@exemple.fr|l1"])
+        #expect(subscriptions[0].listUnsubscribePost == "List-Unsubscribe=One-Click" && subscriptions[0].authenticated)
+    }
+
     @Test func disconnectingAnAccountTakesItsMailsAway() throws {
         let mails = try store()
         try mails.apply(account: account, upserts: [message("m1")])

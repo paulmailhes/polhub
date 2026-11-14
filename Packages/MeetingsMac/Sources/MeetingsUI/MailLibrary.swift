@@ -45,13 +45,14 @@ public enum MailTab: String, Hashable, Sendable, CaseIterable {
 
 /// Where the list looks: the inbox, the drafts, what Paul sent (14/11).
 public enum MailFolder: String, Hashable, Sendable, CaseIterable {
-    case inbox, drafts, sent
+    case inbox, drafts, sent, subscriptions
 
     var title: String {
         switch self {
         case .inbox: "Boîte de réception"
         case .drafts: "Brouillons"
         case .sent: "Envoyés"
+        case .subscriptions: "Abonnements"
         }
     }
 
@@ -60,6 +61,7 @@ public enum MailFolder: String, Hashable, Sendable, CaseIterable {
         case .inbox: "tray"
         case .drafts: "doc"
         case .sent: "paperplane"
+        case .subscriptions: "newspaper"
         }
     }
 }
@@ -121,6 +123,14 @@ public final class MailLibrary: ObservableObject {
     @Published public private(set) var sending: (draftID: String, subject: String, at: Date)?
     /// New mails written while several mailboxes show: they leave only once Paul has chosen the mailbox.
     @Published public private(set) var unconfirmed: Set<String> = []
+    /// The search field's text.
+    @Published public var query = ""
+    /// Only the unread threads of the tab.
+    @Published public var unreadOnly = false
+    /// The senders Paul could leave (the « Abonnements »), the busiest first.
+    @Published public private(set) var subscriptions: [MailSubscription] = []
+    /// The senders Paul left from Polhub, with the day.
+    @Published public private(set) var unsubscribed: [String: Date] = [:]
     private var pushes: [String: Task<Void, Never>] = [:]
     private var sendTask: Task<Void, Never>?
 
@@ -129,7 +139,7 @@ public final class MailLibrary: ObservableObject {
     let engine: MailEngine
     private let defaults: UserDefaults
     private var observations: [AnyDatabaseCancellable] = []
-    private var subscriptions: Set<AnyCancellable> = []
+    private var cancellables: Set<AnyCancellable> = []
     private var undoToken = 0
     /// The anchor of a ⇧-click.
     private var anchor: String?
@@ -139,6 +149,7 @@ public final class MailLibrary: ObservableObject {
         self.defaults = defaults
         self.store = MailStore(agenda.database)
         self.hidden = Set(defaults.stringArray(forKey: Preferences.Key.mailHiddenAccounts) ?? [])
+        self.unsubscribed = (defaults.dictionary(forKey: Preferences.Key.mailUnsubscribed) as? [String: Date]) ?? [:]
         let relay = MailArrivalRelay()
         self.engine = MailEngine(database: agenda.database, root: root, sendFor: { [agenda] account in
             { build in try await agenda.mailSend(for: account)(build) }
@@ -163,14 +174,14 @@ public final class MailLibrary: ObservableObject {
             let granted = accounts.filter(self.agenda.mailGranted).map(\.email)
             Task { await self.engine.follow(accounts: granted) }
         }
-        .store(in: &subscriptions)
+        .store(in: &cancellables)
         for (name, front) in [(NSApplication.didBecomeActiveNotification, true), (NSApplication.didResignActiveNotification, false)] {
             NotificationCenter.default.publisher(for: name).sink { [weak self] _ in
                 guard let self else { return }
                 Task { await self.engine.setForeground(front) }
                 if front { self.refresh() }
             }
-            .store(in: &subscriptions)
+            .store(in: &cancellables)
         }
     }
 
@@ -217,7 +228,7 @@ public final class MailLibrary: ObservableObject {
     /// The threads of the tab, or of the search under way.
     public var shown: [MailThreadRow] {
         if let found { return found }
-        return visible(inbox).filter { tab(of: $0) == tab }
+        return visible(inbox).filter { tab(of: $0) == tab && (!unreadOnly || $0.unread) }
     }
 
     /// The unread threads of the people's tab: what waits for Paul.
@@ -297,6 +308,8 @@ public final class MailLibrary: ObservableObject {
         case .markUnread: return plural ? "\(count) fils marqués comme non lus" : "Marqué comme non lu"
         case .trash: return "\(what) supprimé\(plural ? "s" : "")"
         case .untrash: return "\(what) rétabli\(plural ? "s" : "")"
+        case .spam: return "\(what) signalé\(plural ? "s" : "") comme spam"
+        case .notSpam: return "\(what) sorti\(plural ? "s" : "") du spam"
         }
     }
 
@@ -415,8 +428,12 @@ public final class MailLibrary: ObservableObject {
 
     func refreshFolders() {
         guard folder != .inbox else { return }
-        sent = (try? store.sentThreads(accounts: Set(accounts.map(\.email)).subtracting(hidden))) ?? []
+        let shownAccounts = Set(accounts.map(\.email)).subtracting(hidden)
+        sent = (try? store.sentThreads(accounts: shownAccounts)) ?? []
         gmailDrafts = ((try? store.gmailOnlyDrafts()) ?? []).filter { !hidden.contains($0.account) }
+        if folder == .subscriptions {
+            subscriptions = (try? store.subscriptions(since: Date().addingTimeInterval(-90 * 86_400), accounts: shownAccounts)) ?? []
+        }
     }
 
     /// Who Paul writes to: his contacts and his correspondents, matching what he types.
@@ -641,5 +658,111 @@ public final class MailLibrary: ObservableObject {
     /// The signature a mailbox adds, as text, to show under a draft.
     public func signature(of account: String) -> String? {
         cursors[account]?.signature.map(HTMLText.plain).flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    // MARK: - Tidying up (14/11)
+
+    /// Every unread thread of the tab, read; one « Annuler » for them all.
+    public func markAllRead() {
+        perform(.markRead, on: shown.filter(\.unread))
+    }
+
+    /// Every mail of a sender, as Gmail finds them: to archive or delete in one go.
+    public func showAll(from sender: String) {
+        router?.mailSelection = nil
+        folder = .inbox
+        query = "from:\(sender)"
+        Task { await search(query) }
+    }
+
+    /// Set by the window: what the library opens.
+    public weak var router: WindowRouter?
+
+    /// A request to leave a list, waiting for Paul's confirmation.
+    public struct UnsubscribeRequest: Identifiable {
+        public var sender: String
+        public var name: String
+        public var method: UnsubscribeMethod
+        public var id: String { sender }
+    }
+
+    @Published public var unsubscribeRequest: UnsubscribeRequest?
+    /// « Afficher l'original »: its title and its text, while shown.
+    @Published public var original: (title: String, text: String)?
+
+    public func askUnsubscribe(sender: MailAddress, method: UnsubscribeMethod) {
+        unsubscribeRequest = UnsubscribeRequest(sender: sender.email, name: sender.display, method: method)
+    }
+
+    public func showOriginal(_ message: MailMessageRow) {
+        Task {
+            let text = await original(of: message)
+            original = (message.subject, text)
+        }
+    }
+
+    public func reportSpam(_ thread: MailThreadRow) {
+        perform(.spam, on: thread)
+    }
+
+    /// How to leave this sender's list, from its own headers.
+    public func unsubscribeMethod(listUnsubscribe: String?, post: String?, authenticated: Bool, spam: Bool = false) -> UnsubscribeMethod? {
+        guard !spam else { return nil }
+        return UnsubscribeMethod.from(listUnsubscribe: listUnsubscribe, post: post, authenticated: authenticated)
+    }
+
+    public func unsubscribeMethod(_ subscription: MailSubscription) -> UnsubscribeMethod? {
+        unsubscribeMethod(listUnsubscribe: subscription.listUnsubscribe, post: subscription.listUnsubscribePost, authenticated: subscription.authenticated)
+    }
+
+    /// Leaves a list, once Paul confirmed: one click sends the sender's own request (never from the development
+    /// build); a mail is prepared for Paul to send; a page opens in the browser.
+    public func unsubscribe(from sender: String, by method: UnsubscribeMethod, flavor: AppFlavor = .current) {
+        switch method {
+        case .oneClick(let url):
+            guard flavor == .prod else {
+                message = "La version de développement ne se désabonne de rien."
+                return
+            }
+            Task {
+                do {
+                    let session = URLSession(configuration: .ephemeral)
+                    let (_, response) = try await session.data(for: UnsubscribeMethod.oneClickRequest(url))
+                    let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                    guard (200..<400).contains(status) else { throw GoogleError.http(status) }
+                    remember(unsubscribedFrom: sender)
+                    message = "Désabonné de \(sender). Les mails déjà reçus restent ; « Tout archiver » les range."
+                } catch {
+                    message = "Désabonnement refusé par \(method.domain) (\(error)). Ouvre un de ses mails : le lien en bas fait la même chose."
+                }
+            }
+        case .mail(let to, let subject):
+            guard let account = accounts.first(where: { account in inbox.contains { $0.account == account.email && $0.senders.contains { $0.email == sender } } })?.email
+                    ?? accounts.first?.email else { return }
+            let draft = MailDraftRow(account: account, mode: .new, to: [MailAddress(email: to)], subject: subject ?? "unsubscribe",
+                                     body: "Merci de me retirer de cette liste.", signature: false, createdAt: Date())
+            try? store.saveDraft(draft)
+            composing = draft.id
+            remember(unsubscribedFrom: sender)
+        case .page(let url):
+            NSWorkspace.shared.open(url)
+            remember(unsubscribedFrom: sender)
+        }
+    }
+
+    private func remember(unsubscribedFrom sender: String) {
+        unsubscribed[sender.lowercased()] = Date()
+        defaults.set(unsubscribed, forKey: Preferences.Key.mailUnsubscribed)
+    }
+
+    /// Every thread of this sender still in the inbox, archived.
+    public func archiveAll(_ subscription: MailSubscription) {
+        perform(.archive, on: (try? store.threads(keys: subscription.inboxThreads)) ?? [])
+        refreshFolders()
+    }
+
+    /// « Afficher l'original ».
+    public func original(of message: MailMessageRow) async -> String {
+        do { return try await engine.original(of: message) } catch { return "Original indisponible : \(error)" }
     }
 }
