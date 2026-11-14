@@ -1,5 +1,6 @@
 // Generated from leggett/simplify-trackers (js/simplify-tracker-blocklist.js), by a script kept out of the
-// repository: each pattern turned into a WebKit content rule `url-filter`; the few WebKit cannot read are left out.
+// repository: each pattern turned into a WebKit content rule `url-filter` (counted repeats kept, at most 8 copies then
+// more; two upstream patterns corrected: Campaign Monitor`s `cmail(d{1,2})` and Cprpt`s `/o.aspx?t=`).
 //
 // Copyright (c) 2021 Michael Leggett, simpl.fyi
 //
@@ -52,8 +53,8 @@ public enum MailTrackers {
         "click.absolutesoftware-email.com/open.aspx",
         "lt.php.*\\?l=open",
         "track.sp.actionkit.com/q/",
-        "mkt[0-9]+.com/open",
-        "mkt[0-9]+.net/open",
+        "mkt[0-9][0-9][0-9]*.com/open",
+        "mkt[0-9][0-9][0-9]*.net/open",
         "demdex.net",
         "t.info.adobesystems.com",
         "toutapp.com",
@@ -90,7 +91,7 @@ public enum MailTrackers {
         "boxbe.com/stfopen",
         "browserstack.com/images/mail/track-open",
         "tx.buzzstream.com",
-        "cmaild+.com/t/",
+        "cmail[0-9][0-9]*.com/t/",
         "canarymail.io/track",
         "canarymail.io:[0-9]+/track",
         "tracking.cirrusinsight.com",
@@ -110,12 +111,12 @@ public enum MailTrackers {
         "open.convertkit-mail[0-9]?.com",
         "convertkit-mail.com/o/",
         "prosperworks.com/tp/t",
-        "/o.aspx?t=",
+        "/o.aspx\\?t=",
         "mailer.creditmantri.com/t/",
         "portal.criticalimpact.com/c2/",
         "customeriomail.com/e/o",
         "track.customer.io/e/o",
-        "/e/o/[a-zA-Z0-9]+",
+        "/e/o/[a-zA-Z0-9][a-zA-Z0-9][a-zA-Z0-9][a-zA-Z0-9][a-zA-Z0-9][a-zA-Z0-9][a-zA-Z0-9][a-zA-Z0-9][a-zA-Z0-9]*",
         "ind.dell.com",
         "xpostmail.com",
         "trackedlink.net",
@@ -143,7 +144,7 @@ public enum MailTrackers {
         "formirror.com/open/",
         "freelancer.com/1px.gif",
         "mail.[a-zA-Z0-9.-]+.pl/o/",
-        "/o/[A-Za-z0-9_]+/[A-Za-z0-9_]+",
+        "/o/[A-Za-z0-9_][A-Za-z0-9_][A-Za-z0-9_][A-Za-z0-9_][A-Za-z0-9_][A-Za-z0-9_][A-Za-z0-9_][A-Za-z0-9_][A-Za-z0-9_]*/[A-Za-z0-9_][A-Za-z0-9_][A-Za-z0-9_][A-Za-z0-9_][A-Za-z0-9_][A-Za-z0-9_][A-Za-z0-9_][A-Za-z0-9_][A-Za-z0-9_]*",
         "app.frontapp.com//seen",
         "app.frontapp.com/.*/seen",
         "web.frontapp.com/api",
@@ -179,7 +180,7 @@ public enum MailTrackers {
         "t.sidekickopen",
         "t.sigopn",
         "t.hsmsdd",
-        "t.strk[0-9]+.email",
+        "t.strk[0-9][0-9].email",
         "track.getsidekick.com",
         "/e2t/o/",
         "/e2t/c/",
@@ -203,7 +204,7 @@ public enum MailTrackers {
         "magento.com/trk",
         "magento.com/wf/open",
         "go.rjmetrics.com",
-        "mailcastr.com/image/[a-zA-Z0-9_-]+",
+        "mailcastr.com/image/[a-zA-Z0-9_-][a-zA-Z0-9_-][a-zA-Z0-9_-][a-zA-Z0-9_-][a-zA-Z0-9_-][a-zA-Z0-9_-][a-zA-Z0-9_-][a-zA-Z0-9_-][a-zA-Z0-9_-]*",
         "list-manage.com/track",
         "mailcoral.com/open",
         "mailinifinity.com/ptrack",
@@ -281,7 +282,7 @@ public enum MailTrackers {
         "email.segment.com/e/o/",
         "strongview.com/t",
         "sendibtd.com",
-        "sendibw+.com/track/",
+        "sendibww.com/track/",
         "sendgrid.net/wf/open",
         "sendgrid.com/wf/open",
         "sendgrid.net/trk",
@@ -328,7 +329,7 @@ public enum MailTrackers {
         "/track/open",
         "/open.aspx\\?tp=",
         "/WebEvent/SetCookie.gif\\?tp=",
-        "email.[a-zA-Z0-9.-]+/o/[a-zA-Z0-9_.-]+",
+        "email.[a-zA-Z0-9.-]+/o/[a-zA-Z0-9_.-][a-zA-Z0-9_.-][a-zA-Z0-9_.-][a-zA-Z0-9_.-][a-zA-Z0-9_.-][a-zA-Z0-9_.-][a-zA-Z0-9_.-][a-zA-Z0-9_.-][a-zA-Z0-9_.-]*",
         "/smtp.mailopen",
     ]
 }

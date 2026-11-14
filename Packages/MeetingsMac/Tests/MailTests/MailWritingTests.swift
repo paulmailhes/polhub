@@ -261,6 +261,24 @@ import Testing
         #expect(try store.drafts().count == 2)
     }
 
+    /// Second review of 14/11: two passes at once adopt a drop once and ask Gmail once; the text loses its
+    /// invisible characters a second time.
+    @Test func oneAdoptionAtATime() async throws {
+        let (engine, gmail, store, root) = try await setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try CalendarStore(store.database).setGrantedScopes(email: account, scopes: "openid https://www.googleapis.com/auth/gmail.modify")
+        try store.drop(MailAgentDraftRow(mode: .reply, account: account, threadKey: MailThreadRow.key(account: account, threadID: "t1"),
+                                         body: "Merci\u{E0041}", createdAt: Date()))
+        let before = gmail.calls.count
+        async let first = engine.adoptAgentDrafts()
+        async let second = engine.adoptAgentDrafts()
+        let (a, b) = await (first, second)
+        let drafts = try store.drafts()
+        #expect(a.count + b.count == 1 && drafts.count == 1)
+        #expect(gmail.calls.dropFirst(before).filter { $0.contains("/messages/") }.count == 1)
+        #expect(try store.drafts().first?.body == "Merci")
+    }
+
     @Test func filesJoinedToADraftLeaveWithIt() async throws {
         let (engine, gmail, store, root) = try await setUp()
         defer { try? FileManager.default.removeItem(at: root) }

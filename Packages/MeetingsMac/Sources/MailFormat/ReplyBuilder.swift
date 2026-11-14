@@ -169,15 +169,74 @@ public enum HTMLText {
             .replacingOccurrences(of: #"\n(?=</)"#, with: "", options: .regularExpression)
     }
 
-    /// The words a reader sees, for an agent (step « Agents »): what the mail hides (`display:none`, zero
-    /// size, `hidden`, white on white is not caught) and the invisible characters are taken out, as best as
-    /// can be. A hidden text is the usual way to slip an order to an assistant.
+    /// The words a reader sees, for an agent (step « Agents »): what the mail hides and the invisible
+    /// characters are taken out, as best as can be. A hidden text is the usual way to slip an order to an
+    /// assistant. Read as a tree (review of 14/11): a hidden element goes with everything inside it, whether
+    /// hidden by `hidden`, by its own style (entities decoded) or by a class or id its style sheets hide.
     public static func visible(_ html: String) -> String {
-        var text = html
-        let hidden = #"(?is)<(\w+)\b[^>]*(?:display\s*:\s*none|visibility\s*:\s*hidden|font-size\s*:\s*0(?:px|pt|em|rem|%)?\s*[;"']|opacity\s*:\s*0(?:\.0+)?\s*[;"']|max-height\s*:\s*0(?:px)?\s*[;"']|\shidden(?:\s|>|=))[^>]*>.*?</\1\s*>"#
-        // Twice: a hidden block inside another goes with the first pass's leftovers.
-        for _ in 0..<2 { text = text.replacingOccurrences(of: hidden, with: "", options: .regularExpression) }
-        return clean(plain(text))
+        // Tidy does not know `<template>`: it would keep what is inside.
+        let source = html.replacingOccurrences(of: #"(?is)<template\b.*?</template\s*>"#, with: "", options: .regularExpression)
+        guard let document = try? XMLDocument(xmlString: source, options: [.documentTidyHTML, .nodeLoadExternalEntitiesNever]) else {
+            return clean(plain(source))
+        }
+        func nodes(_ path: String) -> [XMLNode] { (try? document.nodes(forXPath: path)) ?? [] }
+        var classes: Set<String> = [], ids: Set<String> = []
+        let rule = try? NSRegularExpression(pattern: #"([^{}]+)\{([^{}]*)\}"#)
+        for sheet in nodes("//*[local-name()='style']") {
+            let css = sheet.stringValue ?? ""
+            for match in rule?.matches(in: css, range: NSRange(css.startIndex..., in: css)) ?? [] {
+                guard let selectors = Range(match.range(at: 1), in: css), let body = Range(match.range(at: 2), in: css), hides(String(css[body])) else { continue }
+                for selector in css[selectors].split(separator: ",") {
+                    let last = selector.split(whereSeparator: { $0 == " " || $0 == ">" || $0 == "+" || $0 == "~" }).last.map(String.init) ?? ""
+                    for piece in last.split(separator: ".", omittingEmptySubsequences: false).dropFirst() {
+                        classes.insert(String(piece.prefix { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }))
+                    }
+                    if let hash = last.firstIndex(of: "#") {
+                        ids.insert(String(last[last.index(after: hash)...].prefix { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }))
+                    }
+                }
+            }
+        }
+        var gone: [XMLNode] = []
+        for name in ["script", "style", "head", "title", "template", "noscript", "iframe", "object"] {
+            gone += nodes("//*[local-name()='\(name)']")
+        }
+        for case let element as XMLElement in nodes("//*") {
+            let style = element.attribute(forName: "style")?.stringValue ?? ""
+            let own = (element.attribute(forName: "class")?.stringValue ?? "").split(separator: " ").map(String.init)
+            if element.attribute(forName: "hidden") != nil || hides(style) || own.contains(where: classes.contains)
+                || (element.attribute(forName: "id")?.stringValue).map(ids.contains) == true {
+                gone.append(element)
+            }
+        }
+        for node in gone { node.detach() }
+        let body = nodes("//*[local-name()='body']").first ?? document.rootElement()
+        // Tidy puts a line break before each closing tag.
+        let markup = (body?.children ?? []).map(\.xmlString).joined().replacingOccurrences(of: #"\n(?=</)"#, with: "", options: .regularExpression)
+        return clean(plain(markup))
+    }
+
+    /// A style that keeps its element out of sight: none, hidden, transparent, no height, a tiny font, off
+    /// the page, Outlook's own hiding.
+    static func hides(_ style: String) -> Bool {
+        let css = style.lowercased().filter { !$0.isWhitespace }
+        func has(_ pattern: String) -> Bool { css.range(of: pattern, options: .regularExpression) != nil }
+        if has(#"(^|;)display:none"#) || has(#"(^|;)visibility:(hidden|collapse)"#) || has(#"(^|;)opacity:0*(\.0+)?(;|!|$)"#)
+            || has(#"mso-hide:all"#) || has(#"(^|;)(text-indent|left|top|margin-left):-[0-9]{3,}"#) {
+            return true
+        }
+        if has(#"(^|;)(max-)?(height|width):0(px|pt|em|rem|%)?(;|!|$)"#), has(#"overflow:hidden"#) { return true }
+        if let range = css.range(of: #"(^|;)font-size:[0-9.]+(px|pt|em|rem|%)?"#, options: .regularExpression) {
+            let value = css[range].drop { $0 != ":" }.dropFirst()
+            let number = Double(value.prefix { $0.isNumber || $0 == "." }) ?? 1
+            let unit = value.drop { $0.isNumber || $0 == "." }
+            switch unit {
+            case "em", "rem": return number < 0.2
+            case "%": return number < 20
+            default: return number < 2
+            }
+        }
+        return false
     }
 
     /// No invisible character: zero widths, direction marks, tags, private use.

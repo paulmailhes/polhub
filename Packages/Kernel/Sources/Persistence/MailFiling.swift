@@ -114,6 +114,11 @@ public enum PublicMailDomains {
         "gmail.com", "googlemail.com", "outlook.com", "outlook.fr", "hotmail.com", "hotmail.fr", "live.com", "live.fr", "msn.com",
         "icloud.com", "me.com", "mac.com", "yahoo.com", "yahoo.fr", "orange.fr", "wanadoo.fr", "free.fr", "sfr.fr", "laposte.net",
         "gmx.fr", "gmx.com", "proton.me", "protonmail.com", "aol.com", "bbox.fr", "neuf.fr", "numericable.fr",
+        // Second review of 14/11: the other countries' Gmail, Outlook and Yahoo, the mailboxes of privacy, of Belgium and Switzerland.
+        "gmail.fr", "outlook.be", "outlook.ch", "hotmail.be", "hotmail.ch", "live.be", "yahoo.be", "yahoo.ch", "ymail.com", "rocketmail.com",
+        "gmx.de", "gmx.net", "gmx.ch", "web.de", "pm.me", "protonmail.ch", "fastmail.com", "fastmail.fm", "zoho.com", "zohomail.eu",
+        "tutanota.com", "tuta.io", "mail.com", "yandex.com", "yandex.ru", "skynet.be", "telenet.be", "proximus.be", "bluewin.ch",
+        "sunrise.ch", "aliceadsl.fr", "club-internet.fr", "voila.fr", "cegetel.net", "dbmail.com", "hey.com", "duck.com",
     ]
 
     public static func domain(of email: String) -> String? {
@@ -159,6 +164,8 @@ public struct MailFilingRules: Sendable {
     public var correspondents: Set<String>
     private var domainProjects: [String: Set<UUID>] = [:]
     private var myDomains: Set<String> = []
+    /// Paul's domains that are only his (not gmail.com and the like).
+    private var myOwnDomains: Set<String> { myDomains.subtracting(PublicMailDomains.all) }
 
     public init(choices: [String: MailFiling] = [:], senders: [String: MailSenderRow] = [:], contactProjects: [String: Set<UUID>] = [:],
                 contacts: Set<String> = [], projects: [(id: UUID, name: String)] = [], mine: Set<String> = [], correspondents: Set<String> = []) {
@@ -200,13 +207,16 @@ public struct MailFilingRules: Sendable {
             return (memory, .sender)
         }
         let others = thread.senders.map { $0.email.lowercased() }.filter { !mine.contains($0) }
-        let linked = others.compactMap { contactProjects[$0] }.reduce(into: Set<UUID>()) { $0.formUnion($1) }
+        // A colleague of Paul's own domain writes about everything: his links say nothing of this thread.
+        let outside = others.filter { PublicMailDomains.domain(of: $0).map { !myOwnDomains.contains($0) } ?? true }
+        let linked = outside.compactMap { contactProjects[$0] }.reduce(into: Set<UUID>()) { $0.formUnion($1) }
         if linked.count == 1, let id = linked.first { return (.project(id), .contacts) }
         if linked.count > 1, let id = ProjectNames.named(in: thread.subject, projects: projects.filter { linked.contains($0.id) }) {
             return (.project(id), .contacts)
         }
         let base = baseTab(of: thread)
-        if linked.isEmpty, base == .personnes {
+        // The domain speaks only for strangers: a contact Paul took out of a project stays out.
+        if linked.isEmpty, base == .personnes, !others.contains(where: contacts.contains) {
             let domains = Set(others.compactMap(PublicMailDomains.domain(of:)))
             let found = domains.compactMap { domainProjects[$0] }.reduce(into: Set<UUID>()) { $0.formUnion($1) }
             if found.count == 1, let id = found.first { return (.project(id), .domain) }

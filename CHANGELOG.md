@@ -3,6 +3,31 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.15.2 — 14 novembre 2026
+
+**Mails : corrections de la relecture de Ranger et des agents.**
+
+- **Tes agents** :
+  - le texte caché d'un mail ne leur parvient plus, même imbriqué, caché par une feuille de style, par
+    l'attribut `hidden`, par une hauteur nulle ou une police minuscule ; l'extrait de la liste vient du texte
+    visible, plus de l'aperçu de Gmail (qui contient l'en-tête caché des newsletters) ;
+  - l'objet et les noms leur arrivent sur une ligne, sans caractère invisible ;
+  - les caractères invisibles sont retirés du texte d'un brouillon d'agent : rien ne part sous tes yeux sans
+    que tu le voies ;
+  - « Ce que lisent tes agents » vaut tout de suite, même pour une session Claude Code déjà ouverte ;
+  - ouvrir un fil ne met plus dans Gmail le brouillon d'un agent : il n'y va qu'une fois que tu l'as retouché ;
+  - une réponse d’agent préparée hors ligne est reprise quand tu reviens sur Polhub ou que tu relèves tes mails.
+- **Ranger** :
+  - un collègue de ton domaine, relié par l'agenda à un projet, n'y range plus tous ses mails internes ;
+  - un contact que tu as retiré d'un projet n'y revient plus par son domaine ;
+  - plus de boîtes grand public reconnues (Gmail, Outlook et Yahoo d'autres pays, Proton, Fastmail,
+    fournisseurs belges et suisses…) ;
+  - une adresse « …-noreply » n'est jamais faite contact.
+- **Recherche** : « Tout archiver » et « Tout marquer comme lu » ne s'appliquent plus aux résultats d'une
+  recherche, qui mêlent tous les onglets.
+- **Pixels espions** : la liste ne bloque plus des images légitimes par des motifs trop larges ; deux motifs
+  de la liste d'origine (Campaign Monitor, Cprpt) bloquent enfin ce qu'ils visaient.
+
 ## 0.15.1 — 14 novembre 2026
 
 - **Mails : les pixels espions connus sont bloqués**, même quand les images s'affichent (la liste libre

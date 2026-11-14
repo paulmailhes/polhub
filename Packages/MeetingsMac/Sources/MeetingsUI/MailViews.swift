@@ -395,10 +395,11 @@ struct MailListView: View {
                     if mails.folder == .inbox {
                         Button("Sélectionner plusieurs mails") { mails.selecting = true }
                         Button("Tout marquer comme lu dans « \(mails.tab.title) »") { mails.markAllRead() }
-                            .disabled(mails.unread(in: mails.tab) == 0)
+                            .disabled(mails.unread(in: mails.tab) == 0 || mails.found != nil)
                         if mails.tab != .personnes {
+                            // Never on a search's results: they come from every tab (second review of 14/11).
                             Button("Tout archiver dans « \(mails.tab.title) »") { mails.archiveTab() }
-                                .disabled(mails.shown.isEmpty)
+                                .disabled(mails.shown.isEmpty || mails.found != nil)
                         }
                     }
                     Divider()

@@ -10,7 +10,7 @@ enum MailContentRules {
 
     static func list(images: Bool) async -> WKContentRuleList? {
         if let list = lists[images] { return list }
-        let list = try? await WKContentRuleListStore.default().compileContentRuleList(forIdentifier: "polhub-mails-\(images ? "images" : "sans-images")-2",
+        let list = try? await WKContentRuleListStore.default().compileContentRuleList(forIdentifier: "polhub-mails-\(images ? "images" : "sans-images")-5",
                                                                                      encodedContentRuleList: MailHTML.contentRules(images: images))
         lists[images] = list
         return list

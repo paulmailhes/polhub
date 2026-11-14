@@ -404,6 +404,9 @@ public actor MailEngine {
 
     // MARK: - Writing (step « Écrire », 14/11)
 
+    /// An adoption of the agents' drafts under way, and a call that came during it.
+    private var adopting = false
+    private var adoptAgain = false
     /// The push under way for each draft, and its token.
     private var pushing: [String: (token: Int, task: Task<MailDraftRow, Error>)] = [:]
     private var pushCount = 0
@@ -649,6 +652,22 @@ public actor MailEngine {
     /// mailbox is gone is let go; one that cannot be prepared now (offline) waits for the next pass.
     @discardableResult
     public func adoptAgentDrafts() async -> [MailDraftRow] {
+        // One pass at a time (second review of 14/11); a call during a pass makes it run once more.
+        if adopting {
+            adoptAgain = true
+            return []
+        }
+        adopting = true
+        defer { adopting = false }
+        var all: [MailDraftRow] = []
+        repeat {
+            adoptAgain = false
+            all += await adoptionPass()
+        } while adoptAgain
+        return all
+    }
+
+    private func adoptionPass() async -> [MailDraftRow] {
         guard let dropped = try? store.agentDrafts(), !dropped.isEmpty else { return [] }
         let mine = (try? store.filingRules().mine) ?? []
         let accounts = Set((try? store.mailAccounts()) ?? [])
@@ -667,7 +686,7 @@ public actor MailEngine {
                     let people = ReplyBuilder.recipients(row.mode, source: source, mine: mine)
                     let threading = ReplyBuilder.threading(source)
                     draft = MailDraftRow(account: thread.account, mode: row.mode, threadKey: key, replyToKey: last.id, to: people.to, cc: people.cc,
-                                         subject: ReplyBuilder.subject(row.mode, original: last.subject), body: row.body,
+                                         subject: ReplyBuilder.subject(row.mode, original: last.subject), body: HTMLText.clean(row.body),
                                          quoteHTML: ReplyBuilder.quoteHTML(row.mode, source: source), quoteText: ReplyBuilder.quoteText(row.mode, source: source),
                                          inReplyTo: threading.inReplyTo, references: threading.references, origin: .agent, createdAt: row.createdAt,
                                          updatedAt: now())
@@ -676,11 +695,10 @@ public actor MailEngine {
                         try store.discardAgentDraft(row.id)
                         continue
                     }
-                    draft = MailDraftRow(account: account, mode: .new, to: row.to, cc: row.cc, subject: row.subject, body: row.body, origin: .agent,
+                    draft = MailDraftRow(account: account, mode: .new, to: row.to, cc: row.cc, subject: HTMLText.clean(row.subject), body: HTMLText.clean(row.body), origin: .agent,
                                          createdAt: row.createdAt, updatedAt: now())
                 }
-                try store.adopt(row.id, as: draft)
-                adopted.append(draft)
+                if try store.adopt(row.id, as: draft) { adopted.append(draft) }
             } catch {
                 continue
             }

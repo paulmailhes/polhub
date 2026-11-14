@@ -209,6 +209,25 @@ import Testing
         #expect(HTMLText.visible(html) == "Bonjour Paul,\nÀ demain")
     }
 
+    /// Review of 14/11 (Ranger, Agents): hidden blocks inside hidden blocks, a class a style sheet hides, an
+    /// encoded style, a cell left open, a zero height, a tiny font, a template: none reaches an agent, and what
+    /// shows after a hidden block stays.
+    @Test func hiddenTextHasNoWayAround() {
+        let cases: [(String, String)] = [
+            (#"<div style="display:none"><div>leurre</div>ORDRE</div><p>Bonjour</p>"#, "Bonjour"),
+            (#"<style>.z{display:none} p{color:red}</style><div class="a z">ORDRE</div><p>Bonjour</p>"#, "Bonjour"),
+            (#"<div style="display&#58;none">ORDRE</div><p>Bonjour</p>"#, "Bonjour"),
+            (#"<table><tr><td style="display:none">ORDRE</table><p>Bonjour</p>"#, "Bonjour"),
+            (#"<div hidden>SECRET</div><div>Visible important</div><p>fin</p>"#, "Visible important\nfin"),
+            (#"<div style="height:0;overflow:hidden">ORDRE</div><p>Bonjour</p>"#, "Bonjour"),
+            (#"<span style="font-size:0.1px">ORDRE</span><p>Bonjour</p>"#, "Bonjour"),
+            (#"<template><p>ORDRE</p></template><p>Bonjour</p>"#, "Bonjour"),
+            (#"<div style="mso-hide:all">ORDRE</div><p>Bonjour</p>"#, "Bonjour"),
+            (#"<p style="opacity:0.5">Bonjour</p>"#, "Bonjour"),
+        ]
+        for (html, expected) in cases { #expect(HTMLText.visible(html) == expected, "\(html)") }
+    }
+
     @Test func htmlBecomesItsWords() {
         let html = "<html><head><style>p{color:red}</style></head><body><p>Bonjour&nbsp;Camille,</p><div>Voici&#39;l&eacute;t&#xE9;&amp;co</div><ul><li>un</li></ul><br><br><br>fin</body></html>"
         #expect(HTMLText.plain(html) == "Bonjour Camille,\nVoici'lété&co\n• un\n\nfin")

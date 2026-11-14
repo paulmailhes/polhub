@@ -12,7 +12,8 @@ public struct MailDesk: Sendable {
 
         /// The app's setting, read from its preferences; everything when it was never set.
         public static func current(appID: String = "fr.paulmailhes.polhub") -> Scope {
-            (CFPreferencesCopyAppValue("mails.agents.portee" as CFString, appID as CFString) as? String).flatMap(Scope.init(rawValue:)) ?? .tout
+            CFPreferencesAppSynchronize(appID as CFString)
+            return (CFPreferencesCopyAppValue("mails.agents.portee" as CFString, appID as CFString) as? String).flatMap(Scope.init(rawValue:)) ?? .tout
         }
     }
 
@@ -22,16 +23,19 @@ public struct MailDesk: Sendable {
 
     let store: MailStore
     let files: MailFiles
-    let scope: Scope
+    /// Read again at each call (review of 14/11): Paul's change applies to the sessions already open.
+    let scopeNow: @Sendable () -> Scope
+    var scope: Scope { scopeNow() }
     let projects: ProjectDesk?
     let now: @Sendable () -> Date
     let timeZone: TimeZone
 
-    public init(database: AppDatabase, root: URL, scope: Scope, projects: ProjectDesk?, now: @escaping @Sendable () -> Date = Date.init,
-                timeZone: TimeZone = .current) {
+    /// `scope` is evaluated at each call: `.current()` reads Paul's setting every time.
+    public init(database: AppDatabase, root: URL, scope: @autoclosure @escaping @Sendable () -> Scope, projects: ProjectDesk?,
+                now: @escaping @Sendable () -> Date = Date.init, timeZone: TimeZone = .current) {
         self.store = MailStore(database)
         self.files = MailFiles(root: root)
-        self.scope = scope
+        self.scopeNow = scope
         self.projects = projects
         self.now = now
         self.timeZone = timeZone
@@ -61,15 +65,17 @@ public struct MailDesk: Sendable {
         if unreadOnly { threads = threads.filter(\.unread) }
         let shown = threads.prefix(min(max(limit, 1), 100))
         var lines = [Self.reminder, "", "# \(title) (\(threads.count))"]
-        if scope == .projets { lines.append("Paul ne laisse lire que les fils rangés dans un projet.") }
+        let only = scope == .projets
+        if only { lines.append("Paul ne laisse lire que les fils rangés dans un projet.") }
         guard !shown.isEmpty else { return (lines + ["Aucun fil."]).joined(separator: "\n") }
         for thread in shown {
-            var parts = [day(thread.lastMessageAt), people(thread, rules: rules), thread.subject.isEmpty ? "(sans objet)" : thread.subject]
+            var parts = [day(thread.lastMessageAt), people(thread, rules: rules), thread.subject.isEmpty ? "(sans objet)" : Self.line(thread.subject)]
             if let filing = caseName(thread, rules: rules) { parts.append(filing) }
             parts.append(thread.unread ? "non lu" : "lu")
             if thread.messageCount > 1 { parts.append("\(thread.messageCount) messages") }
             lines.append("- [\(thread.threadID)] " + parts.joined(separator: " · "))
-            if !thread.snippet.isEmpty { lines.append("  > " + HTMLText.clean(thread.snippet)) }
+            // The extract is read from the visible text, never Gmail's own (it holds the hidden « preheader »).
+            if let extract = extract(thread) { lines.append("  > " + extract) }
         }
         if threads.count > shown.count { lines.append("… et \(threads.count - shown.count) autres : précise « texte » ou « limite ».") }
         lines.append("")
@@ -82,7 +88,7 @@ public struct MailDesk: Sendable {
         let rules = try store.filingRules()
         let thread = try find(which, rules: rules)
         let messages = try store.messages(threadKey: thread.id).filter { !$0.labels.contains("DRAFT") }
-        var text = "# \(thread.subject.isEmpty ? "(sans objet)" : thread.subject)\n"
+        var text = "# \(thread.subject.isEmpty ? "(sans objet)" : Self.line(thread.subject))\n"
         text += (["Boîte : \(thread.account)", caseName(thread, rules: rules), "\(messages.count) message\(messages.count > 1 ? "s" : "")"].compactMap { $0 })
             .joined(separator: " · ") + "\n"
         for message in messages {
@@ -90,7 +96,7 @@ public struct MailDesk: Sendable {
             if !message.to.isEmpty { text += "À : \(message.to.map(address).joined(separator: ", "))\n" }
             if !message.cc.isEmpty { text += "Cc : \(message.cc.map(address).joined(separator: ", "))\n" }
             if !message.files.isEmpty {
-                text += "Pièces jointes (non lisibles par les outils) : " + message.files.map { AttachmentSafety.cleanName($0.filename) }.joined(separator: ", ") + "\n"
+                text += "Pièces jointes (non lisibles par les outils) : " + message.files.map { Self.line(AttachmentSafety.cleanName($0.filename)) }.joined(separator: ", ") + "\n"
             }
             text += "\n" + body(of: message) + "\n"
         }
@@ -101,6 +107,23 @@ public struct MailDesk: Sendable {
             answer += "\n\n— Page \(index) sur \(pages.count)." + (index < pages.count ? " La suite : `mail` avec « page » \(index + 1)." : "")
         }
         return answer
+    }
+
+    /// The first words of the thread's last message, as `mail` would show them.
+    func extract(_ thread: MailThreadRow) -> String? {
+        guard let last = try? store.messages(threadKey: thread.id).last(where: { !$0.labels.contains("DRAFT") }), last.hasBody,
+              let data = try? Data(contentsOf: files.body(of: last)) else { return nil }
+        let raw = String(decoding: data, as: UTF8.self)
+        let words = Self.line(last.bodyIsHTML ? HTMLText.visible(raw) : HTMLText.clean(raw))
+        guard !words.isEmpty else { return nil }
+        return words.count > 160 ? String(words.prefix(160)) + "…" : words
+    }
+
+    /// One line of what a sender wrote (a subject, a name): no invisible character, no line break that
+    /// would pass for one of Polhub's own lines.
+    static func line(_ text: String) -> String {
+        HTMLText.clean(text).components(separatedBy: .newlines).joined(separator: " ").replacingOccurrences(of: "\t", with: " ")
+            .trimmingCharacters(in: .whitespaces)
     }
 
     func body(of message: MailMessageRow) -> String {
@@ -139,10 +162,12 @@ public struct MailDesk: Sendable {
         guard try store.acceptsAgentDrafts() else {
             throw ToolError("La base de Polhub n'accepte pas encore de brouillon : la dernière version de Polhub doit être ouverte une fois.")
         }
-        let body = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // No invisible character leaves under Paul's eyes (review of 14/11): tags, zero widths, reversals.
+        let body = HTMLText.clean(text).trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleaned = body != text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty else { throw ToolError("Il manque « texte » : le texte du mail.") }
         guard body.count <= Self.maximumText else { throw ToolError("Le texte dépasse \(Self.maximumText) caractères.") }
-        let closing = "Paul le relit et l'envoie lui-même : aucun outil ne peut l'envoyer."
+        let closing = (cleaned ? "Des caractères invisibles ont été retirés du texte. " : "") + "Paul le relit et l'envoie lui-même : aucun outil ne peut l'envoyer."
         if let which {
             let rules = try store.filingRules()
             let thread = try find(which, rules: rules)
@@ -155,7 +180,7 @@ public struct MailDesk: Sendable {
         }
         let people = try Self.addresses(to, "a"), copies = try Self.addresses(cc, "cc")
         guard !people.isEmpty else { throw ToolError("Il manque « a » : les adresses du destinataire (ou « quel » pour répondre à un fil).") }
-        guard let subject = subject?.trimmingCharacters(in: .whitespacesAndNewlines), !subject.isEmpty else { throw ToolError("Il manque « objet ».") }
+        guard let subject = subject.map(Self.line), !subject.isEmpty else { throw ToolError("Il manque « objet ».") }
         let from = try mailbox(account, for: people + copies)
         try store.drop(MailAgentDraftRow(mode: .new, account: from, to: people, cc: copies, subject: subject, body: body, createdAt: now()))
         let rules = try store.filingRules()
@@ -179,7 +204,7 @@ public struct MailDesk: Sendable {
             return match
         }
         let wanted = Set(people.map { $0.email.lowercased() })
-        let seen = try store.readableThreads().first { thread in thread.senders.contains { wanted.contains($0.email.lowercased()) } }
+        let seen = try readable(try store.filingRules()).first { thread in thread.senders.contains { wanted.contains($0.email.lowercased()) } }
         return seen.map(\.account).flatMap { account in accounts.first { $0 == account } } ?? first
     }
 
@@ -189,7 +214,7 @@ public struct MailDesk: Sendable {
             guard !text.isEmpty else { return nil }
             var address = MailAddress(email: text)
             if let open = text.lastIndex(of: "<"), let close = text.lastIndex(of: ">"), open < close {
-                let name = text[..<open].trimmingCharacters(in: CharacterSet(charactersIn: "\" "))
+                let name = line(String(text[..<open])).trimmingCharacters(in: CharacterSet(charactersIn: "\" "))
                 address = MailAddress(name: name.isEmpty ? nil : name, email: String(text[text.index(after: open)..<close]).trimmingCharacters(in: .whitespaces))
             }
             guard MIMEBuilder.isValid(address.email) else { throw ToolError("« \(text) » (dans « \(field) ») n'est pas une adresse valide.") }
@@ -237,7 +262,7 @@ public struct MailDesk: Sendable {
     }
 
     func people(_ thread: MailThreadRow, rules: MailFilingRules) -> String {
-        let names = thread.senders.map { address in rules.mine.contains(address.email.lowercased()) ? "moi" : (address.name ?? address.email) }
+        let names = thread.senders.map { address in rules.mine.contains(address.email.lowercased()) ? "moi" : Self.line(address.name ?? address.email) }
         return names.isEmpty ? "?" : names.joined(separator: ", ")
     }
 
@@ -248,7 +273,7 @@ public struct MailDesk: Sendable {
     }
 
     func address(_ address: MailAddress) -> String {
-        address.name.map { "\($0) <\(address.email)>" } ?? address.email
+        address.name.map { "\(Self.line($0)) <\(Self.line(address.email))>" } ?? Self.line(address.email)
     }
 
     func day(_ date: Date) -> String {

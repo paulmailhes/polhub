@@ -239,12 +239,15 @@ public struct MailStore: Sendable {
         try writer.read { try MailAgentDraftRow.order(Column("createdAt")).fetchAll($0) }
     }
 
-    /// The app made a draft of what the agent dropped: the draft takes its place, in one transaction.
-    public func adopt(_ agentDraftID: String, as draft: MailDraftRow) throws {
+    /// The app made a draft of what the agent dropped: the draft takes its place, in one transaction. False
+    /// when the drop was already taken.
+    @discardableResult
+    public func adopt(_ agentDraftID: String, as draft: MailDraftRow) throws -> Bool {
         try writer.write { db in
-            guard try MailAgentDraftRow.fetchOne(db, key: agentDraftID) != nil else { return }
+            guard try MailAgentDraftRow.fetchOne(db, key: agentDraftID) != nil else { return false }
             try draft.insert(db)
             _ = try MailAgentDraftRow.deleteOne(db, key: agentDraftID)
+            return true
         }
     }
 
@@ -365,14 +368,15 @@ public struct MailStore: Sendable {
     }
 
     /// Paul's change, in one transaction on the row as it is now: what Gmail answered meanwhile (its ids, the
-    /// version it holds) is never written over (review of 14/11). `nil` when the draft is gone.
+    /// version it holds) is never written over (review of 14/11). `nil` when the draft is gone or nothing
+    /// changed: a draft only shown is never sent to Gmail (second review of 14/11).
     @discardableResult
     public func updateDraft(_ id: String, at date: Date, _ change: (inout MailDraftRow) -> Void) throws -> MailDraftRow? {
         try writer.write { db in
             guard var draft = try MailDraftRow.fetchOne(db, key: id) else { return nil }
             let before = draft
             change(&draft)
-            guard draft != before else { return draft }
+            guard draft != before else { return nil }
             draft.updatedAt = max(date, before.updatedAt.addingTimeInterval(0.001))
             draft.lastError = nil
             try draft.save(db)

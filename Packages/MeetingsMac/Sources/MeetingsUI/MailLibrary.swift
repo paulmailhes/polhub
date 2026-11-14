@@ -190,6 +190,8 @@ public final class MailLibrary: ObservableObject {
     public func refresh() {
         for account in accounts { Task { await engine.kick(account.email) } }
         pushPending()
+        // An agent's reply left waiting (offline) is taken up again.
+        Task { await engine.adoptAgentDrafts() }
     }
 
     /// Mails just arrived in an inbox: those of the people's tab are told; only those of a project, if Paul
@@ -297,8 +299,10 @@ public final class MailLibrary: ObservableObject {
     /// An address no one answers: never made a contact.
     static func isRobot(_ address: String) -> Bool {
         let local = address.split(separator: "@").first.map { $0.lowercased() } ?? ""
-        return ["noreply", "no-reply", "no_reply", "donotreply", "do-not-reply", "nepasrepondre", "ne-pas-repondre", "notification", "notifications",
-                "mailer-daemon", "bounce", "bounces", "newsletter", "news"].contains { local == $0 || local.hasPrefix($0 + "+") || local.hasPrefix($0 + ".") }
+        // Anywhere in the name (« compta-noreply », « bounce-123 »), as Gmail's own guess does.
+        if ["noreply", "no-reply", "no_reply", "donotreply", "do-not-reply", "do_not_reply", "nepasrepondre", "ne-pas-repondre", "ne_pas_repondre",
+            "mailer-daemon", "bounce"].contains(where: local.contains) { return true }
+        return ["notification", "notifications", "newsletter", "news"].contains { local == $0 || local.hasPrefix($0 + "+") || local.hasPrefix($0 + ".") }
     }
 
     private func offerUndo(_ text: String, restore: @escaping () -> Void) {
@@ -317,8 +321,8 @@ public final class MailLibrary: ObservableObject {
 
     /// Every thread of an automatic tab, archived at once; one « Annuler ».
     public func archiveTab() {
-        guard tab != .personnes else { return }
-        perform(.archive, on: shown)
+        guard tab != .personnes, found == nil else { return }
+        perform(.archive, on: visible(inbox).filter { tab(of: $0) == tab })
     }
 
     /// Not written by a person: the notifications and the newsletters.
@@ -874,7 +878,8 @@ public final class MailLibrary: ObservableObject {
 
     /// Every unread thread of the tab, read; one « Annuler » for them all.
     public func markAllRead() {
-        perform(.markRead, on: shown.filter(\.unread))
+        guard found == nil else { return }
+        perform(.markRead, on: visible(inbox).filter { $0.unread && tab(of: $0) == tab })
     }
 
     /// Every mail of a sender, as Gmail finds them: to archive or delete in one go.

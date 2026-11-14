@@ -68,6 +68,19 @@ import Testing
         #expect(rules.tab(of: thread(senders: ["inconnu@exemple.org"], category: "social")) == .newsletters)
     }
 
+    /// Second review of 14/11: a colleague of Paul's own domain, linked to one project, does not file every
+    /// internal mail there; a contact taken out of a project does not come back by the domain.
+    @Test func colleaguesAndRemovedContactsAreNotFiledByTheirLinks() {
+        let rules = MailFilingRules(contactProjects: ["alex@atelier.exemple": [logo], "camille@studio.exemple": [site]],
+                                    contacts: ["alex@atelier.exemple", "camille@studio.exemple", "jules@studio.exemple"],
+                                    projects: [(site, "Site vitrine"), (logo, "Logo")], mine: mine)
+        #expect(rules.filing(of: thread(senders: ["alex@atelier.exemple"], subject: "Déjeuner vendredi")) == nil)
+        // Jules was taken out of « Site vitrine » (not linked any more) but works at the studio.
+        #expect(rules.filing(of: thread(senders: ["jules@studio.exemple"])) == nil)
+        // A stranger of the studio still goes there by the domain.
+        #expect(rules.filing(of: thread(senders: ["lou@studio.exemple"]))! == (.project(site), .domain))
+    }
+
     @Test func aCaseReadsBackAsItWasWritten() {
         for filing in [MailFiling.project(site), .perso, .newsletters, .payments, .services, .none] {
             #expect(MailFiling(rawValue: filing.rawValue) == filing)
