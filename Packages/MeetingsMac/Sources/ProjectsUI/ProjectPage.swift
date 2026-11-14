@@ -9,6 +9,8 @@ import SwiftUI
 struct ProjectPage: View {
     let project: ProjectRow
     @ObservedObject var library: ProjectLibrary
+    /// Set when the page floats over the board: it closes itself, the window's toolbar stays the board's.
+    var close: (() -> Void)?
 
     @State private var draft: ProjectRow
     @State private var actions: [ActionRow] = []
@@ -25,9 +27,10 @@ struct ProjectPage: View {
     /// Two columns when the page is wide enough: decided from its width, not from its texts' (review of 14/11).
     @State private var wide = true
 
-    init(project: ProjectRow, library: ProjectLibrary) {
+    init(project: ProjectRow, library: ProjectLibrary, close: (() -> Void)? = nil) {
         self.project = project
         self.library = library
+        self.close = close
         _draft = State(initialValue: project)
     }
 
@@ -52,10 +55,15 @@ struct ProjectPage: View {
             }
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { wide = $0 >= 760 }
         }
+        .overlay(alignment: .topTrailing) {
+            if let close { PanelCloseButton(action: close).padding(Space.l) }
+        }
         .toolbar {
-            ToolbarItem(placement: .navigation) {
-                Button { library.selected = nil } label: { Label("Projets", systemImage: "chevron.left") }
-                    .help("Revenir aux projets")
+            if close == nil {
+                ToolbarItem(placement: .navigation) {
+                    Button { library.selected = nil } label: { Label("Projets", systemImage: "chevron.left") }
+                        .help("Revenir aux projets")
+                }
             }
         }
         .onAppear(perform: reload)

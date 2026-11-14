@@ -299,6 +299,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let hub = NotificationHub(agenda: agenda)
         notifications = hub
         agenda.notifications = hub
+        // The new mails of the main tab (14/11).
+        mails?.onArrival = { arrived in Task { await hub.mailsArrived(arrived) } }
         SystemNotifications.registerCategories()
         Task { @MainActor in
             _ = await SystemNotifications.requestAuthorization()
@@ -334,6 +336,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let info = response.notification.request.content.userInfo
         let meet = info[NoticeKey.meet] as? String, account = info[NoticeKey.account] as? String
         let event = info[NoticeKey.event] as? String, meeting = (info[NoticeKey.meeting] as? String).flatMap(UUID.init(uuidString:))
+        let thread = info[NoticeKey.thread] as? String
         let action = response.actionIdentifier
         let kind = (info[NoticeKey.kind] as? String).flatMap(PlannedNotice.Kind.init(rawValue:))
         // A click joins only a reminder or a meeting not recorded; a new event, days ahead, opens its card (review
@@ -342,7 +345,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             || (action == UNNotificationDefaultActionIdentifier && (kind == .reminder || kind == .unrecorded))
         completionHandler()
         Task { @MainActor in
-            self.open(meet: meet, account: account, event: event, meeting: meeting, join: join)
+            if kind == .mail {
+                self.router.openMail(thread)
+                self.showMainWindow()
+            } else {
+                self.open(meet: meet, account: account, event: event, meeting: meeting, join: join)
+            }
         }
     }
 

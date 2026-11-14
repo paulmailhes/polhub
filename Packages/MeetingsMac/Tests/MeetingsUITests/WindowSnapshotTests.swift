@@ -2,6 +2,7 @@ import AppKit
 import Domain
 import Foundation
 import Persistence
+import PolhubDesign
 import SwiftUI
 import Testing
 @testable import MeetingsUI
@@ -105,7 +106,11 @@ struct WindowSnapshotTests {
         let projects = ProjectLibrary(store: store, meetings: MeetingStore(database), defaults: UserDefaults(suiteName: "page-\(UUID().uuidString)")!)
         try await Task.sleep(for: .milliseconds(300))
         projects.selected = project.id
+        UserDefaults.standard.set(false, forKey: Preferences.Key.floatingPages)
         try await LiveWindow.capture(ProjectsView(library: projects), to: output.appending(path: "projet.png"), size: NSSize(width: 1_200, height: 900))
+        // 14/11: the page floats over the board, which stays in sight.
+        UserDefaults.standard.set(true, forKey: Preferences.Key.floatingPages)
+        try await LiveWindow.capture(ProjectsView(library: projects), to: output.appending(path: "projet-flottant.png"), size: NSSize(width: 1_200, height: 900))
     }
 
     /// Réglages and its tabs: Mises à jour, Diagnostic, Journal.
@@ -224,7 +229,8 @@ struct WindowSnapshotTests {
 /// and toolbar included (14/11: the offscreen drawing leaves them out); otherwise it is drawn offscreen.
 @MainActor
 enum LiveWindow {
-    static func capture(_ view: some View, to file: URL, size: NSSize = NSSize(width: 1_280, height: 780), dark: Bool = false) async throws {
+    static func capture(_ view: some View, to file: URL, size: NSSize = NSSize(width: 1_280, height: 780), dark: Bool = false,
+                        wait: Duration = .milliseconds(1_500)) async throws {
         let live = ProcessInfo.processInfo.environment["POLHUB_LIVE"] != nil
         let host = NSHostingController(rootView: view)
         host.sceneBridgingOptions = [.title, .toolbars]
@@ -238,7 +244,7 @@ enum LiveWindow {
             _ = NSApplication.shared
             window.setFrameTopLeftPoint(NSPoint(x: 40, y: (NSScreen.main?.visibleFrame.maxY ?? 900) - 20))
             window.orderFrontRegardless()
-            try await Task.sleep(for: .milliseconds(1_500))
+            try await Task.sleep(for: wait)
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
             process.arguments = ["-l", "\(window.windowNumber)", "-o", "-x", file.path]

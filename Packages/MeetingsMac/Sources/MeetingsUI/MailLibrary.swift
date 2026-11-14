@@ -8,7 +8,7 @@ import Persistence
 import PolhubDesign
 import SwiftUI
 
-/// The two tabs of the list (Paul, 14/11): the people and the projects; the automatic mails.
+/// The two tabs of the list (Paul, 14/11): the mails people wrote; what services send on their own.
 public enum MailTab: String, Hashable, Sendable, CaseIterable {
     case principale, automatiques
 
@@ -16,6 +16,14 @@ public enum MailTab: String, Hashable, Sendable, CaseIterable {
         switch self {
         case .principale: "Principale"
         case .automatiques: "Automatiques"
+        }
+    }
+
+    /// What the tab holds, said where Paul sees it.
+    var explanation: String {
+        switch self {
+        case .principale: "Les mails écrits par des personnes : clients, collègues, proches."
+        case .automatiques: "Ce que des services envoient tout seuls : newsletters, notifications, reçus, promotions. Rien n'y attend de réponse."
         }
     }
 }
@@ -33,6 +41,11 @@ public enum MailImages: String, Hashable, Sendable, CaseIterable {
     }
 }
 
+/// Passes the engine's news to the library once it exists.
+final class MailArrivalRelay: @unchecked Sendable {
+    var handler: (@MainActor ([MailMessageRow]) -> Void)?
+}
+
 /// The mails, for the window: what the copy holds, and Paul's gestures (14/11).
 @MainActor
 public final class MailLibrary: ObservableObject {
@@ -40,15 +53,23 @@ public final class MailLibrary: ObservableObject {
     @Published public private(set) var inbox: [MailThreadRow] = []
     @Published public private(set) var cursors: [String: MailCursorRow] = [:]
     @Published public private(set) var senders: [String: MailSenderRow] = [:]
-    @Published public var tab: MailTab = .principale
+    @Published public var tab: MailTab = .principale { didSet { selected = [] } }
     /// The mailboxes Paul hid from the list.
     @Published public var hidden: Set<String> { didSet { defaults.set(hidden.sorted(), forKey: Preferences.Key.mailHiddenAccounts) } }
     /// What a search found at Gmail's; `nil` out of a search.
     @Published public private(set) var found: [MailThreadRow]?
     @Published public private(set) var searching = false
-    /// The last gesture, while it can be undone.
-    @Published public private(set) var undoable: (text: String, gesture: MailGestureRow)?
+    /// The threads ticked for a gesture on all of them at once.
+    @Published public var selected: Set<String> = []
+    /// The checkboxes show, even before a first tick.
+    @Published public var selecting = false
+    /// The line the arrow keys are on.
+    @Published public var focused: String?
+    /// The last gesture, while it can be undone: one line, one or several threads.
+    @Published public private(set) var undoable: (text: String, gestures: [MailGestureRow])?
     @Published public var message: String?
+    /// The new mails of the main tab, for the notifications (set by the app).
+    public var onArrival: (([(threadKey: String, sender: String, subject: String)]) -> Void)?
 
     public let agenda: AgendaLibrary
     let store: MailStore
@@ -57,15 +78,19 @@ public final class MailLibrary: ObservableObject {
     private var observations: [AnyDatabaseCancellable] = []
     private var subscriptions: Set<AnyCancellable> = []
     private var undoToken = 0
+    /// The anchor of a ⇧-click.
+    private var anchor: String?
 
     public init(agenda: AgendaLibrary, root: URL, defaults: UserDefaults = .standard, flavor: AppFlavor = .current) {
         self.agenda = agenda
         self.defaults = defaults
         self.store = MailStore(agenda.database)
         self.hidden = Set(defaults.stringArray(forKey: Preferences.Key.mailHiddenAccounts) ?? [])
+        let relay = MailArrivalRelay()
         self.engine = MailEngine(database: agenda.database, root: root, sendFor: { [agenda] account in
             { build in try await agenda.mailSend(for: account)(build) }
-        }, flavor: flavor)
+        }, flavor: flavor, onNew: { rows in Task { @MainActor in relay.handler?(rows) } })
+        relay.handler = { [weak self] rows in self?.arrived(rows) }
         observations = [
             store.observeInbox { [weak self] in self?.inbox = $0 },
             store.observeCursors { [weak self] rows in self?.cursors = Dictionary(uniqueKeysWithValues: rows.map { ($0.account, $0) }) },
@@ -86,10 +111,22 @@ public final class MailLibrary: ObservableObject {
             NotificationCenter.default.publisher(for: name).sink { [weak self] _ in
                 guard let self else { return }
                 Task { await self.engine.setForeground(front) }
-                if front { for account in self.accounts { Task { await self.engine.kick(account.email) } } }
+                if front { self.refresh() }
             }
             .store(in: &subscriptions)
         }
+    }
+
+    /// Asks Gmail what is new, now.
+    public func refresh() {
+        for account in accounts { Task { await engine.kick(account.email) } }
+    }
+
+    /// Mails just arrived in an inbox: those of the main tab are told.
+    private func arrived(_ rows: [MailMessageRow]) {
+        let told = rows.filter { !isAutomatic(message: $0) && !hidden.contains($0.account) }
+            .map { (threadKey: $0.threadKey, sender: $0.sender?.display ?? "Nouveau mail", subject: $0.subject) }
+        if !told.isEmpty { onArrival?(told) }
     }
 
     // MARK: - What the list shows
@@ -102,6 +139,12 @@ public final class MailLibrary: ObservableObject {
     public func isAutomatic(_ thread: MailThreadRow) -> Bool {
         guard let category = thread.category, MailThreadRow.automaticCategories.contains(category), !thread.paulWrote else { return false }
         return thread.lastSender.flatMap { senders[$0]?.principal } != true
+    }
+
+    func isAutomatic(message: MailMessageRow) -> Bool {
+        guard let label = message.labels.first(where: { $0.hasPrefix("CATEGORY_") }) else { return false }
+        let category = String(label.dropFirst("CATEGORY_".count)).lowercased()
+        return MailThreadRow.automaticCategories.contains(category) && message.sender.flatMap { senders[$0.email]?.principal } != true
     }
 
     private func visible(_ threads: [MailThreadRow]) -> [MailThreadRow] {
@@ -128,7 +171,8 @@ public final class MailLibrary: ObservableObject {
         let reading = accounts.compactMap { cursors[$0.email] }.filter { $0.finishedAt == nil && $0.total > 0 }
         guard !reading.isEmpty else { return nil }
         let done = reading.reduce(0) { $0 + $1.done }, total = reading.reduce(0) { $0 + $1.total }
-        return "Lecture \(reading.count > 1 ? "des boîtes" : "de la boîte") : \(done.formatted(.number.locale(Locale(identifier: "fr_FR")))) sur \(total.formatted(.number.locale(Locale(identifier: "fr_FR"))))"
+        let format = IntegerFormatStyle<Int>.number.locale(Locale(identifier: "fr_FR"))
+        return "Lecture \(reading.count > 1 ? "des boîtes" : "de la boîte") : \(done.formatted(format)) sur \(total.formatted(format))"
     }
 
     /// A mailbox that cannot be read, and why.
@@ -138,40 +182,98 @@ public final class MailLibrary: ObservableObject {
 
     public func color(for account: String) -> Color { agenda.color(for: account) }
 
+    /// The thread before or after this one in the list shown.
+    public func neighbor(of key: String, offset: Int) -> String? {
+        let keys = shown.map(\.id)
+        guard let index = keys.firstIndex(of: key), keys.indices.contains(index + offset) else { return nil }
+        return keys[index + offset]
+    }
+
+    /// Where the thread stands in the list: « 3 sur 42 ».
+    public func position(of key: String) -> String? {
+        let keys = shown.map(\.id)
+        return keys.firstIndex(of: key).map { "\($0 + 1) sur \(keys.count)" }
+    }
+
+    // MARK: - Selection
+
+    /// A click with ⌘ ticks one more; with ⇧, every thread from the last one ticked.
+    public func select(_ key: String, extend: Bool) {
+        if extend, let anchor, let from = shown.firstIndex(where: { $0.id == anchor }), let to = shown.firstIndex(where: { $0.id == key }) {
+            selected.formUnion(shown[min(from, to)...max(from, to)].map(\.id))
+        } else if selected.contains(key) {
+            selected.remove(key)
+        } else {
+            selected.insert(key)
+        }
+        anchor = key
+    }
+
+    public func selectAll() {
+        selected = Set(shown.map(\.id))
+        selecting = true
+    }
+
+    public func endSelection() {
+        selected = []
+        selecting = false
+        anchor = nil
+    }
+
+    public var selectedThreads: [MailThreadRow] { shown.filter { selected.contains($0.id) } }
+
     // MARK: - Gestures
 
-    private static func done(_ kind: MailGestureKind) -> String {
+    private static func done(_ kind: MailGestureKind, count: Int) -> String {
+        let plural = count > 1
+        let what = plural ? "\(count) fils" : "Fil"
         switch kind {
-        case .archive: "Fil archivé"
-        case .unarchive: "Fil remis en boîte de réception"
-        case .markRead: "Marqué comme lu"
-        case .markUnread: "Marqué comme non lu"
-        case .trash: "Fil supprimé"
-        case .untrash: "Fil rétabli"
+        case .archive: return "\(what) archivé\(plural ? "s" : "")"
+        case .unarchive: return "\(what) remis en boîte de réception"
+        case .markRead: return plural ? "\(count) fils marqués comme lus" : "Marqué comme lu"
+        case .markUnread: return plural ? "\(count) fils marqués comme non lus" : "Marqué comme non lu"
+        case .trash: return "\(what) supprimé\(plural ? "s" : "")"
+        case .untrash: return "\(what) rétabli\(plural ? "s" : "")"
         }
     }
 
-    /// The gesture shows at once; Gmail follows. « Annuler » stays a few seconds.
-    public func perform(_ kind: MailGestureKind, on thread: MailThreadRow, undoable canUndo: Bool = true) {
+    /// The gesture shows at once; Gmail follows. « Annuler » stays a few seconds, for all the threads at once.
+    public func perform(_ kind: MailGestureKind, on threads: [MailThreadRow], undoable canUndo: Bool = true) {
+        guard !threads.isEmpty else { return }
         Task {
+            var made: [MailGestureRow] = []
             do {
-                guard let gesture = try await engine.perform(kind, threadKey: thread.id), canUndo else { return }
-                undoToken += 1
-                let token = undoToken
-                undoable = (Self.done(kind), gesture)
-                try? await Task.sleep(for: .seconds(8))
-                if undoToken == token { undoable = nil }
+                for thread in threads {
+                    if let gesture = try await engine.perform(kind, threadKey: thread.id) { made.append(gesture) }
+                }
             } catch {
                 message = "Geste impossible : \(error)"
             }
+            guard canUndo, !made.isEmpty else { return }
+            undoToken += 1
+            let token = undoToken
+            undoable = (Self.done(kind, count: made.count), made)
+            try? await Task.sleep(for: .seconds(8))
+            if undoToken == token { undoable = nil }
         }
     }
 
+    public func perform(_ kind: MailGestureKind, on thread: MailThreadRow, undoable canUndo: Bool = true) {
+        perform(kind, on: [thread], undoable: canUndo)
+    }
+
+    /// The ticked threads; the selection ends.
+    public func performOnSelection(_ kind: MailGestureKind) {
+        let threads = selectedThreads
+        perform(kind, on: threads, undoable: kind == .archive || kind == .trash || threads.count > 1)
+        endSelection()
+    }
+
     public func undo() {
-        guard let gesture = undoable?.gesture else { return }
+        guard let gestures = undoable?.gestures else { return }
         undoable = nil
         Task {
-            do { try await engine.undo(gesture) } catch { message = "Annulation impossible : \(error)" }
+            do { for gesture in gestures { try await engine.undo(gesture) } } catch { message = "Annulation impossible : \(error)" }
         }
     }
 

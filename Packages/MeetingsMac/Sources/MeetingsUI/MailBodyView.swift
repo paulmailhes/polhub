@@ -34,6 +34,11 @@ struct MailBodyView: NSViewRepresentable {
     let images: Bool
     /// macOS's Lockdown Mode for this view.
     var lockdown = true
+    /// The page is adapted to dark mode; otherwise the view itself is light, so that a mail's own dark style
+    /// stays off too.
+    var dark = false
+    /// The script found a mail made of images: the app shows it on a light card.
+    var prefersLight: Binding<Bool>? = nil
     /// The bytes and the type of an image joined to the mail, by its content id.
     let inline: @MainActor (String) async -> (Data, String)?
     let onLink: (URL) -> Void
@@ -56,14 +61,18 @@ struct MailBodyView: NSViewRepresentable {
         configuration.userContentController.add(context.coordinator, contentWorld: .defaultClient, name: "polhub")
         let view = MailWebView(frame: .zero, configuration: configuration)
         view.navigationDelegate = context.coordinator
-        view.underPageBackgroundColor = .white
+        // No background of its own: the mail sits on the app's, light or dark (Paul, 14/11).
+        view.setValue(false, forKey: "drawsBackground")
+        view.underPageBackgroundColor = .clear
         view.allowsMagnification = false
+        view.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         context.coordinator.load(document, images: images, in: view)
         return view
     }
 
     func updateNSView(_ view: MailWebView, context: Context) {
         context.coordinator.parent = self
+        view.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         context.coordinator.load(document, images: images, in: view)
     }
 
@@ -102,7 +111,9 @@ struct MailBodyView: NSViewRepresentable {
         }
 
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-            guard let body = message.body as? [String: Any], let height = body["height"] as? Double, height > 0 else { return }
+            guard let body = message.body as? [String: Any] else { return }
+            if body["light"] as? Bool == true, let prefersLight = parent.prefersLight, !prefersLight.wrappedValue { prefersLight.wrappedValue = true }
+            guard let height = body["height"] as? Double, height > 0 else { return }
             // A page cannot ask for an endless frame.
             let fitted = min(CGFloat(height), 60_000)
             if abs(parent.height - fitted) > 0.5 { parent.height = fitted }

@@ -70,6 +70,9 @@ public struct Preferences: @unchecked Sendable {
         /// Réglages › Mails (14/11): when remote images load; the mailboxes hidden from the list.
         public static let mailImages = "mails.images"
         public static let mailHiddenAccounts = "mails.boitesMasquees"
+        public static let mailNotices = "notifications.mails"
+        /// Réglages › Général (14/11): a mail or a project opens over its list, or in place of it.
+        public static let floatingPages = "general.fenetreFlottante"
     }
 
     public enum Default {
@@ -103,6 +106,7 @@ public struct Preferences: @unchecked Sendable {
     public var newEvents: Bool { flag(Key.newEvents) }
     public var unrecorded: Bool { flag(Key.unrecorded) }
     public var summaryReady: Bool { flag(Key.summaryReady) }
+    public var mailNotices: Bool { flag(Key.mailNotices) }
     public var sound: Bool { flag(Key.sound) }
 
     private func flag(_ key: String) -> Bool { (defaults.object(forKey: key) as? Bool) ?? true }

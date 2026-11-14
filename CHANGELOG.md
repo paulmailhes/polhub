@@ -3,6 +3,38 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.12.1 — 14 novembre 2026
+
+**Mails : tes retours sur la lecture.**
+
+- **Accents** : Gmail donne le texte en UTF-8 même quand un mail annonce un autre jeu de caractères ; Polhub
+  croyait l'annonce et affichait « accÃ¨s » pour « accès » (75 mails sur 900). C'est corrigé, et les mails déjà
+  copiés sont réparés au lancement, sans rien retélécharger.
+- **Mode sombre** : plus de boîte blanche. Le mail prend le fond de l'app ; ses fonds clairs s'assombrissent et
+  ses textes foncés s'éclaircissent, comme dans Apple Mail. Un mail qui gère lui-même le sombre le garde, les
+  couleurs vives (un bouton de marque) restent telles quelles, et un mail fait d'images reste sur fond clair.
+  « … » › « Afficher sur fond clair » montre un message tel que l'expéditeur l'a prévu.
+- **La liste** :
+  - non lu : un point de couleur, l'expéditeur et l'objet en gras ; lu : en gris ;
+  - la couleur de la boîte devient un trait à gauche de chaque ligne ;
+  - des repères de date : Aujourd'hui, Hier, Cette semaine, Ce mois-ci, puis les mois ;
+  - un expéditeur seul garde son nom entier (« La Lettre du design », plus « La »).
+- **Sélection de plusieurs mails** : la case au survol, ⌘-clic, ⇧-clic, ⌘A, ou le bouton « Sélectionner ». La
+  barre propose alors Archiver, Supprimer, Lu, Non lu, Tout sélectionner, avec un seul « Annuler » pour tout le
+  lot. Clavier : flèches, Entrée pour ouvrir, Espace pour cocher, Suppr, Échap.
+- **Barre d'outils** : « Relever » (demander à Gmail maintenant) et « Sélectionner ». Les onglets disent ce
+  qu'ils contiennent : survole-les, et l'onglet Automatiques s'explique en haut de la liste.
+- **Fenêtre flottante** : un mail et un projet s'ouvrent par-dessus leur liste, qui reste visible derrière ;
+  Échap ou un clic à côté la referme. Réglages › Général › « Ouvrir un mail ou un projet » : en fenêtre flottante
+  ou en pleine page, pour comparer.
+- **La page d'un mail** : l'objet, la boîte et le nombre de messages en tête ; « 3 sur 42 » et les flèches pour
+  passer au fil précédent ou suivant ; après Archiver ou Supprimer, le fil suivant s'ouvre. Chaque message a sa
+  date complète, « à moi ▾ » qui déplie De, À, Cc et l'authenticité vérifiée par Gmail, et un menu (Ouvrir dans
+  Gmail, Copier l'adresse). Un long fil replie ses messages du milieu (« 4 messages plus anciens »). Les pièces
+  jointes sont des vignettes avec leur icône et leur taille, et « Tout enregistrer… ».
+- **Notifications** : un nouveau mail de l'onglet Principale te prévient ; un clic ouvre le fil. Jamais pour les
+  mails automatiques, ni pendant la première lecture d'une boîte. Réglages › Notifications › Mails.
+
 ## 0.12.0 — 14 novembre 2026
 
 **Mails : lire.** Tes trois boîtes Gmail dans Polhub.

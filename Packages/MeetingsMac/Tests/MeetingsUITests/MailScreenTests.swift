@@ -4,6 +4,7 @@ import Foundation
 import Mail
 import Network
 import Persistence
+import PolhubDesign
 import SwiftUI
 import Testing
 import WebKit
@@ -119,6 +120,49 @@ final class CountingServer: @unchecked Sendable {
         #expect(asked.isSubset(of: ["/pixel.gif", "/fond.gif", "/css-fond.gif"]))
     }
 
+    /// 14/11, Paul in dark mode: a light newsletter takes the app's background, its texts go light, its dark
+    /// header stays, its light borders fade.
+    @Test func aLightNewsletterGoesDark() async throws {
+        let letter = """
+        <table id="lettre" width="600" style="border:1px solid #eee"><tr><td id="tete" style="background:#1f2a44;color:#fff">La Lettre</td></tr>
+        <tr><td id="corps" bgcolor="#ffffff" style="color:#333"><p id="texte">Bonjour</p><a id="lien" href="https://exemple.fr">lien</a>
+        <div id="encart" style="background:#e8f0fe;color:#1a0dab">Encart</div>
+        <a id="bouton" href="https://exemple.fr" style="display:block;background:#d4f04a;color:#000">Prendre rendez-vous</a></td></tr></table>
+        """
+        let configuration = WKWebViewConfiguration()
+        let preferences = WKWebpagePreferences()
+        preferences.allowsContentJavaScript = false
+        configuration.defaultWebpagePreferences = preferences
+        configuration.userContentController.addUserScript(WKUserScript(source: MailHTML.readerScript, injectionTime: .atDocumentEnd,
+                                                                       forMainFrameOnly: true, in: .defaultClient))
+        let view = WKWebView(frame: NSRect(x: 0, y: 0, width: 700, height: 400), configuration: configuration)
+        view.appearance = NSAppearance(named: .darkAqua)
+        view.load(Data(MailHTML.document(body: letter, isHTML: true, images: false, collapseQuote: false, dark: true).utf8),
+                  mimeType: "text/html", characterEncodingName: "UTF-8", baseURL: URL(string: "about:blank")!)
+        try await Task.sleep(for: .milliseconds(1_500))
+        func style(_ id: String, _ property: String) async throws -> String {
+            try await view.callAsyncJavaScript("return getComputedStyle(document.getElementById(id))[property]", arguments: ["id": id, "property": property],
+                                               in: nil, contentWorld: .defaultClient) as? String ?? "?"
+        }
+        let corps = try await style("corps", "backgroundColor"), texte = try await style("texte", "color")
+        let tete = try await style("tete", "backgroundColor"), encart = try await style("encart", "backgroundColor")
+        let lien = try await style("lien", "color"), bord = try await style("lettre", "borderTopColor")
+        print("MESURE sombre : corps \(corps) · texte \(texte) · tête \(tete) · encart \(encart) · lien \(lien) · bord \(bord)")
+        #expect(corps == "rgba(0, 0, 0, 0)")
+        #expect(tete == "rgb(31, 42, 68)")
+        #expect(bord != "rgb(238, 238, 238)")
+        func brightness(_ text: String) -> Double {
+            let numbers = text.split(whereSeparator: { !"0123456789.".contains($0) }).compactMap { Double($0) }
+            return numbers.prefix(3).reduce(0, +) / 3
+        }
+        #expect(brightness(texte) > 170 && brightness(lien) > 140)
+        #expect(brightness(encart) < 90)
+        #expect(try await style("lettre", "visibility") == "visible")
+        // A brand's vivid button keeps its color, and its dark text stays readable on it.
+        #expect(try await style("bouton", "backgroundColor") == "rgb(212, 240, 74)")
+        #expect(try await style("bouton", "color") == "rgb(0, 0, 0)")
+    }
+
     /// A measure for macOS's Lockdown Mode on the mail view: which image formats still show. Read its output.
     @Test func whatLockdownModeDoesToImages() async throws {
         let png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
@@ -210,18 +254,68 @@ struct MailScreenTests {
         let router = WindowRouter()
         router.section = .mails
         try await Task.sleep(for: .milliseconds(500))
-        func capture(_ name: String) async throws {
+        func capture(_ name: String, dark: Bool = false, wait: Duration = .milliseconds(1_500)) async throws {
             try await LiveWindow.capture(MainWindowView(library: library, agenda: agenda, mails: mails, router: router,
                                                         paths: AppPaths(root: root, logs: root)) { EmptyView() },
-                                         to: output.appending(path: "\(name).png"), size: NSSize(width: 1_180, height: 780))
+                                         to: output.appending(path: "\(name).png"), size: NSSize(width: 1_180, height: 780), dark: dark, wait: wait)
         }
+        UserDefaults.standard.set(true, forKey: Preferences.Key.floatingPages)
         try await capture("mails-principale")
+        try await capture("mails-principale-sombre", dark: true)
         mails.tab = .automatiques
         try await capture("mails-automatiques")
         mails.tab = .principale
+        mails.selecting = true
+        mails.selected = [MailThreadRow.key(account: "moi@exemple.fr", threadID: "a"), MailThreadRow.key(account: "paul@atelier-nord.fr", threadID: "f")]
+        try await capture("mails-selection")
+        mails.endSelection()
         router.mailSelection = MailThreadRow.key(account: "moi@exemple.fr", threadID: "a")
-        try await capture("mails-fil")
+        try await capture("mails-fil-flottant")
+        try await capture("mails-fil-flottant-sombre", dark: true)
+        mails.tab = .automatiques
         router.mailSelection = MailThreadRow.key(account: "moi@exemple.fr", threadID: "b")
-        try await capture("mails-lettre")
+        try await capture("mails-lettre-sombre", dark: true)
+        UserDefaults.standard.set(false, forKey: Preferences.Key.floatingPages)
+        try await capture("mails-lettre-page-sombre", dark: true)
+        try await capture("mails-lettre-page")
+        UserDefaults.standard.set(true, forKey: Preferences.Key.floatingPages)
+    }
+}
+
+/// Real mails, on Paul's Mac only, to check their rendering: `POLHUB_VRAIS_MAILS=<fichier.html>:<fichier.html>`
+/// with `POLHUB_LIVE=1 POLHUB_SNAPSHOTS=<dossier hors du dépôt>`. Nothing of them is kept in the repository.
+@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["POLHUB_VRAIS_MAILS"] != nil))
+struct RealMailRenderingTests {
+    struct Host: View {
+        let body_: String
+        let dark: Bool
+        @State private var height: CGFloat = 60
+        @State private var light = false
+
+        var body: some View {
+            ScrollView {
+                MailBodyView(document: MailHTML.document(body: body_, isHTML: true, images: false, collapseQuote: true, dark: dark && !light),
+                             images: false, dark: dark && !light, prefersLight: $light, inline: { _ in nil }, onLink: { _ in }, height: $height)
+                    .frame(height: height)
+                    .padding(light && dark ? 12 : 0)
+                    .background(light && dark ? Color.white : .clear, in: RoundedRectangle(cornerRadius: 10))
+                    .padding(28)
+            }
+            .frame(width: 860, height: 980)
+        }
+    }
+
+    @Test func realMailsRender() async throws {
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let files = (ProcessInfo.processInfo.environment["POLHUB_VRAIS_MAILS"] ?? "").split(separator: ":").map(String.init)
+        for (index, path) in files.enumerated() {
+            let text = try String(contentsOfFile: path, encoding: .utf8)
+            let fixed = MailParser.repaired(text) ?? text
+            for dark in [false, true] {
+                try await LiveWindow.capture(Host(body_: fixed, dark: dark), to: output.appending(path: "vrai-\(index)-\(dark ? "sombre" : "clair").png"),
+                                             size: NSSize(width: 860, height: 980), dark: dark, wait: .milliseconds(2_000))
+            }
+        }
     }
 }

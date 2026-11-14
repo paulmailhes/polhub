@@ -18,6 +18,8 @@ public struct ProjectsView: View {
     @State private var query = ""
     /// The status of the column whose « + » was clicked; the creation window is open while it is set.
     @State private var creating: ProjectStatus?
+    /// A project opens over the board, which stays in sight (Réglages › Général, 14/11).
+    @AppStorage(Preferences.Key.floatingPages) private var floating = true
 
     public init(library: ProjectLibrary) {
         self.library = library
@@ -27,7 +29,7 @@ public struct ProjectsView: View {
         Group {
             if !library.loaded {
                 ProgressView()
-            } else if let project = library.project(library.selected) {
+            } else if !floating, let project = library.project(library.selected) {
                 ProjectPage(project: project, library: library).id(project.id)
             } else if library.projects.isEmpty {
                 ContentUnavailableView {
@@ -64,6 +66,14 @@ public struct ProjectsView: View {
                 .searchable(text: $query, placement: .toolbar, prompt: "Chercher un projet")
             }
         }
+        .overlay {
+            if floating, let project = library.project(library.selected) {
+                FloatingPanel(close: { library.selected = nil }) {
+                    ProjectPage(project: project, library: library, close: { library.selected = nil }).id(project.id)
+                }
+            }
+        }
+        .animation(.snappy(duration: 0.25), value: library.selected)
         .windowTitle(library.project(library.selected)?.name ?? "Projets")
         .sheet(item: $creating) { status in
             NewProjectSheet(status: status) { draft in

@@ -5,7 +5,7 @@ import Persistence
 /// One notification Polhub asks macOS to show, now or at a date.
 public struct PlannedNotice: Equatable, Sendable {
     public enum Kind: String, Sendable {
-        case reminder, newEvent, unrecorded, summary
+        case reminder, newEvent, unrecorded, summary, mail
     }
 
     public var id: String
@@ -19,10 +19,12 @@ public struct PlannedNotice: Equatable, Sendable {
     public var account: String?
     /// The meeting a summary belongs to.
     public var meetingID: UUID?
+    /// The thread a mail belongs to (`account|threadID`).
+    public var threadKey: String?
     public var kind: Kind
 
     public init(id: String, fireDate: Date, title: String, body: String, eventID: String?, meetCode: String?, account: String?,
-                meetingID: UUID? = nil, kind: Kind = .reminder) {
+                meetingID: UUID? = nil, threadKey: String? = nil, kind: Kind = .reminder) {
         self.id = id
         self.fireDate = fireDate
         self.title = title
@@ -31,6 +33,7 @@ public struct PlannedNotice: Equatable, Sendable {
         self.meetCode = meetCode
         self.account = account
         self.meetingID = meetingID
+        self.threadKey = threadKey
         self.kind = kind
     }
 
@@ -104,6 +107,18 @@ public enum NotificationPlan {
     public static func summaryNotice(meetingID: UUID, title: String, now: Date) -> PlannedNotice {
         PlannedNotice(id: "compte-rendu|\(meetingID.uuidString)", fireDate: now, title: "Compte rendu prêt", body: title, eventID: nil,
                       meetCode: nil, account: nil, meetingID: meetingID, kind: .summary)
+    }
+
+    /// New mails of the main tab (14/11): one notice per mail, or one line for a burst. A click opens the thread.
+    public static func mailNotices(_ mails: [(threadKey: String, sender: String, subject: String)], now: Date) -> [PlannedNotice] {
+        guard mails.count <= 3 else {
+            return [PlannedNotice(id: "mails|\(Int(now.timeIntervalSince1970))", fireDate: now, title: "\(mails.count) nouveaux mails",
+                                  body: mails.prefix(3).map(\.sender).joined(separator: ", ") + "…", eventID: nil, meetCode: nil, account: nil, kind: .mail)]
+        }
+        return mails.map { mail in
+            PlannedNotice(id: "mail|\(mail.threadKey)|\(Int(now.timeIntervalSince1970))", fireDate: now, title: mail.sender, body: mail.subject,
+                          eventID: nil, meetCode: nil, account: nil, threadKey: mail.threadKey, kind: .mail)
+        }
     }
 
     /// Not a whole day, not declined by Paul.

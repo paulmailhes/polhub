@@ -126,6 +126,7 @@ struct SettingsRow: View {
 /// Réglages › Général.
 struct GeneralSettingsPane: View {
     let startup: StartupControl?
+    @AppStorage(Preferences.Key.floatingPages) private var floating = true
 
     var body: some View {
         Form {
@@ -137,6 +138,14 @@ struct GeneralSettingsPane: View {
                 }
             } footer: {
                 Text("Polhub reste dans la barre des menus quand sa fenêtre est fermée : les réunions s'enregistrent et les notifications arrivent. Il se relance aussi tout seul s'il s'arrête.")
+            }
+            Section {
+                Picker("Ouvrir un mail ou un projet", selection: $floating) {
+                    Text("En fenêtre flottante").tag(true)
+                    Text("En pleine page").tag(false)
+                }
+            } footer: {
+                Text("En fenêtre flottante, la liste reste visible derrière ; Échap ou un clic à côté la referme.")
             }
         }
         .formStyle(.grouped)
@@ -182,6 +191,7 @@ struct NotificationsSettingsPane: View {
     @AppStorage(Preferences.Key.newEvents) private var newEvents = true
     @AppStorage(Preferences.Key.unrecorded) private var unrecorded = true
     @AppStorage(Preferences.Key.summaryReady) private var summaryReady = true
+    @AppStorage(Preferences.Key.mailNotices) private var mailNotices = true
     @AppStorage(Preferences.Key.sound) private var sound = true
 
     var body: some View {
@@ -218,10 +228,17 @@ struct NotificationsSettingsPane: View {
                 Toggle("Compte rendu prêt", isOn: $summaryReady)
             }
             Section {
+                Toggle("Nouveau mail dans l'onglet Principale", isOn: $mailNotices)
+            } header: {
+                Text("Mails")
+            } footer: {
+                Text("Jamais pour les mails automatiques, ni pendant la première lecture d'une boîte. Un clic ouvre le fil.")
+            }
+            Section {
                 Toggle("Son", isOn: $sound)
                 if let hub { NotificationStatus(hub: hub) }
             } footer: {
-                Text("Bientôt ici : les mails, les échéances des projets, le résumé du matin.")
+                Text("Bientôt ici : les échéances des projets, le résumé du matin.")
             }
         }
         .formStyle(.grouped)

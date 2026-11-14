@@ -82,6 +82,12 @@ public final class NotificationHub: ObservableObject {
         await client.deliverNow(NotificationPlan.summaryNotice(meetingID: meetingID, title: title, now: Date()), sound: settings().sound)
     }
 
+    /// New mails of the main tab, as the mail engine heard them (14/11).
+    public func mailsArrived(_ mails: [(threadKey: String, sender: String, subject: String)]) async {
+        guard settings().mailNotices, !mails.isEmpty else { return }
+        for notice in NotificationPlan.mailNotices(mails, now: Date()) { await client.deliverNow(notice, sound: settings().sound) }
+    }
+
     /// « Envoyer une notification d'essai ».
     public func test() async {
         _ = await SystemNotifications.requestAuthorization()

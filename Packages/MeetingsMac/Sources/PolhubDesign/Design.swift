@@ -265,3 +265,52 @@ extension View {
         background(WindowTitle(title: title, subtitle: subtitle).frame(width: 0, height: 0))
     }
 }
+
+/// A page opened over its list, which stays in sight behind (Paul, 14/11: « on rentre beaucoup »). A click
+/// outside, or Échap, closes it.
+public struct FloatingPanel<Content: View>: View {
+    let close: () -> Void
+    let content: Content
+
+    public init(close: @escaping () -> Void, @ViewBuilder content: () -> Content) {
+        self.close = close
+        self.content = content()
+    }
+
+    public var body: some View {
+        ZStack {
+            Color.black.opacity(0.28)
+                .contentShape(Rectangle())
+                .onTapGesture(perform: close)
+                .transition(.opacity)
+            content
+                .frame(maxWidth: 1_040, maxHeight: .infinity)
+                .background(Color(nsColor: .windowBackgroundColor), in: RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous).strokeBorder(Surface.stroke))
+                .shadow(color: .black.opacity(0.3), radius: 36, y: 14)
+                .padding(.horizontal, Space.xl)
+                .padding(.top, Space.m)
+                .padding(.bottom, Space.l)
+                .transition(.scale(scale: 0.97).combined(with: .opacity))
+        }
+        .onExitCommand(perform: close)
+    }
+}
+
+/// The round close button of a floating panel.
+public struct PanelCloseButton: View {
+    let action: () -> Void
+
+    public init(action: @escaping () -> Void) {
+        self.action = action
+    }
+
+    public var body: some View {
+        Button(action: action) { Image(systemName: "xmark").font(.body.weight(.semibold)).frame(width: 28, height: 28) }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .help("Fermer (Échap)")
+            .keyboardShortcut(.cancelAction)
+    }
+}
