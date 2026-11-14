@@ -39,6 +39,8 @@ fi
 
 echo "3/6 App signée"
 make app VERSION="$VERSION" >dist/build.log 2>&1 || { tail -30 dist/build.log >&2; fail "La construction a échoué."; }
+# The app's folder carries the build's date: macOS caches the icon by it (14/11). The signature does not cover it.
+touch "$APP"
 scripts/verify-bundle.sh "$APP" >/dev/null || fail "L'app ne passe pas ses contrôles (scripts/verify-bundle.sh)."
 BUILT="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")"
 [ "$BUILT" = "$VERSION" ] || fail "L'app construite porte la version $BUILT, pas $VERSION."

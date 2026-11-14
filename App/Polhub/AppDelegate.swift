@@ -67,8 +67,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // macOS keeps what it knew of the app before an update (no icon then): it learns this version's icon, for
-        // the Dock and the Finder (14/11).
+        // macOS caches the icon by the date of the app's folder, which an update leaves as it was: refreshed, then
+        // registered again, the icon shows in the Dock and the Finder (14/11).
+        if let program = Bundle.main.executableURL {
+            BundleFreshness.refreshIfStale(bundle: Bundle.main.bundleURL, executable: program)
+        }
         LSRegisterURL(Bundle.main.bundleURL as CFURL, true)
         exitCleanlyOnSIGTERM()
         // A pipe to an osascript that already ended must not kill the app.

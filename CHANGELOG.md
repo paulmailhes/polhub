@@ -3,6 +3,16 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.10.2 — 14 novembre 2026
+
+- **L'icône, en noir** : les trois colonnes noires en verre, sans plaque blanche, faites avec le format
+  d'Icon Composer, l'outil d'Apple pour les icônes Liquid Glass.
+- **Le Dock affiche enfin l'icône.** macOS range l'image de l'icône selon la date du dossier de l'app, que les
+  mises à jour laissaient au 13 novembre (avant l'icône) : la version publiée porte maintenant sa date, la
+  mise à jour la rafraîchit, et l'app la répare d'elle-même au lancement.
+- **La barre des menus** montre, au repos, les trois colonnes en simple tracé ; enregistrement, pause et
+  alerte gardent leurs symboles.
+
 ## 0.10.1 — 14 novembre 2026
 
 - **Nouvelle icône : les Colonnes, en Liquid Glass**. Des plaques de verre posées sur trois colonnes sombres,

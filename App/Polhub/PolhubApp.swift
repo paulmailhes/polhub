@@ -53,6 +53,9 @@ struct MenuBarIcon: View {
         let label = MenuBarLabel.make(status: model.shownStatus, attention: model.attention, now: model.now)
         if label.symbol == "record.circle.fill" {
             Image(nsImage: Self.redImage(label.symbol))
+        } else if label.symbol == MenuBarLabel.appGlyph {
+            // The app's columns, in outline (14/11).
+            Image(nsImage: MenuBarGlyph.image())
         } else {
             Image(systemName: label.symbol)
         }

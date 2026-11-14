@@ -149,3 +149,18 @@ public enum LaunchSignal {
         try? version.write(to: file, atomically: true, encoding: .utf8)
     }
 }
+
+/// macOS caches an app's icon by the date of its folder; an update keeps the old folder's date (the archive keeps
+/// the build's), so the Dock showed the icon of a version that had none (14/11). The app refreshes the date of its
+/// folder when it is older than its program.
+public enum BundleFreshness {
+    /// `true` when the folder's date was refreshed.
+    @discardableResult
+    public static func refreshIfStale(bundle: URL, executable: URL, now: Date = Date()) -> Bool {
+        let manager = FileManager.default
+        guard let folder = (try? manager.attributesOfItem(atPath: bundle.path(percentEncoded: false)))?[.modificationDate] as? Date,
+              let program = (try? manager.attributesOfItem(atPath: executable.path(percentEncoded: false)))?[.modificationDate] as? Date,
+              folder < program else { return false }
+        return (try? manager.setAttributes([.modificationDate: now], ofItemAtPath: bundle.path(percentEncoded: false))) != nil
+    }
+}

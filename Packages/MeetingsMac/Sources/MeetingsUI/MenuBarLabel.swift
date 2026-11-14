@@ -3,6 +3,9 @@ import Pipeline
 
 /// The menu bar icon and the clock next to it.
 public struct MenuBarLabel: Equatable, Sendable {
+    /// Not a system symbol: the app's columns, drawn by `MenuBarGlyph` (14/11).
+    public static let appGlyph = "polhub.colonnes"
+
     public let symbol: String
     public let text: String?
 
@@ -22,7 +25,7 @@ public struct MenuBarLabel: Equatable, Sendable {
         case .paused:
             MenuBarLabel(symbol: "pause.circle", text: nil)
         case .idle:
-            attention ? MenuBarLabel(symbol: "exclamationmark.triangle", text: nil) : MenuBarLabel(symbol: "waveform", text: nil)
+            attention ? MenuBarLabel(symbol: "exclamationmark.triangle", text: nil) : MenuBarLabel(symbol: appGlyph, text: nil)
         }
     }
 

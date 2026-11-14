@@ -18,7 +18,8 @@ import Testing
         let now = Date(timeIntervalSince1970: 10_000)
         #expect(MenuBarLabel.make(status: .recording(title: "Point", since: now.addingTimeInterval(-754)), attention: false, now: now)
             == MenuBarLabel(symbol: "record.circle.fill", text: "12:34"))
-        #expect(MenuBarLabel.make(status: .idle, attention: false, now: now) == MenuBarLabel(symbol: "waveform", text: nil))
+        // 14/11: at rest, the app's own columns, in outline.
+        #expect(MenuBarLabel.make(status: .idle, attention: false, now: now) == MenuBarLabel(symbol: MenuBarLabel.appGlyph, text: nil))
         #expect(MenuBarLabel.make(status: .idle, attention: true, now: now) == MenuBarLabel(symbol: "exclamationmark.triangle", text: nil))
         #expect(MenuBarLabel.make(status: .paused(until: now), attention: false, now: now) == MenuBarLabel(symbol: "pause.circle", text: nil))
     }
@@ -58,5 +59,20 @@ import Testing
         #expect(panel.level == .statusBar)
         #expect(panel.collectionBehavior.contains([.canJoinAllSpaces, .fullScreenAuxiliary]))
         #expect(panel.becomesKeyOnlyIfNeeded)
+    }
+}
+
+/// The menu bar's own icon: the three columns of Polhub's icon, in outline (Paul, 14/11).
+@MainActor @Suite struct MenuBarGlyphTests {
+    @Test func theColumnsAreATemplateImageOfTheMenuBarsHeight() throws {
+        let image = MenuBarGlyph.image()
+        #expect(image.isTemplate)
+        #expect(image.size.height == 16 && image.size.width == 18)
+        let rects = MenuBarGlyph.columns(in: NSRect(x: 0, y: 0, width: 18, height: 16))
+        #expect(rects.count == 3)
+        // The icon's proportions: the first the tallest, the middle one the shortest.
+        #expect(rects[0].height > rects[2].height)
+        #expect(rects[2].height > rects[1].height)
+        #expect(rects.allSatisfy { $0.minX >= 0 && $0.maxX <= 18 && $0.minY >= 0 && $0.maxY <= 16 })
     }
 }

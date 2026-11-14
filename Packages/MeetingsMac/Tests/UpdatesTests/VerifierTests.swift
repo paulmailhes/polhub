@@ -143,3 +143,23 @@ import Testing
         #expect(SwapScript.quote("l'app") == #"'l'\''app'"#)
     }
 }
+
+/// 14/11: macOS caches an app's icon by the date of its folder; an update keeps the old folder's date, so the
+/// Dock showed the icon of a version without one. The app refreshes it when its folder is older than its program.
+@Suite struct BundleFreshnessTests {
+    @Test func aFolderOlderThanItsProgramIsRefreshed() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: "fraicheur-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let app = root.appending(path: "Essai.app", directoryHint: .isDirectory)
+        let program = app.appending(path: "Contents/MacOS/Essai")
+        try FileManager.default.createDirectory(at: program.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("x".utf8).write(to: program)
+        let old = Date(timeIntervalSince1970: 1_790_000_000), new = Date(timeIntervalSince1970: 1_794_000_000)
+        try FileManager.default.setAttributes([.modificationDate: old], ofItemAtPath: app.path(percentEncoded: false))
+        try FileManager.default.setAttributes([.modificationDate: new], ofItemAtPath: program.path(percentEncoded: false))
+        #expect(BundleFreshness.refreshIfStale(bundle: app, executable: program, now: new.addingTimeInterval(60)))
+        let date = try #require(try FileManager.default.attributesOfItem(atPath: app.path(percentEncoded: false))[.modificationDate] as? Date)
+        #expect(date >= new)
+        #expect(!BundleFreshness.refreshIfStale(bundle: app, executable: program, now: new.addingTimeInterval(120)))
+    }
+}
