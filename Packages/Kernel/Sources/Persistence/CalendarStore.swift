@@ -48,6 +48,13 @@ public struct CalendarStore: Sendable {
         }
     }
 
+    /// Paul's color for an account; `nil` goes back to the default.
+    public func setColor(email: String, hex: String?) throws {
+        try writer.write { db in
+            try db.execute(sql: "UPDATE google_account SET color = ? WHERE email = ?", arguments: [hex, email.lowercased()])
+        }
+    }
+
     // MARK: - Events
 
     /// What Google sent: new or changed events replace their copy, keeping what the app added (project,

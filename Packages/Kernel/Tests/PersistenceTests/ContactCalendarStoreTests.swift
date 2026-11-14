@@ -205,3 +205,20 @@ import Testing
         #expect(stored.client == "Studio Sud" && stored.notes == "- 13/11/2026 : écrit par une session.")
     }
 }
+
+/// Base v5: the color Paul gives each Google account (14/11).
+@Suite struct AccountColorTests {
+    let now = Date(timeIntervalSince1970: 1_794_562_920)
+
+    @Test func aChosenColorStaysThroughSyncs() throws {
+        let store = CalendarStore(try AppDatabase.inMemory())
+        try store.addAccount(email: "paul@exemple.fr", at: now)
+        #expect(try store.accounts().first?.color == nil)
+        try store.setColor(email: "Paul@Exemple.fr", hex: "#22A06B")
+        try store.recordSync(email: "paul@exemple.fr", syncToken: nil, error: nil, at: now)
+        try store.recordSync(email: "paul@exemple.fr", syncToken: nil, error: "réseau", at: now)
+        #expect(try store.accounts().first?.color == "#22A06B")
+        try store.setColor(email: "paul@exemple.fr", hex: nil)
+        #expect(try store.accounts().first?.color == nil)
+    }
+}

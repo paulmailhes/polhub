@@ -162,14 +162,18 @@ public struct GoogleAccountRow: Codable, Equatable, Identifiable, Sendable, Fetc
     /// Google's token for the next incremental sync of the primary calendar.
     public var syncToken: String?
     public var lastError: String?
+    /// `#RRGGBB` chosen by Paul; `nil` takes the default (see `AccountStyle`).
+    public var color: String?
 
     public var id: String { email }
 
-    public init(email: String, addedAt: Date, lastSyncAt: Date? = nil, syncToken: String? = nil, lastError: String? = nil) {
+    public init(email: String, addedAt: Date, lastSyncAt: Date? = nil, syncToken: String? = nil, lastError: String? = nil,
+                color: String? = nil) {
         self.email = email.lowercased()
         self.addedAt = addedAt
         self.lastSyncAt = lastSyncAt
         self.syncToken = syncToken
         self.lastError = lastError
+        self.color = color
     }
 }

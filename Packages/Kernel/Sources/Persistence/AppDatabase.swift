@@ -262,6 +262,12 @@ public final class AppDatabase: Sendable {
                 t.add(column: "importedFrom", .text)
             }
         }
+        // The color Paul gives each Google account (14/11).
+        migrator.registerMigration("v5") { db in
+            try db.alter(table: "google_account") { t in
+                t.add(column: "color", .text)
+            }
+        }
         return migrator
     }
 }
