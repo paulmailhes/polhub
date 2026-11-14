@@ -71,6 +71,8 @@ public struct Preferences: @unchecked Sendable {
         public static let mailImages = "mails.images"
         public static let mailHiddenAccounts = "mails.boitesMasquees"
         public static let mailNotices = "notifications.mails"
+        /// Only the mails filed in a project are told (step « Ranger »).
+        public static let mailNoticesProjects = "notifications.mails.projets"
         /// The senders Paul left from Polhub, with the day (shown in « Abonnements »).
         /// The new mails whose mailbox Paul has not chosen yet.
         public static let mailUnconfirmed = "mails.boiteAChoisir"

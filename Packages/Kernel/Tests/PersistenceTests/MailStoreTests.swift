@@ -181,6 +181,39 @@ import Testing
         #expect(try mails.drafts().isEmpty)
     }
 
+    /// Step « Ranger »: the rules read the base (Paul's choices, the senders, the contacts of the projects);
+    /// a project's threads are those its case names.
+    @Test func theCaseOfAThreadComesFromTheBase() throws {
+        let database = try AppDatabase.inMemory()
+        try CalendarStore(database).addAccount(email: account, at: now)
+        let mails = MailStore(database), contacts = ContactStore(database)
+        let project = try ProjectStore(database).addProject(name: "Site vitrine", status: .priorite1, at: now)
+        let camille = try contacts.upsert(email: "camille@exemple.fr", name: "Camille Martin", company: nil, at: now)
+        try contacts.link(contactID: camille.id, projectID: project.id, origin: .paul, at: now)
+        var sent = message("m2", minutes: 5, from: account, labels: ["SENT"])
+        sent.to = [MailAddress(email: "marc@exemple.net")]
+        try mails.apply(account: account, upserts: [message("m1"), message("n1", thread: "t2", from: "lettre@lettre.exemple", labels: ["INBOX", "CATEGORY_PROMOTIONS"]), sent])
+        var rules = try mails.filingRules()
+        let thread = try #require(try mails.thread(key))
+        #expect(rules.filing(of: thread)?.filing == .project(project.id) && rules.correspondents == ["marc@exemple.net"] && rules.mine == [account])
+        #expect(try mails.threads(filedIn: project.id).map(\.id) == [key])
+        // Paul files it elsewhere: kept for the thread, and for the sender's next mails.
+        try mails.file(threadKey: key, as: .perso, at: now)
+        try mails.remember(address: "camille@exemple.fr", filing: .some(MailFiling.perso.rawValue), at: now)
+        rules = try mails.filingRules()
+        #expect(rules.choices[key] == .perso && rules.senders["camille@exemple.fr"]?.filing == "perso")
+        #expect(try mails.threads(filedIn: project.id).isEmpty)
+        // Taken back: the rules answer again.
+        try mails.file(threadKey: key, as: nil, at: now)
+        try mails.remember(address: "camille@exemple.fr", filing: .some(nil), at: now)
+        #expect(try mails.filingRules().filing(of: thread)?.filing == .project(project.id))
+        // A link and a contact taken back (« Annuler »): the rules no longer see them.
+        try contacts.unlink(contactID: camille.id, projectID: project.id)
+        #expect(try mails.filingRules().filing(of: thread) == nil && contacts.links().isEmpty)
+        try contacts.delete(contactID: camille.id)
+        #expect(try contacts.contact(email: "camille@exemple.fr") == nil)
+    }
+
     /// Review of 14/11: Paul's change is written on the row as it is now, Gmail's answer meanwhile included.
     @Test func changingADraftKeepsWhatGmailAnswered() throws {
         let mails = try store()

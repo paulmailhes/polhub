@@ -5,6 +5,7 @@ import Mail
 import MailFormat
 import Persistence
 import PolhubDesign
+import ProjectsUI
 import QuickLook
 import SwiftUI
 import UniformTypeIdentifiers
@@ -216,7 +217,7 @@ struct MailListView: View {
             }
             if mails.found == nil, mails.folder == .inbox, mails.tab != .personnes {
                 banner(icon: "info.circle", tint: .secondary,
-                       text: "\(mails.tab.explanation) Un mail qui n'a rien à faire ici : clic droit › « Déplacer vers ».") { EmptyView() }
+                       text: "\(mails.tab.explanation) Un mail qui n'a rien à faire ici : clic droit › « Ranger dans ».") { EmptyView() }
             }
             if threads.isEmpty {
                 ContentUnavailableView(mails.found != nil ? "Aucun mail trouvé"
@@ -395,6 +396,10 @@ struct MailListView: View {
                         Button("Sélectionner plusieurs mails") { mails.selecting = true }
                         Button("Tout marquer comme lu dans « \(mails.tab.title) »") { mails.markAllRead() }
                             .disabled(mails.unread(in: mails.tab) == 0)
+                        if mails.tab != .personnes {
+                            Button("Tout archiver dans « \(mails.tab.title) »") { mails.archiveTab() }
+                                .disabled(mails.shown.isEmpty)
+                        }
                     }
                     Divider()
                     Button("Abonnements") { mails.folder = .subscriptions }
@@ -441,6 +446,8 @@ struct MailRow: View {
                 .foregroundStyle(thread.unread ? .primary : .secondary)
                 .lineLimit(1)
                 .frame(width: 190, alignment: .leading)
+            MailFilingChip(thread: thread, mails: mails, always: hovering && mails.filing(of: thread) == nil && mails.tab(of: thread) == .personnes)
+                .padding(.leading, Space.s)
             (Text(thread.subject).fontWeight(thread.unread ? .semibold : .regular).foregroundStyle(thread.unread ? Color.primary : Color.primary.opacity(0.8))
                 + Text(thread.snippet.isEmpty ? "" : "  —  \(thread.snippet)").foregroundStyle(thread.unread ? .secondary : .tertiary))
                 .lineLimit(1)
@@ -486,7 +493,7 @@ struct MailRow: View {
             Button(thread.unread ? "Marquer comme lu" : "Marquer comme non lu") { mails.perform(thread.unread ? .markRead : .markUnread, on: thread, undoable: false) }
             Button(ticked ? "Désélectionner" : "Sélectionner") { mails.select(thread.id, extend: false) }
             Divider()
-            MailTabChoice(thread: thread, mails: mails)
+            Menu("Ranger dans") { MailFilingMenu(thread: thread, mails: mails) }
             if let sender = thread.lastSender {
                 Button("Tous les mails de cet expéditeur") { mails.showAll(from: sender) }
             }
@@ -497,22 +504,72 @@ struct MailRow: View {
     }
 }
 
-/// « Déplacer vers » another tab, kept for the sender; or back to Gmail's own filing.
-struct MailTabChoice: View {
+/// « Ranger dans » (step « Ranger »): the projects under way, the others apart; Perso; the automatic cases;
+/// « Aucune case ». Kept for the thread and for its sender's next mails.
+struct MailFilingMenu: View {
     let thread: MailThreadRow
     @ObservedObject var mails: MailLibrary
 
     var body: some View {
-        if thread.lastSender != nil {
-            Menu("Déplacer vers") {
-                ForEach(MailTab.allCases.filter { $0 != mails.tab(of: thread) }, id: \.self) { tab in
-                    Button(tab.title) { mails.move(thread, to: tab) }
-                }
-                if let sender = thread.lastSender, mails.senders[sender]?.tab != nil {
-                    Divider()
-                    Button("Laisser Gmail classer cet expéditeur") { mails.move(thread, to: nil) }
-                }
+        let current = mails.filing(of: thread)?.filing
+        let projects = mails.filingProjects
+        ForEach(projects.current) { project in item(project.name, .project(project.id), current) }
+        if !projects.others.isEmpty {
+            Menu("Autres projets") {
+                ForEach(projects.others) { project in item(project.name, .project(project.id), current) }
             }
+        }
+        Divider()
+        item("Perso", .perso, current)
+        Divider()
+        ForEach([MailFiling.newsletters, .payments, .services], id: \.self) { filing in item(filing.title ?? "", filing, current) }
+        Divider()
+        item("Aucune case", .none, current)
+    }
+
+    @ViewBuilder
+    private func item(_ title: String, _ filing: MailFiling, _ current: MailFiling?) -> some View {
+        Button { mails.file(thread, as: filing) } label: {
+            if current == filing { Label(title, systemImage: "checkmark") } else { Text(title) }
+        }
+    }
+}
+
+/// A thread's case, small, next to its subject; a click changes it (step « Ranger »). The cases its tab
+/// already says (Newsletters, Services) show only when `always`, which also offers « Ranger » to a thread
+/// without one.
+struct MailFilingChip: View {
+    let thread: MailThreadRow
+    @ObservedObject var mails: MailLibrary
+    var always = false
+
+    var body: some View {
+        let found = mails.filing(of: thread)
+        if let label = label(found?.filing) {
+            Menu { MailFilingMenu(thread: thread, mails: mails) } label: {
+                Text(label.text).font(.caption.weight(.medium)).lineLimit(1)
+                    .padding(.horizontal, 7).padding(.vertical, 2)
+                    .foregroundStyle(label.color)
+                    .background(label.color.opacity(0.14), in: Capsule())
+            }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help(found.map { "\($0.origin.explanation) · cliquer pour changer" } ?? "Ranger ce fil dans un projet ou une case")
+        }
+    }
+
+    private func label(_ filing: MailFiling?) -> (text: String, color: Color)? {
+        switch filing {
+        case .project(let id)?:
+            let project = mails.project(id)
+            return (project?.name ?? "Projet", ProjectViews.cardHex(project?.color).map(Color.init(hex:)) ?? .accentColor)
+        case .perso?: return ("Perso", .pink)
+        case .payments?: return ("Paiements", .green)
+        case .services? where always: return ("Services", .secondary)
+        case .newsletters? where always: return ("Newsletters", .secondary)
+        default: return always ? ("Ranger", .secondary) : nil
         }
     }
 }
@@ -792,10 +849,8 @@ struct MailThreadView: View {
                         Text(AccountStyle.label(for: thread.account))
                         Text("·")
                         Text(model.messages.count > 1 ? "\(model.messages.count) messages" : "1 message")
-                        if mails.isAutomatic(thread) {
-                            Text("·")
-                            Text(mails.tab(of: thread).title).help(mails.tab(of: thread).explanation)
-                        }
+                        Text("·")
+                        MailFilingChip(thread: thread, mails: mails, always: true)
                     }
                     .font(.callout).foregroundStyle(.secondary)
                 }
@@ -819,7 +874,7 @@ struct MailThreadView: View {
                         Button("Répondre à tous") { reply(.replyAll) }
                         Button("Transférer") { reply(.forward) }
                         Divider()
-                        MailTabChoice(thread: thread, mails: mails)
+                        Menu("Ranger dans") { MailFilingMenu(thread: thread, mails: mails) }
                         if let message = model.messages.last(where: { $0.listUnsubscribe != nil }), let sender = message.sender,
                            let method = mails.unsubscribeMethod(listUnsubscribe: message.listUnsubscribe, post: message.listUnsubscribePost,
                                                                 authenticated: message.authenticated) {

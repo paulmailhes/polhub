@@ -18,6 +18,8 @@ public final class ProjectLibrary: ObservableObject {
     public var openMeeting: ((UUID) -> Void)?
     /// Opens a contact, in Contacts (14/11).
     public var openContact: ((UUID) -> Void)?
+    /// Opens a mail thread, in Mails (step « Ranger »).
+    public var openMail: ((String) -> Void)?
     public let store: ProjectStore
     public let meetings: MeetingStore
     private let defaults: UserDefaults

@@ -5,11 +5,7 @@ import Persistence
 /// The rules of the loop (plan of 13/11), as pure functions.
 public enum Linker {
     /// Mailboxes of everyone: no company to read in them.
-    static let publicDomains: Set<String> = [
-        "gmail.com", "googlemail.com", "outlook.com", "outlook.fr", "hotmail.com", "hotmail.fr", "live.com", "live.fr", "msn.com",
-        "icloud.com", "me.com", "mac.com", "yahoo.com", "yahoo.fr", "orange.fr", "wanadoo.fr", "free.fr", "sfr.fr", "laposte.net",
-        "gmx.fr", "gmx.com", "proton.me", "protonmail.com", "aol.com", "bbox.fr", "neuf.fr", "numericable.fr",
-    ]
+    static let publicDomains = PublicMailDomains.all
 
     /// Google's name for the guest, else one read in the address: `camille.martin@…` → « Camille Martin ».
     public static func name(for attendee: Attendee) -> String {
@@ -54,18 +50,11 @@ public enum Linker {
 
     /// The one project whose name is in the title, as whole words.
     static func projectNamed(in title: String, projects: [(id: UUID, name: String)]) -> UUID? {
-        let words = tokens(title)
-        let found = Set(projects.filter { project in
-            let name = tokens(project.name)
-            guard !name.isEmpty, name.joined().count >= 3, name.count <= words.count else { return false }
-            return (0...(words.count - name.count)).contains { Array(words[$0..<$0 + name.count]) == name }
-        }.map(\.id))
-        return found.count == 1 ? found.first : nil
+        ProjectNames.named(in: title, projects: projects)
     }
 
     static func tokens(_ text: String) -> [String] {
-        text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "fr_FR"))
-            .split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
+        ProjectNames.tokens(text)
     }
 
     /// The event a recording starting at `date` belongs to: the same Meet code, from 30 min before its start

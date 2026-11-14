@@ -86,6 +86,18 @@ public struct ContactStore: Sendable {
         }
     }
 
+    /// A link taken back (« Annuler » after filing a mail): as if it never was.
+    public func unlink(contactID: UUID, projectID: UUID) throws {
+        try writer.write { db in
+            try db.execute(sql: "DELETE FROM contact_project WHERE contactID = ? AND projectID = ?", arguments: [Self.key(contactID), Self.key(projectID)])
+        }
+    }
+
+    /// A contact made a moment ago and taken back: its links and meetings go with it.
+    public func delete(contactID: UUID) throws {
+        _ = try writer.write { try ContactRow.deleteOne($0, key: Self.key(contactID)) }
+    }
+
     /// Paul removes a contact from a project: it stays removed.
     public func exclude(contactID: UUID, projectID: UUID, at date: Date) throws {
         try setLink(contactID: contactID, projectID: projectID, excluded: true, at: date)

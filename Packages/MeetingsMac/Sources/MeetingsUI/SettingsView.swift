@@ -192,6 +192,7 @@ struct NotificationsSettingsPane: View {
     @AppStorage(Preferences.Key.unrecorded) private var unrecorded = true
     @AppStorage(Preferences.Key.summaryReady) private var summaryReady = true
     @AppStorage(Preferences.Key.mailNotices) private var mailNotices = true
+    @AppStorage(Preferences.Key.mailNoticesProjects) private var mailNoticesProjects = false
     @AppStorage(Preferences.Key.sound) private var sound = true
 
     var body: some View {
@@ -229,6 +230,7 @@ struct NotificationsSettingsPane: View {
             }
             Section {
                 Toggle("Nouveau mail dans l'onglet Personnes", isOn: $mailNotices)
+                if mailNotices { Toggle("Seulement les mails de tes projets", isOn: $mailNoticesProjects) }
             } header: {
                 Text("Mails")
             } footer: {

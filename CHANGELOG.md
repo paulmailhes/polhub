@@ -3,6 +3,28 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.14.0 — 14 novembre 2026
+
+**Mails : ranger.** Chaque fil client porte son projet.
+
+- **La case** : une étiquette à côté de l'objet dit où va un fil : le nom du projet (à sa couleur), Perso,
+  ou Paiements dans l'onglet Notifications. Polhub la devine, de la règle la plus sûre à la moins sûre :
+  1. ton choix pour ce fil ;
+  2. ton dernier choix pour cet expéditeur ;
+  3. l'expéditeur est un contact d'un seul projet (s'il en a plusieurs, celui que l'objet nomme) ;
+  4. son domaine est celui des contacts d'un seul projet (jamais gmail.com et consorts, ni ton domaine) ;
+  5. un mail automatique : Newsletters, Paiements (facture, reçu, prestataire de paiement) ou Services.
+
+  Perso ne se devine jamais : tu le poses. Les personnes en copie ne comptent pas.
+- **Corriger en un clic** : un clic sur l'étiquette (ou sur « Ranger », au survol d'une ligne sans case), ou
+  clic droit › « Ranger dans ». Polhub retient l'expéditeur pour ses prochains mails. Ranger dans un projet
+  en fait un contact du projet, comme pour le calendrier. « Annuler » défait le tout.
+- **Personne n'est caché** : un contact, ou quelqu'un à qui tu as écrit, reste dans Personnes même quand
+  Gmail le classe en Promotions ou en Notifications.
+- **La carte « Mails »** sur la page d'un projet : ses derniers fils ; un clic ouvre le fil.
+- **« … » › Tout archiver** dans les onglets Notifications et Newsletters, avec « Annuler ».
+- **Notifications** : Réglages › Notifications › « Seulement les mails de tes projets ».
+
 ## 0.13.0 — 14 novembre 2026
 
 **Mails : écrire, et faire le ménage.** Tu réponds, écris et envoies sans ouvrir Gmail.

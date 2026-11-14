@@ -18,6 +18,7 @@ struct ProjectPage: View {
     @State private var meetings: [MeetingRow] = []
     @State private var contacts: [ContactRow] = []
     @State private var events: [CalendarEventRow] = []
+    @State private var mails: [MailThreadRow] = []
     @State private var newAction = ""
     @State private var newEntryTitle = ""
     @State private var newEntryBody = ""
@@ -289,6 +290,24 @@ struct ProjectPage: View {
                     .buttonStyle(.plain)
                 }
             }
+            if !mails.isEmpty {
+                Card {
+                    SectionTitle("Mails", systemImage: "envelope", count: mails.count)
+                    ForEach(mails.prefix(6)) { thread in
+                        Button { library.openMail?(thread.id) } label: {
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(thread.subject).fontWeight(thread.unread ? .semibold : .regular).lineLimit(1)
+                                Text("\(thread.senders.last { $0.email.lowercased() == thread.lastSender }?.display ?? thread.lastSender ?? "Moi") · "
+                                     + thread.lastMessageAt.formatted(.dateTime.day().month(.abbreviated).locale(Self.locale)))
+                                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
             if !events.isEmpty {
                 Card {
                     SectionTitle("Prochains rendez-vous", systemImage: "calendar", count: events.count)
@@ -314,6 +333,7 @@ struct ProjectPage: View {
         journal = (try? library.store.journal(projectID: project.id)) ?? []
         meetings = (try? library.store.meetings(projectID: project.id)) ?? []
         contacts = (try? ContactStore(library.store.database).contacts(projectID: project.id)) ?? []
+        mails = (try? MailStore(library.store.database).threads(filedIn: project.id)) ?? []
         events = ((try? CalendarStore(library.store.database).events(projectID: project.id)) ?? [])
             .filter { $0.endAt > Date() }
             .reduce(into: [CalendarEventRow]()) { seen, event in if !seen.contains(where: { $0.eventID == event.eventID }) { seen.append(event) } }

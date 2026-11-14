@@ -208,7 +208,7 @@ public struct MailStore: Sendable {
 
     /// Keeps a choice for the next mails of this address: its tab (`.some(nil)` gives it back to Gmail's
     /// category), its images. What is not given stays as it is.
-    public func remember(address: String, tab: String?? = nil, images: Bool? = nil, at date: Date) throws {
+    public func remember(address: String, tab: String?? = nil, images: Bool? = nil, filing: String?? = nil, at date: Date) throws {
         let address = address.lowercased()
         try writer.write { db in
             var row = try MailSenderRow.fetchOne(db, key: address)
@@ -218,7 +218,64 @@ public struct MailStore: Sendable {
                 row.principal = tab == "personnes"
             }
             if let images { row.images = images }
-            if row.tab != nil || row.images { try row.save(db) } else { _ = try MailSenderRow.deleteOne(db, key: address) }
+            if let filing { row.filing = filing }
+            if row.tab != nil || row.images || row.filing != nil { try row.save(db) } else { _ = try MailSenderRow.deleteOne(db, key: address) }
+        }
+    }
+
+    // MARK: - The case (step « Ranger », 14/11)
+
+    /// Paul's case for a thread; `nil` gives it back to the rules.
+    public func file(threadKey: String, as filing: MailFiling?, at date: Date) throws {
+        try writer.write { db in
+            if let filing {
+                try MailFilingRow(threadKey: threadKey, value: filing.rawValue, createdAt: date).save(db)
+            } else {
+                _ = try MailFilingRow.deleteOne(db, key: threadKey)
+            }
+        }
+    }
+
+    public func filingRules() throws -> MailFilingRules {
+        try writer.read(Self.rules)
+    }
+
+    /// Everything the rules read: Paul's choices, the senders, the contacts and their projects, Paul's
+    /// addresses, the people he wrote to.
+    static func rules(_ db: Database) throws -> MailFilingRules {
+        let choices = Dictionary(try MailFilingRow.fetchAll(db).compactMap { row in MailFiling(rawValue: row.value).map { (row.threadKey, $0) } },
+                                 uniquingKeysWith: { first, _ in first })
+        let senders = Dictionary(uniqueKeysWithValues: try MailSenderRow.fetchAll(db).map { ($0.address, $0) })
+        var contactProjects: [String: Set<UUID>] = [:]
+        for row in try Row.fetchAll(db, sql: """
+            SELECT contact.email AS email, contact_project.projectID AS projectID FROM contact_project
+            JOIN contact ON contact.id = contact_project.contactID
+            WHERE contact_project.excluded = 0 AND contact.email IS NOT NULL
+            """) {
+            guard let email: String = row["email"], let id = (row["projectID"] as String?).flatMap(UUID.init(uuidString:)) else { continue }
+            contactProjects[email.lowercased(), default: []].insert(id)
+        }
+        let contacts = Set(try String.fetchAll(db, sql: "SELECT lower(email) FROM contact WHERE email IS NOT NULL"))
+        let projects = try ProjectRow.fetchAll(db).map { (id: $0.id, name: $0.name) }
+        let mine = Set(try String.fetchAll(db, sql: "SELECT lower(email) FROM google_account"))
+        return MailFilingRules(choices: choices, senders: senders, contactProjects: contactProjects, contacts: contacts, projects: projects,
+                               mine: mine, correspondents: try correspondents(db))
+    }
+
+    public func observeFilingRules(onChange: @escaping @MainActor @Sendable (MailFilingRules) -> Void) -> AnyDatabaseCancellable {
+        ValueObservation
+            .tracking(Self.rules)
+            .start(in: writer, scheduling: .async(onQueue: .main), onError: { _ in }, onChange: { rules in
+                MainActor.assumeIsolated { onChange(rules) }
+            })
+    }
+
+    /// The threads whose case is this project, the most recent first: the « Mails » of its page.
+    public func threads(filedIn projectID: UUID) throws -> [MailThreadRow] {
+        try writer.read { db in
+            let rules = try Self.rules(db)
+            return try MailThreadRow.filter(Column("hidden") == false).order(Column("lastMessageAt").desc).fetchAll(db)
+                .filter { rules.filing(of: $0)?.filing == .project(projectID) }
         }
     }
 
@@ -317,10 +374,19 @@ public struct MailStore: Sendable {
 
     /// The people Paul wrote to (To and Cc of what he sent), in lower case: never strangers.
     public func correspondents() throws -> Set<String> {
-        try writer.read { db in
-            let sent = try MailMessageRow.filter(sql: "labels LIKE '%\"SENT\"%'").fetchAll(db)
-            return Set(sent.flatMap { $0.to + $0.cc }.map { $0.email.lowercased() })
+        try writer.read(Self.correspondents)
+    }
+
+    static func correspondents(_ db: Database) throws -> Set<String> {
+        let decoder = JSONDecoder()
+        var found: Set<String> = []
+        for row in try Row.fetchAll(db, sql: #"SELECT "to", cc FROM mail_message WHERE labels LIKE '%"SENT"%'"#) {
+            for column in ["to", "cc"] {
+                guard let text: String = row[column], let people = try? decoder.decode([MailAddress].self, from: Data(text.utf8)) else { continue }
+                for person in people { found.insert(person.email.lowercased()) }
+            }
         }
+        return found
     }
 
     /// The threads Paul wrote in, the most recent first: the « Envoyés ».

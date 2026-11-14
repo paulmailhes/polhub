@@ -9,6 +9,7 @@ import SwiftUI
 import Testing
 import WebKit
 @testable import MeetingsUI
+import ProjectsUI
 
 /// A local server that answers any request with a tiny image and remembers the paths asked.
 final class CountingServer: @unchecked Sendable {
@@ -252,14 +253,21 @@ struct MailScreenTests {
             try mail("f1", "paul@atelier-nord.fr", thread: "f", from: jules, subject: "Devis signé", snippet: "Le client a signé, on peut lancer.",
                      hours: 8, labels: ["INBOX", "UNREAD", "CATEGORY_PERSONAL"], html: "<p>Le client a signé, on peut lancer.</p>"),
         ])
+        // Step « Ranger »: Camille is a contact of the project « Site vitrine »; her threads go there.
+        var site = try ProjectStore(database).addProject(name: "Site vitrine", status: .priorite1, at: Date())
+        site.color = "blue"
+        try ProjectStore(database).save(site, at: Date())
+        let contactCamille = try ContactStore(database).upsert(email: camille.email, name: "Camille Martin", company: nil, at: Date())
+        try ContactStore(database).link(contactID: contactCamille.id, projectID: site.id, origin: .paul, at: Date())
         let agenda = AgendaLibrary(database: database)
         let mails = MailLibrary(agenda: agenda, root: root, defaults: UserDefaults(suiteName: "mails-\(UUID().uuidString)")!)
+        let projects = ProjectLibrary(store: ProjectStore(database), meetings: MeetingStore(database))
         let library = MeetingLibrary(store: MeetingStore(database))
         let router = WindowRouter()
         router.section = .mails
         try await Task.sleep(for: .milliseconds(500))
         func capture(_ name: String, dark: Bool = false, wait: Duration = .milliseconds(1_500)) async throws {
-            try await LiveWindow.capture(MainWindowView(library: library, agenda: agenda, mails: mails, router: router,
+            try await LiveWindow.capture(MainWindowView(library: library, projects: projects, agenda: agenda, mails: mails, router: router,
                                                         paths: AppPaths(root: root, logs: root)) { EmptyView() },
                                          to: output.appending(path: "\(name).png"), size: NSSize(width: 1_180, height: 780), dark: dark, wait: wait)
         }
@@ -311,7 +319,13 @@ struct MailScreenTests {
         mails.unreadOnly = true
         try await capture("mails-non-lus")
         mails.unreadOnly = false
+        // The project's page shows its mails.
         UserDefaults.standard.set(false, forKey: Preferences.Key.floatingPages)
+        router.section = .projects
+        projects.selected = site.id
+        try await capture("projet-mails")
+        projects.selected = nil
+        router.section = .mails
         try await capture("mails-lettre-page-sombre", dark: true)
         try await capture("mails-lettre-page")
         UserDefaults.standard.set(true, forKey: Preferences.Key.floatingPages)

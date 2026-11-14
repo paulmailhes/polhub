@@ -258,6 +258,7 @@ public struct MainWindowView<Diagnostic: View>: View {
                     ProjectsView(library: projects)
                         .onAppear {
                             projects.openMeeting = { [weak router] id in router?.open(meetingID: id, at: nil) }
+                            projects.openMail = { [weak router] key in router?.openMail(key) }
                             projects.openContact = { [weak router] id in router?.openContact(id) }
                             openAskedProject(projects)
                         }

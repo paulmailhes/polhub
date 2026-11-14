@@ -10,39 +10,6 @@ import PolhubDesign
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// The three tabs of the list (Paul, 14/11): what people wrote; what services send on their own; the
-/// newsletters and promotions. Gmail's own categories decide, unless Paul moved a sender.
-public enum MailTab: String, Hashable, Sendable, CaseIterable {
-    case personnes, notifications, newsletters
-
-    var title: String {
-        switch self {
-        case .personnes: "Personnes"
-        case .notifications: "Notifications"
-        case .newsletters: "Newsletters"
-        }
-    }
-
-    /// What the tab holds, said where Paul sees it.
-    var explanation: String {
-        switch self {
-        case .personnes: "Les mails écrits par des personnes : clients, collègues, proches."
-        case .notifications: "Ce que des services envoient tout seuls : reçus, confirmations, alertes, rappels. Rien n'y attend de réponse."
-        case .newsletters: "Les lettres d'information, les promotions et les réseaux sociaux."
-        }
-    }
-
-    /// Gmail's category of a mail: notifications are Gmail's « Notifications », newsletters its « Promotions »
-    /// and « Réseaux sociaux »; everything else (« Principale », « Forums », none) is people.
-    static func of(category: String?) -> MailTab {
-        switch category {
-        case "updates": .notifications
-        case "promotions", "social": .newsletters
-        default: .personnes
-        }
-    }
-}
-
 /// Where the list looks: the inbox, the drafts, what Paul sent (14/11).
 public enum MailFolder: String, Hashable, Sendable, CaseIterable {
     case inbox, drafts, sent, subscriptions
@@ -128,6 +95,8 @@ public final class MailLibrary: ObservableObject {
     }
     /// The people Paul wrote to: an address among them, or a contact, is known.
     @Published public private(set) var correspondents: Set<String> = []
+    /// What decides a thread's case and tab (step « Ranger »).
+    @Published public private(set) var rules = MailFilingRules.empty
     /// The search field's text.
     @Published public var query = ""
     /// Only the unread threads of the tab.
@@ -148,6 +117,8 @@ public final class MailLibrary: ObservableObject {
     private var observations: [AnyDatabaseCancellable] = []
     private var cancellables: Set<AnyCancellable> = []
     private var undoToken = 0
+    /// What « Annuler » does when the last change was not a gesture (a case chosen).
+    private var undoRestore: (() -> Void)?
     /// The anchor of a ⇧-click.
     private var anchor: String?
 
@@ -167,7 +138,6 @@ public final class MailLibrary: ObservableObject {
             store.observeInbox { [weak self] in
                 guard let self else { return }
                 self.inbox = $0
-                self.correspondents = (try? self.store.correspondents()) ?? []
                 self.refreshFolders()
             },
             store.observeDrafts { [weak self] in
@@ -180,6 +150,10 @@ public final class MailLibrary: ObservableObject {
             },
             store.observeCursors { [weak self] rows in self?.cursors = Dictionary(uniqueKeysWithValues: rows.map { ($0.account, $0) }) },
             store.observeSenders { [weak self] in self?.senders = $0 },
+            store.observeFilingRules { [weak self] rules in
+                self?.rules = rules
+                self?.correspondents = rules.correspondents
+            },
         ]
     }
 
@@ -208,10 +182,19 @@ public final class MailLibrary: ObservableObject {
         pushPending()
     }
 
-    /// Mails just arrived in an inbox: those of the main tab are told.
+    /// Mails just arrived in an inbox: those of the people's tab are told; only those of a project, if Paul
+    /// asked so. Judged on their thread, as the list shows it.
     private func arrived(_ rows: [MailMessageRow]) {
-        let told = rows.filter { tab(of: $0) == .personnes && !hidden.contains($0.account) }
-            .map { (threadKey: $0.threadKey, sender: $0.sender?.display ?? "Nouveau mail", subject: $0.subject) }
+        let visible = rows.filter { !hidden.contains($0.account) }
+        guard !visible.isEmpty else { return }
+        let threads = Dictionary(((try? store.threads(keys: Array(Set(visible.map(\.threadKey))))) ?? []).map { ($0.id, $0) },
+                                 uniquingKeysWith: { first, _ in first })
+        let projectsOnly = defaults.bool(forKey: Preferences.Key.mailNoticesProjects)
+        let told = visible.filter { row in
+            guard let thread = threads[row.threadKey], rules.tab(of: thread) == .personnes else { return false }
+            return !projectsOnly || rules.filing(of: thread)?.filing.projectID != nil
+        }
+        .map { (threadKey: $0.threadKey, sender: $0.sender?.display ?? "Nouveau mail", subject: $0.subject) }
         if !told.isEmpty { onArrival?(told) }
     }
 
@@ -220,18 +203,112 @@ public final class MailLibrary: ObservableObject {
     /// The mailboxes: the accounts that granted the mails.
     public var accounts: [GoogleAccountRow] { agenda.accounts.filter(agenda.mailGranted) }
 
-    /// The tab of a thread: a thread Paul wrote in is people's; a sender Paul moved stays where he put it;
-    /// otherwise Gmail's category of the last mail received.
+    /// The tab of a thread: its case's; else a thread Paul wrote in, a contact or someone he wrote to are
+    /// people's; else Gmail's category of the last mail received.
     public func tab(of thread: MailThreadRow) -> MailTab {
-        if thread.paulWrote { return .personnes }
-        if let chosen = thread.lastSender.flatMap({ senders[$0]?.tab }).flatMap(MailTab.init(rawValue:)) { return chosen }
-        return MailTab.of(category: thread.category)
+        rules.tab(of: thread)
     }
 
-    func tab(of message: MailMessageRow) -> MailTab {
-        if let chosen = message.sender.flatMap({ senders[$0.email]?.tab }).flatMap(MailTab.init(rawValue:)) { return chosen }
-        let label = message.labels.first { $0.hasPrefix("CATEGORY_") }
-        return MailTab.of(category: label.map { String($0.dropFirst("CATEGORY_".count)).lowercased() })
+    /// The case of a thread, and why.
+    public func filing(of thread: MailThreadRow) -> (filing: MailFiling, origin: MailFilingOrigin)? {
+        rules.filing(of: thread)
+    }
+
+    public func project(_ id: UUID?) -> ProjectRow? {
+        id.flatMap { id in agenda.projects.first { $0.id == id } }
+    }
+
+    /// The projects a thread can go to: those under way, by name; the others apart.
+    public var filingProjects: (current: [ProjectRow], others: [ProjectRow]) {
+        let sorted = agenda.projects.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        let underWay: Set<ProjectStatus> = [.priorite1, .priorite2, .priorite3, .enAttente]
+        return (sorted.filter { underWay.contains($0.status) }, sorted.filter { !underWay.contains($0.status) })
+    }
+
+    /// Paul's case for a thread (step « Ranger »): kept for it and for its sender's next mails. Filed in a
+    /// project, the sender becomes one of its contacts, as with the calendar. One « Annuler » takes it all back.
+    public func file(_ thread: MailThreadRow, as filing: MailFiling) {
+        let date = Date()
+        let previousChoice = rules.choices[thread.id]
+        let sender = thread.lastSender?.lowercased()
+        let previousMemory = sender.flatMap { rules.senders[$0]?.filing }
+        let store = self.store
+        do {
+            try store.file(threadKey: thread.id, as: filing, at: date)
+            if let sender { try store.remember(address: sender, filing: .some(filing.rawValue), at: date) }
+        } catch {
+            message = "Rangement impossible : \(error)"
+            return
+        }
+        var takeBack: [() -> Void] = [{
+            try? store.file(threadKey: thread.id, as: previousChoice, at: Date())
+            if let sender { try? store.remember(address: sender, filing: .some(previousMemory), at: Date()) }
+        }]
+        if let projectID = filing.projectID, let sender, !mine.contains(sender), !Self.isRobot(sender) {
+            let contacts = ContactStore(agenda.database)
+            do {
+                var created = false
+                let contact: ContactRow
+                if let known = try contacts.contact(email: sender) {
+                    contact = known
+                } else {
+                    let name = thread.senders.first { $0.email.lowercased() == sender }?.display ?? sender
+                    contact = try contacts.upsert(email: sender, name: name, company: Linker.company(forEmail: sender), at: date)
+                    created = true
+                }
+                let before = try contacts.links().first { $0.contactID == contact.id && $0.projectID == projectID }
+                if before == nil || before?.excluded == true { try contacts.include(contactID: contact.id, projectID: projectID, at: date) }
+                takeBack.append {
+                    if created {
+                        try? contacts.delete(contactID: contact.id)
+                    } else if before == nil {
+                        try? contacts.unlink(contactID: contact.id, projectID: projectID)
+                    } else if before?.excluded == true {
+                        try? contacts.exclude(contactID: contact.id, projectID: projectID, at: Date())
+                    }
+                }
+            } catch {
+                message = "Le contact n'a pas pu être relié au projet : \(error)"
+            }
+        }
+        let who = sender.map { address in thread.senders.first { $0.email.lowercased() == address }?.display ?? address }
+        offerUndo(Self.filedText(filing, project: project(filing.projectID)?.name, sender: who)) { takeBack.reversed().forEach { $0() } }
+    }
+
+    static func filedText(_ filing: MailFiling, project: String?, sender: String?) -> String {
+        let next = sender.map { "les prochains mails de \($0)" } ?? "les prochains mails"
+        switch filing {
+        case .project: return "Rangé dans « \(project ?? "le projet") » : \(next) suivront."
+        case .none: return "Sans case : \(next) resteront dans Personnes."
+        default: return "Rangé dans \(filing.title ?? "") : \(next) suivront."
+        }
+    }
+
+    /// An address no one answers: never made a contact.
+    static func isRobot(_ address: String) -> Bool {
+        let local = address.split(separator: "@").first.map { $0.lowercased() } ?? ""
+        return ["noreply", "no-reply", "no_reply", "donotreply", "do-not-reply", "nepasrepondre", "ne-pas-repondre", "notification", "notifications",
+                "mailer-daemon", "bounce", "bounces", "newsletter", "news"].contains { local == $0 || local.hasPrefix($0 + "+") || local.hasPrefix($0 + ".") }
+    }
+
+    private func offerUndo(_ text: String, restore: @escaping () -> Void) {
+        undoToken += 1
+        let token = undoToken
+        undoRestore = restore
+        undoable = (text, [])
+        Task {
+            try? await Task.sleep(for: .seconds(8))
+            if undoToken == token {
+                undoable = nil
+                undoRestore = nil
+            }
+        }
+    }
+
+    /// Every thread of an automatic tab, archived at once; one « Annuler ».
+    public func archiveTab() {
+        guard tab != .personnes else { return }
+        perform(.archive, on: shown)
     }
 
     /// Not written by a person: the notifications and the newsletters.
@@ -346,6 +423,7 @@ public final class MailLibrary: ObservableObject {
             guard canUndo, !made.isEmpty else { return }
             undoToken += 1
             let token = undoToken
+            undoRestore = nil
             undoable = (Self.done(kind, count: made.count), made)
             try? await Task.sleep(for: .seconds(8))
             if undoToken == token { undoable = nil }
@@ -364,6 +442,12 @@ public final class MailLibrary: ObservableObject {
     }
 
     public func undo() {
+        if let restore = undoRestore {
+            undoRestore = nil
+            undoable = nil
+            restore()
+            return
+        }
         guard let gestures = undoable?.gestures else { return }
         undoable = nil
         Task {
@@ -375,13 +459,6 @@ public final class MailLibrary: ObservableObject {
     public func markRead(_ thread: MailThreadRow) {
         guard thread.unread else { return }
         perform(.markRead, on: thread, undoable: false)
-    }
-
-    /// « Déplacer vers… » a tab: kept for the sender's next mails; `nil` gives it back to Gmail's category.
-    public func move(_ thread: MailThreadRow, to tab: MailTab?) {
-        guard let sender = thread.lastSender else { return }
-        try? store.remember(address: sender, tab: .some(tab?.rawValue), at: Date())
-        message = tab.map { "Les mails de \(sender) iront dans « \($0.title) »." } ?? "Les mails de \(sender) suivent de nouveau le classement de Gmail."
     }
 
     /// The thread in Gmail's own page, under its account.
