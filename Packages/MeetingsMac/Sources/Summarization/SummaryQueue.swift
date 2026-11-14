@@ -12,6 +12,8 @@ public actor SummaryQueue {
     private let otherWork: @Sendable () async -> Bool
     /// Réglages › Réunions › Comptes rendus automatiques (14/11).
     private let isEnabled: @Sendable () -> Bool
+    /// A summary was written: the notification « Compte rendu prêt » (14/11).
+    private let onFinished: @Sendable (UUID, String) -> Void
     private let now: @Sendable () -> Date
     private var busy = false
     private var current: (meetingID: UUID, task: Task<Void, Never>)?
@@ -19,7 +21,9 @@ public actor SummaryQueue {
     private var retryAfter: Date?
 
     public init(database: AppDatabase, engine: any SummaryEngine, otherWork: @escaping @Sendable () async -> Bool = { false },
-                isEnabled: @escaping @Sendable () -> Bool = { true }, now: @escaping @Sendable () -> Date = Date.init) {
+                isEnabled: @escaping @Sendable () -> Bool = { true }, now: @escaping @Sendable () -> Date = Date.init,
+                onFinished: @escaping @Sendable (UUID, String) -> Void = { _, _ in }) {
+        self.onFinished = onFinished
         self.isEnabled = isEnabled
         self.database = database
         self.store = SummaryStore(database)
@@ -85,6 +89,7 @@ public actor SummaryQueue {
                                                     shouldStop: { await otherWork() })
             try store.finish(meetingID: meetingID, summary: summary.map(SummaryText.markdown),
                              actions: SummaryText.actionRows(summary?.actions ?? [], at: now()), at: now())
+            if summary != nil { onFinished(meetingID, title) }
         } catch {
             if Task.isCancelled || error is CancellationError {
                 // A meeting or a transcription stopped it, whatever the model called it (review, Important 4).

@@ -25,6 +25,8 @@ public final class AgendaLibrary: ObservableObject {
     @Published public private(set) var importing = false
     /// The last thing to tell Paul: a sync error, an import's report.
     @Published public var message: String?
+    /// Set by the app: the notifications follow each reading of the calendars (14/11).
+    public weak var notifications: NotificationHub?
 
     public let database: AppDatabase
     let session: GoogleSession
@@ -79,6 +81,9 @@ public final class AgendaLibrary: ObservableObject {
         syncing = true
         defer { syncing = false }
         let store = CalendarStore(database)
+        // What the notifications compare with: the events before this reading, the accounts never read yet.
+        let before = Set(((try? store.allEvents()) ?? []).map(\.id))
+        let firstReading = Set(accounts.filter { $0.lastSyncAt == nil }.map(\.email))
         for account in accounts {
             do {
                 let token = try await session.accessToken(for: account.email)
@@ -88,6 +93,7 @@ public final class AgendaLibrary: ObservableObject {
             }
         }
         await runLinks()
+        await notifications?.afterSync(before: before, firstReading: firstReading)
     }
 
     // MARK: - Writing (14/11)
@@ -113,6 +119,7 @@ public final class AgendaLibrary: ObservableObject {
             return CalendarWrite.insertRequest(accessToken: token, draft: draft, timeZone: zone, requestID: requestID)
         }, for: account)
         if let row = try CalendarWrite.event(from: data, account: account) {
+            notifications?.madeFromPolhub(row.id)
             try CalendarStore(database).applyGoogle(account: account, changed: [row], cancelled: [], at: Date())
         }
         // The copies in Paul's other calendars follow at once (review of 14/11).
@@ -167,6 +174,16 @@ public final class AgendaLibrary: ObservableObject {
     public func join(_ event: CalendarEventRow) {
         guard let code = event.meetCode else { return }
         let url = MeetJoin.url(code: code, account: event.account)
+        if let dia = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "company.thebrowser.dia") {
+            NSWorkspace.shared.open([url], withApplicationAt: dia, configuration: NSWorkspace.OpenConfiguration())
+        } else {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    /// A notification's « Rejoindre »: the Meet, in Dia, under that account.
+    public func joinMeet(code: String, account: String) {
+        let url = MeetJoin.url(code: code, account: account)
         if let dia = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "company.thebrowser.dia") {
             NSWorkspace.shared.open([url], withApplicationAt: dia, configuration: NSWorkspace.OpenConfiguration())
         } else {

@@ -42,10 +42,12 @@ public enum SidebarItem: String, Hashable, Sendable {
 /// The families of Réglages, entered one by one, as in Apple's settings (Paul, 14/11). Every new feature puts
 /// its settings in its family.
 public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
-    case calendar, projects, meetings, updates, diagnostic, journal
+    case general, notifications, calendar, projects, meetings, updates, diagnostic, journal
 
     public var title: String {
         switch self {
+        case .general: "Général"
+        case .notifications: "Notifications"
         case .calendar: "Calendrier"
         case .projects: "Projets"
         case .meetings: "Réunions"
@@ -57,6 +59,8 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
 
     var icon: String {
         switch self {
+        case .general: "gearshape.fill"
+        case .notifications: "bell.badge.fill"
         case .calendar: "calendar"
         case .projects: "square.grid.3x2.fill"
         case .meetings: "waveform"
@@ -68,7 +72,9 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
 
     var tint: String {
         switch self {
-        case .calendar: Palette.red
+        case .general: Palette.gray
+        case .notifications: Palette.red
+        case .calendar: Palette.orange
         case .projects: Palette.blue
         case .meetings: Palette.violet
         case .updates: Palette.gray
@@ -79,6 +85,8 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
 
     var subtitle: String {
         switch self {
+        case .general: "Ouverture à la session"
+        case .notifications: "Rappels de rendez-vous, nouveaux rendez-vous, comptes rendus"
         case .calendar: "Comptes Google, couleurs, nouveaux rendez-vous, affichage"
         case .projects: "Taille des cartes du Kanban"
         case .meetings: "Comptes rendus, langue des transcriptions"
@@ -88,9 +96,10 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         }
     }
 
-    /// Paul's tools first, then the app's own pages.
+    /// The whole app first, then Paul's tools, then the app's own pages.
     static func families(hasAgenda: Bool, hasProjects: Bool) -> [[SettingsPane]] {
-        [[hasAgenda ? .calendar : nil, hasProjects ? .projects : nil, .meetings].compactMap { $0 }, [.updates, .diagnostic, .journal]]
+        [[.general, .notifications], [hasAgenda ? .calendar : nil, hasProjects ? .projects : nil, .meetings].compactMap { $0 },
+         [.updates, .diagnostic, .journal]]
     }
 }
 
@@ -153,15 +162,20 @@ public struct MainWindowView<Diagnostic: View>: View {
     let projects: ProjectLibrary?
     let agenda: AgendaLibrary?
     let updates: UpdateService?
+    let notifications: NotificationHub?
+    let startup: StartupControl?
     @ObservedObject var router: WindowRouter
     let paths: AppPaths
     let diagnostic: Diagnostic
     @State private var columns: NavigationSplitViewVisibility = .all
 
     public init(
-        library: MeetingLibrary, projects: ProjectLibrary? = nil, agenda: AgendaLibrary? = nil, updates: UpdateService? = nil, router: WindowRouter,
+        library: MeetingLibrary, projects: ProjectLibrary? = nil, agenda: AgendaLibrary? = nil, updates: UpdateService? = nil,
+        notifications: NotificationHub? = nil, startup: StartupControl? = nil, router: WindowRouter,
         paths: AppPaths, @ViewBuilder diagnostic: () -> Diagnostic
     ) {
+        self.notifications = notifications
+        self.startup = startup
         self.library = library
         self.projects = projects
         self.agenda = agenda
@@ -258,7 +272,8 @@ public struct MainWindowView<Diagnostic: View>: View {
                 .windowTitle("Réunions", subtitle: router.selection.flatMap { id in library.rows.first { $0.id == id }?.title } ?? "")
                 .searchable(text: $router.query, placement: .toolbar, prompt: "Chercher dans les transcriptions")
             case .settings:
-                SettingsPage(router: router, updates: updates, projects: projects, agenda: agenda, library: library) {
+                SettingsPage(router: router, updates: updates, projects: projects, agenda: agenda, library: library,
+                             notifications: notifications, startup: startup) {
                     diagnostic
                 } journal: {
                     JournalView(entries: library.journal)

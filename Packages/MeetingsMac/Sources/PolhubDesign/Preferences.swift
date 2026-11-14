@@ -60,6 +60,13 @@ public struct Preferences: @unchecked Sendable {
         public static let dayStartHour = "agenda.debutDeJournee"
         public static let summariesEnabled = "reunions.comptesRendus"
         public static let transcriptionLanguage = "reunions.langue"
+        public static let reminders = "notifications.rappels"
+        public static let reminderMinutes = "notifications.delais"
+        public static let remindersMeetOnly = "notifications.visioSeulement"
+        public static let newEvents = "notifications.nouveaux"
+        public static let unrecorded = "notifications.nonEnregistree"
+        public static let summaryReady = "notifications.compteRendu"
+        public static let sound = "notifications.son"
     }
 
     public enum Default {
@@ -67,6 +74,9 @@ public struct Preferences: @unchecked Sendable {
         public static let dayStartHour = 8
         /// `auto` lets the engine detect it.
         public static let transcriptionLanguage = "fr"
+        /// Ten minutes and one minute before (Paul, 14/11).
+        public static let reminderMinutes = "10,1"
+        public static let reminderChoices = [30, 15, 10, 5, 1]
     }
 
     private let defaults: UserDefaults
@@ -83,6 +93,26 @@ public struct Preferences: @unchecked Sendable {
     public var showWeekend: Bool { (defaults.object(forKey: Key.showWeekend) as? Bool) ?? true }
     public var dayStartHour: Int { (defaults.object(forKey: Key.dayStartHour) as? Int) ?? Default.dayStartHour }
     public var summariesEnabled: Bool { (defaults.object(forKey: Key.summariesEnabled) as? Bool) ?? true }
+    public var reminders: Bool { flag(Key.reminders) }
+    /// The minutes before an event a reminder comes, the largest first.
+    public var reminderMinutes: [Int] { Self.minutes(defaults.string(forKey: Key.reminderMinutes) ?? Default.reminderMinutes) }
+    public var remindersMeetOnly: Bool { (defaults.object(forKey: Key.remindersMeetOnly) as? Bool) ?? false }
+    public var newEvents: Bool { flag(Key.newEvents) }
+    public var unrecorded: Bool { flag(Key.unrecorded) }
+    public var summaryReady: Bool { flag(Key.summaryReady) }
+    public var sound: Bool { flag(Key.sound) }
+
+    private func flag(_ key: String) -> Bool { (defaults.object(forKey: key) as? Bool) ?? true }
+
+    /// « 10,1 » → [10, 1].
+    public static func minutes(_ text: String) -> [Int] {
+        Array(Set(text.split(separator: ",").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }.filter { $0 >= 0 })).sorted(by: >)
+    }
+
+    public static func minutesText(_ minutes: [Int]) -> String {
+        minutes.sorted(by: >).map(String.init).joined(separator: ",")
+    }
+
     /// `nil`: detected by the engine.
     public var transcriptionLanguage: String? {
         let value = defaults.string(forKey: Key.transcriptionLanguage) ?? Default.transcriptionLanguage

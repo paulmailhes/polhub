@@ -79,6 +79,18 @@ final class Flag: @unchecked Sendable {
         SummaryQueue(database: database, engine: engine, otherWork: { flag.on }, now: { [now] in now })
     }
 
+    /// 14/11: a written summary is announced (the notification « Compte rendu prêt »).
+    @Test func aWrittenSummaryIsAnnounced() async throws {
+        let row = try meeting(hoursAgo: 2, title: "Atelier maquette")
+        let announced = Flag()
+        let queue = SummaryQueue(database: database, engine: FakeEngine(), now: { [now] in now }, onFinished: { id, title in
+            if id == row.id && title == "Atelier maquette" { announced.on = true }
+        })
+        await queue.wake()
+        await queue.waitForIdle()
+        #expect(announced.on)
+    }
+
     /// 14/11: Réglages › Réunions can turn the summaries off.
     @Test func turnedOffItWritesNothing() async throws {
         let row = try meeting(hoursAgo: 2, title: "Atelier maquette")

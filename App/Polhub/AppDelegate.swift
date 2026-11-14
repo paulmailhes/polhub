@@ -13,9 +13,11 @@ import Recording
 import Summarization
 import SwiftUI
 import Updates
+import UserNotifications
+import Notifications
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNotificationCenterDelegate {
     let model = AppModel()
     let runner = ProbeRunner()
     private var probeWindow: NSWindow?
@@ -26,6 +28,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     /// Calendars, contacts and the loop of 13/11.
     private var agenda: AgendaLibrary?
     private var agendaTimer: Timer?
+    /// The notifications (14/11): reminders, new events, meetings not recorded, summaries ready.
+    private var notifications: NotificationHub?
+    private var notificationTimer: Timer?
+    private var startup: StartupControl?
     /// Step 2: the transcriptions, run by `polhub-calcul` outside meetings.
     private var transcription: TranscriptionQueue?
     /// The meetings' summaries, after their transcription (14/11).
@@ -64,6 +70,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let origin: LaunchOrigin
         let pid: Int32
         let probe: String?
+    }
+
+    /// Set before launch ends: a click on a notification may be what opened Polhub (14/11).
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        UNUserNotificationCenter.current().delegate = self
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -211,7 +222,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         Task { await queue.start(holdSeconds: 45) }
         let engine = AppleSummaryEngine()
         let summaries = SummaryQueue(database: store.database, engine: engine, otherWork: { await queue.isRunning },
-                                     isEnabled: { Preferences().summariesEnabled })
+                                     isEnabled: { Preferences().summariesEnabled },
+                                     onFinished: { [weak self] meetingID, title in
+                                         Task { @MainActor in await self?.notifications?.summaryReady(meetingID: meetingID, title: title) }
+                                     })
         self.summaries = summaries
         library?.summaries = summaries
         library?.summaryUnavailable = engine.unavailableReason
@@ -262,6 +276,67 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 20) {
             Task { @MainActor in await agenda.syncAll() }
+        }
+        startNotifications(agenda: agenda)
+    }
+
+    /// Réglages › Notifications (14/11). The development version notifies nothing: no double with the installed one.
+    private func startNotifications(agenda: AgendaLibrary) {
+        guard !isDevelopment else { return }
+        startup = StartupControl(read: { RelaunchAgent.isEnabled }, write: { $0 ? RelaunchAgent.enable() : RelaunchAgent.disable() })
+        let hub = NotificationHub(agenda: agenda)
+        notifications = hub
+        agenda.notifications = hub
+        SystemNotifications.registerCategories()
+        Task { @MainActor in
+            _ = await SystemNotifications.requestAuthorization()
+            await hub.refresh()
+        }
+        // Every minute: a meeting of the calendar under way while nothing records.
+        notificationTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                let recording: Bool
+                switch self.model.status {
+                case .prompting, .recording, .presumedEnded: recording = true
+                case .idle, .paused: recording = false
+                }
+                Task { await hub.tick(recording: recording) }
+            }
+        }
+    }
+
+    // MARK: - Notifications
+
+    /// Shown even when Polhub is in front.
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
+                                            withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .list, .sound])
+    }
+
+    /// A click: « Rejoindre » joins the Meet with the event's account; otherwise the event or the meeting opens.
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
+                                            withCompletionHandler completionHandler: @escaping () -> Void) {
+        let info = response.notification.request.content.userInfo
+        let meet = info[NoticeKey.meet] as? String, account = info[NoticeKey.account] as? String
+        let event = info[NoticeKey.event] as? String, meeting = (info[NoticeKey.meeting] as? String).flatMap(UUID.init(uuidString:))
+        let action = response.actionIdentifier
+        completionHandler()
+        Task { @MainActor in
+            self.open(meet: meet, account: account, event: event, meeting: meeting,
+                      join: action == NoticeKey.joinAction || action == UNNotificationDefaultActionIdentifier)
+        }
+    }
+
+    private func open(meet: String?, account: String?, event: String?, meeting: UUID?, join: Bool) {
+        if join, let meet, let account {
+            agenda?.joinMeet(code: meet, account: account)
+        } else if let meeting {
+            router.open(meetingID: meeting, at: nil)
+            showMainWindow()
+        } else if let event {
+            router.openEvent(event)
+            showMainWindow()
         }
     }
 
@@ -366,7 +441,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         if mainWindow == nil {
             let diagnostic = diagnostic
-            let view = MainWindowView(library: library, projects: projects, agenda: agenda, updates: updates, router: router, paths: paths) {
+            let view = MainWindowView(library: library, projects: projects, agenda: agenda, updates: updates, notifications: notifications,
+                                      startup: startup, router: router, paths: paths) {
                 if let diagnostic {
                     DiagnosticView(model: diagnostic) { [weak self] in self?.showProbeWindow() }
                 }

@@ -1,3 +1,4 @@
+import AppKit
 import Agenda
 import PolhubDesign
 import ProjectsUI
@@ -12,11 +13,16 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
     let projects: ProjectLibrary?
     let agenda: AgendaLibrary?
     @ObservedObject var library: MeetingLibrary
+    let notifications: NotificationHub?
+    let startup: StartupControl?
     let diagnostic: Diagnostic
     let journal: Journal
 
     init(router: WindowRouter, updates: UpdateService?, projects: ProjectLibrary?, agenda: AgendaLibrary? = nil, library: MeetingLibrary,
+         notifications: NotificationHub? = nil, startup: StartupControl? = nil,
          @ViewBuilder diagnostic: () -> Diagnostic, @ViewBuilder journal: () -> Journal) {
+        self.notifications = notifications
+        self.startup = startup
         self.router = router
         self.updates = updates
         self.projects = projects
@@ -63,6 +69,10 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
     @ViewBuilder
     private func content(_ pane: SettingsPane) -> some View {
         switch pane {
+        case .general:
+            GeneralSettingsPane(startup: startup)
+        case .notifications:
+            NotificationsSettingsPane(hub: notifications)
         case .calendar:
             if let agenda { CalendarSettingsPane(agenda: agenda) }
         case .projects:
@@ -104,6 +114,132 @@ struct SettingsRow: View {
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())
+    }
+}
+
+/// Réglages › Général.
+struct GeneralSettingsPane: View {
+    let startup: StartupControl?
+
+    var body: some View {
+        Form {
+            Section {
+                if let startup {
+                    StartupToggle(startup: startup)
+                } else {
+                    Text("La version de développement ne s'ouvre pas à la session.").foregroundStyle(.secondary)
+                }
+            } footer: {
+                Text("Polhub reste dans la barre des menus quand sa fenêtre est fermée : les réunions s'enregistrent et les notifications arrivent. Il se relance aussi tout seul s'il s'arrête.")
+            }
+        }
+        .formStyle(.grouped)
+        .frame(maxWidth: 640)
+    }
+}
+
+struct StartupToggle: View {
+    @ObservedObject var startup: StartupControl
+    @State private var confirmingOff = false
+
+    var body: some View {
+        Toggle("Ouvrir Polhub à l'ouverture de session", isOn: Binding(get: { startup.isOn }, set: { on in
+            if on { startup.set(true) } else { confirmingOff = true }
+        }))
+        if let message = startup.message { Text(message).font(.caption).foregroundStyle(.orange) }
+        EmptyView()
+            .confirmationDialog("Ne plus ouvrir Polhub à l'ouverture de session ?", isPresented: $confirmingOff) {
+                Button("Ne plus l'ouvrir", role: .destructive) { startup.set(false) }
+            } message: {
+                Text("Polhub se ferme aussitôt et ne se relance plus seul après un arrêt : les réunions ne s'enregistrent que s'il est ouvert. Tu le rouvres depuis Applications.")
+            }
+    }
+}
+
+/// Réglages › Notifications (Paul, 14/11): what Polhub announces, and when. Mails and other kinds will join here.
+struct NotificationsSettingsPane: View {
+    let hub: NotificationHub?
+    @AppStorage(Preferences.Key.reminders) private var reminders = true
+    @AppStorage(Preferences.Key.reminderMinutes) private var minutesText = Preferences.Default.reminderMinutes
+    @AppStorage(Preferences.Key.remindersMeetOnly) private var meetOnly = false
+    @AppStorage(Preferences.Key.newEvents) private var newEvents = true
+    @AppStorage(Preferences.Key.unrecorded) private var unrecorded = true
+    @AppStorage(Preferences.Key.summaryReady) private var summaryReady = true
+    @AppStorage(Preferences.Key.sound) private var sound = true
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Rappels avant un rendez-vous", isOn: $reminders)
+                if reminders {
+                    LabeledContent("Quand") {
+                        HStack(spacing: Space.xs) {
+                            ForEach(Preferences.Default.reminderChoices, id: \.self) { minute in
+                                let on = Preferences.minutes(minutesText).contains(minute)
+                                if on {
+                                    Button("\(minute) min") { toggle(minute) }.buttonStyle(.borderedProminent)
+                                } else {
+                                    Button("\(minute) min") { toggle(minute) }.buttonStyle(.bordered)
+                                }
+                            }
+                        }
+                    }
+                    Toggle("Seulement les rendez-vous avec une visio", isOn: $meetOnly)
+                }
+            } header: {
+                Text("Calendrier")
+            } footer: {
+                Text("Un clic sur un rappel rejoint le Meet avec le bon compte, dans Dia, où la réunion s'enregistre. Les rappels arrivent même si Polhub est fermé.")
+            }
+            Section {
+                Toggle("Nouveau rendez-vous dans tes agendas", isOn: $newEvents)
+                Toggle("Réunion de l'agenda commencée sans enregistrement", isOn: $unrecorded)
+            } footer: {
+                Text("Cinq minutes après le début d'un rendez-vous avec Meet, si rien n'enregistre : de quoi ne rater aucune réunion.")
+            }
+            Section("Réunions") {
+                Toggle("Compte rendu prêt", isOn: $summaryReady)
+            }
+            Section {
+                Toggle("Son", isOn: $sound)
+                if let hub { NotificationStatus(hub: hub) }
+            } footer: {
+                Text("Bientôt ici : les mails, les échéances des projets, le résumé du matin.")
+            }
+        }
+        .formStyle(.grouped)
+        .frame(maxWidth: 640)
+        .onChange(of: [reminders, meetOnly, sound]) { _, _ in replan() }
+        .onChange(of: minutesText) { _, _ in replan() }
+    }
+
+    private func toggle(_ minute: Int) {
+        var minutes = Set(Preferences.minutes(minutesText))
+        if minutes.contains(minute) { minutes.remove(minute) } else { minutes.insert(minute) }
+        minutesText = Preferences.minutesText(Array(minutes))
+    }
+
+    private func replan() {
+        guard let hub else { return }
+        Task { await hub.refresh() }
+    }
+}
+
+struct NotificationStatus: View {
+    @ObservedObject var hub: NotificationHub
+
+    var body: some View {
+        HStack {
+            Text("Notifications \(hub.authorization.isEmpty ? "…" : hub.authorization)").foregroundStyle(.secondary)
+            Spacer()
+            if hub.authorization.hasPrefix("refusées") {
+                Button("Ouvrir Réglages Système") {
+                    NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension")!)
+                }
+            }
+            Button("Envoyer un essai") { Task { await hub.test() } }
+        }
+        .task { await hub.readAuthorization() }
     }
 }
 

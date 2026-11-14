@@ -16,8 +16,8 @@ import Testing
     /// 14/11: Réglages opens on its families, as Apple's; each family is entered.
     @Test func reglagesListsItsFamilies() {
         let families = SettingsPane.families(hasAgenda: true, hasProjects: true)
-        #expect(families.map { $0.map(\.title) } == [["Calendrier", "Projets", "Réunions"], ["Mises à jour", "Diagnostic", "Journal"]])
-        #expect(SettingsPane.families(hasAgenda: false, hasProjects: false).map { $0.map(\.title) } == [["Réunions"], ["Mises à jour", "Diagnostic", "Journal"]])
+        #expect(families.map { $0.map(\.title) } == [["Général", "Notifications"], ["Calendrier", "Projets", "Réunions"], ["Mises à jour", "Diagnostic", "Journal"]])
+        #expect(SettingsPane.families(hasAgenda: false, hasProjects: false).map { $0.map(\.title) } == [["Général", "Notifications"], ["Réunions"], ["Mises à jour", "Diagnostic", "Journal"]])
     }
 
     @Test func openingTheDiagnosticEntersItsFamily() {
@@ -39,6 +39,19 @@ import Testing
         #expect(settings.cardSize == .small && settings.transcriptionLanguage == nil)
         #expect(CardSize.small.columnWidth < CardSize.medium.columnWidth && CardSize.medium.columnWidth < CardSize.large.columnWidth)
         #expect(CardSize.large.columnWidth == 300 && CardSize.medium.columnWidth < 300)
+    }
+
+    /// 14/11: notifications on by default, reminders ten minutes and one minute before.
+    @Test func notificationSettingsHaveSensibleDefaults() throws {
+        let defaults = try #require(UserDefaults(suiteName: "notifications-\(UUID().uuidString)"))
+        let settings = Preferences(defaults: defaults)
+        #expect(settings.reminders && settings.reminderMinutes == [10, 1] && !settings.remindersMeetOnly)
+        #expect(settings.newEvents && settings.unrecorded && settings.summaryReady && settings.sound)
+        defaults.set("1, 30,x,10,10", forKey: Preferences.Key.reminderMinutes)
+        #expect(settings.reminderMinutes == [30, 10, 1])
+        #expect(Preferences.minutesText([1, 15]) == "15,1")
+        #expect(SettingsPane.families(hasAgenda: true, hasProjects: true).first?.first == .general)
+        #expect(SettingsPane.families(hasAgenda: true, hasProjects: true).flatMap { $0 }.contains(.notifications))
     }
 
     /// Events of a day that overlap share the column's width (13/11).

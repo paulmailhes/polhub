@@ -1,0 +1,133 @@
+import Domain
+import Foundation
+import Persistence
+
+/// One notification Polhub asks macOS to show, now or at a date.
+public struct PlannedNotice: Equatable, Sendable {
+    public enum Kind: String, Sendable {
+        case reminder, newEvent, unrecorded, summary
+    }
+
+    public var id: String
+    public var fireDate: Date
+    public var title: String
+    public var body: String
+    /// The event's row id (`account|eventID`), for a click that opens it.
+    public var eventID: String?
+    public var meetCode: String?
+    /// The Google account to join the Meet with.
+    public var account: String?
+    /// The meeting a summary belongs to.
+    public var meetingID: UUID?
+    public var kind: Kind
+
+    public init(id: String, fireDate: Date, title: String, body: String, eventID: String?, meetCode: String?, account: String?,
+                meetingID: UUID? = nil, kind: Kind = .reminder) {
+        self.id = id
+        self.fireDate = fireDate
+        self.title = title
+        self.body = body
+        self.eventID = eventID
+        self.meetCode = meetCode
+        self.account = account
+        self.meetingID = meetingID
+        self.kind = kind
+    }
+
+    /// A click joins the Meet.
+    public var joinable: Bool { meetCode != nil && account != nil }
+}
+
+/// What to notify, from the calendars (14/11). Pure: the scheduling is `ReminderSync`'s.
+public enum NotificationPlan {
+    /// macOS keeps a limited number of pending notifications per app: the nearest ones only.
+    public static let limit = 48
+    /// Reminders are planned this far ahead, and planned again at each reading of the calendars.
+    public static let horizon: TimeInterval = 36 * 3_600
+    /// A meeting with a Meet still not recorded after this long is flagged.
+    public static let unrecordedDelay: TimeInterval = 5 * 60
+    static let reminderPrefix = "rappel|"
+
+    /// A reminder `minutes` before each coming event: not a whole day, not declined; with a Meet only if asked.
+    public static func reminders(for events: [CalendarEventRow], now: Date, minutes: [Int], meetOnly: Bool) -> [PlannedNotice] {
+        var notices: [PlannedNotice] = []
+        for event in events where attends(event) && event.startAt > now && (!meetOnly || event.meetCode != nil) {
+            for minute in Set(minutes) where minute >= 0 {
+                let fire = event.startAt.addingTimeInterval(-Double(minute) * 60)
+                guard fire > now, fire <= now.addingTimeInterval(horizon) else { continue }
+                let when = minute == 0 ? "Maintenant" : "Dans \(minute) min"
+                notices.append(PlannedNotice(
+                    id: "\(reminderPrefix)\(event.id)|\(Int(event.startAt.timeIntervalSince1970))|\(minute)", fireDate: fire, title: event.title,
+                    body: when + (event.meetCode != nil ? " · Google Meet" : ""), eventID: event.id, meetCode: event.meetCode,
+                    account: event.account, kind: .reminder
+                ))
+            }
+        }
+        return Array(notices.sorted { ($0.fireDate, $0.id) < ($1.fireDate, $1.id) }.prefix(limit))
+    }
+
+    /// The coming events that appeared since the previous reading: never at an account's first reading (no flood
+    /// when an account is connected), nor those Paul made from Polhub, declined ones, whole days.
+    public static func newEvents(before: Set<String>, after: [CalendarEventRow], firstReading: Set<String>, madeHere: Set<String>,
+                                 now: Date) -> [CalendarEventRow] {
+        after.filter { event in
+            !before.contains(event.id) && !firstReading.contains(event.account) && !madeHere.contains(event.id) && attends(event)
+                && event.startAt > now
+        }
+        .sorted { $0.startAt < $1.startAt }
+    }
+
+    public static func newEventNotice(_ event: CalendarEventRow, now: Date) -> PlannedNotice {
+        let when = event.startAt.formatted(.dateTime.weekday(.wide).day().month(.wide).hour().minute().locale(Locale(identifier: "fr_FR")))
+        return PlannedNotice(id: "nouveau|\(event.id)", fireDate: now, title: "Nouveau rendez-vous", body: "\(event.title) · \(when)",
+                             eventID: event.id, meetCode: event.meetCode, account: event.account, kind: .newEvent)
+    }
+
+    /// Events with a Meet under way for a few minutes while nothing records: flagged once each.
+    public static func unrecorded(_ events: [CalendarEventRow], now: Date, recording: Bool, alerted: Set<String>) -> [CalendarEventRow] {
+        guard !recording else { return [] }
+        return events.filter { event in
+            event.meetCode != nil && attends(event) && event.startAt <= now.addingTimeInterval(-unrecordedDelay) && event.endAt > now
+                && !alerted.contains(event.id)
+        }
+    }
+
+    public static func unrecordedNotice(_ event: CalendarEventRow, now: Date) -> PlannedNotice {
+        PlannedNotice(id: "non-enregistree|\(event.id)", fireDate: now, title: "Réunion non enregistrée",
+                      body: "« \(event.title) » a commencé et Polhub ne l'enregistre pas. Rejoindre ?", eventID: event.id,
+                      meetCode: event.meetCode, account: event.account, kind: .unrecorded)
+    }
+
+    public static func summaryNotice(meetingID: UUID, title: String, now: Date) -> PlannedNotice {
+        PlannedNotice(id: "compte-rendu|\(meetingID.uuidString)", fireDate: now, title: "Compte rendu prêt", body: title, eventID: nil,
+                      meetCode: nil, account: nil, meetingID: meetingID, kind: .summary)
+    }
+
+    /// Not a whole day, not declined by Paul.
+    static func attends(_ event: CalendarEventRow) -> Bool {
+        !event.allDay && event.attendees.first(where: \.isSelf)?.response != "declined"
+    }
+}
+
+/// macOS's notification center, as Polhub uses it: behind a protocol for the tests.
+public protocol NotificationCenterClient: Sendable {
+    func pendingIdentifiers() async -> [String]
+    func schedule(_ notice: PlannedNotice, sound: Bool) async
+    func removePending(_ ids: [String]) async
+    func deliverNow(_ notice: PlannedNotice, sound: Bool) async
+}
+
+/// Brings macOS's pending reminders in line with the plan: Polhub's stale ones go, missing ones come; nothing else
+/// is touched.
+public enum ReminderSync {
+    public static func apply(_ plan: [PlannedNotice], to center: any NotificationCenterClient, sound: Bool) async {
+        let pending = await center.pendingIdentifiers()
+        let wanted = Set(plan.map(\.id))
+        let stale = pending.filter { $0.hasPrefix(NotificationPlan.reminderPrefix) && !wanted.contains($0) }
+        if !stale.isEmpty { await center.removePending(stale) }
+        let present = Set(pending)
+        for notice in plan where !present.contains(notice.id) {
+            await center.schedule(notice, sound: sound)
+        }
+    }
+}

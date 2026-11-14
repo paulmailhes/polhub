@@ -124,7 +124,7 @@ struct WindowSnapshotTests {
         let router = WindowRouter()
         router.section = .settings
         try await Task.sleep(for: .milliseconds(300))
-        for tab in [SettingsPane?.none, .updates, .projects, .meetings, .diagnostic, .journal] {
+        for tab in [SettingsPane?.none, .general, .notifications, .updates, .projects, .meetings, .diagnostic, .journal] {
             router.settingsPane = tab
             try await LiveWindow.capture(MainWindowView(library: library, projects: projects, updates: updates, router: router,
                                                         paths: AppPaths(root: root, logs: root)) { Text("Le diagnostic de l'app").padding() },

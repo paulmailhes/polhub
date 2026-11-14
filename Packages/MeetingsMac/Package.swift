@@ -20,6 +20,7 @@ let package = Package(
         .library(name: "Agenda", targets: ["Agenda"]),
         .library(name: "Summarization", targets: ["Summarization"]),
         .library(name: "PolhubDesign", targets: ["PolhubDesign"]),
+        .library(name: "Notifications", targets: ["Notifications"]),
         .executable(name: "polhub-calcul", targets: ["PolhubCalcul"]),
         .executable(name: "polhub", targets: ["PolhubCLI"]),
     ],
@@ -39,6 +40,11 @@ let package = Package(
         // Google calendars, contacts, and the automatic links between events, meetings, contacts and projects.
         // The design system: tokens and components every screen uses (14/11, docs/design-system.md).
         .target(name: "PolhubDesign"),
+        // Polhub's notifications: reminders, new events, meetings not recorded, summaries (14/11).
+        .target(name: "Notifications", dependencies: [
+            .product(name: "Domain", package: "Kernel"),
+            .product(name: "Persistence", package: "Kernel"),
+        ]),
         // The meetings' summaries, by the model built into macOS: nothing to download, nothing leaves the Mac (14/11).
         .target(name: "Summarization", dependencies: [
             .product(name: "Domain", package: "Kernel"),
@@ -88,6 +94,7 @@ let package = Package(
             "VaultImport",
             "Summarization",
             "PolhubDesign",
+            "Notifications",
             .product(name: "Domain", package: "Kernel"),
             .product(name: "Persistence", package: "Kernel"),
             .product(name: "GRDB", package: "GRDB.swift"),
@@ -123,11 +130,12 @@ let package = Package(
         .testTarget(name: "VaultImportTests", dependencies: ["VaultImport", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")], resources: [.copy("Fixtures")]),
         .testTarget(name: "ProjectsUITests", dependencies: ["ProjectsUI", "PolhubDesign", "VaultImport", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "UpdatesTests", dependencies: ["Updates"]),
+        .testTarget(name: "NotificationsTests", dependencies: ["Notifications", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "SummarizationTests", dependencies: ["Summarization", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "AgendaTests", dependencies: ["Agenda", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "TranscriptionTests", dependencies: ["Transcription", .product(name: "Domain", package: "Kernel")]),
         .testTarget(name: "MeetingDetectionTests", dependencies: ["MeetingDetection"], resources: [.copy("Fixtures")]),
-        .testTarget(name: "MeetingsUITests", dependencies: ["MeetingsUI", "ProjectsUI", "PolhubDesign", "Updates", "Pipeline", "Recording", "AudioCapture", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
+        .testTarget(name: "MeetingsUITests", dependencies: ["MeetingsUI", "ProjectsUI", "PolhubDesign", "Notifications", "Agenda", "Updates", "Pipeline", "Recording", "AudioCapture", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "RecordingTests", dependencies: ["Recording", "AudioCapture", "MeetingDetection", .product(name: "Observability", package: "Kernel"), .product(name: "Domain", package: "Kernel")]),
         .testTarget(name: "PipelineTests", dependencies: ["Pipeline", "MeetingDetection", "Recording", "Transcription", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "ProbeKitTests", dependencies: ["ProbeKit", "Recording", "AudioCapture", "MeetingDetection", .product(name: "Domain", package: "Kernel"), .product(name: "Observability", package: "Kernel")]),
