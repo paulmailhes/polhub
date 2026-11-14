@@ -181,6 +181,31 @@ import Testing
         #expect(try mails.drafts().isEmpty)
     }
 
+    /// Review of 14/11: Paul's change is written on the row as it is now, Gmail's answer meanwhile included.
+    @Test func changingADraftKeepsWhatGmailAnswered() throws {
+        let mails = try store()
+        let draft = MailDraftRow(account: account, mode: .new, subject: "Idée", createdAt: now)
+        try mails.saveDraft(draft)
+        try mails.markPushed(draftID: draft.id, gmailDraftID: "r1", gmailMessageID: "dm1", version: draft.updatedAt, at: now)
+        let changed = try #require(try mails.updateDraft(draft.id, at: now.addingTimeInterval(5)) { $0.body = "Plus long" })
+        #expect(changed.gmailDraftID == "r1" && changed.gmailMessageID == "dm1" && changed.body == "Plus long" && changed.needsPush)
+        try mails.setConflict(draft.id, .absent)
+        #expect(try mails.draft(draft.id)?.conflict == .absent)
+        try mails.forgetGmailCopy(draft.id)
+        let fresh = try #require(try mails.draft(draft.id))
+        #expect(fresh.gmailDraftID == nil && fresh.conflict == nil && fresh.pushedAt == nil && fresh.body == "Plus long")
+    }
+
+    /// The people Paul wrote to: To and Cc of what he sent.
+    @Test func thePeoplePaulWroteTo() throws {
+        let mails = try store()
+        var sent = message("m1", from: account, labels: ["SENT"])
+        sent.to = [MailAddress(name: "Camille", email: "Camille@Exemple.fr")]
+        sent.cc = [MailAddress(email: "jules@exemple.fr")]
+        try mails.apply(account: account, upserts: [sent, message("m2", thread: "t2", from: "lettre@lettre.exemple")])
+        #expect(try mails.correspondents() == ["camille@exemple.fr", "jules@exemple.fr"])
+    }
+
     @Test func theSentThreadsAndTheDraftsWrittenElsewhere() throws {
         let mails = try store()
         try mails.apply(account: account, upserts: [

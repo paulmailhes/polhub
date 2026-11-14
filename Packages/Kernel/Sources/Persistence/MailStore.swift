@@ -260,6 +260,42 @@ public struct MailStore: Sendable {
         try writer.read { try MailDraftRow.order(Column("updatedAt").desc).fetchAll($0) }
     }
 
+    /// Paul's change, in one transaction on the row as it is now: what Gmail answered meanwhile (its ids, the
+    /// version it holds) is never written over (review of 14/11). `nil` when the draft is gone.
+    @discardableResult
+    public func updateDraft(_ id: String, at date: Date, _ change: (inout MailDraftRow) -> Void) throws -> MailDraftRow? {
+        try writer.write { db in
+            guard var draft = try MailDraftRow.fetchOne(db, key: id) else { return nil }
+            let before = draft
+            change(&draft)
+            guard draft != before else { return draft }
+            draft.updatedAt = max(date, before.updatedAt.addingTimeInterval(0.001))
+            draft.lastError = nil
+            try draft.save(db)
+            return draft
+        }
+    }
+
+    public func setConflict(_ id: String, _ conflict: MailDraftRow.Conflict?) throws {
+        try writer.write { db in
+            try db.execute(sql: "UPDATE mail_draft SET conflict = ? WHERE id = ?", arguments: [conflict?.rawValue, id])
+        }
+    }
+
+    /// A draft that leaves from another mailbox, or that Gmail must take afresh: Gmail's ids are forgotten.
+    public func forgetGmailCopy(_ id: String, account: String? = nil) throws {
+        try writer.write { db in
+            guard var draft = try MailDraftRow.fetchOne(db, key: id) else { return }
+            if let account { draft.account = account.lowercased() }
+            draft.gmailDraftID = nil
+            draft.gmailMessageID = nil
+            draft.pushedAt = nil
+            draft.conflict = nil
+            draft.lastError = nil
+            try draft.save(db)
+        }
+    }
+
     public func deleteDraft(_ id: String) throws {
         _ = try writer.write { try MailDraftRow.deleteOne($0, key: id) }
     }
@@ -276,6 +312,14 @@ public struct MailStore: Sendable {
     public func markDraftError(_ id: String, error: String?) throws {
         try writer.write { db in
             try db.execute(sql: "UPDATE mail_draft SET lastError = ? WHERE id = ?", arguments: [error, id])
+        }
+    }
+
+    /// The people Paul wrote to (To and Cc of what he sent), in lower case: never strangers.
+    public func correspondents() throws -> Set<String> {
+        try writer.read { db in
+            let sent = try MailMessageRow.filter(sql: "labels LIKE '%\"SENT\"%'").fetchAll(db)
+            return Set(sent.flatMap { $0.to + $0.cc }.map { $0.email.lowercased() })
         }
     }
 

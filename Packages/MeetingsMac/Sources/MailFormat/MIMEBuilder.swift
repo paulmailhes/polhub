@@ -66,7 +66,9 @@ public enum MIMEBuilder {
 
     /// An address Gmail will take: one `@`, a dot after it, nothing that could break a header.
     public static func isValid(_ email: String) -> Bool {
-        email.range(of: #"^[^\s@<>(),;:\\"\[\]]+@[^\s@<>(),;:\\"\[\]]+\.[^\s@<>(),;:\\"\[\].]+$"#, options: .regularExpression) != nil
+        // No invisible character (U+202E turns the address around on screen): what Paul sees is what leaves.
+        guard email.unicodeScalars.allSatisfy({ $0.properties.generalCategory != .format }) else { return false }
+        return email.range(of: #"^[^\s@<>(),;:\\"\[\]]+@[^\s@<>(),;:\\"\[\]]+\.[^\s@<>(),;:\\"\[\].]+$"#, options: .regularExpression) != nil
     }
 
     /// The message to send; a `draft` may have no recipient yet, and keeps only the valid addresses typed so far.
@@ -94,7 +96,7 @@ public enum MIMEBuilder {
         lines.append(header("Subject", encodedText(mail.subject)))
         lines.append(header("Date", rfcDate(mail.date)))
         if let inReplyTo = mail.inReplyTo.map(clean), !inReplyTo.isEmpty { lines.append(header("In-Reply-To", inReplyTo)) }
-        if let references = mail.references.map(clean), !references.isEmpty { lines.append(header("References", references)) }
+        if let references = mail.references.map(clean), !references.isEmpty { lines.append(header("References", folded(references))) }
         lines.append("MIME-Version: 1.0")
 
         let alternativeBoundary = boundary()
@@ -124,7 +126,7 @@ public enum MIMEBuilder {
             for file in mail.files {
                 let name = clean(file.filename)
                 lines.append("--\(mixedBoundary)")
-                lines.append("Content-Type: \(clean(file.mimeType)); name=\"\(encodedText(name).replacingOccurrences(of: "\"", with: "'"))\"")
+                lines.append("Content-Type: \(mimeType(file.mimeType)); name=\"\(encodedText(name).replacingOccurrences(of: "\"", with: "'"))\"")
                 lines.append("Content-Disposition: attachment; filename*=UTF-8''\(percentEncoded(name))")
                 lines.append("Content-Transfer-Encoding: base64")
                 lines.append("")
@@ -133,6 +135,18 @@ public enum MIMEBuilder {
             lines.append("--\(mixedBoundary)--")
         }
         return Data((lines.joined(separator: "\r\n") + "\r\n").utf8)
+    }
+
+    /// The last twenty message ids of a thread (RFC 5322 allows trimming), one per line: never a line beyond
+    /// the 998 characters a server accepts (review of 14/11).
+    static func folded(_ references: String) -> String {
+        references.split(whereSeparator: \.isWhitespace).suffix(20).joined(separator: "\r\n ")
+    }
+
+    /// `type/sous-type`, or nothing said: what a sender declared never brings a parameter or a header along.
+    static func mimeType(_ declared: String) -> String {
+        let type = clean(declared).trimmingCharacters(in: .whitespaces).lowercased()
+        return type.range(of: #"^[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$"#, options: .regularExpression) != nil ? type : "application/octet-stream"
     }
 
     /// What Gmail's API takes in `raw`.

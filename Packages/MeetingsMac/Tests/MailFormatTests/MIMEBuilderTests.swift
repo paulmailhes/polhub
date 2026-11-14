@@ -88,7 +88,21 @@ import Testing
         let mail = OutgoingMail(from: me, to: [camille], subject: "Re: Maquette", text: "Merci", html: "Merci",
                                 inReplyTo: "<b@exemple.fr>", references: "<a@exemple.fr> <b@exemple.fr>", date: date)
         let raw = text(try MIMEBuilder.build(mail, boundary: boundaries()))
-        #expect(raw.contains("In-Reply-To: <b@exemple.fr>\r\nReferences: <a@exemple.fr> <b@exemple.fr>\r\n"))
+        // One id per line: the header unfolds to « <a@exemple.fr> <b@exemple.fr> ».
+        #expect(raw.contains("In-Reply-To: <b@exemple.fr>\r\nReferences: <a@exemple.fr>\r\n <b@exemple.fr>\r\n"))
+    }
+
+    /// Review of 14/11: a long thread never makes a header line Gmail would refuse; a declared type and an
+    /// invisible character never slip through.
+    @Test func longReferencesFoldAndOddValuesAreRefused() throws {
+        let ids = (1...60).map { "<message-\($0)-assez-long-pour-remplir@exemple.fr>" }.joined(separator: " ")
+        var mail = OutgoingMail(from: me, to: [camille], subject: "Re: Long", text: "x", html: "x", references: ids, date: date)
+        mail.files = [OutgoingFile(filename: "a.pdf", mimeType: "application/pdf; x=\"y\"\r\nBcc: pirate@exemple.fr", data: Data("a".utf8))]
+        let raw = text(try MIMEBuilder.build(mail, boundary: boundaries()))
+        #expect(raw.components(separatedBy: "\r\n").allSatisfy { $0.utf8.count <= 998 })
+        #expect(raw.contains("<message-60-assez-long-pour-remplir@exemple.fr>") && !raw.contains("<message-30-"))
+        #expect(raw.contains("Content-Type: application/octet-stream; name=") && !raw.contains("pirate"))
+        #expect(!MIMEBuilder.isValid("camille@exemple\u{202E}rf.fr"))
     }
 
     @Test func whatGmailWouldRefuseIsRefusedFirst() {
@@ -168,6 +182,23 @@ import Testing
         #expect(html == "<div dir=\"ltr\">Merci &lt;3<br><a href=\"https://exemple.fr/maquette\">https://exemple.fr/maquette</a></div>"
             + "<br><div dir=\"ltr\" class=\"gmail_signature\"><b>Paul</b></div><br><div class=\"gmail_quote\">Q</div>")
         #expect(ReplyBuilder.text(body: "Merci", signature: "<b>Paul</b><br>Studio", quote: "> Q") == "Merci\n\n-- \nPaul\nStudio\n\n> Q")
+    }
+
+    /// Review of 14/11: a sender's HTML is quoted as a balanced block, without its styles, scripts or forms;
+    /// nothing it writes can step out of the quote and pass for Paul's words.
+    @Test func aHostileMailStaysInsideItsQuote() throws {
+        var hostile = source
+        hostile.body = #"<html><head><style>.paul{display:none}</style><meta http-equiv="refresh" content="0"></head><body>"#
+            + #"<p onclick="vol()">Voici <a href="https://exemple.fr/v2" onmouseover="x()">la maquette</a><br><img src="cid:logo"></p>"#
+            + "</blockquote></div><p>Texte glissé</p><script>alert(1)</script><form action=\"https://pirate.exemple\"><input></form></body></html>"
+        let quote = try #require(ReplyBuilder.quoteHTML(.reply, source: hostile))
+        #expect(quote.components(separatedBy: "<blockquote").count == 2 && quote.components(separatedBy: "</blockquote>").count == 2)
+        #expect(quote.hasSuffix("</blockquote></div>"))
+        let slipped = try #require(quote.range(of: "Texte glissé")), closing = try #require(quote.range(of: "</blockquote>"))
+        #expect(slipped.upperBound <= closing.lowerBound)
+        for banned in ["<style", "<script", "<meta", "<form", "onclick", "onmouseover", "</br>", "</img>"] { #expect(!quote.contains(banned), "\(banned)") }
+        #expect(quote.contains(#"<a href="https://exemple.fr/v2">la maquette</a>"#) && quote.contains(#"<img src="cid:logo">"#) && quote.contains("<br>"))
+        #expect(HTMLText.isFormatted(hostile.body) && !HTMLText.isFormatted("<div dir=\"ltr\">Bonjour<br>à demain</div>"))
     }
 
     @Test func htmlBecomesItsWords() {

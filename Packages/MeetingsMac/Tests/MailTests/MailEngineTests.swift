@@ -16,6 +16,7 @@ final class FakeGmail: @unchecked Sendable {
         var to = "moi@exemple.fr"
         var replyTo: String?
         var references: String?
+        var body: String?
     }
 
     struct StoredDraft {
@@ -37,6 +38,18 @@ final class FakeGmail: @unchecked Sendable {
     private var draftStore: [String: StoredDraft] = [:]
     private var draftCounter = 0
     var signature = "<b>Moi</b> · Studio Exemple"
+    /// Gmail takes this long to answer a draft's upload, after it made the draft: a connection cut meanwhile
+    /// leaves a draft Polhub never heard of.
+    private var slowUpload: Duration?
+    func answerUploadsAfter(_ delay: Duration?) { lock.withLock { slowUpload = delay } }
+    /// The draft changed in Gmail, on the phone: a new message under the same draft.
+    func editInGmail(_ id: String) {
+        lock.withLock {
+            draftCounter += 1
+            draftStore[id]?.messageID = "tel\(draftCounter)"
+            draftStore[id]?.raw = "modifié sur le téléphone"
+        }
+    }
 
     var drafts: [String: StoredDraft] { lock.withLock { draftStore } }
     func addGmailDraft(id: String, messageID: String, thread: String) {
@@ -84,7 +97,7 @@ final class FakeGmail: @unchecked Sendable {
             text += #","payload":{"headers":[\#(headers.joined(separator: ","))]}"#
         }
         if full {
-            let html = Data("<p>Corps de \(id)</p>".utf8).base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
+            let html = Data((mail.body ?? "<p>Corps de \(id)</p>").utf8).base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
             text += #","payload":{"mimeType":"text/html","filename":"","headers":[{"name":"From","value":"\#(mail.from)"},{"name":"To","value":"\#(mail.to)"},{"name":"Subject","value":"\#(mail.subject)"},{"name":"Authentication-Results","value":"mx.google.com; dmarc=pass"},{"name":"Content-Type","value":"text/html; charset=utf-8"}],"body":{"size":20,"data":"\#(html)"}}"#
         }
         return text + "}"
@@ -96,7 +109,8 @@ final class FakeGmail: @unchecked Sendable {
             let url = request.url!, path = url.path()
             let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
             func value(_ name: String) -> String? { items.first { $0.name == name }?.value }
-            return try lock.withLock {
+            let isUpload = path.hasPrefix("/upload/gmail/v1/users/me/drafts")
+            let answer = try lock.withLock {
                 log.append("\(request.httpMethod ?? "GET") \(path.replacingOccurrences(of: "/gmail/v1/users/me", with: ""))" + (value("format").map { " \($0)" } ?? ""))
                 if path.hasPrefix("/upload/gmail/v1/users/me/drafts") {
                     let body = String(decoding: request.httpBody ?? Data(), as: UTF8.self)
@@ -125,6 +139,10 @@ final class FakeGmail: @unchecked Sendable {
                     order.insert(sent, at: 0)
                     records.append(#"{"messagesAdded":[{"message":{"id":"\#(sent)","threadId":"\#(draft.threadID ?? sent)","labelIds":["SENT"]}}]}"#)
                     return Data(#"{"id":"\#(sent)"}"#.utf8)
+                }
+                if path.contains("/drafts/"), request.httpMethod == "GET" {
+                    guard let draft = draftStore[url.lastPathComponent] else { throw GmailAPI.error(status: 404, data: Data()) }
+                    return Data(#"{"id":"\#(url.lastPathComponent)","message":{"id":"\#(draft.messageID)"}}"#.utf8)
                 }
                 if path.contains("/drafts/"), request.httpMethod == "DELETE" {
                     guard draftStore.removeValue(forKey: url.lastPathComponent) != nil else { throw GmailAPI.error(status: 404, data: Data()) }
@@ -192,6 +210,8 @@ final class FakeGmail: @unchecked Sendable {
                 }
                 throw GoogleError.http(599)
             }
+            if isUpload, let delay = lock.withLock({ slowUpload }) { try await Task.sleep(for: delay) }
+            return answer
         }
     }
 }

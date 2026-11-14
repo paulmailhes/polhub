@@ -79,12 +79,88 @@ import Testing
         _ = try await engine.push(row.id)
         #expect(gmail.drafts.count == 1 && gmail.drafts[id]?.raw.contains("parfait") == true)
         #expect(gmail.calls.filter { $0.hasPrefix("PUT /upload/drafts/\(id)") }.count == 1)
-        // Deleted in Gmail (the phone): the next push makes a new one.
+    }
+
+    /// Review of 14/11: a draft sent or deleted elsewhere (the phone) is never made again on its own; its next
+    /// « Envoyer » would send it twice. Paul chooses.
+    @Test func aDraftGoneFromGmailWaitsForPaul() async throws {
+        let (engine, gmail, store, root) = try await setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        var row = try draft(store)
+        let id = try #require(try await engine.push(row.id).gmailDraftID)
         try await engine.discardInGmailOnly(id, gmail: gmail)
-        row.updatedAt = row.updatedAt.addingTimeInterval(10)
-        try store.saveDraft(row)
+        row = try #require(try store.updateDraft(row.id, at: Date().addingTimeInterval(60)) { $0.body = "Encore une ligne" })
+        await #expect(throws: MailDraftRow.Conflict.absent) { try await engine.push(row.id) }
+        await #expect(throws: MailDraftRow.Conflict.absent) { try await engine.send(row.id) }
+        #expect(gmail.drafts.isEmpty && !gmail.calls.contains("POST /drafts/send") && gmail.calls.filter { $0 == "POST /upload/drafts" }.count == 1)
+        #expect(try store.draft(row.id)?.conflict == .absent)
+        // « Le garder »: Gmail gets it afresh.
+        try await engine.keepMine(row.id)
         let again = try await engine.push(row.id)
-        #expect(again.gmailDraftID != id && again.gmailDraftID.flatMap { gmail.drafts[$0] } != nil)
+        #expect(again.gmailDraftID != id && again.gmailDraftID.flatMap { gmail.drafts[$0] } != nil && again.conflict == nil)
+    }
+
+    /// Changed on the phone meanwhile: Polhub does not write over it.
+    @Test func aDraftChangedInGmailIsNotWrittenOver() async throws {
+        let (engine, gmail, store, root) = try await setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let row = try draft(store)
+        let id = try #require(try await engine.push(row.id).gmailDraftID)
+        gmail.editInGmail(id)
+        try store.updateDraft(row.id, at: Date().addingTimeInterval(60)) { $0.body = "Version du Mac" }
+        await #expect(throws: MailDraftRow.Conflict.modifie) { try await engine.push(row.id) }
+        #expect(gmail.drafts[id]?.raw == "modifié sur le téléphone")
+        await #expect(throws: MailDraftRow.Conflict.modifie) { try await engine.send(row.id) }
+        // « Garder celle du Mac »: it replaces the phone's.
+        try await engine.keepMine(row.id)
+        _ = try await engine.push(row.id)
+        #expect(gmail.drafts[id]?.raw.contains("Version du Mac") == true && gmail.drafts.count == 1)
+    }
+
+    /// Review of 14/11: two pushes of one draft never make two Gmail drafts, and a push called off on the way
+    /// still records what Gmail made.
+    @Test func onePushAtATimeAndNoneCutHalfway() async throws {
+        let (engine, gmail, store, root) = try await setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let row = try draft(store)
+        gmail.answerUploadsAfter(.milliseconds(80))
+        async let first = engine.push(row.id)
+        async let second = engine.push(row.id)
+        _ = try await (first, second)
+        #expect(gmail.drafts.count == 1 && gmail.calls.filter { $0 == "POST /upload/drafts" }.count == 1)
+        let other = MailDraftRow(account: account, mode: .new, to: [MailAddress(email: "jules@exemple.fr")], subject: "Autre", createdAt: Date())
+        try store.saveDraft(other)
+        let task = Task { try await engine.push(other.id) }
+        try await Task.sleep(for: .milliseconds(20))
+        task.cancel()
+        _ = try? await task.value
+        let kept = try #require(try store.draft(other.id))
+        #expect(gmail.drafts.count == 2 && kept.gmailDraftID.flatMap { gmail.drafts[$0] } != nil)
+    }
+
+    /// A new mail moved to another mailbox leaves nothing in the first one (review of 14/11).
+    @Test func aNewMailMovedToAnotherMailboxLeavesTheFirst() async throws {
+        let (engine, gmail, store, root) = try await setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try CalendarStore(store.database).addAccount(email: "perso@exemple.fr", at: Date())
+        let row = MailDraftRow(account: account, mode: .new, subject: "Perso", body: "à la maison", createdAt: Date())
+        try store.saveDraft(row)
+        let id = try #require(try await engine.push(row.id).gmailDraftID)
+        try await engine.changeAccount(row.id, to: "perso@exemple.fr")
+        let moved = try #require(try store.draft(row.id))
+        #expect(gmail.drafts[id] == nil && gmail.calls.contains("DELETE /drafts/\(id)"))
+        #expect(moved.account == "perso@exemple.fr" && moved.gmailDraftID == nil && moved.pushedAt == nil)
+    }
+
+    /// Rows written by hand (a tricked agent) never reach a file outside the draft's folder.
+    @Test func aDraftNeverReachesOutsideItsFolder() async throws {
+        let (engine, _, store, root) = try await setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        #expect(engine.files.draftFolder(id: "../..").deletingLastPathComponent() == engine.files.root.appending(path: "brouillons", directoryHint: .isDirectory))
+        var row = try draft(store)
+        row.files = [MailDraftFile(filename: "../../../secret.txt", mimeType: "text/plain", size: 3)]
+        try store.saveDraft(row)
+        await #expect(throws: (any Error).self) { try await engine.outgoing(row) }
     }
 
     @Test func sendingGivesGmailTheLatestVersionThenSendsIt() async throws {
@@ -131,6 +207,23 @@ import Testing
         #expect(gmail.drafts.isEmpty && !gmail.calls.contains { $0.hasPrefix("POST") || $0.hasPrefix("PUT") })
     }
 
+    /// Gmail's draft with a link: its HTML stays whole, under what Paul adds; taken up twice, one draft.
+    @Test func aGmailDraftWithLinksKeepsItsHTML() async throws {
+        let (engine, gmail, store, root) = try await setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        gmail.add("d2", .init(thread: "t9", labels: ["DRAFT"], from: "Moi <moi@exemple.fr>", minutes: 5, to: "Camille Martin <camille@exemple.fr>",
+                              body: #"<div>Voir <a href="https://exemple.fr/devis">le devis</a></div>"#))
+        gmail.addGmailDraft(id: "r-lien", messageID: "d2", thread: "t9")
+        await engine.step(account)
+        let message = try #require(try store.gmailOnlyDrafts().first)
+        let row = try await engine.resume(gmailDraft: message)
+        #expect(row.body.isEmpty)
+        #expect(row.quoteHTML?.contains("https://exemple.fr/devis") == true)
+        #expect(row.quoteText?.contains("le devis") == true)
+        let twice = try await engine.resume(gmailDraft: message)
+        #expect(try twice.id == row.id && store.drafts().count == 1)
+    }
+
     @Test func aDraftWrittenInGmailIsTakenUp() async throws {
         let (engine, gmail, store, root) = try await setUp()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -165,5 +258,26 @@ extension MailEngine {
     /// For the tests: the draft disappears in Gmail only, as when Paul deletes it on his phone.
     func discardInGmailOnly(_ gmailDraftID: String, gmail: FakeGmail) async throws {
         _ = try await gmail.send { GmailAPI.draftDeleteRequest(accessToken: $0, draftID: gmailDraftID) }
+    }
+}
+
+/// Review of 14/11: what Paul joins is a file, under a name of its own.
+@Suite struct JoiningFilesTests {
+    @Test func twoFilesOfOneNameKeepTheirOwn() {
+        #expect(AttachmentSafety.uniqueName("devis.pdf", taken: []) == "devis.pdf")
+        #expect(AttachmentSafety.uniqueName("devis.pdf", taken: ["devis.pdf"]) == "devis 2.pdf")
+        #expect(AttachmentSafety.uniqueName("", taken: ["piece-jointe", "piece-jointe 2"]) == "piece-jointe 3")
+    }
+
+    @Test func aFolderIsRefusedAndALinkGivesItsFile() throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "joindre-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try FileManager.default.createDirectory(at: folder.appending(path: "Projet.app/Contents"), withIntermediateDirectories: true)
+        try Data("devis".utf8).write(to: folder.appending(path: "devis.txt"))
+        try FileManager.default.createSymbolicLink(at: folder.appending(path: "lien.txt"), withDestinationURL: folder.appending(path: "devis.txt"))
+        #expect(throws: AttachmentSafety.Refusal.folder(folder.lastPathComponent)) { try AttachmentSafety.joinable(folder) }
+        #expect(throws: AttachmentSafety.Refusal.folder("Projet.app")) { try AttachmentSafety.joinable(folder.appending(path: "Projet.app")) }
+        let linked = try AttachmentSafety.joinable(folder.appending(path: "lien.txt"))
+        #expect(linked.url.lastPathComponent == "devis.txt" && linked.size == 5)
     }
 }

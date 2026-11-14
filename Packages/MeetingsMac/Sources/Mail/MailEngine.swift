@@ -292,8 +292,10 @@ public actor MailEngine {
         try store.apply(account: account, labels: labels, removed: current.keys.filter { !listed.contains($0) })
         let missing = all.filter { current[$0] == nil }
         backlog[account] = missing
+        // The mailbox's name and signature stay (review of 14/11): the drafts keep signing.
+        let known = try store.cursor(account: account)
         try store.save(MailCursorRow(account: account, historyID: profile.historyId, total: all.count, done: all.count - missing.count,
-                                     finishedAt: missing.isEmpty ? now() : nil, lastSyncAt: now()))
+                                     finishedAt: missing.isEmpty ? now() : nil, lastSyncAt: now(), senderName: known?.senderName, signature: known?.signature))
     }
 
     // MARK: - Paul's gestures
@@ -402,6 +404,10 @@ public actor MailEngine {
 
     // MARK: - Writing (step « Écrire », 14/11)
 
+    /// The push under way for each draft, and its token.
+    private var pushing: [String: (token: Int, task: Task<MailDraftRow, Error>)] = [:]
+    private var pushCount = 0
+
     /// The name and Gmail's signature of a mailbox, read once a launch: the drafts sign as Gmail would.
     func readIdentity(_ account: String) async {
         guard let list = try? await get(GmailAPI.SendAsList.self, account, cost: GmailAPI.Cost.sendAs, { GmailAPI.sendAsRequest(accessToken: $0) }),
@@ -424,13 +430,13 @@ public actor MailEngine {
                            references: headers?.header("References"), body: body, isHTML: message.bodyIsHTML)
     }
 
-    /// The draft as it leaves: Paul's text, the mailbox's signature, the quoted message, the files.
+    /// The draft as it leaves: Paul's text, the mailbox's signature, the quoted message, the files. A file
+    /// whose name Polhub would not have written is refused.
     func outgoing(_ draft: MailDraftRow) throws -> OutgoingMail {
         let cursor = try store.cursor(account: draft.account)
         let signature = draft.signature ? cursor?.signature : nil
-        let folder = files.draftFolder(draft)
         let attached = try draft.files.map { file in
-            OutgoingFile(filename: file.filename, mimeType: file.mimeType, data: try Data(contentsOf: folder.appending(path: file.filename)))
+            OutgoingFile(filename: file.filename, mimeType: file.mimeType, data: try Data(contentsOf: try files.draftFile(file, of: draft)))
         }
         return OutgoingMail(from: MailAddress(name: cursor?.senderName, email: draft.account), to: draft.to, cc: draft.cc, bcc: draft.bcc,
                             subject: draft.subject, text: ReplyBuilder.text(body: draft.body, signature: signature, quote: draft.quoteText),
@@ -438,42 +444,134 @@ public actor MailEngine {
                             inReplyTo: draft.inReplyTo, references: draft.references, files: attached, date: now())
     }
 
-    /// Gives Gmail the draft's latest version: created the first time, replaced after. A draft deleted in
-    /// Gmail meanwhile is created again.
+    /// Gives Gmail the draft's latest version: created the first time, replaced after. One push at a time per
+    /// draft, and none is ever cut halfway: Gmail may have made the draft before the answer comes back (review
+    /// of 14/11). A Gmail copy sent, deleted or changed elsewhere stops it: Paul chooses.
     @discardableResult
     public func push(_ draftID: String) async throws -> MailDraftRow {
         guard flavor == .prod else { throw GoogleError.readOnlyBuild }
+        return try await oneAtATime(draftID) { try await $0.pushNow(draftID, always: true) }
+    }
+
+    private func oneAtATime(_ draftID: String, _ work: @escaping @Sendable (MailEngine) async throws -> MailDraftRow) async throws -> MailDraftRow {
+        await settled(draftID)
+        pushCount += 1
+        let token = pushCount
+        // Not the caller's task: calling it off never cuts the request. The task takes itself off the list
+        // when it ends, on the actor, before anyone waiting resumes.
+        let task = Task {
+            defer { self.release(draftID, token) }
+            return try await work(self)
+        }
+        pushing[draftID] = (token, task)
+        return try await task.value
+    }
+
+    private func release(_ draftID: String, _ token: Int) {
+        if pushing[draftID]?.token == token { pushing[draftID] = nil }
+    }
+
+    /// Waits for the push under way, if any.
+    private func settled(_ draftID: String) async {
+        while let running = pushing[draftID] { _ = try? await running.task.value }
+    }
+
+    private func pushNow(_ draftID: String, always: Bool) async throws -> MailDraftRow {
         guard let draft = try store.draft(draftID) else { throw GoogleError.notFound }
+        if let conflict = draft.conflict { throw conflict }
+        if let existing = draft.gmailDraftID { try await check(draft, existing) }
+        guard always || draft.needsPush || draft.gmailDraftID == nil else { return draft }
         let version = draft.updatedAt
         let raw = try MIMEBuilder.build(try outgoing(draft), draft: true)
         let threadID = draft.threadKey.map { String($0.dropFirst(draft.account.count + 1)) }
-        func upload(_ existing: String?) async throws -> GmailAPI.Draft {
-            try await get(GmailAPI.Draft.self, draft.account, cost: existing == nil ? GmailAPI.Cost.draftCreate : GmailAPI.Cost.draftUpdate) {
-                GmailAPI.draftUploadRequest(accessToken: $0, draftID: existing, raw: raw, threadID: threadID)
-            }
-        }
         let answer: GmailAPI.Draft
         do {
-            answer = try await upload(draft.gmailDraftID)
+            answer = try await get(GmailAPI.Draft.self, draft.account, cost: draft.gmailDraftID == nil ? GmailAPI.Cost.draftCreate : GmailAPI.Cost.draftUpdate) {
+                GmailAPI.draftUploadRequest(accessToken: $0, draftID: draft.gmailDraftID, raw: raw, threadID: threadID)
+            }
         } catch GoogleError.notFound where draft.gmailDraftID != nil {
-            answer = try await upload(nil)
+            try store.setConflict(draftID, .absent)
+            throw MailDraftRow.Conflict.absent
         }
         try store.markPushed(draftID: draftID, gmailDraftID: answer.id, gmailMessageID: answer.message?.id, version: version, at: now())
         return try store.draft(draftID) ?? draft
     }
 
+    /// Gmail's copy is still the one Polhub gave: same draft, same message.
+    private func check(_ draft: MailDraftRow, _ gmailDraftID: String) async throws {
+        do {
+            let held = try await get(GmailAPI.Draft.self, draft.account, cost: GmailAPI.Cost.draftGet) {
+                GmailAPI.draftRequest(accessToken: $0, draftID: gmailDraftID)
+            }
+            if let known = draft.gmailMessageID, let current = held.message?.id, current != known {
+                try store.setConflict(draft.id, .modifie)
+                throw MailDraftRow.Conflict.modifie
+            }
+        } catch GoogleError.notFound {
+            try store.setConflict(draft.id, .absent)
+            throw MailDraftRow.Conflict.absent
+        }
+    }
+
+    /// « Garder celui-ci »: a draft gone from Gmail is made again; one changed elsewhere is written over.
+    public func keepMine(_ draftID: String) async throws {
+        await settled(draftID)
+        guard let draft = try store.draft(draftID), let conflict = draft.conflict else { return }
+        switch conflict {
+        case .absent:
+            try store.forgetGmailCopy(draftID)
+        case .modifie:
+            guard let gmailDraftID = draft.gmailDraftID else { return try store.forgetGmailCopy(draftID) }
+            do {
+                let held = try await get(GmailAPI.Draft.self, draft.account, cost: GmailAPI.Cost.draftGet) {
+                    GmailAPI.draftRequest(accessToken: $0, draftID: gmailDraftID)
+                }
+                try store.markPushed(draftID: draftID, gmailDraftID: gmailDraftID, gmailMessageID: held.message?.id,
+                                     version: draft.pushedAt ?? .distantPast, at: now())
+                try store.setConflict(draftID, nil)
+            } catch GoogleError.notFound {
+                try store.forgetGmailCopy(draftID)
+            }
+        }
+    }
+
+    /// « Le supprimer » or « Prendre celui de Gmail »: the draft leaves Polhub only; Gmail's copy, if any,
+    /// stays among the drafts begun elsewhere.
+    public func forgetLocally(_ draftID: String) async throws {
+        await settled(draftID)
+        guard let draft = try store.draft(draftID) else { return }
+        try store.deleteDraft(draftID)
+        try? FileManager.default.removeItem(at: files.draftFolder(draft))
+        kick(draft.account)
+    }
+
+    /// A new mail now leaving from another mailbox: its Gmail draft leaves the first one (review of 14/11).
+    public func changeAccount(_ draftID: String, to account: String) async throws {
+        await settled(draftID)
+        guard let draft = try store.draft(draftID), draft.account != account.lowercased() else { return }
+        if flavor == .prod, let gmailDraftID = draft.gmailDraftID {
+            do {
+                await pacer(draft.account).take(GmailAPI.Cost.draftDelete)
+                _ = try await sendFor(draft.account)({ GmailAPI.draftDeleteRequest(accessToken: $0, draftID: gmailDraftID) })
+            } catch GoogleError.notFound {}
+        }
+        try store.forgetGmailCopy(draftID, account: account)
+    }
+
     /// Sends what Gmail holds of the draft, after giving it the latest version. Only Paul's click leads here:
-    /// nothing in the base ever asks for a send.
+    /// nothing in the base ever asks for a send. A Gmail copy sent or changed elsewhere never leaves.
     public func send(_ draftID: String) async throws {
         guard flavor == .prod else { throw GoogleError.readOnlyBuild }
-        guard var draft = try store.draft(draftID) else { throw GoogleError.notFound }
-        _ = try MIMEBuilder.build(try outgoing(draft))
-        if draft.needsPush || draft.gmailDraftID == nil { draft = try await push(draftID) }
+        guard let current = try store.draft(draftID) else { throw GoogleError.notFound }
+        if let conflict = current.conflict { throw conflict }
+        _ = try MIMEBuilder.build(try outgoing(current))
+        let draft = try await oneAtATime(draftID) { try await $0.pushNow(draftID, always: false) }
         guard let gmailDraftID = draft.gmailDraftID else { throw GoogleError.badAnswer }
         do {
             await pacer(draft.account).take(GmailAPI.Cost.draftSend)
             _ = try await sendFor(draft.account)({ GmailAPI.draftSendRequest(accessToken: $0, draftID: gmailDraftID) })
         } catch GoogleError.notFound {
+            try store.setConflict(draftID, .absent)
             throw GoogleError.refused("Gmail n'a plus ce brouillon : regarde dans Envoyés s'il est déjà parti")
         }
         try store.deleteDraft(draftID)
@@ -483,8 +581,9 @@ public actor MailEngine {
 
     /// The draft goes, here and in Gmail.
     public func discard(_ draftID: String) async throws {
+        await settled(draftID)
         guard let draft = try store.draft(draftID) else { return }
-        if flavor == .prod, let gmailDraftID = draft.gmailDraftID {
+        if flavor == .prod, let gmailDraftID = draft.gmailDraftID, draft.conflict != .modifie {
             do {
                 await pacer(draft.account).take(GmailAPI.Cost.draftDelete)
                 _ = try await sendFor(draft.account)({ GmailAPI.draftDeleteRequest(accessToken: $0, draftID: gmailDraftID) })
@@ -495,8 +594,11 @@ public actor MailEngine {
         kick(draft.account)
     }
 
-    /// A draft written in Gmail (the phone, the web), taken up in Polhub: its text, its people, its files.
+    /// A draft written in Gmail (the phone, the web), taken up in Polhub: its text, its people, its files. A
+    /// formatted draft (links, images) keeps its HTML whole, below what Paul adds; taken up twice, it is the
+    /// same draft.
     public func resume(gmailDraft message: MailMessageRow) async throws -> MailDraftRow {
+        if let already = try store.drafts().first(where: { $0.gmailMessageID == message.messageID }) { return already }
         var gmailDraftID: String?, token: String?
         repeat {
             let pageToken = token
@@ -507,26 +609,33 @@ public actor MailEngine {
             token = page.nextPageToken
         } while gmailDraftID == nil && token != nil
         guard let gmailDraftID else { throw GoogleError.notFound }
+        if let already = try store.drafts().first(where: { $0.gmailDraftID == gmailDraftID }) { return already }
         let headers = try await get(GmailAPI.Message.self, message.account, cost: GmailAPI.Cost.metadata) {
             GmailAPI.messageRequest(accessToken: $0, id: message.messageID, format: .metadata, headers: ["Bcc", "In-Reply-To", "References"])
         }.payload
         let body = try await self.body(of: message)
+        let rich = message.bodyIsHTML && HTMLText.isFormatted(body)
         let others = try store.messages(threadKey: message.threadKey).filter { $0.id != message.id }
         var draft = MailDraftRow(account: message.account, mode: others.isEmpty ? .new : .reply, threadKey: others.isEmpty ? nil : message.threadKey,
                                  to: message.to, cc: message.cc, bcc: MailParser.addresses(headers?.header("Bcc")), subject: message.subject == "(sans objet)" ? "" : message.subject,
-                                 body: message.bodyIsHTML ? HTMLText.plain(body) : body, inReplyTo: headers?.header("In-Reply-To"),
-                                 references: headers?.header("References"), signature: false, gmailDraftID: gmailDraftID,
-                                 gmailMessageID: message.messageID, origin: .gmail, createdAt: message.date, updatedAt: now())
-        // Gmail holds it as it is: nothing goes back until Paul changes it (its formatting would be lost).
+                                 body: rich ? "" : (message.bodyIsHTML ? HTMLText.plain(body) : body),
+                                 quoteHTML: rich ? HTMLText.quotable(body) : nil, quoteText: rich ? HTMLText.plain(body) : nil,
+                                 inReplyTo: headers?.header("In-Reply-To"), references: headers?.header("References"), signature: false,
+                                 gmailDraftID: gmailDraftID, gmailMessageID: message.messageID, origin: .gmail, createdAt: message.date, updatedAt: now())
+        // Gmail holds it as it is: nothing goes back until Paul changes it.
         draft.pushedAt = draft.updatedAt
+        try store.saveDraft(draft)
         let folder = files.draftFolder(draft)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        var taken: Set<String> = []
         for attachment in message.files {
             let source = try await file(attachment, of: message)
-            let target = folder.appending(path: AttachmentSafety.cleanName(attachment.filename))
+            let name = AttachmentSafety.uniqueName(attachment.filename, taken: taken)
+            taken.insert(name)
+            let target = folder.appending(path: name)
             try? FileManager.default.removeItem(at: target)
             try FileManager.default.copyItem(at: source, to: target)
-            draft.files.append(MailDraftFile(filename: target.lastPathComponent, mimeType: attachment.mimeType, size: attachment.size))
+            draft.files.append(MailDraftFile(filename: name, mimeType: attachment.mimeType, size: attachment.size))
         }
         try store.saveDraft(draft)
         return draft

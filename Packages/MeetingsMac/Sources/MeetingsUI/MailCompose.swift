@@ -11,9 +11,13 @@ import UniformTypeIdentifiers
 struct RecipientField: View {
     let label: String
     @Binding var addresses: [MailAddress]
+    /// What is typed and not yet a chip: the composer takes it before sending (review of 14/11).
+    @Binding var text: String
     let suggest: (String) -> [MailAddress]
+    /// A contact or someone Paul wrote to; any other address shows in full.
+    let isKnown: (String) -> Bool
     var trailing: AnyView? = nil
-    @State private var text = ""
+    var onFocus: (Bool) -> Void = { _ in }
     @FocusState private var focused: Bool
 
     /// « Camille Martin <camille@exemple.fr> », « camille@exemple.fr », several separated by commas.
@@ -43,16 +47,21 @@ struct RecipientField: View {
                 FlowLayout(spacing: 6) {
                     ForEach(addresses, id: \.email) { address in
                         let valid = MIMEBuilder.isValid(address.email)
+                        let known = isKnown(address.email)
                         HStack(spacing: 3) {
-                            Text(address.name ?? address.email).lineLimit(1)
+                            if !known, valid { Image(systemName: "questionmark.circle").font(.caption) }
+                            // A stranger's name never hides its address: « baptiste@client.fr » could be anyone's.
+                            Text(known ? (address.name ?? address.email) : [address.name, address.email].compactMap { $0 }.joined(separator: " · "))
+                                .lineLimit(1)
                             Button { addresses.removeAll { $0.email == address.email } } label: { Image(systemName: "xmark").font(.caption2.bold()) }
                                 .buttonStyle(.plain)
                                 .help("Retirer \(address.email)")
                         }
                         .padding(.horizontal, 8).padding(.vertical, 2)
-                        .background(valid ? Surface.raised : Color.red.opacity(0.18), in: Capsule())
-                        .foregroundStyle(valid ? Color.primary : Color.red)
-                        .help(valid ? address.email : "« \(address.email) » n'est pas une adresse valide")
+                        .background(!valid ? Color.red.opacity(0.18) : (known ? Surface.raised : Color.orange.opacity(0.16)), in: Capsule())
+                        .foregroundStyle(!valid ? Color.red : (known ? Color.primary : Color.orange))
+                        .help(!valid ? "« \(address.email) » n'est pas une adresse valide"
+                              : (known ? address.email : "\(address.email) : tu n'as jamais écrit à cette adresse, vérifie-la"))
                     }
                     TextField("", text: $text)
                         .textFieldStyle(.plain)
@@ -60,7 +69,10 @@ struct RecipientField: View {
                         .frame(minWidth: 160)
                         .onSubmit { commit(matches.first.flatMap { text.contains("@") ? nil : $0 }) }
                         .onChange(of: text) { _, typed in if typed.contains(",") || typed.contains(";") { commit() } }
-                        .onChange(of: focused) { _, on in if !on, !text.isEmpty { commit() } }
+                        .onChange(of: focused) { _, on in
+                            if !on, !text.isEmpty { commit() }
+                            onFocus(on)
+                        }
                         .onKeyPress(.delete) {
                             guard text.isEmpty, !addresses.isEmpty else { return .ignored }
                             addresses.removeLast()
@@ -104,7 +116,21 @@ struct ComposeView: View {
     @State private var showQuote = false
     @State private var dropping = false
     @State private var confirmingDiscard = false
-    @FocusState private var bodyFocused: Bool
+    /// The text and the subject as typed, kept here: a late reading of the base never takes a keystroke back
+    /// (review of 14/11).
+    @State private var text = ""
+    @State private var subject = ""
+    @State private var loaded = false
+    @State private var pendingTo = ""
+    @State private var pendingCc = ""
+    @State private var pendingBcc = ""
+    @State private var recipientsFocused = false
+    @FocusState private var focus: Field?
+
+    enum Field { case body, subject }
+
+    /// ⌘↩ belongs to the draft being written, never to another on the same screen.
+    private var isActive: Bool { focus != nil || recipientsFocused }
 
     private var draft: MailDraftRow? { mails.drafts.first { $0.id == draftID } }
 
@@ -118,13 +144,15 @@ struct ComposeView: View {
             VStack(alignment: .leading, spacing: Space.m) {
                 fields(draft)
                 Divider()
-                TextEditor(text: binding(\.body, default: ""))
+                if let conflict = draft.conflict { conflictBanner(conflict) }
+                TextEditor(text: $text)
                     .font(.body)
                     .scrollContentBackground(.hidden)
-                    .focused($bodyFocused)
+                    .focused($focus, equals: .body)
                     .frame(minHeight: 160)
+                    .onChange(of: text) { _, typed in if loaded { mails.edit(draftID) { $0.body = typed } } }
                     .overlay(alignment: .topLeading) {
-                        if draft.body.isEmpty {
+                        if text.isEmpty {
                             Text(draft.mode == .new ? "Écris ton mail…" : "Écris ta réponse…").foregroundStyle(.tertiary).padding(.leading, 5).allowsHitTesting(false)
                         }
                     }
@@ -166,9 +194,14 @@ struct ComposeView: View {
                 return true
             }
             .onAppear {
+                if !loaded {
+                    text = draft.body
+                    subject = draft.subject
+                    loaded = true
+                }
                 showCc = !draft.cc.isEmpty
                 showBcc = !draft.bcc.isEmpty
-                if draft.mode != .new { bodyFocused = true }
+                if draft.mode != .new { focus = .body }
             }
             .confirmationDialog("Supprimer ce brouillon ?", isPresented: $confirmingDiscard) {
                 Button("Supprimer", role: .destructive) { mails.discard(draftID) }
@@ -201,18 +234,27 @@ struct ComposeView: View {
                 }
                 Spacer()
             }
-            RecipientField(label: "À", addresses: binding(\.to, default: []), suggest: mails.suggestions(for:), trailing: AnyView(
+            RecipientField(label: "À", addresses: binding(\.to, default: []), text: $pendingTo, suggest: mails.suggestions(for:), isKnown: mails.isKnown,
+                           trailing: AnyView(
                 HStack(spacing: Space.s) {
                     if !showCc { Button("Cc") { showCc = true }.buttonStyle(.borderless) }
                     if !showBcc { Button("Cci") { showBcc = true }.buttonStyle(.borderless) }
                 }
                 .font(.callout)
-            ))
-            if showCc { RecipientField(label: "Cc", addresses: binding(\.cc, default: []), suggest: mails.suggestions(for:)) }
-            if showBcc { RecipientField(label: "Cci", addresses: binding(\.bcc, default: []), suggest: mails.suggestions(for:)) }
+            ), onFocus: { recipientsFocused = $0 })
+            if showCc {
+                RecipientField(label: "Cc", addresses: binding(\.cc, default: []), text: $pendingCc, suggest: mails.suggestions(for:), isKnown: mails.isKnown,
+                               onFocus: { recipientsFocused = $0 })
+            }
+            if showBcc {
+                RecipientField(label: "Cci", addresses: binding(\.bcc, default: []), text: $pendingBcc, suggest: mails.suggestions(for:), isKnown: mails.isKnown,
+                               onFocus: { recipientsFocused = $0 })
+            }
             HStack(spacing: Space.s) {
                 Text("Objet").foregroundStyle(.secondary).frame(width: 34, alignment: .leading)
-                TextField("", text: binding(\.subject, default: "")).textFieldStyle(.plain).font(.body.weight(.medium))
+                TextField("", text: $subject).textFieldStyle(.plain).font(.body.weight(.medium))
+                    .focused($focus, equals: .subject)
+                    .onChange(of: subject) { _, typed in if loaded { mails.edit(draftID) { $0.subject = typed } } }
             }
         }
     }
@@ -252,9 +294,9 @@ struct ComposeView: View {
 
     private func footer(_ draft: MailDraftRow, leaving: Bool) -> some View {
         HStack(spacing: Space.m) {
-            Button { mails.send(draftID) } label: { Label("Envoyer", systemImage: "paperplane.fill") }
+            Button(action: sendNow) { Label("Envoyer", systemImage: "paperplane.fill") }
                 .buttonStyle(.glassProminent)
-                .keyboardShortcut(.return, modifiers: .command)
+                .keyboardShortcut(isActive ? KeyboardShortcut(.return, modifiers: .command) : nil)
                 .disabled(mails.sendProblem(draft) != nil || mails.sending != nil)
                 .help(mails.sendProblem(draft) ?? "Envoyer (⌘↩) : tu as dix secondes pour l'annuler")
             Button {
@@ -274,11 +316,57 @@ struct ComposeView: View {
         }
     }
 
+    /// The addresses typed and not yet chips go with the mail; an incomplete one stops it.
+    private func sendNow() {
+        let pending = [(RecipientField.parse(pendingTo), \MailDraftRow.to), (RecipientField.parse(pendingCc), \MailDraftRow.cc),
+                       (RecipientField.parse(pendingBcc), \MailDraftRow.bcc)]
+        if let bad = pending.flatMap(\.0).first(where: { !MIMEBuilder.isValid($0.email) }) {
+            mails.message = "L'adresse « \(bad.email) » n'est pas complète : corrige-la avant d'envoyer."
+            return
+        }
+        if pending.contains(where: { !$0.0.isEmpty }) {
+            mails.edit(draftID) { draft in
+                for (addresses, path) in pending {
+                    for address in addresses where !draft[keyPath: path].contains(where: { $0.email == address.email }) { draft[keyPath: path].append(address) }
+                }
+            }
+            pendingTo = ""
+            pendingCc = ""
+            pendingBcc = ""
+        }
+        mails.send(draftID)
+    }
+
+    /// Gmail's copy went its own way: Paul chooses which version lives on.
+    private func conflictBanner(_ conflict: MailDraftRow.Conflict) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: Space.m) {
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+            switch conflict {
+            case .absent:
+                Text("Ce brouillon n'est plus dans Gmail : il a peut-être été envoyé ou supprimé ailleurs. Regarde dans Envoyés avant de le renvoyer.")
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                Button("Le garder") { mails.keepDraft(draftID) }
+                Button("Le supprimer") { mails.forgetDraft(draftID, gmailKept: false) }
+            case .modifie:
+                Text("Ce brouillon a été modifié dans Gmail, sur un autre appareil.").fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                Button("Garder celui-ci") { mails.keepDraft(draftID) }
+                Button("Prendre celui de Gmail") { mails.forgetDraft(draftID, gmailKept: true) }
+            }
+        }
+        .font(.callout)
+        .padding(Space.m)
+        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
+    }
+
     @ViewBuilder
     private func status(_ draft: MailDraftRow, leaving: Bool) -> some View {
         Group {
             if leaving {
                 Text("Envoi en cours…")
+            } else if draft.conflict != nil {
+                Text("En attente de ton choix")
             } else if let error = draft.lastError {
                 Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange).lineLimit(2)
             } else if draft.gmailDraftID != nil, !draft.needsPush {

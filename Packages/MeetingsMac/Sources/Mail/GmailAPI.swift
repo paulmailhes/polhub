@@ -13,7 +13,7 @@ public enum GmailAPI {
     public enum Cost {
         public static let profile = 1, label = 1, history = 2, messageList = 5, threadList = 10
         public static let metadata = 20, full = 60, batchModify = 50, untrash = 5, thread = 120, attachment = 20
-        public static let sendAs = 1, draftCreate = 10, draftUpdate = 15, draftSend = 100, draftDelete = 10, draftList = 5
+        public static let sendAs = 1, draftCreate = 10, draftUpdate = 15, draftSend = 100, draftDelete = 10, draftList = 5, draftGet = 5
     }
 
     // MARK: - Requests
@@ -105,6 +105,11 @@ public enum GmailAPI {
     /// Gmail sends the draft it holds; the draft disappears and a sent message takes its place.
     public static func draftSendRequest(accessToken: String, draftID: String) -> URLRequest {
         request("/drafts/send", accessToken: accessToken, method: "POST", json: ["id": draftID])
+    }
+
+    /// What Gmail holds of a draft now: its message's id changes with every version, wherever it was written.
+    public static func draftRequest(accessToken: String, draftID: String) -> URLRequest {
+        request("/drafts/\(draftID)", [URLQueryItem(name: "format", value: "minimal")], accessToken: accessToken)
     }
 
     public static func draftDeleteRequest(accessToken: String, draftID: String) -> URLRequest {

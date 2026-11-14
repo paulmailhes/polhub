@@ -119,10 +119,15 @@ public final class MailLibrary: ObservableObject {
     @Published public private(set) var sent: [MailThreadRow] = []
     /// The draft open over the list: a new mail, a draft taken from the list.
     @Published public var composing: String?
-    /// The mail leaving: Paul has ten seconds to call it back.
-    @Published public private(set) var sending: (draftID: String, subject: String, at: Date)?
-    /// New mails written while several mailboxes show: they leave only once Paul has chosen the mailbox.
-    @Published public private(set) var unconfirmed: Set<String> = []
+    /// The mail leaving: Paul has ten seconds to call it back; once `leaving`, it is on its way to Gmail.
+    @Published public private(set) var sending: (draftID: String, subject: String, at: Date, leaving: Bool)?
+    /// New mails written while several mailboxes show: they reach Gmail and leave only once Paul has chosen the
+    /// mailbox. Kept across launches.
+    @Published public private(set) var unconfirmed: Set<String> = [] {
+        didSet { defaults.set(unconfirmed.sorted(), forKey: Preferences.Key.mailUnconfirmed) }
+    }
+    /// The people Paul wrote to: an address among them, or a contact, is known.
+    @Published public private(set) var correspondents: Set<String> = []
     /// The search field's text.
     @Published public var query = ""
     /// Only the unread threads of the tab.
@@ -131,7 +136,9 @@ public final class MailLibrary: ObservableObject {
     @Published public private(set) var subscriptions: [MailSubscription] = []
     /// The senders Paul left from Polhub, with the day.
     @Published public private(set) var unsubscribed: [String: Date] = [:]
-    private var pushes: [String: Task<Void, Never>] = [:]
+    private var pushes: [String: (token: Int, task: Task<Void, Never>)] = [:]
+    private var pushCount = 0
+    private var pendingChecked = false
     private var sendTask: Task<Void, Never>?
 
     public let agenda: AgendaLibrary
@@ -150,6 +157,7 @@ public final class MailLibrary: ObservableObject {
         self.store = MailStore(agenda.database)
         self.hidden = Set(defaults.stringArray(forKey: Preferences.Key.mailHiddenAccounts) ?? [])
         self.unsubscribed = (defaults.dictionary(forKey: Preferences.Key.mailUnsubscribed) as? [String: Date]) ?? [:]
+        self.unconfirmed = Set(defaults.stringArray(forKey: Preferences.Key.mailUnconfirmed) ?? [])
         let relay = MailArrivalRelay()
         self.engine = MailEngine(database: agenda.database, root: root, sendFor: { [agenda] account in
             { build in try await agenda.mailSend(for: account)(build) }
@@ -157,10 +165,19 @@ public final class MailLibrary: ObservableObject {
         relay.handler = { [weak self] rows in self?.arrived(rows) }
         observations = [
             store.observeInbox { [weak self] in
-                self?.inbox = $0
-                self?.refreshFolders()
+                guard let self else { return }
+                self.inbox = $0
+                self.correspondents = (try? self.store.correspondents()) ?? []
+                self.refreshFolders()
             },
-            store.observeDrafts { [weak self] in self?.drafts = $0 },
+            store.observeDrafts { [weak self] in
+                guard let self else { return }
+                self.drafts = $0
+                if !self.pendingChecked {
+                    self.pendingChecked = true
+                    self.pushPending()
+                }
+            },
             store.observeCursors { [weak self] rows in self?.cursors = Dictionary(uniqueKeysWithValues: rows.map { ($0.account, $0) }) },
             store.observeSenders { [weak self] in self?.senders = $0 },
         ]
@@ -188,6 +205,7 @@ public final class MailLibrary: ObservableObject {
     /// Asks Gmail what is new, now.
     public func refresh() {
         for account in accounts { Task { await engine.kick(account.email) } }
+        pushPending()
     }
 
     /// Mails just arrived in an inbox: those of the main tab are told.
@@ -407,7 +425,12 @@ public final class MailLibrary: ObservableObject {
         case .afficher: return true
         case .demander: return false
         case .connus:
-            if message.labels.contains("SENT") { return true }
+            // Paul's own mail may quote a stranger's (review of 14/11): its images load only if everyone else
+            // in the thread is known.
+            if message.labels.contains("SENT") {
+                return thread.senders.map { $0.email.lowercased() }.filter { !mine.contains($0) }
+                    .allSatisfy { senders[$0]?.images == true || isKnown($0) }
+            }
             guard message.authenticated, let sender = message.sender?.email else { return false }
             return senders[sender]?.images == true || thread.paulWrote || agenda.contact(email: sender) != nil
         }
@@ -422,6 +445,13 @@ public final class MailLibrary: ObservableObject {
 
     /// Paul's own addresses.
     var mine: Set<String> { Set(agenda.accounts.map(\.email)) }
+
+    /// A contact, someone Paul wrote to, or Paul: never a stranger. A stranger's address shows in full in a
+    /// draft (review of 14/11).
+    public func isKnown(_ email: String) -> Bool {
+        let address = email.lowercased()
+        return mine.contains(address) || correspondents.contains(address) || agenda.contact(email: address) != nil
+    }
 
     /// A mail leaving, or about to: the app's updates wait for it.
     public var isSending: Bool { sending != nil }
@@ -466,7 +496,14 @@ public final class MailLibrary: ObservableObject {
     /// The mailbox a new mail leaves from; it moves with its files.
     public func setAccount(_ account: String, for draftID: String) {
         unconfirmed.remove(draftID)
-        edit(draftID) { $0.account = account }
+        Task {
+            do {
+                try await engine.changeAccount(draftID, to: account)
+            } catch {
+                message = "Changement de boîte impossible : \(error)"
+            }
+            schedulePush(draftID, after: .zero)
+        }
     }
 
     /// Reply, reply to all, forward: a draft below the thread, its people and its quote ready. A draft already
@@ -485,9 +522,12 @@ public final class MailLibrary: ObservableObject {
                 // The files go with a forward, as in Gmail.
                 let folder = engine.files.draftFolder(draft)
                 try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                var taken: Set<String> = []
                 for file in message.files {
                     let source = try await engine.file(file, of: message)
-                    let target = folder.appending(path: AttachmentSafety.cleanName(file.filename))
+                    let name = AttachmentSafety.uniqueName(file.filename, taken: taken)
+                    taken.insert(name)
+                    let target = folder.appending(path: name)
                     try? FileManager.default.removeItem(at: target)
                     try FileManager.default.copyItem(at: source, to: target)
                     draft.files.append(MailDraftFile(filename: target.lastPathComponent, mimeType: file.mimeType, size: file.size))
@@ -504,68 +544,134 @@ public final class MailLibrary: ObservableObject {
     /// Paul changed a draft: kept on the Mac now, given to Gmail three seconds after his last change. Only the
     /// fields he writes are taken: what Gmail answered meanwhile stays.
     public func edit(_ draftID: String, _ change: (inout MailDraftRow) -> Void) {
-        guard var draft = try? store.draft(draftID) else { return }
-        let before = draft
-        change(&draft)
-        guard draft != before else { return }
-        draft.updatedAt = Date()
-        draft.lastError = nil
-        try? store.saveDraft(draft)
+        guard let draft = try? store.updateDraft(draftID, at: Date(), change), draft.needsPush else { return }
         schedulePush(draftID)
     }
 
+    /// Calling a push off only stops its wait: once on its way, the engine sees it through (review of 14/11).
     private func schedulePush(_ draftID: String, after delay: Duration = .seconds(3)) {
-        pushes[draftID]?.cancel()
-        pushes[draftID] = Task { [weak self] in
+        guard !unconfirmed.contains(draftID) else { return }
+        pushes[draftID]?.task.cancel()
+        pushCount += 1
+        let token = pushCount
+        let task = Task { [weak self] in
             try? await Task.sleep(for: delay)
             guard !Task.isCancelled, let self else { return }
             do {
                 try await self.engine.push(draftID)
             } catch GoogleError.readOnlyBuild {
+            } catch is MailDraftRow.Conflict {
+            } catch GoogleError.notFound {
             } catch {
                 try? self.store.markDraftError(draftID, error: "\(error)")
             }
-            self.pushes[draftID] = nil
+            if self.pushes[draftID]?.token == token { self.pushes[draftID] = nil }
+        }
+        pushes[draftID] = (token, task)
+    }
+
+    /// The drafts Gmail does not hold in their last version (a push that failed, Polhub quit too soon).
+    private func pushPending() {
+        for draft in drafts where draft.needsPush && draft.conflict == nil && draft.origin != .agent && pushes[draft.id] == nil
+            && sending?.draftID != draft.id && !Self.isBlank(draft) {
+            schedulePush(draft.id, after: .zero)
         }
     }
 
-    /// Files joined to a draft: copied beside it, 25 Mo in all at most (Gmail's limit).
+    /// Nothing written yet: no one, no subject, no text, no file.
+    static func isBlank(_ draft: MailDraftRow) -> Bool {
+        (draft.to + draft.cc + draft.bcc).isEmpty && draft.subject.isEmpty && draft.files.isEmpty
+            && draft.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// « Le garder », « Garder celui-ci »: Gmail takes this version.
+    public func keepDraft(_ draftID: String) {
+        Task {
+            do {
+                try await engine.keepMine(draftID)
+                schedulePush(draftID, after: .zero)
+            } catch {
+                message = "Brouillon impossible à garder : \(error)"
+            }
+        }
+    }
+
+    /// « Le supprimer », « Prendre celui de Gmail »: Polhub lets it go; Gmail's copy, if any, stays among the
+    /// drafts begun elsewhere.
+    public func forgetDraft(_ draftID: String, gmailKept: Bool) {
+        if composing == draftID { composing = nil }
+        unconfirmed.remove(draftID)
+        Task {
+            do {
+                try await engine.forgetLocally(draftID)
+                if gmailKept { message = "La version de Gmail t'attend dans Brouillons, parmi les brouillons commencés ailleurs." }
+            } catch {
+                message = "Brouillon impossible à retirer : \(error)"
+            }
+        }
+    }
+
+    /// Files joined to a draft: files only (the one a link points to), never a folder or a bundle; copied
+    /// beside it away from the screen's thread; 25 Mo in all at most (Gmail's limit).
     public func attach(_ urls: [URL], to draftID: String) {
         guard let draft = try? store.draft(draftID) else { return }
         let folder = engine.files.draftFolder(draft)
-        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        var files = draft.files, total = draft.files.reduce(0) { $0 + $1.size }
+        var taken = Set(draft.files.map(\.filename)), total = draft.files.reduce(0) { $0 + $1.size }
+        var plan: [(source: URL, name: String, size: Int)] = []
         for url in urls {
-            let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-            guard total + size <= MIMEBuilder.maximumFiles else {
-                message = "« \(url.lastPathComponent) » dépasserait 25 Mo de pièces jointes, la limite de Gmail."
-                continue
-            }
-            var name = AttachmentSafety.cleanName(url.lastPathComponent)
-            if files.contains(where: { $0.filename == name }) { name = "\(UUID().uuidString.prefix(4))-\(name)" }
-            let target = folder.appending(path: name)
             do {
-                try FileManager.default.copyItem(at: url, to: target)
+                let file = try AttachmentSafety.joinable(url)
+                guard total + file.size <= MIMEBuilder.maximumFiles else {
+                    message = "« \(url.lastPathComponent) » dépasserait 25 Mo de pièces jointes, la limite de Gmail."
+                    continue
+                }
+                let name = AttachmentSafety.uniqueName(url.lastPathComponent, taken: taken)
+                taken.insert(name)
+                total += file.size
+                plan.append((file.url, name, file.size))
             } catch {
-                message = "« \(url.lastPathComponent) » n'a pas pu être joint : \(error.localizedDescription)"
-                continue
+                message = "\(error)"
             }
-            let type = UTType(filenameExtension: (name as NSString).pathExtension)?.preferredMIMEType ?? "application/octet-stream"
-            files.append(MailDraftFile(filename: name, mimeType: type, size: size))
-            total += size
         }
-        edit(draftID) { $0.files = files }
+        guard !plan.isEmpty else { return }
+        let work = plan
+        Task {
+            let copied = await Task.detached { () -> [(name: String, size: Int, error: String?)] in
+                try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                return work.map { item in
+                    do {
+                        try FileManager.default.copyItem(at: item.source, to: folder.appending(path: item.name))
+                        return (item.name, item.size, nil)
+                    } catch {
+                        return (item.name, item.size, error.localizedDescription)
+                    }
+                }
+            }.value
+            var added: [MailDraftFile] = []
+            for item in copied {
+                if let error = item.error {
+                    message = "« \(item.name) » n'a pas pu être joint : \(error)"
+                    continue
+                }
+                let type = UTType(filenameExtension: (item.name as NSString).pathExtension)?.preferredMIMEType ?? "application/octet-stream"
+                added.append(MailDraftFile(filename: item.name, mimeType: type, size: item.size))
+            }
+            edit(draftID) { draft in
+                for file in added where !draft.files.contains(where: { $0.filename == file.filename }) { draft.files.append(file) }
+            }
+        }
     }
 
     public func removeFile(_ file: MailDraftFile, from draftID: String) {
         guard let draft = try? store.draft(draftID) else { return }
-        try? FileManager.default.removeItem(at: engine.files.draftFolder(draft).appending(path: file.filename))
+        if let url = try? engine.files.draftFile(file, of: draft) { try? FileManager.default.removeItem(at: url) }
         edit(draftID) { $0.files.removeAll { $0 == file } }
     }
 
     /// Why a draft cannot leave yet; `nil` when it can.
     public func sendProblem(_ draft: MailDraftRow) -> String? {
         if unconfirmed.contains(draft.id) { return "Choisis la boîte d'envoi (De)." }
+        if draft.conflict != nil { return "Choisis d'abord la version à garder." }
         if (draft.to + draft.cc + draft.bcc).isEmpty { return "Ajoute un destinataire." }
         if let bad = (draft.to + draft.cc + draft.bcc).first(where: { !MIMEBuilder.isValid($0.email) }) { return "L'adresse « \(bad.email) » n'est pas valide." }
         if !draft.isSendable { return "Le mail est vide." }
@@ -580,41 +686,59 @@ public final class MailLibrary: ObservableObject {
             message = problem
             return
         }
-        pushes[draftID]?.cancel()
+        // Only the wait is called off: a push on its way ends, and the send waits for it.
+        pushes[draftID]?.task.cancel()
         pushes[draftID] = nil
         if composing == draftID { composing = nil }
         let subject = draft.subject.isEmpty ? "(sans objet)" : draft.subject
-        sending = (draftID, subject, Date().addingTimeInterval(10))
+        sending = (draftID, subject, Date().addingTimeInterval(10), false)
         sendTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(10))
-            guard !Task.isCancelled, let self else { return }
+            guard !Task.isCancelled, let self, self.sending?.draftID == draftID else { return }
+            // From here « Annuler » can no longer call it back (review of 14/11).
+            self.sending?.leaving = true
             do {
                 try await self.engine.send(draftID)
-                self.sending = nil
                 self.message = "Mail envoyé : « \(subject) »."
             } catch {
-                self.sending = nil
-                try? self.store.markDraftError(draftID, error: "\(error)")
-                self.message = "Mail non envoyé : \(error). Il t'attend dans Brouillons."
-                self.onSendFailed?(subject, draft.threadKey)
+                if (try? self.store.draft(draftID)) != nil {
+                    if !(error is MailDraftRow.Conflict) { try? self.store.markDraftError(draftID, error: "\(error)") }
+                    self.message = "Mail non envoyé : \(error). Il t'attend dans Brouillons."
+                    self.onSendFailed?(subject, draft.threadKey)
+                }
             }
-            self.sendTask = nil
+            if self.sending?.draftID == draftID {
+                self.sending = nil
+                self.sendTask = nil
+            }
         }
     }
 
-    /// « Annuler » while the mail waits: it stays a draft.
+    /// « Annuler » while the mail waits: it stays a draft, and Gmail gets its last version. Too late once it
+    /// is on its way.
     public func cancelSend() {
         guard let sending else { return }
+        guard !sending.leaving else {
+            message = "Trop tard : le mail est déjà en route."
+            return
+        }
         sendTask?.cancel()
         sendTask = nil
         self.sending = nil
         message = "Envoi annulé : le mail t'attend dans Brouillons."
         if (try? store.draft(sending.draftID))?.threadKey == nil { composing = sending.draftID }
+        schedulePush(sending.draftID, after: .zero)
     }
 
-    /// The draft goes, here and in Gmail.
+    /// The draft goes, here and in Gmail. A mail waiting to leave is called back first.
     public func discard(_ draftID: String) {
-        pushes[draftID]?.cancel()
+        if let sending, sending.draftID == draftID {
+            guard !sending.leaving else { return }
+            sendTask?.cancel()
+            sendTask = nil
+            self.sending = nil
+        }
+        pushes[draftID]?.task.cancel()
         pushes[draftID] = nil
         unconfirmed.remove(draftID)
         if composing == draftID { composing = nil }
@@ -627,8 +751,7 @@ public final class MailLibrary: ObservableObject {
     public func closeComposer() {
         guard let id = composing else { return }
         composing = nil
-        if let draft = try? store.draft(id), (draft.to + draft.cc + draft.bcc).isEmpty, draft.subject.isEmpty,
-           draft.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, draft.files.isEmpty {
+        if let draft = try? store.draft(id), Self.isBlank(draft) {
             discard(id)
         }
     }

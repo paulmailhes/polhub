@@ -260,6 +260,24 @@ public struct MailSenderRow: Codable, Equatable, Sendable, FetchableRecord, Pers
     public var createdAt: Date
     /// The tab Paul chose for its mails (`personnes`, `notifications`, `newsletters`), whatever Gmail's category.
     public var tab: String?
+    /// The case Paul last chose for one of its threads (`MailFiling.rawValue`), for the threads to come.
+    public var filing: String? = nil
+}
+
+/// Paul's case for one thread (step « Ranger »): never recomputed.
+public struct MailFilingRow: Codable, Equatable, Sendable, FetchableRecord, PersistableRecord {
+    public static let databaseTableName = "mail_filing"
+
+    public var threadKey: String
+    /// `MailFiling.rawValue`.
+    public var value: String
+    public var createdAt: Date
+
+    public init(threadKey: String, value: String, createdAt: Date) {
+        self.threadKey = threadKey
+        self.value = value
+        self.createdAt = createdAt
+    }
 }
 
 /// A mail Paul writes (14/11, step « Écrire »): kept on the Mac first, then in Gmail's drafts. Never a send:
@@ -305,12 +323,27 @@ public struct MailDraftRow: Codable, Equatable, Identifiable, Sendable, Fetchabl
     public var lastError: String?
     public var createdAt: Date
     public var updatedAt: Date
+    /// Gmail's copy went its own way: nothing more goes to Gmail and nothing leaves until Paul chooses.
+    public var conflict: Conflict?
+
+    /// What happened to Gmail's copy of a draft (review of 14/11): sent or deleted elsewhere, or changed on
+    /// another device. Polhub never makes it again nor overwrites it on its own.
+    public enum Conflict: String, Codable, Sendable, Error, CustomStringConvertible {
+        case absent, modifie
+
+        public var description: String {
+            switch self {
+            case .absent: "ce brouillon n'est plus dans Gmail : envoyé ou supprimé ailleurs ?"
+            case .modifie: "ce brouillon a été modifié dans Gmail, sur un autre appareil"
+            }
+        }
+    }
 
     public init(id: String = UUID().uuidString.lowercased(), account: String, mode: Mode, threadKey: String? = nil, replyToKey: String? = nil,
                 to: [MailAddress] = [], cc: [MailAddress] = [], bcc: [MailAddress] = [], subject: String = "", body: String = "",
                 quoteHTML: String? = nil, quoteText: String? = nil, inReplyTo: String? = nil, references: String? = nil, signature: Bool = true,
                 files: [MailDraftFile] = [], gmailDraftID: String? = nil, gmailMessageID: String? = nil, origin: Origin = .paul,
-                pushedAt: Date? = nil, lastError: String? = nil, createdAt: Date, updatedAt: Date? = nil) {
+                pushedAt: Date? = nil, lastError: String? = nil, createdAt: Date, updatedAt: Date? = nil, conflict: Conflict? = nil) {
         self.id = id
         self.account = account.lowercased()
         self.mode = mode
@@ -334,6 +367,7 @@ public struct MailDraftRow: Codable, Equatable, Identifiable, Sendable, Fetchabl
         self.lastError = lastError
         self.createdAt = createdAt
         self.updatedAt = updatedAt ?? createdAt
+        self.conflict = conflict
     }
 
     /// Something to send: someone to send it to, and words or a file.

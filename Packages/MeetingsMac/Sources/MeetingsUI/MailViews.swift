@@ -80,7 +80,9 @@ struct MailUndoBar: View {
                     HStack(spacing: Space.m) {
                         Image(systemName: "paperplane.fill").foregroundStyle(Color.accentColor)
                         Text(left > 0 ? "« \(sending.subject) » part dans \(left) s" : "Envoi de « \(sending.subject) »…").lineLimit(1)
-                        Button("Annuler") { mails.cancelSend() }.buttonStyle(.glass).keyboardShortcut("z", modifiers: .command).disabled(left == 0)
+                        if !sending.leaving {
+                            Button("Annuler") { mails.cancelSend() }.buttonStyle(.glass).keyboardShortcut("z", modifiers: .command).disabled(left == 0)
+                        }
                     }
                 }
             } else if let undo = mails.undoable {

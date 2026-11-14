@@ -32,6 +32,19 @@ GitHub, et l'app la montre dans Réglages › Mises à jour.
   - sur un fil, « … » › Se désabonner, Signaler comme spam ;
   - sur un message, « … » › Afficher l'original (le mail tel qu'il a voyagé, avec ses en-têtes).
 - **Notifications** : seulement pour l'onglet Personnes.
+- **Garde-fous** (relecture de l'étape) :
+  - un brouillon envoyé, supprimé ou modifié ailleurs (ton téléphone) n'est jamais recréé ni écrasé en
+    silence : un bandeau te demande quelle version garder, et rien ne part avant ;
+  - un brouillon n'est jamais enregistré deux fois dans Gmail, même si tu tapes pendant qu'il s'enregistre ;
+  - un nouveau mail ne va dans les brouillons de Gmail qu'une fois la boîte choisie ; changer de boîte le
+    retire de la première ;
+  - une adresse que tu n'as jamais utilisée s'affiche en entier, en orange, même derrière un nom connu ;
+  - une adresse tapée mais pas encore validée part avec le mail, ou l'arrête si elle est incomplète ;
+  - ⌘↩ n'envoie que le brouillon où tu écris ;
+  - le HTML d'un mail cité ou transféré est nettoyé : ni style, ni script, ni formulaire, et rien ne sort de
+    la citation ;
+  - « Annuler » disparaît dès que le mail est en route ;
+  - un dossier ne se joint pas (compresse-le), et les pièces de même nom gardent chacune la leur.
 - La version de développement n'écrit jamais dans tes vraies boîtes : ni brouillon, ni envoi.
 
 ## 0.12.1 — 14 novembre 2026

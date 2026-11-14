@@ -94,7 +94,7 @@ public enum ReplyBuilder {
 
     /// The quoted message in Gmail's own form, which every client folds.
     public static func quoteHTML(_ mode: MailDraftRow.Mode, source: ReplySource) -> String? {
-        let original = source.isHTML ? source.body : "<div dir=\"ltr\">\(HTMLText.escape(source.body).replacingOccurrences(of: "\n", with: "<br>"))</div>"
+        let original = source.isHTML ? HTMLText.quotable(source.body) : "<div dir=\"ltr\">\(HTMLText.escape(source.body).replacingOccurrences(of: "\n", with: "<br>"))</div>"
         switch mode {
         case .new: return nil
         case .reply, .replyAll:
@@ -138,6 +138,42 @@ public enum ReplyBuilder {
 
 /// HTML to text and back, for what a mail carries as its text part and what Paul edits (14/11).
 public enum HTMLText {
+    /// A sender's HTML, ready to quote in a mail Paul sends (review of 14/11): only what its body shows, its
+    /// tags balanced, without styles, scripts, forms, frames or `on…` handlers. Nothing in it can close the
+    /// quote and pass for Paul's words. Parsed by Foundation, offline.
+    public static func quotable(_ html: String) -> String {
+        let options: XMLNode.Options = [.documentTidyHTML, .nodeLoadExternalEntitiesNever]
+        // From the text, not its bytes: read as bytes, tidy takes UTF-8 for Latin-1 and drops the accents.
+        guard let document = try? XMLDocument(xmlString: html, options: options) else {
+            return "<div dir=\"ltr\">" + escape(plain(html)).replacingOccurrences(of: "\n", with: "<br>") + "</div>"
+        }
+        let banned = ["script", "style", "meta", "base", "link", "form", "input", "button", "select", "textarea", "iframe", "frame",
+                      "frameset", "object", "embed", "applet", "title", "head", "svg", "math"]
+        for name in banned {
+            for node in (try? document.nodes(forXPath: "//*[local-name()='\(name)']")) ?? [] { node.detach() }
+        }
+        for case let element as XMLElement in (try? document.nodes(forXPath: "//*")) ?? [] {
+            for attribute in element.attributes ?? [] {
+                guard let name = attribute.name?.lowercased() else { continue }
+                let value = attribute.stringValue?.lowercased().trimmingCharacters(in: .whitespaces) ?? ""
+                if name.hasPrefix("on") || value.hasPrefix("javascript:") || name == "srcdoc" || name == "formaction" {
+                    element.removeAttribute(forName: attribute.name!)
+                }
+            }
+        }
+        let body = (try? document.nodes(forXPath: "//*[local-name()='body']"))?.first ?? document.rootElement()
+        let inner = (body?.children ?? []).map { $0.xmlString }.joined()
+        // XML writes `<br></br>`, which an HTML reader takes for two lines: void elements lose their end tag.
+        // Tidy also puts a line break before each closing tag.
+        return inner.replacingOccurrences(of: #"</(br|img|hr|wbr|col|area|source|track)>"#, with: "", options: [.regularExpression, .caseInsensitive])
+            .replacingOccurrences(of: #"\n(?=</)"#, with: "", options: .regularExpression)
+    }
+
+    /// Gmail's draft has formatting a plain text would lose: links, images, lists, emphasis, tables.
+    public static func isFormatted(_ html: String) -> Bool {
+        html.range(of: #"<(?:a\s[^>]*href|(?:img|table|ul|ol|b|strong|i|em|u|font|h[1-6]|blockquote)[\s>/])"#, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
     public static func escape(_ text: String) -> String {
         text.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;")
             .replacingOccurrences(of: "\"", with: "&quot;")

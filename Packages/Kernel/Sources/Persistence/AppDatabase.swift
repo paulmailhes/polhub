@@ -388,6 +388,21 @@ public final class AppDatabase: Sendable {
                 t.column("updatedAt", .datetime).notNull()
             }
         }
+        // 14/11: a draft whose Gmail copy went its own way; step « Ranger »: the case of a thread, Paul's
+        // choices kept per thread and per sender.
+        migrator.registerMigration("v10") { db in
+            try db.alter(table: "mail_draft") { t in
+                t.add(column: "conflict", .text)
+            }
+            try db.alter(table: "mail_sender") { t in
+                t.add(column: "filing", .text)
+            }
+            try db.create(table: "mail_filing") { t in
+                t.primaryKey("threadKey", .text)
+                t.column("value", .text).notNull()
+                t.column("createdAt", .datetime).notNull()
+            }
+        }
         return migrator
     }
 }

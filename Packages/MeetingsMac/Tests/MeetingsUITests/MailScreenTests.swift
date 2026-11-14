@@ -294,6 +294,14 @@ struct MailScreenTests {
         mails.newMail()
         try await capture("mails-nouveau")
         mails.closeComposer()
+        // Review of 14/11: a draft changed on the phone waits for Paul's choice; a stranger shows in full.
+        let changed = MailDraftRow(account: "moi@exemple.fr", mode: .new, to: [MailAddress(name: "camille@exemple-studio.fr", email: "inconnu@pirate.exemple")],
+                                   subject: "Devis", body: "Voici le devis.", createdAt: Date(), conflict: .modifie)
+        try store.saveDraft(changed)
+        try await Task.sleep(for: .milliseconds(300))
+        mails.composing = changed.id
+        try await capture("mails-conflit")
+        mails.composing = nil
         mails.folder = .drafts
         try await capture("mails-brouillons")
         mails.folder = .subscriptions

@@ -72,6 +72,8 @@ public struct Preferences: @unchecked Sendable {
         public static let mailHiddenAccounts = "mails.boitesMasquees"
         public static let mailNotices = "notifications.mails"
         /// The senders Paul left from Polhub, with the day (shown in « Abonnements »).
+        /// The new mails whose mailbox Paul has not chosen yet.
+        public static let mailUnconfirmed = "mails.boiteAChoisir"
         public static let mailUnsubscribed = "mails.desabonnements"
         /// Réglages › Général (14/11): a mail or a project opens over its list, or in place of it.
         public static let floatingPages = "general.fenetreFlottante"
