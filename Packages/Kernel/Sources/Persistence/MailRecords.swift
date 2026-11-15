@@ -37,6 +37,21 @@ public struct MailAttachment: Codable, Equatable, Hashable, Sendable {
     }
 }
 
+/// A file shown under a thread's line in the list, with the message that carries it: a click previews it
+/// without opening the thread (15/11).
+public struct MailListedFile: Hashable, Identifiable, Sendable {
+    /// `account|messageID`.
+    public var messageKey: String
+    public var attachment: MailAttachment
+
+    public init(messageKey: String, attachment: MailAttachment) {
+        self.messageKey = messageKey
+        self.attachment = attachment
+    }
+
+    public var id: String { "\(messageKey)#\(attachment.partID)" }
+}
+
 /// One message of a mailbox, as Gmail has it. Its HTML lives in a file beside the base, never here.
 public struct MailMessageRow: Codable, Equatable, Identifiable, Sendable, FetchableRecord, PersistableRecord {
     public static let databaseTableName = "mail_message"
@@ -258,7 +273,8 @@ public struct MailSenderRow: Codable, Equatable, Sendable, FetchableRecord, Pers
     /// Its remote images show without asking.
     public var images: Bool
     public var createdAt: Date
-    /// The tab Paul chose for its mails (`personnes`, `notifications`, `newsletters`), whatever Gmail's category.
+    /// The tab Paul chose for its mails (`personnes`, `notifications`; `newsletters` from 0.13 reads as
+    /// Notifications), whatever Gmail's category.
     public var tab: String?
     /// The case Paul last chose for one of its threads (`MailFiling.rawValue`), for the threads to come.
     public var filing: String? = nil

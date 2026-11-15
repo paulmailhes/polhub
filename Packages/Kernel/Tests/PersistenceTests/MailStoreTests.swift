@@ -257,7 +257,76 @@ import Testing
         ])
         #expect(try mails.allThreads().map(\.threadID) == ["t2", "t1"])
         #expect(try mails.allThreads(accounts: ["autre@exemple.fr"]).isEmpty)
-        #expect(try mails.attachments(threadKeys: [key, MailThreadRow.key(account: account, threadID: "t2")]) == [key: [withFiles.attachments[0]]])
+        // The file keeps the first message that carries it: a click on its chip previews it (15/11).
+        #expect(try mails.attachments(threadKeys: [key, MailThreadRow.key(account: account, threadID: "t2")])
+            == [key: [MailListedFile(messageKey: withFiles.id, attachment: withFiles.attachments[0])]])
+    }
+
+    /// 15/11: the copy is the whole mailbox; « Tous les messages » and the agents are no longer cut at 2 000 and
+    /// 5 000 threads.
+    @Test func everyThreadOfTheCopyIsListed() throws {
+        let mails = try store()
+        let count = 5_100
+        try mails.apply(account: account, upserts: (0..<count).map { index in
+            message("m\(index)", thread: "t\(index)", minutes: Double(index), labels: ["CATEGORY_PERSONAL"])
+        })
+        let all = try mails.allThreads()
+        #expect(all.count == count && all.first?.threadID == "t\(count - 1)" && all.last?.threadID == "t0")
+        #expect(try mails.readableThreads().count == count)
+        #expect(try mails.allThreads(limit: 10).count == 10)
+    }
+
+    /// 15/11, as Gmail: the « Envoyés » say who Paul wrote to; a sent mail he trashed leaves them.
+    @Test func whoPaulWroteToInEachSentThread() throws {
+        let mails = try store()
+        var first = message("m2", minutes: 3, from: account, labels: ["SENT"])
+        first.to = [MailAddress(name: "Camille Martin", email: "camille@exemple.fr")]
+        first.cc = [MailAddress(name: "Jules Durand", email: "jules@exemple.fr")]
+        var second = message("m3", minutes: 6, from: account, labels: ["SENT"])
+        second.to = [MailAddress(name: "Camille Martin", email: "Camille@Exemple.fr"), MailAddress(email: "lou@exemple.fr")]
+        var draft = message("m4", minutes: 8, from: account, labels: ["DRAFT"])
+        draft.to = [MailAddress(email: "brouillon@exemple.fr")]
+        var trashed = message("x1", thread: "t2", minutes: 9, from: account, labels: ["SENT", "TRASH"])
+        trashed.to = [MailAddress(email: "nina@exemple.fr")]
+        try mails.apply(account: account, upserts: [message("m1"), first, second, draft, trashed])
+        let t2 = MailThreadRow.key(account: account, threadID: "t2")
+        #expect(try mails.sentThreads().map(\.threadID) == ["t1"])
+        #expect(try mails.sentRecipients(threadKeys: [key, t2]).mapValues { $0.map(\.email) }
+            == [key: ["camille@exemple.fr", "jules@exemple.fr", "lou@exemple.fr"]])
+        #expect(try mails.sentRecipients(threadKeys: []).isEmpty)
+    }
+
+    /// 15/11: the instant search reads the whole copy, never the trash, the spam nor the drafts; each thread is
+    /// found by its subject, its extracts, its people (senders and recipients) and the names of its files.
+    @Test func theSearchEntriesHoldTheWholeCopy() throws {
+        let mails = try store()
+        var sent = message("m2", minutes: 3, from: account, labels: ["SENT"], subject: "Réunion de chantier")
+        sent.to = [MailAddress(name: "Jules Durand", email: "jules@atelier.exemple")]
+        var withFile = message("m3", thread: "t2", minutes: 5, labels: ["CATEGORY_PERSONAL"], subject: "Le devis")
+        withFile.attachments = [MailAttachment(partID: "2", filename: "Devis-Été_2026.pdf", mimeType: "application/pdf", size: 1_000,
+                                               attachmentID: "a", contentID: nil, inline: false)]
+        var draft = message("d1", thread: "t2", minutes: 7, from: account, labels: ["DRAFT"])
+        draft.to = [MailAddress(email: "secret@exemple.fr")]
+        try mails.apply(account: account, upserts: [
+            message("m1"), sent, withFile, draft,
+            message("m4", thread: "t3", minutes: 9, labels: ["TRASH"], subject: "Réunion à la corbeille"),
+        ])
+        let entries = try mails.searchEntries()
+        #expect(entries.map(\.thread.threadID) == ["t2", "t1"])
+        func found(_ text: String) -> [String] {
+            guard case .local(let words) = MailSearch.mode(text) else { return [] }
+            return MailSearch.filter(entries, words: words).map(\.threadID)
+        }
+        #expect(found("reunion") == ["t1"] && found("RÉUN") == ["t1"])
+        #expect(found("jules") == ["t1"] && found("atelier.exemple") == ["t1"] && found("Camille Martin") == ["t2", "t1"])
+        #expect(found("ete 2026") == ["t2"] && found("devis.pdf") == ["t2"])
+        #expect(found("secret").isEmpty && found("corbeille").isEmpty)
+        #expect(MailSearch.filter(entries, words: ["devis"], accounts: ["autre@exemple.fr"]).isEmpty)
+        // Two letters at least; Gmail's operators go to Gmail only, on Enter.
+        #expect(MailSearch.mode("") == .none && MailSearch.mode("  ") == .none && MailSearch.mode("é") == .tooShort)
+        #expect(MailSearch.mode(" Ré ") == .local(["re"]) && MailSearch.mode("Re: devis") == .local(["re", "devis"]))
+        #expect(MailSearch.mode("from:camille@exemple.fr") == .gmailOnly && MailSearch.mode("devis has:attachment") == .gmailOnly)
+        #expect(MailSearch.mode("-in:inbox devis") == .gmailOnly)
     }
 
     @Test func theSentThreadsAndTheDraftsWrittenElsewhere() throws {
