@@ -33,6 +33,11 @@ import Testing
         #expect(ProjectStatus.allCases.map(ProjectViews.statusHex) == [Palette.yellow, Palette.orange, Palette.teal, Palette.green])
     }
 
+    @Test func terminéShowsCompactCards() {
+        #expect(ProjectViews.cardSize(.termine, chosen: .medium) == .small)
+        #expect(ProjectViews.cardSize(.priorite1, chosen: .medium) == .medium && ProjectViews.cardSize(.enPause, chosen: .small) == .small)
+    }
+
     @Test func cardsKeepTheirOrderInAColumn() {
         let columns = ProjectViews.columns([project("Deux", .enPause, order: 2), project("Un", .enPause, order: 1)])
         #expect(columns[2].projects.map(\.name) == ["Un", "Deux"])

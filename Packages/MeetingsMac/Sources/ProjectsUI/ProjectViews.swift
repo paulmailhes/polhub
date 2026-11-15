@@ -42,6 +42,11 @@ public enum ProjectViews {
         Color(hex: tintHex(project))
     }
 
+    /// The cards of a column: the size chosen in Réglages › Projets, always compact in Terminé.
+    public static func cardSize(_ status: ProjectStatus, chosen: CardSize) -> CardSize {
+        status == .termine ? .small : chosen
+    }
+
     /// The four columns, in their order, Terminé always at the right (15/11).
     public static func columns(_ projects: [ProjectRow]) -> [BoardColumn] {
         ProjectStatus.boardOrder.map { status in

@@ -23,12 +23,8 @@ struct NewProjectSheet: View {
             Form {
                 Section {
                     HStack(spacing: Space.m) {
-                        TextField("", text: text(\.icon), prompt: Text("◌").foregroundStyle(.tertiary))
-                            .font(.largeTitle)
-                            .frame(width: 52)
-                            .multilineTextAlignment(.center)
-                            .textFieldStyle(.plain)
-                            .help("Une icône : un emoji")
+                        // Its initials on its color until its site gives a logo (15/11: no emoji any more).
+                        ProjectMonogram(project: draft, size: 40)
                         TextField("Nom du projet", text: $draft.name)
                             .font(.title2.weight(.semibold))
                             .textFieldStyle(.plain)

@@ -16,7 +16,7 @@ struct ProjectListView: View {
         Table(rows, selection: $selection, sortOrder: $order) {
             TableColumn("Projet", value: \.name) { row in
                 HStack(spacing: Space.s) {
-                    Text(row.project.icon.flatMap { $0.count <= 2 ? $0 : nil } ?? "").frame(width: 20)
+                    ProjectLogo(row.project, size: 20)
                     Text(row.project.name).fontWeight(.medium)
                 }
             }

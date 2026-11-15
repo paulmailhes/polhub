@@ -67,6 +67,7 @@ struct WindowSnapshotTests {
             ("Site vitrine", .enPause, "Freelance", nil, nil), ("Refonte site", .priorite1, "Atelier Nord", -2, "Envoyer la maquette de l'accueil"),
             ("Identité", .priorite1, "Studio Sud", 0, "Valider la typographie"), ("Studio photo", .priorite2, "Atelier Nord", 6, "Relancer pour les contenus"),
             ("Landing", .priorite2, "Atelier Nord", 12, "Préparer le cadrage"), ("Agence", .enPause, "Atelier Nord", nil, nil),
+            ("Ancien site", .termine, "Studio Sud", nil, nil), ("Carte de vœux", .termine, nil, nil, nil),
         ]
         for (name, status, client, due, todo) in samples {
             var project = try store.addProject(name: name, status: status, at: Date())
@@ -74,6 +75,8 @@ struct WindowSnapshotTests {
             project.dueDate = due.map { Date().addingTimeInterval(Double($0) * 86_400) }
             project.todo = todo
             project.color = name == "Identité" ? "purple" : nil
+            // 15/11: « Réunion il y a 3 semaines », in words.
+            project.lastMeetingImported = name == "Refonte site" ? Date().addingTimeInterval(-21 * 86_400) : nil
             try store.save(project, at: Date())
         }
         let library = MeetingLibrary(store: MeetingStore(database))
