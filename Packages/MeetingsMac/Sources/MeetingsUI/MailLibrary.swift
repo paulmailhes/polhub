@@ -70,10 +70,13 @@ public final class MailLibrary: ObservableObject {
         didSet {
             defaults.set(hidden.sorted(), forKey: Preferences.Key.mailHiddenAccounts)
             refreshFolders()
+            filterCopy()
         }
     }
-    /// What a search found at Gmail's; `nil` out of a search.
+    /// What a search found: in the copy as Paul types, plus Gmail's on Enter; `nil` out of a search.
     @Published public private(set) var found: [MailThreadRow]?
+    /// Among `found`, the threads only Gmail found (their words are in the bodies).
+    @Published public private(set) var foundInGmail = 0
     @Published public private(set) var searching = false
     /// The threads ticked for a gesture on all of them at once.
     @Published public var selected: Set<String> = []
@@ -97,8 +100,14 @@ public final class MailLibrary: ObservableObject {
     @Published public private(set) var sent: [MailThreadRow] = []
     /// « Tous les messages »: the copy, archived threads too (15/11).
     @Published public private(set) var all: [MailThreadRow] = []
-    /// The files of the threads listed, shown under their line (Gmail's « Par défaut »).
-    @Published public private(set) var files: [String: [MailAttachment]] = [:]
+    /// The files of the threads listed, shown under their line (Gmail's « Par défaut »), each with its message.
+    @Published public private(set) var files: [String: [MailListedFile]] = [:]
+    /// Who Paul wrote to in each thread of « Envoyés » (15/11).
+    @Published public private(set) var sentTo: [String: [MailAddress]] = [:]
+    /// The file Quick Look shows, over the list or an open thread: one for the whole section (15/11).
+    @Published public var preview: URL?
+    /// The files on their way from Gmail (`MailListedFile.id`): their chip turns meanwhile.
+    @Published public private(set) var opening: Set<String> = []
     /// The draft open over the list: a new mail, a draft taken from the list.
     @Published public var composing: String?
     /// The mail leaving: Paul has ten seconds to call it back; once `leaving`, it is on its way to Gmail.
@@ -112,14 +121,25 @@ public final class MailLibrary: ObservableObject {
     @Published public private(set) var correspondents: Set<String> = []
     /// What decides a thread's case and tab (step « Ranger »).
     @Published public private(set) var rules = MailFilingRules.empty
-    /// The search field's text.
-    @Published public var query = ""
+    /// The search field's text: from two letters, the list shows what the copy holds that answers (15/11).
+    @Published public var query = "" {
+        didSet { if query != oldValue { queryChanged() } }
+    }
     /// Only the unread threads of the tab.
     @Published public var unreadOnly = false
     /// The senders Paul could leave (the « Abonnements »), the busiest first.
     @Published public private(set) var subscriptions: [MailSubscription] = []
     /// The senders Paul left from Polhub, with the day.
     @Published public private(set) var unsubscribed: [String: Date] = [:]
+    /// What Gmail found for a text, on Enter: its threads join the copy's.
+    private var gmailFound: (text: String, keys: [String])?
+    /// The copy as the search reads it, and the version of the copy it was read at.
+    private var searchIndex: [MailSearchEntry]?
+    private var copyVersion = 0
+    private var indexedVersion = -1
+    private var indexing = false
+    /// Changes with the text: Gmail's answer to an older text is dropped.
+    private var searchToken = 0
     private var pushes: [String: (token: Int, task: Task<Void, Never>)] = [:]
     private var pushCount = 0
     private var pendingChecked = false
@@ -154,6 +174,7 @@ public final class MailLibrary: ObservableObject {
                 guard let self else { return }
                 self.inbox = $0
                 self.refreshFolders()
+                self.copyChanged()
             },
             store.observeDrafts { [weak self] in
                 guard let self else { return }
@@ -255,7 +276,42 @@ public final class MailLibrary: ObservableObject {
     /// Paul's case for a thread (step « Ranger »): kept for it and for its sender's next mails. Filed in a
     /// project, the sender becomes one of its contacts, as with the calendar. One « Annuler » takes it all back.
     public func file(_ thread: MailThreadRow, as filing: MailFiling) {
+        guard let takeBack = fileOne(thread, as: filing, at: Date(), linking: true) else { return }
+        let who = thread.lastSender.map { address in thread.senders.first { $0.email.lowercased() == address.lowercased() }?.display ?? address }
+        offerUndo(Self.filedText(filing, project: project(filing.projectID)?.name, sender: who)) { takeBack.reversed().forEach { $0() } }
+    }
+
+    /// Several ticked threads in one case (15/11), and one « Annuler » for all. Only people's threads (Paul wrote
+    /// in them, or their sender is a person) make their sender a contact of the project: an automatic sender
+    /// would otherwise show its images, look known to the agents and pull its next mails into the project.
+    public func file(_ threads: [MailThreadRow], as filing: MailFiling) {
         let date = Date()
+        var takeBack: [() -> Void] = []
+        var filed = 0
+        for thread in threads {
+            guard let undo = fileOne(thread, as: filing, at: date, linking: Self.isPeople(thread, rules: rules)) else { break }
+            takeBack += undo
+            filed += 1
+        }
+        guard filed > 0 else { return }
+        offerUndo(Self.filedText(filing, project: project(filing.projectID)?.name, count: filed)) { takeBack.reversed().forEach { $0() } }
+    }
+
+    /// « Ranger dans » on the ticked threads; the ticks go.
+    public func fileSelection(as filing: MailFiling) {
+        file(selectedThreads, as: filing)
+        endSelection()
+    }
+
+    /// A thread written by people: Paul wrote in it, or its sender is a contact, someone he wrote to, or
+    /// Gmail's « Principale ».
+    static func isPeople(_ thread: MailThreadRow, rules: MailFilingRules) -> Bool {
+        thread.paulWrote || rules.baseTab(of: thread) == .personnes
+    }
+
+    /// The case of one thread, kept for it and for its sender; filed in a project, its sender becomes a contact
+    /// of it when `linking`. Returns what takes it back; `nil` when nothing could be written.
+    private func fileOne(_ thread: MailThreadRow, as filing: MailFiling, at date: Date, linking: Bool) -> [() -> Void]? {
         let previousChoice = rules.choices[thread.id]
         let sender = thread.lastSender?.lowercased()
         let previousMemory = sender.flatMap { rules.senders[$0]?.filing }
@@ -265,13 +321,13 @@ public final class MailLibrary: ObservableObject {
             if let sender { try store.remember(address: sender, filing: .some(filing.rawValue), at: date) }
         } catch {
             message = "Rangement impossible : \(error)"
-            return
+            return nil
         }
         var takeBack: [() -> Void] = [{
             try? store.file(threadKey: thread.id, as: previousChoice, at: Date())
             if let sender { try? store.remember(address: sender, filing: .some(previousMemory), at: Date()) }
         }]
-        if let projectID = filing.projectID, let sender, !mine.contains(sender), !Self.isRobot(sender) {
+        if linking, let projectID = filing.projectID, let sender, !mine.contains(sender), !Self.isRobot(sender) {
             let contacts = ContactStore(agenda.database)
             do {
                 var created = false
@@ -298,8 +354,7 @@ public final class MailLibrary: ObservableObject {
                 message = "Le contact n'a pas pu être relié au projet : \(error)"
             }
         }
-        let who = sender.map { address in thread.senders.first { $0.email.lowercased() == address }?.display ?? address }
-        offerUndo(Self.filedText(filing, project: project(filing.projectID)?.name, sender: who)) { takeBack.reversed().forEach { $0() } }
+        return takeBack
     }
 
     static func filedText(_ filing: MailFiling, project: String?, sender: String?) -> String {
@@ -308,6 +363,16 @@ public final class MailLibrary: ObservableObject {
         case .project: return "Rangé dans « \(project ?? "le projet") » : \(next) suivront."
         case .none: return "Sans case : \(next) resteront dans Personnes."
         default: return "Rangé dans \(filing.title ?? "") : \(next) suivront."
+        }
+    }
+
+    /// « Rangés dans « Site vitrine » : 3 fils ».
+    static func filedText(_ filing: MailFiling, project: String?, count: Int) -> String {
+        let threads = count > 1 ? "\(count) fils" : "1 fil", filed = count > 1 ? "Rangés" : "Rangé"
+        switch filing {
+        case .project: return "\(filed) dans « \(project ?? "le projet") » : \(threads)"
+        case .none: return "Sans case : \(threads)"
+        default: return "\(filed) dans \(filing.title ?? "") : \(threads)"
         }
     }
 
@@ -511,20 +576,89 @@ public final class MailLibrary: ObservableObject {
         GmailLink.thread(thread.threadID, account: thread.account)
     }
 
-    // MARK: - Search
+    // MARK: - Search (one bar, 15/11)
 
-    /// Paul's text goes to Gmail as he typed it, on the mailboxes shown.
+    /// The mailboxes the list shows.
+    private var shownAccounts: Set<String> { Set(accounts.map(\.email)).subtracting(hidden) }
+
+    /// As Paul types: from two letters, the copy filtered at once; one letter or nothing, the folder again;
+    /// a Gmail operator (`from:`…) waits for Enter.
+    private func queryChanged() {
+        searchToken += 1
+        let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if gmailFound?.text != text {
+            gmailFound = nil
+            foundInGmail = 0
+        }
+        switch MailSearch.mode(text) {
+        case .none: found = nil
+        case .tooShort, .gmailOnly: if gmailFound == nil { found = nil }
+        case .local: filterCopy()
+        }
+    }
+
+    /// The copy changed (Gmail's news, a gesture): a search under way reads it again.
+    private func copyChanged() {
+        copyVersion += 1
+        filterCopy()
+    }
+
+    /// The threads of the copy that answer the text, every folder and tab of the mailboxes shown, plus those
+    /// Gmail found on Enter. The copy is read again, away from the screen, when it changed.
+    private func filterCopy() {
+        guard case .local(let words) = MailSearch.mode(query) else { return }
+        if indexedVersion != copyVersion { readCopy() }
+        // The first reading takes a moment: the folder stays until it is there.
+        guard let index = searchIndex else { return }
+        found = merged(MailSearch.filter(index, words: words, accounts: shownAccounts))
+        refreshFiles(keepingKnown: true)
+    }
+
+    private func readCopy() {
+        guard !indexing else { return }
+        indexing = true
+        let version = copyVersion, store = self.store
+        Task {
+            let entries = await Task.detached { (try? store.searchEntries()) ?? [] }.value
+            indexing = false
+            searchIndex = entries
+            indexedVersion = version
+            filterCopy()
+        }
+    }
+
+    /// The copy's threads and Gmail's, once each, the most recent first.
+    private func merged(_ local: [MailThreadRow]) -> [MailThreadRow] {
+        guard let gmail = gmailFound else {
+            foundInGmail = 0
+            return local
+        }
+        let known = Set(local.map(\.id)), shown = shownAccounts
+        let added = ((try? store.threads(keys: gmail.keys)) ?? []).filter { !$0.hidden && !known.contains($0.id) && shown.contains($0.account) }
+        foundInGmail = added.count
+        return (local + added).sorted { $0.lastMessageAt > $1.lastMessageAt }
+    }
+
+    /// Enter: Paul's text also goes to Gmail as he typed it, on the mailboxes shown; Gmail reads the bodies too.
+    /// Its threads join those of the copy.
     public func search(_ text: String) async {
         let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else {
             found = nil
             return
         }
+        let token = searchToken
         searching = true
         defer { searching = false }
         do {
             let keys = try await engine.search(query, accounts: accounts.map(\.email).filter { !hidden.contains($0) })
-            found = try store.threads(keys: keys).filter { !$0.hidden }
+            guard token == searchToken else { return }
+            gmailFound = (query, keys)
+            if case .local(let words) = MailSearch.mode(query), let index = searchIndex {
+                found = merged(MailSearch.filter(index, words: words, accounts: shownAccounts))
+            } else {
+                found = merged([])
+            }
             refreshFiles()
         } catch {
             message = "Recherche impossible : \(error)"
@@ -532,7 +666,24 @@ public final class MailLibrary: ObservableObject {
     }
 
     public func endSearch() {
+        gmailFound = nil
+        foundInGmail = 0
         found = nil
+    }
+
+    /// The line under the bar during a search: how many threads, and what Enter does.
+    public var searchSummary: String? {
+        if searching { return "Recherche dans Gmail…" }
+        let mode = MailSearch.mode(query)
+        guard mode != .none else { return nil }
+        guard let found else { return mode == .tooShort ? nil : "Entrée : chercher dans Gmail" }
+        let number = found.count.formatted(IntegerFormatStyle<Int>.number.locale(Locale(identifier: "fr_FR")))
+        let count = found.isEmpty ? "Aucun fil" : (found.count == 1 ? "1 fil" : "\(number) fils")
+        guard gmailFound != nil else { return "\(count) dans tes mails · Entrée : chercher aussi dans Gmail" }
+        if foundInGmail == 0 { return found.isEmpty ? "Aucun fil, ni dans tes mails ni dans Gmail" : "\(count) · Gmail n'en a pas trouvé d'autre" }
+        let plural = foundInGmail > 1 ? "s" : ""
+        if foundInGmail == found.count { return "\(count) trouvé\(plural) dans Gmail" }
+        return "\(count), dont \(foundInGmail) trouvé\(plural) dans Gmail"
     }
 
     // MARK: - Images
@@ -573,6 +724,56 @@ public final class MailLibrary: ObservableObject {
         try? store.remember(address: sender, images: true, at: Date())
     }
 
+    // MARK: - Files (15/11)
+
+    /// A chip under a line of the list: its file shows at once, without opening the thread.
+    public func open(_ file: MailListedFile) {
+        guard let carrier = try? store.message(file.messageKey) else {
+            message = "Pièce jointe indisponible : son mail n'est plus dans la copie."
+            return
+        }
+        open(file.attachment, of: carrier)
+    }
+
+    /// A file of a message, downloaded once: an image, a PDF or a document shows in Quick Look; anything else
+    /// (HTML, archive, program) is never opened by Polhub, only saved where Paul says.
+    public func open(_ attachment: MailAttachment, of carrier: MailMessageRow) {
+        let id = MailListedFile(messageKey: carrier.id, attachment: attachment).id
+        guard !opening.contains(id) else { return }
+        opening.insert(id)
+        Task {
+            do {
+                let url = try await engine.file(attachment, of: carrier)
+                opening.remove(id)
+                if AttachmentSafety.canOpen(name: attachment.filename) { preview = url } else { saveCopy(of: url) }
+            } catch {
+                opening.remove(id)
+                message = "Pièce jointe indisponible : \(error)"
+            }
+        }
+    }
+
+    /// « Enregistrer… » on a chip.
+    public func save(_ file: MailListedFile) {
+        guard let carrier = try? store.message(file.messageKey) else { return }
+        save(file.attachment, of: carrier)
+    }
+
+    public func save(_ attachment: MailAttachment, of carrier: MailMessageRow) {
+        Task {
+            do { saveCopy(of: try await engine.file(attachment, of: carrier)) } catch { message = "Pièce jointe indisponible : \(error)" }
+        }
+    }
+
+    /// A copy of a file where Paul chooses.
+    func saveCopy(of url: URL) {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = url.lastPathComponent
+        guard panel.runModal() == .OK, let target = panel.url else { return }
+        try? FileManager.default.removeItem(at: target)
+        do { try FileManager.default.copyItem(at: url, to: target) } catch { message = "Enregistrement impossible : \(error.localizedDescription)" }
+    }
+
     // MARK: - Writing (step « Écrire », 14/11)
 
     /// Paul's own addresses.
@@ -589,11 +790,13 @@ public final class MailLibrary: ObservableObject {
     public var isSending: Bool { sending != nil }
 
     func refreshFolders() {
-        let shownAccounts = Set(accounts.map(\.email)).subtracting(hidden)
+        let shownAccounts = shownAccounts
         // The drafts' count shows in the sidebar, whatever the folder.
         gmailDrafts = ((try? store.gmailOnlyDrafts()) ?? []).filter { !hidden.contains($0.account) }
         switch folder {
-        case .sent: sent = (try? store.sentThreads(accounts: shownAccounts)) ?? []
+        case .sent:
+            sent = (try? store.sentThreads(accounts: shownAccounts)) ?? []
+            sentTo = (try? store.sentRecipients(threadKeys: sent.map(\.id))) ?? [:]
         case .all: all = (try? store.allThreads(accounts: shownAccounts)) ?? []
         case .subscriptions: subscriptions = (try? store.subscriptions(since: Date().addingTimeInterval(-90 * 86_400), accounts: shownAccounts)) ?? []
         case .inbox, .drafts: break
@@ -601,11 +804,20 @@ public final class MailLibrary: ObservableObject {
         refreshFiles()
     }
 
-    /// The files of the threads listed, read again when the list changes.
-    private func refreshFiles() {
+    /// The files of the threads listed, read again when the list changes. As Paul types, only the threads not
+    /// read yet are (`keepingKnown`): the whole copy's files take about 50 ms to read (measured 15/11, 5 600 threads).
+    private func refreshFiles(keepingKnown: Bool = false) {
         let keys = Set((found ?? []).map(\.id) + visible(inbox).map(\.id) + (folder == .sent ? sent.map(\.id) : []) + (folder == .all ? all.map(\.id) : []))
         let withFiles = (found ?? []) + inbox + sent + all
-        files = (try? store.attachments(threadKeys: withFiles.filter { $0.hasAttachment && keys.contains($0.id) }.map(\.id))) ?? [:]
+        let wanted = Array(Set(withFiles.filter { $0.hasAttachment && keys.contains($0.id) }.map(\.id)))
+        guard keepingKnown else {
+            files = (try? store.attachments(threadKeys: wanted)) ?? [:]
+            return
+        }
+        let known = files.filter { keys.contains($0.key) }
+        let missing = wanted.filter { known[$0] == nil }
+        guard !missing.isEmpty || known.count != files.count else { return }
+        files = known.merging((try? store.attachments(threadKeys: missing)) ?? [:]) { _, fresh in fresh }
     }
 
     /// Who Paul writes to: his contacts and his correspondents, matching what he types.

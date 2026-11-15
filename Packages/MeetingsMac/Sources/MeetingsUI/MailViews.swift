@@ -48,9 +48,12 @@ struct MailSectionView: View {
                 FloatingPanel(close: { mails.closeComposer() }) { NewMailPanel(draftID: draft, mails: mails).id(draft) }
             }
         }
-        .animation(.snappy(duration: 0.25), value: router.mailSelection)
-        .animation(.snappy(duration: 0.25), value: mails.composing)
+        .animation(Motion.standard, value: router.mailSelection)
+        .animation(Motion.standard, value: mails.composing)
         .overlay(alignment: .bottom) { MailUndoBar(mails: mails) }
+        // One Quick Look for the list's chips and the open thread's files (15/11): two would fight over the
+        // window's single preview panel.
+        .quickLookPreview($mails.preview)
         // ⌘N writes a new mail from Mails only; the button is at the top of « Mails », in the sidebar (15/11).
         .background {
             Button("Nouveau mail") { mails.writeNewMail(router: router) }
@@ -140,10 +143,20 @@ enum MailText {
 
     /// « Camille, moi », without the count, which the list shows apart, lighter.
     static func names(_ thread: MailThreadRow, mine: Set<String>) -> String {
-        if thread.senders.count == 1, let only = thread.senders.first {
+        people(thread.senders, mine: mine)
+    }
+
+    /// « Camille, Jules » after « À : » in « Envoyés » (15/11): who Paul wrote to, by the same rule.
+    static func recipients(_ people: [MailAddress], mine: Set<String>) -> String {
+        self.people(people, mine: mine)
+    }
+
+    /// One person keeps the whole name (« La Lettre du design »), several their first names, as in Gmail.
+    private static func people(_ people: [MailAddress], mine: Set<String>) -> String {
+        if people.count == 1, let only = people.first {
             return mine.contains(only.email) ? "moi" : only.display
         }
-        return thread.senders.map { mine.contains($0.email) ? "moi" : ($0.name?.components(separatedBy: " ").first ?? $0.email) }.joined(separator: ", ")
+        return people.map { mine.contains($0.email) ? "moi" : ($0.name?.components(separatedBy: " ").first ?? $0.email) }.joined(separator: ", ")
     }
 
     static func size(_ bytes: Int) -> String {
@@ -185,13 +198,34 @@ enum MailText {
 }
 
 /// « Ranger dans » (step « Ranger »): the projects under way, the others apart; Perso; the automatic cases;
-/// « Aucune case ». Kept for the thread and for its sender's next mails.
+/// « Aucune case ». Kept for the thread and for its sender's next mails. On the ticked threads (15/11), one case
+/// for all, then the ticks go.
 struct MailFilingMenu: View {
-    let thread: MailThreadRow
+    let threads: [MailThreadRow]
     @ObservedObject var mails: MailLibrary
+    /// The ticked threads, not one thread.
+    let selection: Bool
+
+    init(thread: MailThreadRow, mails: MailLibrary) {
+        threads = [thread]
+        self.mails = mails
+        selection = false
+    }
+
+    init(selection threads: [MailThreadRow], mails: MailLibrary) {
+        self.threads = threads
+        self.mails = mails
+        selection = true
+    }
+
+    /// The case every thread shares, ticked in the menu; none when they differ.
+    static func shared(_ cases: [MailFiling?]) -> MailFiling? {
+        guard let first = cases.first, cases.allSatisfy({ $0 == first }) else { return nil }
+        return first
+    }
 
     var body: some View {
-        let current = mails.filing(of: thread)?.filing
+        let current = Self.shared(threads.map { mails.filing(of: $0)?.filing })
         let projects = mails.filingProjects
         ForEach(projects.current) { project in item(project.name, .project(project.id), current) }
         if !projects.others.isEmpty {
@@ -209,7 +243,9 @@ struct MailFilingMenu: View {
 
     @ViewBuilder
     private func item(_ title: String, _ filing: MailFiling, _ current: MailFiling?) -> some View {
-        Button { mails.file(thread, as: filing) } label: {
+        Button {
+            if selection { mails.fileSelection(as: filing) } else if let thread = threads.first { mails.file(thread, as: filing) }
+        } label: {
             if current == filing { Label(title, systemImage: "checkmark") } else { Text(title) }
         }
     }
@@ -267,7 +303,6 @@ final class MailThreadModel: ObservableObject {
     /// The folded messages in the middle of a long thread are shown.
     @Published var showAll = false
     @Published var failed: [String: String] = [:]
-    @Published var preview: URL?
 
     let key: String
     let library: MailLibrary
@@ -332,22 +367,14 @@ final class MailThreadModel: ObservableObject {
         return (data, attachment.mimeType)
     }
 
-    /// A click on a file: an image, a PDF or a document opens in Quick Look; anything else is only saved.
+    /// A click on a file: an image, a PDF or a document opens in Quick Look; anything else is only saved. The
+    /// library does it, as for the chips of the list: one Quick Look for the whole section (15/11).
     func open(_ attachment: MailAttachment, of message: MailMessageRow) {
-        Task {
-            do {
-                let url = try await library.engine.file(attachment, of: message)
-                if AttachmentSafety.canOpen(name: attachment.filename) { preview = url } else { save(url) }
-            } catch {
-                library.message = "Pièce jointe indisponible : \(error)"
-            }
-        }
+        library.open(attachment, of: message)
     }
 
     func save(_ attachment: MailAttachment, of message: MailMessageRow) {
-        Task {
-            do { save(try await library.engine.file(attachment, of: message)) } catch { library.message = "Pièce jointe indisponible : \(error)" }
-        }
+        library.save(attachment, of: message)
     }
 
     /// Every file of a message, in one folder Paul chooses.
@@ -369,14 +396,6 @@ final class MailThreadModel: ObservableObject {
                 }
             }
         }
-    }
-
-    private func save(_ url: URL) {
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = url.lastPathComponent
-        guard panel.runModal() == .OK, let target = panel.url else { return }
-        try? FileManager.default.removeItem(at: target)
-        do { try FileManager.default.copyItem(at: url, to: target) } catch { library.message = "Enregistrement impossible : \(error.localizedDescription)" }
     }
 }
 
@@ -515,7 +534,6 @@ struct MailThreadView: View {
         }
         .onExitCommand(perform: back)
         .onDeleteCommand { gesture(.trash) }
-        .quickLookPreview($model.preview)
         .windowTitle("Mails", subtitle: close == nil ? (thread?.subject ?? "") : mails.tab.title)
         .task(id: key) {
             thread = try? mails.store.thread(key)

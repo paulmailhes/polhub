@@ -323,7 +323,13 @@ struct MailScreenTests {
         // 15/11, « comme Gmail »: every thread, the compact list, Réglages › Mails.
         mails.folder = .all
         try await capture("mails-tous")
+        // 15/11: « À : » in « Envoyés »; one search bar, the whole copy filtered as Paul types.
+        mails.folder = .sent
+        try await capture("mails-envoyes")
         mails.folder = .inbox
+        mails.query = "maquette"
+        try await capture("mails-recherche")
+        mails.query = ""
         UserDefaults.standard.set(MailDensity.compacte.rawValue, forKey: Preferences.Key.mailDensity)
         UserDefaults.standard.set(true, forKey: Preferences.Key.mailDays)
         try await capture("mails-compacte-jours")
