@@ -26,6 +26,11 @@ Référence : [Adopting Liquid Glass](https://developer.apple.com/documentation/
   (`.primaryAction`), recherche par `.searchable(placement: .toolbar)`.
 - Les icônes de la barre d'outils ont toujours un libellé (`Label`) pour l'accessibilité.
 - Les gestes rares vont dans un menu « … » (`ellipsis`), pas en boutons dans la page.
+- **La barre latérale** est une `List` native (sa sélection et son verre sont ceux du système, jamais de verre
+  ni de fond ajouté sur une rangée) : de grandes rangées (`sidebarRowSize` `.large`), le symbole de chaque
+  section dans sa couleur (`listItemTint`), un nombre à droite quand il sert (mails non lus, rendez-vous qui
+  restent aujourd'hui), un point rouge sur Réunions pendant un enregistrement. Réglages est en bas, dans une
+  liste à lui, dessiné et sélectionné comme les autres rangées.
 
 ## Les mesures
 
@@ -66,7 +71,8 @@ Elle copie Gmail, l'outil que Paul connaît le mieux (Paul, 15/11 : « calque-to
 - **le survol ne déplace rien** : une ombre sous la ligne, et les gestes par-dessus la date, sur le fond de la
   ligne ; aucun élément n'apparaît ni ne disparaît dans la mise en page ;
 - **les onglets** (Personnes, Notifications, Newsletters) sous la barre des gestes, chacun sa couleur, souligné
-  quand il est ouvert ; **les dossiers et les boîtes** dans la barre latérale, sous « Mails » ;
+  quand il est ouvert ; **les dossiers et les boîtes** dans la barre latérale, sous « Mails », avec
+  **« Nouveau mail »** en tête, comme le bouton de Gmail (⌘N dans Mails) ;
 - la barre latérale a **une largeur fixe** (230 points) : elle ne change plus d'une section à l'autre.
 
 ## Les couleurs
@@ -74,6 +80,8 @@ Elle copie Gmail, l'outil que Paul connaît le mieux (Paul, 15/11 : « calque-to
 - Une seule palette (`Palette`) pour les comptes Google, les projets et les statuts.
 - La couleur d'un **compte** marque ses rendez-vous ; celle d'un **statut** marque les colonnes du Kanban ;
   celle d'un **projet** marque sa carte (un trait à gauche).
+- Chaque **section** a sa couleur, la même dans la barre latérale et dans Réglages : Accueil sarcelle, Projets
+  bleu, Réunions violet, Calendrier orange, Mails rose, Contacts vert, Réglages gris.
 - La couleur d'accent du système reste celle de la sélection et de « Moi » dans les transcriptions.
 - Rouge pour le retard, orange pour aujourd'hui et pour ce qui est à vérifier, jamais pour décorer.
 
@@ -96,7 +104,33 @@ Elle copie Gmail, l'outil que Paul connaît le mieux (Paul, 15/11 : « calque-to
 - L'action principale d'un écran ou d'une fiche : `.buttonStyle(.glassProminent)`, teintée si la couleur
   a un sens (« Rejoindre » prend la couleur du compte).
 - Une action secondaire visible : `.buttonStyle(.glass)`.
-- Dans une liste ou une carte : `.borderless` ou `.plain`, pour ne pas charger le contenu.
+- Dans une liste ou une carte : `.buttonStyle(.hover)` (ou `IconButton` pour une icône), qui reste discret au
+  repos et répond au survol et à l'appui ; plus de `.borderless` ni de `.plain` sans retour.
+
+## L'interaction
+
+Tout ce qui se clique répond : un fond au survol, un léger enfoncement à l'appui. Et **le survol ne déplace
+rien** : il change un fond, une ombre, une échelle, jamais une marge ni la place d'un élément. Sur macOS,
+`.hoverEffect` n'existe pas : le survol vient de `onHover`, dans les outils de `Interaction.swift` (module
+`PolhubDesign`).
+
+| Outil | Usage |
+|---|---|
+| `Motion.quick` (0,15 s) | Un survol, un appui, une sélection |
+| `Motion.standard` (0,25 s) | Ce qui s'ouvre, se ferme, se déplie ou bouge |
+| `Motion.gentle` (0,35 s) | Un plus grand changement de contenu |
+| `.hoverRow(selected:, radius:, inset:)` | Une ligne cliquable : un fond arrondi au survol (`Surface.fill`), la couleur de la sélection quand elle est choisie (`Surface.selected`) ; `inset` laisse le fond déborder à gauche et à droite sans décaler le texte |
+| `.cardHover(radius:)` | Une carte cliquable qui se soulève : ombre, un peu plus grande, bord plus net ; elle dessine le bord de la carte |
+| `.buttonStyle(.hover)`, `.hover(.circle)`, `.hover(.capsule)` | Un bouton : un fond au survol, plus petit et plus clair à l'appui ; le libellé garde ses marges (`HoverButtonStyle(fill:)` pour une autre couleur) |
+| `IconButton("archivebox", help: "Archiver") { }` | Un bouton rond à icône de 32 points, gris, son cercle au survol |
+| `ShowMoreList(éléments, limit: 5) { ligne }` | Les premières lignes, puis « Voir les N autres » (« Voir l'autre » pour une seule), « Voir moins » une fois dépliée |
+| `EmptyLine("Aucun mail")` | Une partie vide : une ligne grise en `.rowBody` |
+
+- Une liste dans une carte ne montre que **quelques lignes** (5 en général), puis « Voir les N autres » :
+  jamais de liste coupée en silence.
+- Les listes natives (`List`, `Table` : la barre latérale, Réunions, Contacts) gardent la sélection du
+  système, sans survol ajouté.
+- Le mouvement respecte « Réduire les animations » : sans échelle, les fondus restent.
 
 ## Les réglages
 
