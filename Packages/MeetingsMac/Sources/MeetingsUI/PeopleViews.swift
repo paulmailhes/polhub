@@ -16,6 +16,22 @@ struct PersonAvatar: View {
     var badge: PersonBadge = .none
     var size: CGFloat = 28
 
+    var body: some View {
+        Avatar(initials, size: size, tint: tint)
+            .overlay(alignment: .bottomTrailing) {
+                let side = max(11, size * 0.4)
+                PersonBadgeMark(badge: badge, size: side)
+                    .background(Circle().fill(Color(nsColor: .windowBackgroundColor)).padding(-1.5).opacity(badge == .none ? 0 : 1))
+                    .offset(x: side * 0.4, y: side * 0.3)
+            }
+    }
+}
+
+/// The mark of a badge alone: a check in the project's color, a grey check, a « + ». The symbol changes in place.
+struct PersonBadgeMark: View {
+    let badge: PersonBadge
+    var size: CGFloat = 12
+
     private var symbol: (name: String, color: Color)? {
         switch badge {
         case .member(let color): ("checkmark.circle.fill", color)
@@ -26,19 +42,13 @@ struct PersonAvatar: View {
     }
 
     var body: some View {
-        Avatar(initials, size: size, tint: tint)
-            .overlay(alignment: .bottomTrailing) {
-                let side = max(11, size * 0.44)
-                Image(systemName: symbol?.name ?? "circle.fill")
-                    .font(.system(size: side, weight: .bold))
-                    .symbolRenderingMode(.palette)
-                    .foregroundStyle(.white, symbol?.color ?? .clear)
-                    .background(Circle().fill(Color(nsColor: .windowBackgroundColor)).padding(-1.5))
-                    .contentTransition(.symbolEffect(.replace))
-                    .opacity(symbol == nil ? 0 : 1)
-                    .offset(x: side * 0.22, y: side * 0.22)
-                    .animation(Motion.standard, value: symbol?.name)
-            }
+        Image(systemName: symbol?.name ?? "circle.fill")
+            .font(.system(size: size, weight: .bold))
+            .symbolRenderingMode(.palette)
+            .foregroundStyle(.white, symbol?.color ?? .clear)
+            .contentTransition(.symbolEffect(.replace))
+            .opacity(symbol == nil ? 0 : 1)
+            .animation(Motion.standard, value: symbol?.name)
     }
 }
 
@@ -204,12 +214,13 @@ struct PersonChip<Items: View>: View {
 
     var body: some View {
         Menu { items() } label: {
+            // On a chip the mark follows the name: on so small an avatar it would hide the initials.
             HStack(spacing: 6) {
-                PersonAvatar(initials: PeopleIndex.initials(name: person.name, email: person.email), tint: MailText.tint(for: person.email),
-                             badge: badge, size: 22)
+                Avatar(PeopleIndex.initials(name: person.name, email: person.email), size: 22, tint: MailText.tint(for: person.email))
                 Text(PeopleStyle.firstName(person)).font(.meta).foregroundStyle(.primary).lineLimit(1)
+                PersonBadgeMark(badge: badge, size: 13)
             }
-            .padding(.leading, 3).padding(.trailing, Space.s).padding(.vertical, 3)
+            .padding(.leading, 3).padding(.trailing, Space.s - 2).padding(.vertical, 3)
             .background(Surface.fill, in: Capsule())
         }
         .menuStyle(.button)
