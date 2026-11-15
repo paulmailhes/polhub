@@ -110,7 +110,7 @@ public struct AppleSummaryEngine: SummaryEngine {
         }
     }
 
-    static let busy = "Le modèle d'Apple est occupé : le compte rendu reprend dans une minute."
+    static let busy = "Le modèle d'Apple est occupé : le compte rendu reprendra un peu plus tard."
 
     /// macOS 27 names the model's errors anew (`LanguageModelError`); the older names are kept, in case. A limit of
     /// the moment (too many requests, another one under way) waits a minute and is never a failure (15/11).

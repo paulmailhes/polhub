@@ -54,6 +54,33 @@ import Testing
         #expect(MeetingListModel.meetingToOpen(selection: nil, rows: []) == nil)
     }
 
+    /// Correctifs du 15/11 : une réunion plus ancienne que les 500 de la liste, ouverte depuis un projet, reste celle
+    /// qui s'ouvre ; une réunion mise à la Corbeille depuis sa page laisse ouverte sa voisine, comme depuis la liste.
+    @Test func anOldMeetingStaysOpenAndATrashedOneLeavesItsNeighbour() {
+        let rows = [row("C", date(13, 11)), row("B", date(13, 10)), row("A", date(13, 9))]
+        let old = UUID()
+        #expect(MeetingListModel.meetingToOpen(selection: old, rows: rows, isGone: { _ in false }) == old)
+        #expect(MeetingListModel.meetingToOpen(selection: old, rows: rows, isGone: { _ in true }) == rows[0].id)
+        // B goes to the Trash from its page: C and A stay, A (under it) opens.
+        let left = [rows[0], rows[2]]
+        #expect(MeetingListModel.meetingToOpen(selection: rows[1].id, rows: left, previous: rows, isGone: { _ in true }) == rows[2].id)
+        // The last one goes: the one above it.
+        #expect(MeetingListModel.meetingToOpen(selection: rows[2].id, rows: Array(rows.prefix(2)), previous: rows, isGone: { _ in true }) == rows[1].id)
+    }
+
+    @MainActor @Test func theLibraryFindsAMeetingOlderThanItsList() throws {
+        let database = try AppDatabase.inMemory()
+        let store = MeetingStore(database)
+        let start = Date(timeIntervalSince1970: 1_794_562_920)
+        let meeting = MeetingRow(createdAt: start, status: .ended, source: .dia, candidateKey: "k", title: "Atelier", startedAt: start,
+                                 endedAt: start.addingTimeInterval(3_600))
+        try store.save(meeting)
+        let library = MeetingLibrary(store: store)
+        #expect(library.row(meeting.id)?.title == "Atelier" && !library.isGone(meeting.id))
+        try store.softDelete(id: meeting.id, at: start)
+        #expect(library.row(meeting.id) == nil && library.isGone(meeting.id) && library.isGone(UUID()))
+    }
+
     @Test func aMeetingSentToTheTrashLeavesTheNextOneOpen() {
         let rows = [row("C", date(13, 11)), row("B", date(13, 10)), row("A", date(13, 9))]
         #expect(MeetingListModel.neighbor(of: rows[1].id, in: rows) == rows[2].id)

@@ -84,6 +84,15 @@ final class Flag: @unchecked Sendable {
     var on = false
 }
 
+/// A clock the test moves.
+final class Clock: @unchecked Sendable {
+    var now: Date
+
+    init(_ now: Date) {
+        self.now = now
+    }
+}
+
 @Suite struct SummaryQueueTests {
     let now = Date(timeIntervalSince1970: 1_794_562_920)
     let database: AppDatabase
@@ -213,6 +222,70 @@ final class Flag: @unchecked Sendable {
         #expect(engine.calls == 1)
         let job = try #require(try SummaryStore(database).job(meetingID: row.id))
         #expect(job.state == .queued && job.attempts == 0)
+    }
+
+    /// Correctifs du 15/11 : un modèle occupé dit pourquoi sur la tâche, et chaque pause de suite est plus longue
+    /// (une minute, puis deux…) au lieu d'un compte rendu recommencé chaque minute sans fin.
+    @Test func aBusyModelSaysWhyAndWaitsLongerEachTime() async throws {
+        let row = try meeting(hoursAgo: 2, title: "Atelier maquette")
+        let engine = FakeEngine()
+        engine.assetsMissing = true
+        let clock = Clock(now)
+        let queue = SummaryQueue(database: database, engine: engine, now: { clock.now })
+        await queue.wake()
+        await queue.waitForIdle()
+        let job = try #require(try SummaryStore(database).job(meetingID: row.id))
+        #expect(job.state == .queued && job.attempts == 0 && job.error == "Le modèle d'Apple n'est pas disponible pour l'instant.")
+        clock.now += 61
+        await queue.wake()
+        await queue.waitForIdle()
+        #expect(engine.calls == 2)
+        // Now two minutes.
+        clock.now += 61
+        await queue.wake()
+        await queue.waitForIdle()
+        #expect(engine.calls == 2)
+        clock.now += 60
+        await queue.wake()
+        await queue.waitForIdle()
+        #expect(engine.calls == 3)
+        #expect(SummaryQueue.pause(after: 1) == 60 && SummaryQueue.pause(after: 3) == 240 && SummaryQueue.pause(after: 12) == 1_800)
+        // Paul's « Refaire » tries at once.
+        engine.assetsMissing = false
+        await queue.redo(meetingID: row.id)
+        await queue.waitForIdle()
+        #expect(try SummaryStore(database).job(meetingID: row.id)?.state == .done)
+    }
+
+    /// Correctifs du 15/11 : avec les comptes rendus automatiques coupés, un « Refaire » demandé avant un redémarrage
+    /// se fait quand même après.
+    @Test func turnedOffARedoAskedBeforeARestartStillRuns() async throws {
+        let row = try meeting(hoursAgo: 2, title: "Atelier maquette")
+        let before = SummaryQueue(database: database, engine: FakeEngine(), isEnabled: { false }, now: { [now] in now })
+        await before.meetingActivity(true)
+        await before.redo(meetingID: row.id)
+        #expect(try SummaryStore(database).job(meetingID: row.id)?.state == .queued)
+        let after = SummaryQueue(database: database, engine: FakeEngine(), isEnabled: { false }, now: { [now] in now })
+        await after.start()
+        await after.waitForIdle()
+        #expect(try SummaryStore(database).job(meetingID: row.id)?.state == .done)
+    }
+
+    /// Correctifs du 15/11 : la dernière demande refusée par le modèle ne fait plus tout perdre (voir SummarizerTests).
+    @Test func aRefusedSummaryIsStillWrittenPartial() async throws {
+        let row = try meeting(hoursAgo: 2, title: "Atelier maquette")
+        try TranscriptStore(database).replaceUtterances(meetingID: row.id, (0..<40).map { index in
+            UtteranceRow(meetingID: row.id, speaker: .autres, startMs: index * 1_000, endMs: index * 1_000 + 900,
+                         text: String(repeating: "On avance sur la maquette. ", count: 20), doubtful: false)
+        })
+        let engine = FakeEngine()
+        engine.relaxedParts = [1]
+        engine.refusesSummary = { notes in notes.contains { $0.hasPrefix("relâchées") } }
+        let queue = queue(engine)
+        await queue.wake()
+        await queue.waitForIdle()
+        #expect(try SummaryStore(database).job(meetingID: row.id)?.state == .done)
+        #expect(try meetings.summary(meetingID: row.id)?.contains("_Partiel : la partie 1 sur") == true)
     }
 
     @Test func aTranscriptionThatStartsStopsTheSummary() async throws {

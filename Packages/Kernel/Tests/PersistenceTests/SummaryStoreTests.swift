@@ -64,6 +64,23 @@ import Testing
         #expect(try store.nextPending() == row.id)
     }
 
+    /// Correctifs du 15/11 : « Refaire » sur une réunion où personne n'a parlé ne laisse pas un compte rendu « en
+    /// attente » pour toujours ; la raison d'une pause du modèle reste sur la tâche, pour la page.
+    @Test func aMeetingWithoutWordsIsNeverRedoneAndAPauseKeepsItsReason() throws {
+        let (store, meetings, transcripts, _) = try base()
+        let silent = try meeting(meetings, transcripts, hoursAgo: 3, words: false)
+        #expect(try !store.redo(meetingID: silent.id, at: now))
+        #expect(try store.job(meetingID: silent.id) == nil && store.queuedMeetings().isEmpty)
+        let row = try meeting(meetings, transcripts, hoursAgo: 2)
+        try store.start(meetingID: row.id, at: now)
+        try store.stopped(meetingID: row.id, reason: "Le modèle d'Apple est occupé.", at: now)
+        let job = try #require(try store.job(meetingID: row.id))
+        #expect(job.state == .queued && job.attempts == 0 && job.error == "Le modèle d'Apple est occupé.")
+        #expect(try store.queuedMeetings() == [row.id])
+        try store.start(meetingID: row.id, at: now)
+        #expect(try store.job(meetingID: row.id)?.error == nil)
+    }
+
     @Test func aStoppedSummaryGoesBackToTheQueueWithoutCountingAsAFailure() throws {
         let (store, meetings, transcripts, _) = try base()
         let row = try meeting(meetings, transcripts, hoursAgo: 2)

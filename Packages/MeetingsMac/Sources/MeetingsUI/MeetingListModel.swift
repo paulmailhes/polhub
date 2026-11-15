@@ -48,11 +48,17 @@ public enum MeetingListModel {
             .joined(separator: " · ")
     }
 
-    /// The meeting to show: the one chosen while the list holds it, else the newest (Paul, 15/11: the newest meeting
-    /// opens by itself). Nothing changes while the list is still empty.
-    public static func meetingToOpen(selection: UUID?, rows: [MeetingRow]) -> UUID? {
+    /// The meeting to show: the one chosen while it exists, even older than the list (correctifs, 15/11), else the
+    /// newest (Paul, 15/11: the newest meeting opens by itself). One sent to the Trash leaves its neighbour in
+    /// `previous` open, as from the list. Nothing changes while the list is still empty.
+    public static func meetingToOpen(selection: UUID?, rows: [MeetingRow], previous: [MeetingRow] = [],
+                                     isGone: (UUID) -> Bool = { _ in true }) -> UUID? {
         guard !rows.isEmpty else { return selection }
-        if let selection, rows.contains(where: { $0.id == selection }) { return selection }
+        guard let selection else { return rows.first?.id }
+        if rows.contains(where: { $0.id == selection }) || !isGone(selection) { return selection }
+        let left = Set(rows.map(\.id))
+        let before = previous.filter { $0.id == selection || left.contains($0.id) }
+        if before.contains(where: { $0.id == selection }), let next = neighbor(of: selection, in: before) { return next }
         return rows.first?.id
     }
 
@@ -133,6 +139,18 @@ public final class MeetingLibrary: ObservableObject {
                 self.summaryProgress[update.meetingID] = update.progress
             }
         }
+    }
+
+    /// A meeting of the list, or an older one the list does not hold (it keeps the 500 newest); nothing for one in
+    /// the Trash (correctifs, 15/11).
+    public func row(_ id: UUID) -> MeetingRow? {
+        if let row = rows.first(where: { $0.id == id }) { return row }
+        return (try? store.meeting(id: id)).flatMap { $0.deletedAt == nil ? $0 : nil }
+    }
+
+    /// The meeting is in the Trash, or not in the base.
+    public func isGone(_ id: UUID) -> Bool {
+        row(id) == nil
     }
 
     /// « Supprimer… »: the meeting goes to the Trash with its audio, where it can still be found (14/11).

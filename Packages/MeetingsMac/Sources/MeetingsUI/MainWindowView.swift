@@ -279,7 +279,7 @@ public struct MainWindowView<Diagnostic: View>: View {
                     .frame(width: 300)
                     Divider()
                     Group {
-                        if let id = router.selection, let row = library.rows.first(where: { $0.id == id }) {
+                        if let id = router.selection, let row = library.row(id) {
                             MeetingDetailView(row: row, store: library.store, paths: paths, transcripts: library.transcripts,
                                               projects: projects?.projects ?? [],
                                               queue: library.queue, summaries: library.summaries, summaryUnavailable: library.summaryUnavailable,
@@ -293,7 +293,7 @@ public struct MainWindowView<Diagnostic: View>: View {
                     }
                     .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .windowTitle("Réunions", subtitle: router.selection.flatMap { id in library.rows.first { $0.id == id }?.title } ?? "")
+                .windowTitle("Réunions", subtitle: router.selection.flatMap { library.row($0)?.title } ?? "")
                 .searchable(text: $router.query, placement: .toolbar, prompt: "Chercher dans les transcriptions")
             case .settings:
                 SettingsPage(router: router, updates: updates, projects: projects, agenda: agenda, mails: mails, library: library,
@@ -345,8 +345,8 @@ struct MeetingListView: View {
                 }
             }
         }
-        .onAppear(perform: openNewest)
-        .onChange(of: library.rows) { _, _ in openNewest() }
+        .onAppear { openNewest() }
+        .onChange(of: library.rows) { previous, _ in openNewest(previous: previous) }
         .confirmationDialog("Supprimer « \(deleting?.title ?? "") » ?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
                             presenting: deleting) { row in
             Button("Mettre à la Corbeille", role: .destructive) { delete(row) }
@@ -360,9 +360,10 @@ struct MeetingListView: View {
         row.projectID.flatMap { id in projects.first { $0.id == id }?.name }
     }
 
-    /// Nothing chosen, or the meeting chosen is gone: the newest opens.
-    private func openNewest() {
-        let open = MeetingListModel.meetingToOpen(selection: selection, rows: library.rows)
+    /// Nothing chosen: the newest opens. The meeting chosen went to the Trash: its neighbour, from its page as from
+    /// the list. One older than the list stays (correctifs, 15/11).
+    private func openNewest(previous: [MeetingRow] = []) {
+        let open = MeetingListModel.meetingToOpen(selection: selection, rows: library.rows, previous: previous, isGone: library.isGone)
         if open != selection { selection = open }
     }
 

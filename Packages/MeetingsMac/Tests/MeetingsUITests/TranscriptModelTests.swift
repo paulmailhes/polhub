@@ -110,6 +110,23 @@ import Testing
         #expect(TranscriptModel.summaryText(SummaryJobRow(meetingID: id, state: .done, updatedAt: now), hasSummary: true, unavailable: nil) == nil)
     }
 
+    /// Correctifs du 15/11 : un « Refaire » qui échoue ou attend se dit au-dessus de l'ancien compte rendu ; une
+    /// pause du modèle (occupé) dit sa raison, pas « il se fait après la transcription ».
+    @Test func aRedoThatFailsOrWaitsIsSaidOverTheOldSummary() {
+        let now = Date(timeIntervalSince1970: 1_794_562_920)
+        #expect(TranscriptModel.summaryText(SummaryJobRow(meetingID: id, state: .failed, attempts: 2, error: "délai", updatedAt: now),
+                                            hasSummary: true, unavailable: nil) == "Le nouveau compte rendu n'a pas pu se faire : délai")
+        #expect(TranscriptModel.summaryText(SummaryJobRow(meetingID: id, state: .queued, updatedAt: now), hasSummary: true, unavailable: nil)
+                == "Nouveau compte rendu en attente : il se fait après la transcription, jamais pendant une réunion.")
+        let busy = SummaryJobRow(meetingID: id, state: .queued, error: "Le modèle d'Apple est occupé.", updatedAt: now)
+        #expect(TranscriptModel.summaryText(busy, hasSummary: false, unavailable: nil) == "Le modèle d'Apple est occupé.")
+        #expect(TranscriptModel.summaryText(busy, hasSummary: true, unavailable: nil) == "Le modèle d'Apple est occupé.")
+        // A first failure that will be tried again still says it waits.
+        #expect(TranscriptModel.summaryText(SummaryJobRow(meetingID: id, state: .queued, attempts: 1, error: "délai", updatedAt: now),
+                                            hasSummary: false, unavailable: nil)
+                == "Compte rendu en attente : il se fait après la transcription, jamais pendant une réunion.")
+    }
+
     /// 15/11: the card says which part is read, then the last step; and that a transcribed meeting waits, before
     /// the queue takes it.
     @Test func theSummarySaysWhichPartIsRead() {

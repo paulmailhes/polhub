@@ -132,20 +132,33 @@ public struct SummaryStore: Sendable {
         }
     }
 
-    /// Stopped by a meeting: back to the queue, without counting as a failure.
-    public func stopped(meetingID: UUID, at date: Date) throws {
-        try writer.write { db in try update(db, meetingID, at: date) { $0.state = .queued } }
+    /// Stopped by a meeting, or the model not there for now: back to the queue, without counting as a failure.
+    /// `reason`, the model's, is kept for the meeting's page (correctifs, 15/11).
+    public func stopped(meetingID: UUID, reason: String? = nil, at date: Date) throws {
+        try writer.write { db in try update(db, meetingID, at: date) { $0.state = .queued; $0.error = reason } }
     }
 
-    /// « Refaire le compte rendu ».
-    public func redo(meetingID: UUID, at date: Date) throws {
+    /// The meetings whose summary waits in the queue: at launch, those Paul asked for stay asked.
+    public func queuedMeetings() throws -> Set<UUID> {
+        try writer.read { db in
+            Set(try String.fetchAll(db, sql: "SELECT meetingID FROM summary_job WHERE state = 'queued'").compactMap(UUID.init(uuidString:)))
+        }
+    }
+
+    /// « Refaire le compte rendu ». A meeting where nobody spoke has nothing to summarize: nothing is asked,
+    /// rather than a summary that would wait forever (correctifs, 15/11). Returns whether it was asked.
+    @discardableResult
+    public func redo(meetingID: UUID, at date: Date) throws -> Bool {
         try writer.write { db in
+            guard try Bool.fetchOne(db, sql: "SELECT EXISTS (SELECT 1 FROM utterance WHERE meetingID = ?)", arguments: [Self.key(meetingID)]) == true
+            else { return false }
             var job = try SummaryJobRow.fetchOne(db, key: ["meetingID": Self.key(meetingID)]) ?? SummaryJobRow(meetingID: meetingID, state: .queued, updatedAt: date)
             job.state = .queued
             job.attempts = 0
             job.error = nil
             job.updatedAt = date
             try job.save(db)
+            return true
         }
     }
 

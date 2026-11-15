@@ -19,6 +19,9 @@ public actor SummaryQueue {
     private var current: (meetingID: UUID, task: Task<Void, Never>)?
     /// The model's assets were missing: nothing starts before this (review of 14/11, Important 5).
     private var retryAfter: Date?
+    /// How many times in a row the model was not there (busy, its assets missing): each pause is twice as long as
+    /// the one before, half an hour at most, rather than a summary started again every minute (correctifs, 15/11).
+    private var pauses = 0
     /// The meetings Paul asked « Refaire » for: they are summarized even with the automatic summaries off (15/11).
     private var asked: Set<UUID> = []
     /// Where the summary under way is, part by part, for the meeting's page; `nil` once it is over (15/11). In
@@ -45,11 +48,18 @@ public actor SummaryQueue {
     /// Why no summary can be made now, if so.
     public var unavailableReason: String? { engine.unavailableReason }
 
-    /// At launch: what was running goes back to the queue.
+    /// At launch: what was running goes back to the queue. What waits there stays asked, so that a « Refaire » asked
+    /// before a restart still runs with the automatic summaries off (correctifs, 15/11).
     public func start() async {
         // Not the one the timer may have started meanwhile (review of 14/11, minor).
         if current == nil { _ = try? store.resetRunning(at: now()) }
+        asked.formUnion((try? store.queuedMeetings()) ?? [])
         await wake()
+    }
+
+    /// The pause after the `count`-th time in a row the model was not there: a minute, then twice as long each time.
+    static func pause(after count: Int) -> TimeInterval {
+        min(1_800, 60 * pow(2, Double(max(0, count - 1))))
     }
 
     /// `true` from the pop-up to the end of a meeting.
@@ -74,10 +84,12 @@ public actor SummaryQueue {
         current = (meetingID, task)
     }
 
-    /// « Refaire le compte rendu ».
+    /// « Refaire le compte rendu »: asked by Paul, it tries now, whatever the pause.
     public func redo(meetingID: UUID) async {
-        try? store.redo(meetingID: meetingID, at: now())
+        guard (try? store.redo(meetingID: meetingID, at: now())) == true else { return }
         asked.insert(meetingID)
+        retryAfter = nil
+        pauses = 0
         await wake()
     }
 
@@ -101,15 +113,19 @@ public actor SummaryQueue {
             try store.finish(meetingID: meetingID, summary: summary.map(SummaryText.markdown),
                              actions: SummaryText.actionRows(summary?.actions ?? [], at: now()), at: now())
             asked.remove(meetingID)
+            pauses = 0
             if summary != nil { onFinished(meetingID, title) }
         } catch {
             if Task.isCancelled || error is CancellationError {
                 // A meeting or a transcription stopped it, whatever the model called it (review, Important 4).
                 try? store.stopped(meetingID: meetingID, at: now())
-            } else if case SummaryError.unavailable = error {
-                try? store.stopped(meetingID: meetingID, at: now())
-                retryAfter = now().addingTimeInterval(60)
+            } else if case SummaryError.unavailable(let reason) = error {
+                // The reason shows on the meeting's page; each pause in a row is longer (correctifs, 15/11).
+                pauses += 1
+                try? store.stopped(meetingID: meetingID, reason: reason, at: now())
+                retryAfter = now().addingTimeInterval(Self.pause(after: pauses))
             } else {
+                pauses = 0
                 try? store.fail(meetingID: meetingID, error: (error as? SummaryError)?.description ?? error.localizedDescription, at: now())
                 // Asked by Paul, it keeps its second attempt even with the automatic summaries off.
                 if (try? store.job(meetingID: meetingID))??.state != .queued { asked.remove(meetingID) }

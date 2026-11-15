@@ -98,22 +98,27 @@ public enum TranscriptModel {
     }
 
     static let summaryWaiting = "Compte rendu en attente : il se fait après la transcription, jamais pendant une réunion."
+    static let redoWaiting = "Nouveau compte rendu en attente : il se fait après la transcription, jamais pendant une réunion."
 
     /// The sentence of the summary's card, or `nil` when the summary is there (or not started). `waiting`: the
     /// meeting is transcribed and nothing has been asked yet, as in the minute before the queue's next turn (15/11).
+    /// Over a summary already there, a new one that waits or fails says so (correctifs, 15/11); a pause of the model
+    /// (busy) says its reason.
     public static func summaryText(_ job: SummaryJobRow?, hasSummary: Bool, unavailable: String?, progress: SummaryProgress? = nil,
                                    waiting: Bool = false) -> String? {
         guard let job else { return waiting && !hasSummary ? unavailable ?? summaryWaiting : nil }
-        guard !hasSummary || job.state == .running else { return nil }
         if let unavailable, job.state != .done { return unavailable }
         switch job.state {
-        case .queued: return summaryWaiting
+        case .queued:
+            if let reason = job.error, job.attempts == 0 { return reason }
+            return hasSummary ? redoWaiting : summaryWaiting
         case .running:
             guard let progress, progress.total > 1 || progress.finishing else { return "Compte rendu en cours d'écriture…" }
             if progress.finishing { return "Compte rendu : dernière étape…" }
             return "Compte rendu : partie \(min(progress.done + 1, progress.total)) sur \(progress.total)…"
-        case .failed: return "Le compte rendu n'a pas pu se faire : \(job.error ?? "raison inconnue.")"
-        case .done: return "Trop peu de paroles pour un compte rendu."
+        case .failed:
+            return "\(hasSummary ? "Le nouveau compte rendu" : "Le compte rendu") n'a pas pu se faire : \(job.error ?? "raison inconnue.")"
+        case .done: return hasSummary ? nil : "Trop peu de paroles pour un compte rendu."
         }
     }
 
