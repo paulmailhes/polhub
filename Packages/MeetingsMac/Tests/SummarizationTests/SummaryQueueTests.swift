@@ -17,13 +17,27 @@ final class FakeEngine: SummaryEngine, @unchecked Sendable {
     var notesLength = 0
     /// Called after each part's notes.
     var afterNotes: (() -> Void)?
+    /// The parts the model refuses (its guardrails), even asked again.
+    var refusedParts: Set<Int> = []
+    /// A text longer than this overflows the model's window.
+    var window: Int?
+    /// What `characterBudget()` answers.
+    var budget = SummaryPlan.maxCharacters
     private(set) var calls = 0
+    private(set) var merges = 0
     private(set) var mergedLength = 0
+    /// The length of every text read for notes.
+    private(set) var read: [Int] = []
+
+    func characterBudget() async -> Int { budget }
 
     func notes(for chunk: String, part: Int, of count: Int) async throws -> String {
         calls += 1
         if failing { throw SummaryError.model("le modèle n'a pas répondu") }
         if assetsMissing { throw SummaryError.unavailable("Le modèle d'Apple n'est pas disponible pour l'instant.") }
+        if refusedParts.contains(part) { throw SummaryError.refused }
+        if let window, chunk.count > window { throw SummaryError.tooLong }
+        read.append(chunk.count)
         if slow {
             do {
                 try await Task.sleep(for: .seconds(30))
@@ -36,11 +50,21 @@ final class FakeEngine: SummaryEngine, @unchecked Sendable {
         return notesLength > 0 ? String(repeating: "n", count: notesLength) : "notes \(part)/\(count)"
     }
 
+    func merge(_ notes: String, part: Int, of count: Int) async throws -> String {
+        merges += 1
+        return notesLength > 0 ? String(repeating: "m", count: notesLength) : "fusion \(part)/\(count)"
+    }
+
     func summary(of notes: [String], title: String) async throws -> MeetingSummary {
         mergedLength = notes.joined(separator: "\n\n").count
-        return MeetingSummary(overview: "\(title) : \(notes.count) parties.", decisions: ["Garder la maquette."],
+        return MeetingSummary(overview: "\(title) : \(notes.count) parties.", points: ["La maquette avance."], decisions: ["Garder la maquette."],
                               actions: [SummaryAction(text: "envoyer le devis", owner: "Moi", due: "vendredi")])
     }
+}
+
+/// The steps a summary went through.
+final class Steps: @unchecked Sendable {
+    var all: [SummaryProgress] = []
 }
 
 final class Flag: @unchecked Sendable {

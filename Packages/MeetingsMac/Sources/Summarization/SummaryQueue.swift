@@ -21,10 +21,15 @@ public actor SummaryQueue {
     private var retryAfter: Date?
     /// The meetings Paul asked « Refaire » for: they are summarized even with the automatic summaries off (15/11).
     private var asked: Set<UUID> = []
+    /// Where the summary under way is, part by part, for the meeting's page; `nil` once it is over (15/11). In
+    /// memory only: the base has no column for it.
+    public nonisolated let progress: AsyncStream<SummaryProgressUpdate>
+    private nonisolated let progressSink: AsyncStream<SummaryProgressUpdate>.Continuation
 
     public init(database: AppDatabase, engine: any SummaryEngine, otherWork: @escaping @Sendable () async -> Bool = { false },
                 isEnabled: @escaping @Sendable () -> Bool = { true }, now: @escaping @Sendable () -> Date = Date.init,
                 onFinished: @escaping @Sendable (UUID, String) -> Void = { _, _ in }) {
+        (progress, progressSink) = AsyncStream.makeStream(bufferingPolicy: .bufferingNewest(32))
         self.onFinished = onFinished
         self.isEnabled = isEnabled
         self.database = database
@@ -82,7 +87,8 @@ public actor SummaryQueue {
     }
 
     private func run(_ meetingID: UUID) async {
-        let otherWork = otherWork
+        let otherWork = otherWork, sink = progressSink
+        defer { sink.yield(SummaryProgressUpdate(meetingID: meetingID, progress: nil)) }
         do {
             let meetings = MeetingStore(database)
             let lines = try TranscriptStore(database).utterances(meetingID: meetingID)
@@ -90,7 +96,8 @@ public actor SummaryQueue {
             let participants = try ContactStore(database).participants(meetingID: meetingID).map(\.name)
             // A transcription that starts stops the summary: the Mac computes one thing at a time (review of 14/11).
             let summary = try await Summarizer.make(lines: lines, title: title, participants: participants, engine: engine,
-                                                    shouldStop: { await otherWork() })
+                                                    shouldStop: { await otherWork() },
+                                                    onProgress: { sink.yield(SummaryProgressUpdate(meetingID: meetingID, progress: $0)) })
             try store.finish(meetingID: meetingID, summary: summary.map(SummaryText.markdown),
                              actions: SummaryText.actionRows(summary?.actions ?? [], at: now()), at: now())
             asked.remove(meetingID)
@@ -110,5 +117,16 @@ public actor SummaryQueue {
         }
         current = nil
         await wake()
+    }
+}
+
+/// A step of the summary under way: `progress` is `nil` once it is over.
+public struct SummaryProgressUpdate: Equatable, Sendable {
+    public var meetingID: UUID
+    public var progress: SummaryProgress?
+
+    public init(meetingID: UUID, progress: SummaryProgress?) {
+        self.meetingID = meetingID
+        self.progress = progress
     }
 }
