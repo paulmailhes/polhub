@@ -578,11 +578,13 @@ public struct MailStore: Sendable {
         }
     }
 
-    /// The drafts Gmail holds that Polhub did not make (written on the phone, in Gmail web).
+    /// The drafts Gmail holds that Polhub did not make (written on the phone, in Gmail web). One whose thread went to
+    /// the trash or the spam is no draft to take up: Gmail no longer lists it among the drafts (wave B review).
     public func gmailOnlyDrafts() throws -> [MailMessageRow] {
         try writer.read { db in
             let mine = try String.fetchSet(db, sql: "SELECT gmailMessageID FROM mail_draft WHERE gmailMessageID IS NOT NULL")
-            return try MailMessageRow.filter(sql: "labels LIKE '%\"DRAFT\"%'").order(Column("date").desc).fetchAll(db)
+            return try MailMessageRow.filter(sql: #"labels LIKE '%"DRAFT"%' AND labels NOT LIKE '%"TRASH"%' AND labels NOT LIKE '%"SPAM"%'"#)
+                .order(Column("date").desc).fetchAll(db)
                 .filter { !mine.contains($0.messageID) }
         }
     }

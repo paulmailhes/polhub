@@ -212,9 +212,25 @@ public enum GoogleOAuth {
 public enum GoogleHTTP {
     public typealias Fetch = @Sendable (URLRequest) async throws -> (Data, Int)
 
+    /// Polhub's own session for Google: no cache and no cookie. `URLSession.shared` wrote Gmail's answers (a mail's
+    /// body, a spam's) to `Caches/fr.paulmailhes.polhub/Cache.db` and `fsCachedData` (security review of wave B).
+    public static let session: URLSession = {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.urlCache = nil
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.httpCookieStorage = nil
+        configuration.httpShouldSetCookies = false
+        return URLSession(configuration: configuration)
+    }()
+
     public static let live: Fetch = { request in
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         return (data, (response as? HTTPURLResponse)?.statusCode ?? 0)
+    }
+
+    /// What the shared session kept on disk before 0.17.0 (Gmail's answers among them) goes, at each launch.
+    public static func forgetOldCache() {
+        URLCache.shared.removeAllCachedResponses()
     }
 }
 

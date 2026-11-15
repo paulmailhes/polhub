@@ -381,6 +381,8 @@ public final class MailLibrary: ObservableObject {
             self?.refresh()
         }
         .store(in: &cancellables)
+        // Gmail's answers once kept on disk by the shared session (a spam's body among them) go (wave B review).
+        GoogleHTTP.forgetOldCache()
     }
 
     /// Asks Gmail what is new, now.
@@ -1253,6 +1255,13 @@ public final class MailLibrary: ObservableObject {
     public func send(_ draftID: String) {
         // A programmed mail leaves now only through « Envoyer maintenant » (`sendScheduledNow`).
         guard sending == nil, scheduled[draftID] == nil, let draft = try? store.draft(draftID) else { return }
+        startSending(draft, programmed: false)
+    }
+
+    /// The delay to call it back, then the engine. A programmed mail stays on the list meanwhile: at the end, it
+    /// leaves only as Paul sealed it (wave B review); « Annuler » leaves it as it was.
+    private func startSending(_ draft: MailDraftRow, programmed: Bool) {
+        let draftID = draft.id
         if let problem = sendProblem(draft) {
             message = problem
             return
@@ -1271,12 +1280,14 @@ public final class MailLibrary: ObservableObject {
             // From here « Annuler » can no longer call it back (review of 14/11).
             self.sending?.leaving = true
             do {
-                try await self.engine.send(draftID)
+                try await self.engine.send(draftID, programmed: programmed)
                 self.message = "Mail envoyé : « \(subject) »."
             } catch {
                 if (try? self.store.draft(draftID)) != nil {
-                    if !(error is MailDraftRow.Conflict) { try? self.store.markDraftError(draftID, error: "\(error)") }
-                    self.message = "Mail non envoyé : \(error). Il t'attend dans Brouillons."
+                    // Still programmed (Gmail did not answer): it waits in « Programmés », as it was.
+                    let waits = (try? await self.engine.scheduledSends())?.contains { $0.draftID == draftID } ?? false
+                    if !(error is MailDraftRow.Conflict), !waits { try? self.store.markDraftError(draftID, error: "\(error)") }
+                    self.message = "Mail non envoyé : \(error). " + (waits ? "Il attend toujours dans Programmés." : "Il t'attend dans Brouillons.")
                     self.onSendFailed?(subject, draft.threadKey)
                 }
             }
@@ -1298,6 +1309,11 @@ public final class MailLibrary: ObservableObject {
         sendTask?.cancel()
         sendTask = nil
         self.sending = nil
+        // « Envoyer maintenant » called back: still programmed, as it was.
+        guard scheduled[sending.draftID] == nil else {
+            message = "Envoi annulé : le mail attend toujours dans Programmés."
+            return
+        }
         message = "Envoi annulé : le mail t'attend dans Brouillons."
         if (try? store.draft(sending.draftID))?.threadKey == nil { composing = sending.draftID }
         schedulePush(sending.draftID, after: .zero)
@@ -1368,20 +1384,16 @@ public final class MailLibrary: ObservableObject {
         }
     }
 
-    /// « Envoyer maintenant », on a programmed mail or one that waits for Paul: off the list, then the usual send,
-    /// with its delay to call it back.
+    /// « Envoyer maintenant », on a programmed mail or one that waits for Paul: the usual delay to call it back, then
+    /// it leaves as Paul sealed it, never the base's version of the moment (wave B review). It stays on the list
+    /// meanwhile: « Annuler » leaves it there.
     public func sendScheduledNow(_ draftID: String) {
-        guard sending == nil else { return }
-        let engine = self.engine
-        Task {
-            do {
-                try await engine.unschedule(draftID)
-                scheduled[draftID] = nil
-                send(draftID)
-            } catch {
-                message = "Envoi impossible : \(error)."
-            }
+        guard sending == nil else {
+            message = "Un autre mail part en ce moment : réessaie dans quelques secondes."
+            return
         }
+        guard scheduled[draftID] != nil, let draft = try? store.draft(draftID) else { return }
+        startSending(draft, programmed: true)
     }
 
     /// The engine's list; an older one never comes after a newer.
@@ -1408,15 +1420,21 @@ public final class MailLibrary: ObservableObject {
         case .sent(let entry, let at):
             // On time, as in Gmail: no notification.
             guard at.timeIntervalSince(entry.sendAt) > 5 * 60 else { return ("Mail programmé envoyé : « \(entry.subject) ».", nil) }
-            let late = "Parti à \(MailText.clock(at, calendar: calendar)) au lieu de \(MailText.clock(entry.sendAt, calendar: calendar))"
+            // The day too when it left the day after (« au lieu d'hier 23:00 »).
+            let planned = calendar.isDate(entry.sendAt, inSameDayAs: at) ? "de \(MailText.clock(entry.sendAt, calendar: calendar))"
+                : { let words = MailText.scheduled(entry.sendAt, now: at, calendar: calendar); return words.hasPrefix("hier") ? "d'\(words)" : "de \(words)" }()
+            let late = "Parti à \(MailText.clock(at, calendar: calendar)) au lieu \(planned)"
             return ("« \(entry.subject) » : \(late.prefix(1).lowercased() + late.dropFirst()).",
-                    MailScheduleNotice(title: "« \(entry.subject) »", body: "\(late) : ton Mac était en veille ou Polhub fermé.",
+                    MailScheduleNotice(title: "« \(entry.subject) »", body: "\(late) : \(lateReason(entry)).",
                                        threadKey: entry.threadKey, folder: .sent))
         case .held(let entry):
             let planned = MailText.scheduled(entry.sendAt, now: now, calendar: calendar)
             return ("« \(entry.subject) » n'est pas encore parti : il attend ton accord dans Programmés.",
-                    MailScheduleNotice(title: "Pas encore parti", body: "« \(entry.subject) » était programmé pour \(planned) : ton Mac était en veille ou Polhub fermé. Il attend ton accord dans Programmés.",
+                    MailScheduleNotice(title: "Pas encore parti", body: "« \(entry.subject) » était programmé pour \(planned) : \(lateReason(entry)). Il attend ton accord dans Programmés.",
                                        threadKey: entry.threadKey, folder: .scheduled))
+        case .setAside:
+            let text = "Polhub a trouvé dans le Trousseau une liste d'envois programmés qu'il n'avait pas écrite : il l'a écartée, rien n'en est parti."
+            return (text, MailScheduleNotice(title: "Envois programmés", body: text, threadKey: nil, folder: .scheduled))
         case .stopped(let entry, let stop):
             let text = "« \(entry.subject) » n'est pas parti : \(stop)." + (stop == .vanished ? "" : " Il t'attend dans Brouillons.")
             return (text, MailScheduleNotice(title: "Mail non envoyé", body: text, threadKey: stop == .vanished ? nil : entry.threadKey,
@@ -1425,6 +1443,12 @@ public final class MailLibrary: ObservableObject {
             let text = "« \(entry.subject) » est peut-être parti : Polhub s'est arrêté pendant son envoi. Regarde dans Envoyés avant de le renvoyer."
             return (text, MailScheduleNotice(title: "Mail programmé", body: text, threadKey: entry.threadKey, folder: .sent))
         }
+    }
+
+    /// Why a programmed mail is late, from when Polhub first tried to send it (wave B review): asleep or closed at its
+    /// time, or awake while Gmail or the network did not answer.
+    nonisolated static func lateReason(_ entry: ScheduledSend) -> String {
+        entry.gmailWasLate ? "Gmail ne répondait pas à l'heure prévue" : "ton Mac était en veille ou Polhub fermé"
     }
 
     /// A notification's click: its folder, from the top.

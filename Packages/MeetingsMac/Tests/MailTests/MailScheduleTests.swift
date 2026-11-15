@@ -208,8 +208,8 @@ import Testing
         guard case .stopped(_, .changed)? = f.outcomes.all.last else { Issue.record("pas arrêté"); return }
     }
 
-    /// A row pointed at another Gmail draft (its ids are in the base): what leaves is still what Paul programmed,
-    /// uploaded right before the send, never the other draft's content.
+    /// A row pointed at another Gmail draft (its ids are in the base): the entry knows Gmail's copy Paul programmed,
+    /// so nothing leaves, and the other draft is neither sent nor written over (security review of wave B).
     @Test func aRepointedGmailDraftSendsOnlyWhatPaulScheduled() async throws {
         let f = try await setUp()
         defer { try? FileManager.default.removeItem(at: f.root) }
@@ -221,10 +221,150 @@ import Testing
         try sql(f.store, "UPDATE mail_draft SET gmailDraftID = 'autre', gmailMessageID = 'dm-autre', pushedAt = updatedAt WHERE id = ?", [row.id])
         f.clock.set(at)
         await f.engine.step(account)
-        #expect(f.sends == 1 && f.gmail.sent.count == 1)
-        let sent = try #require(f.gmail.sent.first)
-        #expect(sent.contains("Version programm") && !sent.contains("pirate.exemple"))
-        #expect(f.gmail.calls.contains("PUT /upload/drafts/autre"))
+        #expect(f.sends == 0 && f.gmail.sent.isEmpty && f.vault.all.isEmpty)
+        #expect(!f.gmail.calls.contains("PUT /upload/drafts/autre") && f.gmail.drafts["autre"]?.raw.contains("pirate.exemple") == true)
+        guard case .stopped(_, .changed)? = f.outcomes.all.last else { Issue.record("pas arrêté"); return }
+    }
+
+    /// Edited or sent on the phone after Paul programmed it, then the row's Gmail ids cleared or changed by hand:
+    /// the entry keeps Gmail's copy as Polhub gave it, so the phone's choice still stops it (security review).
+    @Test func aPhoneEditCancelsWhateverTheRowSays() async throws {
+        for (phone, row) in [("modifié", "vidé"), ("envoyé", "vidé"), ("modifié", "suivi")] {
+            let f = try await setUp()
+            defer { try? FileManager.default.removeItem(at: f.root) }
+            let programmed = try draft(f.store)
+            let at = Self.start.addingTimeInterval(3_600)
+            try await f.engine.schedule(programmed.id, at: at)
+            // The push that follows Paul's choice: Gmail holds the version programmed, the entry knows its ids.
+            let held = try await f.engine.push(programmed.id)
+            let id = try #require(held.gmailDraftID)
+            #expect(f.vault.all.first?.gmailDraftID == id && f.vault.all.first?.gmailMessageID == held.gmailMessageID)
+            if phone == "envoyé" { try await f.engine.discardInGmailOnly(id, gmail: f.gmail) } else { f.gmail.editInGmail(id) }
+            if row == "vidé" {
+                try sql(f.store, "UPDATE mail_draft SET gmailDraftID = NULL, gmailMessageID = NULL WHERE id = ?", [programmed.id])
+            } else {
+                // The row made to follow the phone's new message.
+                try sql(f.store, "UPDATE mail_draft SET gmailMessageID = ? WHERE id = ?", [f.gmail.drafts[id]?.messageID, programmed.id])
+            }
+            f.clock.set(at)
+            await f.engine.step(account)
+            #expect(f.sends == 0 && f.vault.all.isEmpty, "\(phone), \(row)")
+            guard case .stopped? = f.outcomes.all.last else { Issue.record("pas arrêté : \(phone), \(row)"); continue }
+        }
+    }
+
+    /// The conversation deleted on the phone takes the draft to Gmail's trash: a programmed mail Paul threw away
+    /// never leaves (Gmail's behaviour itself is not measured).
+    @Test func aProgrammedDraftTrashedInGmailNeverLeaves() async throws {
+        let f = try await setUp()
+        defer { try? FileManager.default.removeItem(at: f.root) }
+        let row = try draft(f.store)
+        let at = Self.start.addingTimeInterval(3_600)
+        try await f.engine.schedule(row.id, at: at)
+        let id = try #require(try await f.engine.push(row.id).gmailDraftID)
+        f.gmail.trashInGmail(id)
+        f.clock.set(at)
+        await f.engine.step(account)
+        #expect(f.sends == 0 && f.vault.all.isEmpty)
+        #expect(try f.store.draft(row.id)?.lastError?.contains("corbeille") == true)
+        guard case .stopped(_, .trashed)? = f.outcomes.all.last else { Issue.record("pas arrêté"); return }
+    }
+
+    /// « Envoyer maintenant » on a mail that waits for Paul: it leaves as he sealed it, never the base's version of
+    /// the moment (a Bcc added by hand, a backup put back).
+    @Test func sendingAHeldMailNowChecksTheSeal() async throws {
+        let f = try await setUp()
+        defer { try? FileManager.default.removeItem(at: f.root) }
+        let row = try draft(f.store)
+        let at = Self.start.addingTimeInterval(3_600)
+        try await f.engine.schedule(row.id, at: at)
+        f.clock.set(at.addingTimeInterval(13 * 3_600))
+        await f.engine.step(account)
+        #expect(f.vault.all.map(\.state) == [.held])
+        try sql(f.store, #"UPDATE mail_draft SET bcc = '[{"email":"espion@pirate.exemple"}]' WHERE id = ?"#, [row.id])
+        await #expect(throws: ScheduleStop.changed) { try await f.engine.send(row.id, programmed: true) }
+        #expect(f.sends == 0 && f.vault.all.isEmpty && !f.gmail.calls.contains("POST /drafts/send"))
+        // No longer programmed: « Envoyer maintenant » never falls back on an unsealed send.
+        await #expect(throws: ScheduleError.notScheduled) { try await f.engine.send(row.id, programmed: true) }
+        #expect(f.sends == 0)
+    }
+
+    /// The Keychain refuses the claim (locked at sleep): the engine waits before trying again, never in a loop
+    /// that spends Gmail's quota; the same for the move to « waits for Paul ».
+    @Test func aKeychainThatRefusesWaitsBeforeTryingAgain() async throws {
+        let f = try await setUp()
+        defer { try? FileManager.default.removeItem(at: f.root) }
+        let row = try draft(f.store)
+        let at = Self.start.addingTimeInterval(3_600)
+        try await f.engine.schedule(row.id, at: at)
+        f.vault.failSaves(1)
+        f.clock.set(at)
+        await f.engine.step(account)
+        let attempts = f.vault.attempts
+        await f.engine.step(account)
+        #expect(f.sends == 0 && f.vault.attempts == attempts)
+        f.clock.set(at.addingTimeInterval(MailEngine.retryDelay + 1))
+        await f.engine.step(account)
+        #expect(f.sends == 1 && f.vault.all.isEmpty)
+
+        let late = try draft(f.store)
+        let later = at.addingTimeInterval(2 * 3_600)
+        try await f.engine.schedule(late.id, at: later)
+        f.vault.failSaves(1)
+        f.clock.set(later.addingTimeInterval(13 * 3_600))
+        await f.engine.step(account)
+        let again = f.vault.attempts
+        await f.engine.step(account)
+        #expect(f.vault.attempts == again && f.vault.all.map(\.state) == [.waiting])
+        f.clock.set(later.addingTimeInterval(13 * 3_600 + MailEngine.retryDelay + 1))
+        await f.engine.step(account)
+        #expect(f.vault.all.map(\.state) == [.held] && f.sends == 1)
+    }
+
+    /// A mailbox that no longer grants the mails is no longer followed: its programmed mails stop, back in
+    /// Brouillons, and Paul is told. An empty list of mailboxes at launch stops nothing.
+    @Test func aMailboxNoLongerFollowedStopsItsProgrammedMails() async throws {
+        let f = try await setUp()
+        defer { try? FileManager.default.removeItem(at: f.root) }
+        let row = try draft(f.store)
+        try await f.engine.schedule(row.id, at: Self.start.addingTimeInterval(3_600))
+        await f.engine.follow(accounts: [])
+        #expect(f.vault.all.count == 1 && f.outcomes.all.isEmpty)
+        try CalendarStore(f.store.database).setGrantedScopes(email: account, scopes: "openid https://www.googleapis.com/auth/calendar.events")
+        await f.engine.follow(accounts: [])
+        #expect(f.vault.all.isEmpty && f.sends == 0)
+        #expect(try f.store.draft(row.id) != nil)
+        guard case .stopped(_, .noAccess)? = f.outcomes.all.last else { Issue.record("pas arrêté"); return }
+    }
+
+    /// A Keychain item another program made under the vault's name (`security add-generic-password -A`, before
+    /// Polhub's first launch), holding a due entry whose fingerprint matches a draft: never read, nothing leaves;
+    /// Polhub's own, empty, takes its place and Paul is told. The same list in Polhub's own item would leave.
+    @Test func aListPolhubNeverWroteNeverSends() async throws {
+        for planted in [true, false] {
+            let f = try await setUp()
+            defer { try? FileManager.default.removeItem(at: f.root) }
+            let row = try draft(f.store)
+            let fingerprint = try await f.engine.outgoing(row).fingerprint(threadKey: row.threadKey)
+            let entry = ScheduledSend(draftID: row.id, account: account, sendAt: Self.start, fingerprint: fingerprint, subject: row.subject,
+                                      threadKey: row.threadKey, createdAt: Self.start)
+            let keychain = FakeVaultKeychain(data: try JSONEncoder().encode([entry]), openToAll: planted)
+            let outcomes = Outcomes()
+            // A launch later, with that item in the Keychain.
+            let again = MailEngine(database: f.store.database, root: f.root, sendFor: { _ in f.gmail.send }, flavor: .prod, now: { f.clock.now },
+                                   pause: { _ in }, schedules: KeychainScheduleVault(keychain: keychain), onScheduleOutcome: { outcomes.add($0) })
+            f.clock.set(Self.start.addingTimeInterval(60))
+            await again.step(account)
+            await again.step(account)
+            if planted {
+                #expect(f.sends == 0 && f.gmail.sent.isEmpty && outcomes.all == [.setAside])
+                #expect(keychain.item == .kept(Data("[]".utf8)) && keychain.deletes == 1)
+                #expect(try f.store.draft(row.id) != nil)
+                #expect(try await again.scheduledSends().isEmpty)
+            } else {
+                #expect(f.sends == 1 && keychain.item == .kept(Data("[]".utf8)))
+            }
+        }
     }
 
     /// The same for Paul's own « Envoyer » (found while reading, 15/11): Gmail gets what he saw, then sends it.
@@ -430,6 +570,80 @@ import Testing
         f.clock.set(at)
         await f.engine.step(account)
         #expect(f.sends == 1)
+    }
+}
+
+/// The Keychain's item of the vault, in memory: who may read it (an item another program made with `-A` stays open
+/// to all, even once written over, as in the Keychain).
+final class FakeVaultKeychain: VaultKeychain, @unchecked Sendable {
+    private let lock = NSLock()
+    private var data: Data?
+    private var open: Bool
+    private var deleted = 0
+
+    init(data: Data? = nil, openToAll: Bool = false) {
+        self.data = data
+        open = openToAll
+    }
+
+    var item: VaultItem? { lock.withLock { data.map { open ? .openToAll : .kept($0) } } }
+    var deletes: Int { lock.withLock { deleted } }
+
+    func read() throws -> VaultItem? { item }
+
+    func update(_ new: Data) throws -> Bool {
+        lock.withLock {
+            guard data != nil else { return false }
+            data = new
+            return true
+        }
+    }
+
+    func add(_ new: Data) throws {
+        try lock.withLock {
+            guard data == nil else { throw ScheduleVaultError.unwritable(-25299) }
+            data = new
+            open = false
+        }
+    }
+
+    func delete() throws {
+        lock.withLock {
+            data = nil
+            open = false
+            deleted += 1
+        }
+    }
+}
+
+/// The vault over the Keychain's item: made by Polhub when there is none, written in place, and an item any program
+/// could read set aside unread (security review of wave B).
+@Suite struct KeychainScheduleVaultTests {
+    let entry = ScheduledSend(draftID: "d1", account: "moi@exemple.fr", sendAt: Date(timeIntervalSince1970: 0), fingerprint: "f", subject: "Devis",
+                              threadKey: nil, createdAt: Date(timeIntervalSince1970: 0), gmailDraftID: "r1", gmailMessageID: "dm1")
+
+    @Test func polhubMakesItsItemAndWritesItInPlace() throws {
+        let keychain = FakeVaultKeychain()
+        let vault = KeychainScheduleVault(keychain: keychain)
+        #expect(try vault.load().isEmpty && keychain.item == .kept(Data("[]".utf8)))
+        try vault.save([entry])
+        #expect(try vault.load() == [entry] && keychain.deletes == 0)
+    }
+
+    @Test func anItemOpenToAllIsNeverRead() throws {
+        let keychain = FakeVaultKeychain(data: try JSONEncoder().encode([entry]), openToAll: true)
+        let vault = KeychainScheduleVault(keychain: keychain)
+        #expect(throws: ScheduleVaultError.foreign) { try vault.load() }
+        #expect(keychain.item == .kept(Data("[]".utf8)) && keychain.deletes == 1)
+        #expect(try vault.load().isEmpty)
+    }
+
+    /// A list written before the entries knew Gmail's ids still reads.
+    @Test func anOlderListStillReads() throws {
+        let older = #"[{"draftID":"d1","account":"moi@exemple.fr","sendAt":0,"fingerprint":"f","subject":"Devis","state":"waiting","createdAt":0}]"#
+        let vault = KeychainScheduleVault(keychain: FakeVaultKeychain(data: Data(older.utf8)))
+        let loaded = try #require(try vault.load().first)
+        #expect(loaded.draftID == "d1" && loaded.gmailDraftID == nil && loaded.firstTriedAt == nil)
     }
 }
 

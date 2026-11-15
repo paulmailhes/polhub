@@ -92,6 +92,38 @@ final class SilentGmail: @unchecked Sendable {
         #expect(MailLibrary.texts(for: .maybeSent(entry)).notice?.body.contains("peut-être parti") == true)
     }
 
+    /// Late because Gmail did not answer, with the Mac awake: it says so; left the day after: the day too
+    /// (wave B review). A list Polhub never wrote, set aside: Paul is told.
+    @Test func whyItIsLateAndWhichDay() {
+        let planned = date(2026, 11, 23, 8)
+        var entry = ScheduledSend(draftID: "d", account: "moi@exemple.fr", sendAt: planned, fingerprint: "", subject: "Devis", threadKey: nil,
+                                  createdAt: planned)
+        entry.firstTriedAt = planned.addingTimeInterval(1)
+        #expect(MailLibrary.texts(for: .sent(entry, at: date(2026, 11, 23, 8, 40)), calendar: paris).notice?.body
+            == "Parti à 8:40 au lieu de 8:00 : Gmail ne répondait pas à l'heure prévue.")
+        #expect(MailLibrary.texts(for: .held(entry), now: date(2026, 11, 23, 21), calendar: paris).notice?.body.contains("Gmail ne répondait pas") == true)
+        var evening = ScheduledSend(draftID: "e", account: "moi@exemple.fr", sendAt: date(2026, 11, 22, 23), fingerprint: "", subject: "Devis",
+                                    threadKey: nil, createdAt: planned)
+        evening.firstTriedAt = date(2026, 11, 23, 7, 30)
+        #expect(MailLibrary.texts(for: .sent(evening, at: date(2026, 11, 23, 7, 30)), calendar: paris).notice?.body
+            == "Parti à 7:30 au lieu d'hier 23:00 : ton Mac était en veille ou Polhub fermé.")
+        let aside = MailLibrary.texts(for: .setAside)
+        #expect(aside.notice?.folder == .scheduled && aside.notice?.body.contains("rien n'en est parti") == true)
+        #expect(MailLibrary.texts(for: .stopped(entry, .trashed)).notice?.body.contains("corbeille") == true)
+    }
+
+    /// The thread's line says « En retard » (in red) for a reply that waits for Paul, as Programmés does.
+    @MainActor @Test func aLateReplySaysSoOnItsThreadsLine() {
+        let draft = MailDraftRow(account: "moi@exemple.fr", mode: .reply, threadKey: "moi@exemple.fr|t1", createdAt: Date())
+        func entry(_ state: ScheduledSend.State) -> ScheduledSend {
+            ScheduledSend(draftID: draft.id, account: "moi@exemple.fr", sendAt: Date(), fingerprint: "", subject: "x", threadKey: nil, state: state, createdAt: Date())
+        }
+        #expect(MailRow.draftMark([], scheduled: [:]) == .none)
+        #expect(MailRow.draftMark([draft], scheduled: [:]) == .draft)
+        #expect(MailRow.draftMark([draft], scheduled: [draft.id: entry(.waiting)]) == .planned)
+        #expect(MailRow.draftMark([draft], scheduled: [draft.id: entry(.held)]) == .late)
+    }
+
     /// Updates wait from three minutes before the time until the mail left; never for one that waits for Paul.
     @Test func updatesWaitAroundAProgrammedSend() {
         let now = date(2026, 11, 23, 7, 58)
@@ -228,6 +260,31 @@ final class SilentGmail: @unchecked Sendable {
         #expect(!again.isSending)
         again.show(folderNamed: "scheduled")
         #expect(again.folder == .scheduled && again.shown.isEmpty)
+    }
+
+    /// « Envoyer maintenant » on a mail that waits for Paul: the delay to call it back, and the mail stays programmed
+    /// meanwhile (it leaves only as sealed, at the end); « Annuler » leaves it so. While another mail is in its
+    /// delay, Paul is told why nothing happens (wave B review).
+    @Test func sendingNowKeepsTheMailProgrammedUntilItLeaves() async throws {
+        let vault = MemoryScheduleVault()
+        let (mails, store, root) = try await library(vault: vault)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let row = try draft(store), other = try draft(store, subject: "Planning")
+        let held = ScheduledSend(draftID: row.id, account: account, sendAt: Date().addingTimeInterval(-13 * 3_600), fingerprint: "", subject: row.subject,
+                                 threadKey: nil, state: .held, createdAt: Date())
+        try vault.save([held])
+        let again = MailLibrary(agenda: mails.agenda, root: root, defaults: try #require(UserDefaults(suiteName: "programme-\(UUID().uuidString)")),
+                                flavor: .prod, send: { [silent = SilentGmail()] _ in silent.send }, vault: vault)
+        try await waitUntil { again.scheduledDrafts.count == 1 && again.drafts.count == 2 }
+        again.sendScheduledNow(row.id)
+        #expect(again.sending?.draftID == row.id && vault.all == [held] && again.scheduled[row.id] != nil)
+        again.cancelSend()
+        #expect(again.sending == nil && vault.all == [held] && again.message == "Envoi annulé : le mail attend toujours dans Programmés.")
+        again.send(other.id)
+        #expect(again.sending?.draftID == other.id)
+        again.sendScheduledNow(row.id)
+        #expect(again.sending?.draftID == other.id && again.message == "Un autre mail part en ce moment : réessaie dans quelques secondes.")
+        again.cancelSend()
     }
 }
 

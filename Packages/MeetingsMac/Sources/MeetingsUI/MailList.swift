@@ -377,6 +377,18 @@ struct MailRow: View {
     /// Where the subject starts: the files line up under it.
     static let subjectStart: CGFloat = boxEnd + sendersWidth + Space.l
 
+    /// What the line says of Paul's drafts in the thread: « Brouillon » (red) while one is under way; « Programmé »
+    /// (grey) when his reply waits for its time; « En retard » (red, as in Programmés) when it waits for Paul.
+    enum DraftMark: Equatable {
+        case none, draft, planned, late
+    }
+
+    static func draftMark(_ drafts: [MailDraftRow], scheduled: [String: ScheduledSend]) -> DraftMark {
+        guard !drafts.isEmpty else { return .none }
+        if drafts.contains(where: { scheduled[$0.id] == nil }) { return .draft }
+        return drafts.contains { scheduled[$0.id]?.state == .held } ? .late : .planned
+    }
+
     var body: some View {
         let ticked = mails.selected.contains(thread.id)
         let files = density.showsFiles ? (mails.files[thread.id] ?? []) : []
@@ -463,11 +475,10 @@ struct MailRow: View {
     }
 
     /// « Camille, moi 3 », and « Brouillon » in red when Paul has one under way, as Gmail says it; « Programmé »
-    /// in grey when his reply waits for its time (wave B). In « Envoyés », who Paul wrote to: « À : Camille,
-    /// Jules » (15/11).
+    /// in grey when his reply waits for its time, « En retard » in red when it waits for him (wave B). In
+    /// « Envoyés », who Paul wrote to: « À : Camille, Jules » (15/11).
     private var senders: some View {
-        let drafts = mails.drafts.filter { $0.threadKey == thread.id }
-        let draft = drafts.contains { mails.scheduled[$0.id] == nil }, planned = !draft && !drafts.isEmpty
+        let mark = Self.draftMark(mails.drafts.filter { $0.threadKey == thread.id }, scheduled: mails.scheduled)
         let weight: Font.Weight = thread.unread ? .bold : .regular
         let recipients = mails.folder == .sent && mails.found == nil ? (mails.sentTo[thread.id] ?? []) : []
         let names = recipients.isEmpty
@@ -475,8 +486,8 @@ struct MailRow: View {
             : Text("À : ").font(.rowTitle).foregroundStyle(.secondary) + Text(MailText.recipients(recipients, mine: mine)).font(.rowTitle.weight(weight))
         return (names
             + Text(thread.messageCount > 1 ? " \(thread.messageCount)" : "").font(.meta).foregroundStyle(.secondary)
-            + Text(draft ? ", Brouillon" : "").font(.rowTitle).foregroundStyle(.red)
-            + Text(planned ? ", Programmé" : "").font(.rowTitle).foregroundStyle(.secondary))
+            + Text(mark == .draft ? ", Brouillon" : mark == .late ? ", En retard" : "").font(.rowTitle).foregroundStyle(.red)
+            + Text(mark == .planned ? ", Programmé" : "").font(.rowTitle).foregroundStyle(.secondary))
             .lineLimit(1)
     }
 

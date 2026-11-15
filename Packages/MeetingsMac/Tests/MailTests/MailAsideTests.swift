@@ -123,6 +123,55 @@ import MailFormat
         #expect(try store.readableThreads().count == 3)
     }
 
+    /// The Mac closed longer than Gmail keeps its history, a spam marked « Pas un spam » and a mail restored from the
+    /// trash on the phone meanwhile: the copy put square again shows them in the inbox, read whole (wave B review).
+    @Test func aMailBroughtBackWhileTheMacWasClosedComesBackWhole() async throws {
+        let (engine, gmail, store, root) = try setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        gmail.add("m1", .init(thread: "t1", labels: ["INBOX"]), history: false)
+        gmail.add("s1", .init(thread: "ts1", labels: ["SPAM"], subject: "Vraie réponse", minutes: 2), history: false)
+        gmail.add("c1", .init(thread: "tc1", labels: ["TRASH"], subject: "Devis signé", minutes: 3), history: false)
+        await engine.step(account)
+        _ = try await engine.aside("SPAM", accounts: [account])
+        _ = try await engine.aside("TRASH", accounts: [account])
+        gmail.change("s1", labels: ["INBOX"], history: false)
+        gmail.change("c1", labels: ["INBOX"], history: false)
+        gmail.forgetCursors()
+        await engine.step(account)
+        for id in ["s1", "c1"] {
+            let row = try #require(try store.message(messageKey(id)))
+            #expect(row.labels == ["INBOX"] && row.hasBody, "\(id)")
+        }
+        #expect(try store.inbox().map(\.threadID) == ["tc1", "ts1", "t1"] && store.asideThreads(label: "SPAM").isEmpty)
+        #expect(kept(engine) == ["c1.html", "m1.html", "s1.html"])
+    }
+
+    /// A mail Paul read, then put in the spam on the phone while the Mac was closed (or deleted for good between two
+    /// passes): its row goes, and so do its body and its files.
+    @Test func aMailGoneFromGmailLeavesNothingOnTheMac() async throws {
+        let (engine, gmail, store, root) = try setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        gmail.add("m1", .init(thread: "t1", labels: ["INBOX"]), history: false)
+        gmail.add("m2", .init(thread: "t2", labels: ["INBOX"], minutes: 1), history: false)
+        gmail.add("m3", .init(thread: "t3", labels: ["INBOX"], minutes: 2), history: false)
+        await engine.step(account)
+        let file = MailAttachment(partID: "2", filename: "facture.pdf", mimeType: "application/pdf", size: 3, attachmentID: "a", contentID: nil, inline: false)
+        let known = try #require(try store.message(messageKey("m1")))
+        try FileManager.default.createDirectory(at: engine.files.attachment(file, of: known).deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("pdf".utf8).write(to: engine.files.attachment(file, of: known))
+        #expect(kept(engine) == ["m1-2", "m1-2/facture.pdf", "m1.html", "m2.html", "m3.html"])
+        // Deleted for good between two passes.
+        gmail.change("m3", labels: nil)
+        await engine.step(account)
+        #expect(kept(engine) == ["m1-2", "m1-2/facture.pdf", "m1.html", "m2.html"])
+        // Put in the spam while Gmail forgot the history.
+        gmail.change("m1", labels: ["SPAM"], history: false)
+        gmail.forgetCursors()
+        await engine.step(account)
+        #expect(try store.message(messageKey("m1")) == nil)
+        #expect(kept(engine) == ["m2.html"])
+    }
+
     /// The development build reads the folders (a reading), and brings nothing back (a gesture).
     @Test func theDevelopmentBuildListsButNeverRestores() async throws {
         let (engine, gmail, store, root) = try setUp(flavor: .dev)

@@ -23,7 +23,10 @@ public actor GoogleSession {
     public func accessToken(for email: String, now: Date = Date()) async throws -> String {
         if let cached = cache[email], cached.until > now.addingTimeInterval(60) { return cached.token }
         guard let refresh = vault.refreshToken(for: email) else { throw GoogleError.expired }
-        let (data, _) = try await fetch(GoogleOAuth.refreshRequest(config: try config(), refreshToken: refresh))
+        let (data, status) = try await fetch(GoogleOAuth.refreshRequest(config: try config(), refreshToken: refresh))
+        // Google's page down or busy (right after wake): a failure that passes, never « refused » for good (wave B review).
+        if status == 429 { throw GoogleError.rateLimited }
+        if status >= 500 || status == 408 { throw GoogleError.http(status) }
         let tokens = try GoogleOAuth.tokens(from: data)
         cache[email] = (tokens.accessToken, now.addingTimeInterval(TimeInterval(tokens.expiresIn)))
         note(tokens.scope, for: email)

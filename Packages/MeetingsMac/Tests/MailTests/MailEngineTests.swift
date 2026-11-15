@@ -24,6 +24,8 @@ final class FakeGmail: @unchecked Sendable {
         var raw: String
         var threadID: String?
         var messageID: String
+        /// Its conversation deleted on the phone: Gmail keeps the draft, in the trash (wave B review).
+        var trashed = false
     }
 
     private let lock = NSLock()
@@ -63,6 +65,9 @@ final class FakeGmail: @unchecked Sendable {
             draftStore[id]?.raw = "modifié sur le téléphone"
         }
     }
+    /// The conversation deleted on the phone: the draft goes to the trash with it (an hypothesis of Gmail's
+    /// behaviour, not measured).
+    func trashInGmail(_ id: String) { lock.withLock { draftStore[id]?.trashed = true } }
 
     var drafts: [String: StoredDraft] { lock.withLock { draftStore } }
     func addGmailDraft(id: String, messageID: String, thread: String) {
@@ -169,7 +174,8 @@ final class FakeGmail: @unchecked Sendable {
                 }
                 if path.contains("/drafts/"), request.httpMethod == "GET" {
                     guard let draft = draftStore[url.lastPathComponent] else { throw GmailAPI.error(status: 404, data: Data()) }
-                    return Data(#"{"id":"\#(url.lastPathComponent)","message":{"id":"\#(draft.messageID)"}}"#.utf8)
+                    let labels = draft.trashed ? #"["DRAFT","TRASH"]"# : #"["DRAFT"]"#
+                    return Data(#"{"id":"\#(url.lastPathComponent)","message":{"id":"\#(draft.messageID)","labelIds":\#(labels)}}"#.utf8)
                 }
                 if path.contains("/drafts/"), request.httpMethod == "DELETE" {
                     guard draftStore.removeValue(forKey: url.lastPathComponent) != nil else { throw GmailAPI.error(status: 404, data: Data()) }

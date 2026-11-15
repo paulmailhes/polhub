@@ -411,6 +411,20 @@ struct MailScreenTests {
         router.mailSelection = reply.threadKey
         try await capture("mails-programme-reponse", wait: .milliseconds(2_000))
         router.mailSelection = nil
+        // Security review of wave B: a reply programmed before its thread went to the trash still shows there, locked.
+        let trashedReply = MailDraftRow(account: "moi@exemple.fr", mode: .reply, threadKey: MailThreadRow.key(account: "moi@exemple.fr", threadID: "corbeille-copie"),
+                                        replyToKey: "moi@exemple.fr|t1", to: [camille], subject: "Re: Ancien devis du site",
+                                        body: "Merci, je garde la version d'octobre.", signature: false, createdAt: Date())
+        try store.saveDraft(trashedReply)
+        try await Task.sleep(for: .milliseconds(300))
+        mails.schedule(trashedReply.id, at: tomorrow)
+        for _ in 0..<100 where mails.scheduled[trashedReply.id] == nil { try await Task.sleep(for: .milliseconds(20)) }
+        mails.folder = .trash
+        for _ in 0..<100 where mails.readingAside { try await Task.sleep(for: .milliseconds(20)) }
+        router.mailSelection = trashedReply.threadKey
+        try await capture("mails-corbeille-reponse-programmee", wait: .milliseconds(2_000))
+        router.mailSelection = nil
+        mails.folder = .scheduled
         // A launch later, thirteen hours late: it waits for Paul.
         try vault.save(vault.all.map { entry in
             var late = entry
@@ -430,14 +444,34 @@ struct MailScreenTests {
         try await capture("mails-programme-en-retard")
         try await capture("mails-programme-en-retard-sombre", dark: true)
         later.composing = nil
+        // A reply that waits for Paul too: its thread's line says « En retard », in red (security review of wave B).
+        try vault.save(vault.all.map { entry in
+            var late = entry
+            if entry.draftID == reply.id {
+                late.state = .held
+                late.sendAt = Date().addingTimeInterval(-14 * 3_600)
+                late.firstTriedAt = late.sendAt.addingTimeInterval(20)
+            }
+            return late
+        })
+        let latest = MailLibrary(agenda: agenda, root: root, defaults: UserDefaults(suiteName: "mails-\(UUID().uuidString)")!, send: { gmail.send(for: $0) },
+                                 vault: vault)
+        for _ in 0..<100 where latest.scheduled.values.filter({ $0.state == .held }).count < 2 { try await Task.sleep(for: .milliseconds(20)) }
+        shownMails = latest
+        latest.folder = .inbox
+        try await capture("mails-programme-ligne-en-retard")
+        router.mailSelection = reply.threadKey
+        try await capture("mails-programme-reponse-en-retard", wait: .milliseconds(2_000))
+        router.mailSelection = nil
         shownMails = mails
         agenda.mails = mails
         try await LiveWindow.capture(SchedulePicker(now: Date()) { _ in }.background(Color(nsColor: .windowBackgroundColor)),
                                      to: output.appending(path: "mails-programmer-date.png"), size: NSSize(width: 320, height: 560))
-        for id in [planning.id, reply.id] { mails.unschedule(id) }
+        for id in [planning.id, reply.id, trashedReply.id] { mails.unschedule(id) }
         for _ in 0..<100 where !mails.scheduled.isEmpty { try await Task.sleep(for: .milliseconds(20)) }
         mails.message = nil
         try store.deleteDraft(planning.id)
+        try store.deleteDraft(trashedReply.id)
         mails.folder = .inbox
         try store.remember(address: "lettre@lettre-du-design.exemple", tab: .some("personnes"), at: Date())
         router.openSettings(.mails)

@@ -529,8 +529,9 @@ struct MailThreadView: View {
                         }
                         Divider()
                     }
-                    // Nothing is written from the trash or the spam.
-                    ForEach(aside == nil ? mails.drafts.filter { $0.threadKey == key } : []) { draft in
+                    // Nothing is written from the trash or the spam; a reply programmed before the thread went there
+                    // still shows, locked, with its way back (wave B review): it would leave otherwise unseen.
+                    ForEach(mails.drafts.filter { $0.threadKey == key && (aside == nil || mails.scheduled[$0.id] != nil) }) { draft in
                         ComposeView(draftID: draft.id, mails: mails)
                             .padding(.top, Space.l)
                             .id(draft.id)

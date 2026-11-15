@@ -184,7 +184,7 @@ struct ScheduledBanner: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(held ? "Pas encore parti : programmé pour \(MailText.scheduled(entry.sendAt))" : "Programmé pour \(MailText.scheduled(entry.sendAt))")
                         .font(.rowBody.weight(.semibold))
-                    Text(held ? "Ton Mac était en veille ou Polhub fermé à cette heure-là : il attend ton accord."
+                    Text(held ? "\(MailLibrary.lateReason(entry).prefix(1).uppercased() + MailLibrary.lateReason(entry).dropFirst()) : il attend ton accord."
                          : entry.state == .leaving ? "Envoi en cours…" : "Il ne se modifie plus. Changé dans Gmail ou sur ton téléphone, il ne partira pas.")
                         .font(.meta).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -227,7 +227,8 @@ struct MailScheduledListView: View {
     var body: some View {
         let waiting = mails.scheduledDrafts
         VStack(spacing: 0) {
-            MailSearchLine(text: "Ton Mac doit être allumé et Polhub ouvert à l'heure prévue ; sinon le mail part à ton retour.", searching: false, icon: "clock")
+            MailSearchLine(text: "Ton Mac doit être allumé et Polhub ouvert à l'heure prévue ; sinon le mail part à ton retour, ou attend ton accord après 12 h de retard.",
+                           searching: false, icon: "clock")
             if waiting.isEmpty {
                 ContentUnavailableView("Aucun envoi programmé", systemImage: "clock",
                                        description: Text("Un mail programmé attend ici son heure, puis part tout seul."))
@@ -239,7 +240,8 @@ struct MailScheduledListView: View {
                             MailScheduledLine(draft: item.draft, entry: item.entry, color: mails.color(for: item.draft.account),
                                               open: { mails.open(item.draft, router: router) },
                                               cancel: { mails.unschedule(item.draft.id) },
-                                              sendNow: item.entry.state == .held ? { mails.sendScheduledNow(item.draft.id) } : nil)
+                                              // While another mail is in its delay, « Envoyer maintenant » waits (as the banner's).
+                                              sendNow: item.entry.state == .held && mails.sending == nil ? { mails.sendScheduledNow(item.draft.id) } : nil)
                         }
                     }
                 }

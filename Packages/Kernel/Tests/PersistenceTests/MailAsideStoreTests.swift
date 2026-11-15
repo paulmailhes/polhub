@@ -90,4 +90,16 @@ import Testing
         // The trash keeps its bodies, as any mail.
         #expect(try mails.message(MailMessageRow.key(account: account, messageID: "c1"))?.hasBody == true)
     }
+
+    /// A draft of Gmail's whose thread went to the trash or the spam (the phone) is no draft to take up: neither
+    /// listed in Brouillons nor counted (security review of wave B).
+    @Test func aGmailDraftInTheTrashIsNoLongerADraft() throws {
+        let mails = try store()
+        try mails.apply(account: account, upserts: [
+            message("d1", thread: "t1", from: account, labels: ["DRAFT"]),
+            message("d2", thread: "t2", minutes: 1, from: account, labels: ["DRAFT", "TRASH"]),
+            message("d3", thread: "t3", minutes: 2, from: account, labels: ["DRAFT", "SPAM"]),
+        ])
+        #expect(try mails.gmailOnlyDrafts().map(\.messageID) == ["d1"])
+    }
 }

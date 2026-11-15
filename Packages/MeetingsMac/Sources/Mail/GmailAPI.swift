@@ -196,6 +196,8 @@ public enum GmailAPI {
         public struct Ref: Decodable, Sendable, Equatable {
             public var id: String
             public var threadId: String?
+            /// `drafts.get` (`format=minimal`) says them: a draft whose conversation went to the trash carries TRASH.
+            public var labelIds: [String]?
         }
 
         public var id: String
