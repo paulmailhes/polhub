@@ -46,6 +46,57 @@ import Testing
         #expect(try store.filingRules().senders.isEmpty)
     }
 
+    /// 15/11: several ticked threads in one project. Every thread takes the case; only people's threads (a person
+    /// of Gmail's « Principale », a thread Paul wrote in) make their sender a contact; one « Annuler » takes all back.
+    @Test func filingSeveralThreadsLinksOnlyPeopleAndUndoesAtOnce() async throws {
+        let database = try AppDatabase.inMemory()
+        try CalendarStore(database).addAccount(email: account, at: Date())
+        let project = try ProjectStore(database).addProject(name: "Site vitrine", status: .priorite1, at: Date())
+        let store = MailStore(database)
+        try store.apply(account: account, upserts: [
+            MailMessageRow(account: account, messageID: "m1", threadID: "t1", date: Date(), sender: MailAddress(name: "Lou Bernard", email: "lou@studio.exemple"),
+                           subject: "Une question", snippet: "", labels: ["INBOX", "CATEGORY_PERSONAL"]),
+            // A letter: automatic, its sender must not become a contact (its images would load, its next mails follow).
+            MailMessageRow(account: account, messageID: "m2", threadID: "t2", date: Date(), sender: MailAddress(name: "La Lettre", email: "lettre@lettre.exemple"),
+                           subject: "Le numéro d'hiver", snippet: "", labels: ["INBOX", "CATEGORY_PROMOTIONS"]),
+            // Paul wrote in this one: a person, although Gmail calls it a notification.
+            MailMessageRow(account: account, messageID: "m3", threadID: "t3", date: Date(), sender: MailAddress(email: account), to: [MailAddress(email: "support@outil.exemple")],
+                           subject: "Mon compte", snippet: "", labels: ["SENT"]),
+            MailMessageRow(account: account, messageID: "m4", threadID: "t3", date: Date().addingTimeInterval(60), sender: MailAddress(name: "Sam Support", email: "support@outil.exemple"),
+                           subject: "Re: Mon compte", snippet: "", labels: ["INBOX", "CATEGORY_UPDATES"]),
+        ])
+        let root = FileManager.default.temporaryDirectory.appending(path: "ranger-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let mails = MailLibrary(agenda: AgendaLibrary(database: database), root: root, defaults: UserDefaults(suiteName: "ranger-\(UUID().uuidString)")!)
+        let threads = try ["t1", "t2", "t3"].map { try #require(try store.thread(MailThreadRow.key(account: account, threadID: $0))) }
+        try await waitUntil { !mails.rules.mine.isEmpty }
+
+        mails.file(threads, as: .project(project.id))
+        try await waitUntil { threads.allSatisfy { mails.filing(of: $0)?.filing == .project(project.id) } }
+        let contacts = try ContactStore(database).contacts().compactMap(\.email).sorted()
+        #expect(contacts == ["lou@studio.exemple", "support@outil.exemple"])
+        #expect(try ContactStore(database).links().count == 2)
+        #expect(mails.undoable?.text == "Rangés dans « Site vitrine » : 3 fils")
+        // Every thread's sender follows, the letter's too: its next mails go to the project.
+        #expect(try Set(store.filingRules().senders.keys) == ["lou@studio.exemple", "lettre@lettre.exemple", "support@outil.exemple"])
+
+        mails.undo()
+        try await waitUntil { threads.allSatisfy { mails.filing(of: $0)?.filing != .project(project.id) } }
+        #expect(try ContactStore(database).contacts().isEmpty && ContactStore(database).links().isEmpty)
+        #expect(try store.filingRules().senders.isEmpty && store.filingRules().choices.isEmpty)
+        #expect(MailLibrary.filedText(.payments, project: nil, count: 1) == "Rangé dans Paiements : 1 fil")
+        #expect(MailLibrary.filedText(.none, project: nil, count: 4) == "Sans case : 4 fils")
+    }
+
+    /// The menu of several threads ticks the case only when they all share it.
+    @Test func theMenuTicksTheCaseTheThreadsShare() {
+        let site = UUID()
+        #expect(MailFilingMenu.shared([.project(site), .project(site)]) == .project(site))
+        #expect(MailFilingMenu.shared([.project(site), .perso]) == nil)
+        #expect(MailFilingMenu.shared([.project(site), nil]) == nil)
+        #expect(MailFilingMenu.shared([]) == nil)
+    }
+
     /// A robot's address is filed, never made a contact; « Aucune case » keeps the thread with the people.
     @Test func aRobotIsNeverAContact() async throws {
         let database = try AppDatabase.inMemory()

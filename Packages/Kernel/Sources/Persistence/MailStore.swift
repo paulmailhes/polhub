@@ -137,7 +137,8 @@ public struct MailStore: Sendable {
     }
 
     /// « Tous les messages » (15/11): every thread of the copy, archived ones too, never the trash nor the spam.
-    public func allThreads(accounts: Set<String>? = nil, limit: Int = 2_000) throws -> [MailThreadRow] {
+    /// The copy holds the whole mailbox (about 6 000 threads in 3 boxes): the limit only guards against a runaway.
+    public func allThreads(accounts: Set<String>? = nil, limit: Int = 20_000) throws -> [MailThreadRow] {
         try writer.read { db in
             var request = MailThreadRow.filter(Column("hidden") == false)
             if let accounts { request = request.filter(accounts.map { $0.lowercased() }.contains(Column("account"))) }
@@ -146,19 +147,35 @@ public struct MailStore: Sendable {
     }
 
     /// The files of these threads, as the list shows them under each line: once each, without the images the
-    /// HTML shows, nor those of a message in the trash, the spam or a draft.
-    public func attachments(threadKeys: [String]) throws -> [String: [MailAttachment]] {
+    /// HTML shows, nor those of a message in the trash, the spam or a draft. Each keeps the message that
+    /// carries it (its first), so a click previews it (15/11).
+    public func attachments(threadKeys: [String]) throws -> [String: [MailListedFile]] {
         guard !threadKeys.isEmpty else { return [:] }
         return try writer.read { db in
-            var result: [String: [MailAttachment]] = [:]
+            var result: [String: [MailListedFile]] = [:]
             let messages = try MailMessageRow.filter(threadKeys.contains(Column("threadKey"))).filter(sql: "attachments <> '[]'")
                 .order(Column("date")).fetchAll(db)
             for message in messages where !message.isAside {
-                for file in message.files where !(result[message.threadKey] ?? []).contains(where: { $0.filename == file.filename && $0.size == file.size }) {
-                    result[message.threadKey, default: []].append(file)
+                for file in message.files where !(result[message.threadKey] ?? []).contains(where: {
+                    $0.attachment.filename == file.filename && $0.attachment.size == file.size
+                }) {
+                    result[message.threadKey, default: []].append(MailListedFile(messageKey: message.id, attachment: file))
                 }
             }
             return result
+        }
+    }
+
+    /// What the instant search reads (15/11): every thread shown somewhere (neither trash nor spam), the most
+    /// recent first, each with the words it is found by. Built in one reading; the list filters it as Paul types.
+    public func searchEntries() throws -> [MailSearchEntry] {
+        try writer.read { db in
+            let threads = try MailThreadRow.filter(Column("hidden") == false).order(Column("lastMessageAt").desc).fetchAll(db)
+            var messages: [String: [MailMessageRow]] = [:]
+            for message in try MailMessageRow.fetchAll(db) where !message.isAside {
+                messages[message.threadKey, default: []].append(message)
+            }
+            return threads.map { MailSearchEntry(thread: $0, words: MailSearch.words(of: $0, messages: messages[$0.id] ?? [])) }
         }
     }
 
@@ -289,8 +306,9 @@ public struct MailStore: Sendable {
             })
     }
 
-    /// The threads the agents may read: shown somewhere (neither spam nor trash), the most recent first.
-    public func readableThreads(limit: Int = 5_000) throws -> [MailThreadRow] {
+    /// The threads the agents may read: shown somewhere (neither spam nor trash), the most recent first; the
+    /// whole copy, the limit only guards against a runaway.
+    public func readableThreads(limit: Int = 20_000) throws -> [MailThreadRow] {
         try writer.read { try MailThreadRow.filter(Column("hidden") == false).order(Column("lastMessageAt").desc).limit(limit).fetchAll($0) }
     }
 
@@ -470,15 +488,35 @@ public struct MailStore: Sendable {
         return found
     }
 
-    /// The threads Paul wrote in, the most recent first: the « Envoyés ».
+    /// What Paul sent, as Gmail's « Envoyés » counts it: neither a draft nor a mail he put in the trash or the spam.
+    private static let sentMessage = #"labels LIKE '%"SENT"%' AND labels NOT LIKE '%"DRAFT"%' AND labels NOT LIKE '%"TRASH"%' AND labels NOT LIKE '%"SPAM"%'"#
+
+    /// The threads Paul wrote in, the most recent first: the « Envoyés ». A sent mail he trashed leaves them.
     public func sentThreads(accounts: Set<String>? = nil, limit: Int = 500) throws -> [MailThreadRow] {
         try writer.read { db in
             let keys = try String.fetchAll(db, sql: """
-                SELECT threadKey FROM mail_message WHERE labels LIKE '%"SENT"%' GROUP BY threadKey ORDER BY MAX(date) DESC LIMIT ?
+                SELECT threadKey FROM mail_message WHERE \(Self.sentMessage) GROUP BY threadKey ORDER BY MAX(date) DESC LIMIT ?
                 """, arguments: [limit])
             let threads = try MailThreadRow.filter(keys: keys).fetchAll(db)
             let byKey = Dictionary(uniqueKeysWithValues: threads.map { ($0.id, $0) })
             return keys.compactMap { byKey[$0] }.filter { accounts?.contains($0.account) ?? true }
+        }
+    }
+
+    /// Who Paul wrote to in each thread (To, then Cc, of what he sent, the oldest first), once each: the
+    /// « Envoyés » say « À : Camille, Jules », as Gmail's (15/11).
+    public func sentRecipients(threadKeys: [String]) throws -> [String: [MailAddress]] {
+        guard !threadKeys.isEmpty else { return [:] }
+        return try writer.read { db in
+            var result: [String: [MailAddress]] = [:]
+            let messages = try MailMessageRow.filter(threadKeys.contains(Column("threadKey"))).filter(sql: Self.sentMessage)
+                .order(Column("date")).fetchAll(db)
+            for message in messages {
+                for person in message.to + message.cc where !(result[message.threadKey] ?? []).contains(where: { $0.email == person.email }) {
+                    result[message.threadKey, default: []].append(person)
+                }
+            }
+            return result
         }
     }
 

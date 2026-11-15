@@ -65,7 +65,31 @@ import Testing
     @Test func knownPeopleStayWithThePeople() {
         #expect(rules.tab(of: thread(senders: ["marc@exemple.net"], category: "updates")) == .personnes)
         #expect(rules.tab(of: thread(senders: ["lea@exemple.org"], category: "social")) == .personnes)
-        #expect(rules.tab(of: thread(senders: ["inconnu@exemple.org"], category: "social")) == .newsletters)
+        #expect(rules.tab(of: thread(senders: ["inconnu@exemple.org"], category: "social")) == .notifications)
+    }
+
+    /// 15/11: two tabs. The old Newsletters tab, still in `mail_sender.tab` for a sender moved there in 0.13,
+    /// reads as Notifications, and his threads keep the Newsletters case.
+    @Test func theNewslettersJoinTheNotificationsAndKeepTheirCase() {
+        #expect(MailTab.allCases == [.personnes, .notifications])
+        #expect(MailTab(rawValue: "newsletters") == .notifications && MailTab(rawValue: "personnes") == .personnes)
+        #expect(MailTab(rawValue: "notifications") == .notifications && MailTab(rawValue: "principal") == nil)
+        #expect(MailTab.of(category: "promotions") == .notifications && MailTab.of(category: "updates") == .notifications)
+        #expect(MailTab.of(category: "forums") == .personnes && MailTab.of(category: nil) == .personnes)
+        #expect(MailFiling.newsletters.tab == .notifications && MailFiling.payments.tab == .notifications)
+        // A promotion: Notifications, case Newsletters.
+        let letter = thread(senders: ["lettre@design.exemple"], category: "promotions")
+        #expect(rules.tab(of: letter) == .notifications && rules.filing(of: letter)! == (.newsletters, .signals))
+        // Moved to Newsletters in 0.13, although Gmail calls it a notification.
+        var rules = rules
+        rules.senders = ["club@lecture.exemple": MailSenderRow(address: "club@lecture.exemple", principal: false, images: false, createdAt: Date(), tab: "newsletters")]
+        let club = thread(senders: ["club@lecture.exemple"], subject: "Le programme de décembre", category: "updates")
+        #expect(rules.tab(of: club) == .notifications && rules.filing(of: club)! == (.newsletters, .signals))
+        // Moved there too, but Gmail says « Principale »: still Notifications, as Paul chose.
+        rules.senders["club@lecture.exemple"]?.tab = "newsletters"
+        #expect(rules.tab(of: thread(senders: ["club@lecture.exemple"], category: "personal")) == .notifications)
+        // Without that memory, an update is a service.
+        #expect(rules.filing(of: thread(senders: ["alertes@outil.exemple"], subject: "Programme", category: "updates"))! == (.services, .signals))
     }
 
     /// Second review of 14/11: a colleague of Paul's own domain, linked to one project, does not file every

@@ -1,6 +1,7 @@
 import Agenda
 import AppKit
 import Mail
+import MailFormat
 import Persistence
 import PolhubDesign
 import ProjectsUI
@@ -22,8 +23,7 @@ struct MailListView: View {
     }
 
     private var subtitle: String {
-        if mails.searching { return "Recherche…" }
-        if mails.found != nil { return "Résultats de la recherche" }
+        if mails.found != nil { return "Résultats" }
         return mails.folder == .inbox ? mails.tab.title : mails.folder.title
     }
 
@@ -36,7 +36,11 @@ struct MailListView: View {
                 MailSubscriptionsView(mails: mails)
             } else {
                 MailListBar(mails: mails)
-                if mails.found == nil, mails.folder == .inbox { MailTabBar(mails: mails) }
+                if let summary = mails.searchSummary {
+                    MailSearchLine(text: summary, searching: mails.searching)
+                } else if mails.folder == .inbox {
+                    MailTabBar(mails: mails)
+                }
                 content(mails.shown, mine: mine)
             }
             if let progress = mails.progress {
@@ -47,9 +51,9 @@ struct MailListView: View {
         }
         .background(MailSurface.unread)
         // « Nouveau mail » is at the top of « Mails », in the sidebar, as Gmail's (15/11); ⌘N is in MailSectionView.
-        .searchable(text: $mails.query, placement: .toolbar, prompt: "Chercher dans Gmail")
+        // One bar (15/11): the copy is filtered as Paul types; Enter also asks Gmail, which reads the bodies.
+        .searchable(text: $mails.query, placement: .toolbar, prompt: "Chercher dans tes mails")
         .onSubmit(of: .search) { Task { await mails.search(mails.query) } }
-        .onChange(of: mails.query) { _, text in if text.isEmpty { mails.endSearch() } }
         .windowTitle("Mails", subtitle: subtitle)
     }
 
@@ -169,20 +173,48 @@ struct MailLine: View {
     var body: some View { Rectangle().fill(MailSurface.line).frame(height: 1) }
 }
 
-/// A round icon button, as Gmail's above and in the list: the design system's `IconButton` (15/11).
-struct MailIconButton: View {
+/// During a search, in place of the tabs: how many threads, and what Enter does (15/11).
+struct MailSearchLine: View {
+    let text: String
+    let searching: Bool
+
+    var body: some View {
+        HStack(spacing: Space.s) {
+            if searching {
+                ProgressView().controlSize(.small)
+            } else {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            }
+            Text(text).foregroundStyle(.secondary).lineLimit(1)
+            Spacer(minLength: 0)
+        }
+        .font(.meta)
+        .frame(height: 20)
+        .padding(.leading, MailRow.boxStart + 7).padding(.trailing, Space.l).padding(.vertical, Space.m)
+        .overlay(alignment: .bottom) { MailLine() }
+    }
+}
+
+/// A round icon that opens a menu, drawn and answering as the design system's `IconButton`.
+struct MailIconMenu<Content: View>: View {
     let systemImage: String
     let help: String
-    let action: () -> Void
+    @ViewBuilder let content: () -> Content
 
-    init(_ systemImage: String, help: String, action: @escaping () -> Void) {
+    init(_ systemImage: String, help: String, @ViewBuilder content: @escaping () -> Content) {
         self.systemImage = systemImage
         self.help = help
-        self.action = action
+        self.content = content
     }
 
     var body: some View {
-        IconButton(systemImage, help: help, action: action)
+        Menu(content: content) {
+            Image(systemName: systemImage).font(.system(size: 15)).foregroundStyle(.secondary)
+                .frame(width: 32, height: 32)
+        }
+        .menuStyle(.button).buttonStyle(.hover(.circle)).menuIndicator(.hidden).fixedSize()
+        .help(help)
+        .accessibilityLabel(help)
     }
 }
 
@@ -201,9 +233,8 @@ struct MailListBar: View {
                         .font(.system(size: 16))
                         .foregroundStyle(count == 0 ? Color.secondary : MailSurface.blue)
                         .frame(width: 30, height: 32)
-                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.hover(.circle))
                 .help(count == 0 ? "Tout sélectionner (⌘A)" : "Tout désélectionner (Échap)")
                 Menu {
                     Button("Tous") { mails.selectAll() }
@@ -212,21 +243,25 @@ struct MailListBar: View {
                     Button("Non lus") { mails.select(where: { $0.unread }) }
                 } label: {
                     Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
-                        .frame(width: 18, height: 32).contentShape(Rectangle())
+                        .frame(width: 18, height: 32)
                 }
-                .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+                .menuStyle(.button).buttonStyle(.hover(.capsule)).menuIndicator(.hidden).fixedSize()
                 .help("Sélectionner les lus, les non lus")
             }
             .padding(.leading, MailRow.boxStart + 7)
             if count > 0 {
-                MailIconButton("archivebox", help: "Archiver") { mails.performOnSelection(.archive) }
-                MailIconButton("trash", help: "Supprimer") { mails.performOnSelection(.trash) }
-                MailIconButton("envelope.open", help: "Marquer comme lus") { mails.performOnSelection(.markRead) }
-                MailIconButton("envelope.badge", help: "Marquer comme non lus") { mails.performOnSelection(.markUnread) }
+                IconButton("archivebox", help: "Archiver") { mails.performOnSelection(.archive) }
+                IconButton("trash", help: "Supprimer") { mails.performOnSelection(.trash) }
+                IconButton("envelope.open", help: "Marquer comme lus") { mails.performOnSelection(.markRead) }
+                IconButton("envelope.badge", help: "Marquer comme non lus") { mails.performOnSelection(.markUnread) }
+                // 15/11: the ticked threads in one case, one « Annuler » for all.
+                MailIconMenu("folder", help: "Ranger dans un projet ou une case") {
+                    MailFilingMenu(selection: mails.selectedThreads, mails: mails)
+                }
                 Text("\(count) sélectionné\(count > 1 ? "s" : "")").font(.meta).foregroundStyle(.secondary).padding(.leading, Space.s)
             } else {
-                MailIconButton("arrow.clockwise", help: "Relever les mails maintenant") { mails.refresh() }
-                Menu {
+                IconButton("arrow.clockwise", help: "Relever les mails maintenant") { mails.refresh() }
+                MailIconMenu("ellipsis", help: "Tout marquer comme lu, tout archiver, réglages") {
                     if mails.folder == .inbox, mails.found == nil {
                         Button("Tout marquer comme lu dans « \(mails.tab.title) »") { mails.markAllRead() }
                             .disabled(mails.unread(in: mails.tab) == 0)
@@ -238,12 +273,7 @@ struct MailListBar: View {
                         Divider()
                     }
                     Button("Réglages des mails…") { mails.router?.openSettings(.mails) }
-                } label: {
-                    Image(systemName: "ellipsis").font(.system(size: 15)).foregroundStyle(.secondary)
-                        .frame(width: 32, height: 32).contentShape(Circle())
                 }
-                .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
-                .help("Tout marquer comme lu, tout archiver, réglages")
             }
             Spacer(minLength: Space.m)
             Toggle(isOn: $mails.unreadOnly) {
@@ -278,13 +308,11 @@ struct MailTabButton: View {
     let selected: Bool
     let unread: Int
     let action: () -> Void
-    @State private var hovering = false
 
     static func tint(_ tab: MailTab) -> Color {
         switch tab {
         case .personnes: MailSurface.blue
         case .notifications: Color(hex: Palette.orange)
-        case .newsletters: Color(hex: Palette.green)
         }
     }
 
@@ -292,7 +320,6 @@ struct MailTabButton: View {
         switch tab {
         case .personnes: "person.2"
         case .notifications: "info.circle"
-        case .newsletters: "tag"
         }
     }
 
@@ -312,17 +339,14 @@ struct MailTabButton: View {
             .foregroundStyle(selected ? tint : Color.secondary)
             .padding(.horizontal, Space.l)
             .frame(minWidth: 180, maxWidth: 250, minHeight: 50, alignment: .leading)
-            .background(hovering ? Surface.fill : .clear)
             .overlay(alignment: .bottom) {
                 if selected {
                     UnevenRoundedRectangle(topLeadingRadius: 3, topTrailingRadius: 3, style: .continuous)
                         .fill(tint).frame(height: 3).padding(.horizontal, Space.s)
                 }
             }
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
+        .buttonStyle(HoverButtonStyle(.rounded, fill: Surface.fill))
         .help(tab.explanation)
     }
 }
@@ -387,7 +411,7 @@ struct MailRow: View {
                 if hovering { actions(over: ground) }
             }
             if !files.isEmpty {
-                MailFileChips(files: files, open: open).padding(.leading, Self.subjectStart)
+                MailFileChips(files: files, mails: mails, more: open).padding(.leading, Self.subjectStart)
             }
         }
         .padding(.vertical, density.padding)
@@ -429,10 +453,16 @@ struct MailRow: View {
         }
     }
 
-    /// « Camille, moi 3 », and « Brouillon » in red when Paul has one under way, as Gmail says it.
+    /// « Camille, moi 3 », and « Brouillon » in red when Paul has one under way, as Gmail says it. In
+    /// « Envoyés », who Paul wrote to: « À : Camille, Jules » (15/11).
     private var senders: some View {
         let draft = mails.drafts.contains { $0.threadKey == thread.id }
-        return (Text(MailText.names(thread, mine: mine)).font(.rowTitle.weight(thread.unread ? .bold : .regular))
+        let weight: Font.Weight = thread.unread ? .bold : .regular
+        let recipients = mails.folder == .sent && mails.found == nil ? (mails.sentTo[thread.id] ?? []) : []
+        let names = recipients.isEmpty
+            ? Text(MailText.names(thread, mine: mine)).font(.rowTitle.weight(weight))
+            : Text("À : ").font(.rowTitle).foregroundStyle(.secondary) + Text(MailText.recipients(recipients, mine: mine)).font(.rowTitle.weight(weight))
+        return (names
             + Text(thread.messageCount > 1 ? " \(thread.messageCount)" : "").font(.meta).foregroundStyle(.secondary)
             + Text(draft ? ", Brouillon" : "").font(.rowTitle).foregroundStyle(.red))
             .lineLimit(1)
@@ -442,20 +472,15 @@ struct MailRow: View {
     private func actions(over ground: Color) -> some View {
         HStack(spacing: 2) {
             if thread.inInbox {
-                MailIconButton("archivebox", help: "Archiver") { mails.perform(.archive, on: thread) }
+                IconButton("archivebox", help: "Archiver") { mails.perform(.archive, on: thread) }
             } else {
-                MailIconButton("tray.and.arrow.down", help: "Remettre en boîte de réception") { mails.perform(.unarchive, on: thread) }
+                IconButton("tray.and.arrow.down", help: "Remettre en boîte de réception") { mails.perform(.unarchive, on: thread) }
             }
-            MailIconButton("trash", help: "Supprimer") { mails.perform(.trash, on: thread) }
-            MailIconButton(thread.unread ? "envelope.open" : "envelope.badge", help: thread.unread ? "Marquer comme lu" : "Marquer comme non lu") {
+            IconButton("trash", help: "Supprimer") { mails.perform(.trash, on: thread) }
+            IconButton(thread.unread ? "envelope.open" : "envelope.badge", help: thread.unread ? "Marquer comme lu" : "Marquer comme non lu") {
                 mails.perform(thread.unread ? .markRead : .markUnread, on: thread, undoable: false)
             }
-            Menu { MailFilingMenu(thread: thread, mails: mails) } label: {
-                Image(systemName: "folder").font(.system(size: 15)).foregroundStyle(.secondary)
-                    .frame(width: 32, height: 32).contentShape(Circle())
-            }
-            .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
-            .help("Ranger dans un projet ou une case")
+            MailIconMenu("folder", help: "Ranger dans un projet ou une case") { MailFilingMenu(thread: thread, mails: mails) }
         }
         .padding(.leading, Space.xxl)
         .background(LinearGradient(stops: [.init(color: ground.opacity(0), location: 0), .init(color: ground, location: 0.3)],
@@ -463,29 +488,26 @@ struct MailRow: View {
     }
 }
 
-/// The files of a thread under its line, as Gmail's « Par défaut »: three at most; a click opens the thread.
+/// The files of a thread under its line, as Gmail's « Par défaut »: three at most. A click shows the file in
+/// Quick Look, without opening the thread (15/11); « +2 » opens the thread.
 struct MailFileChips: View {
-    let files: [MailAttachment]
-    let open: () -> Void
+    let files: [MailListedFile]
+    @ObservedObject var mails: MailLibrary
+    let more: () -> Void
 
     var body: some View {
         HStack(spacing: Space.s) {
-            ForEach(files.prefix(3), id: \.self) { file in
-                Button(action: open) {
-                    HStack(spacing: Space.s) {
-                        Image(systemName: Self.icon(file)).foregroundStyle(Self.tint(file))
-                        Text(Self.short(file.filename)).lineLimit(1)
-                    }
-                    .font(.meta)
-                    .padding(.horizontal, Space.m).padding(.vertical, 5)
-                    .fixedSize()
-                    .overlay(Capsule().strokeBorder(Color.primary.opacity(0.16)))
-                    .contentShape(Capsule())
-                }
-                .buttonStyle(.plain)
-                .help("\(file.filename) · \(MailText.size(file.size))")
+            ForEach(files.prefix(3)) { file in
+                MailFileChip(file: file.attachment, opening: mails.opening.contains(file.id)) { mails.open(file) } save: { mails.save(file) }
             }
-            if files.count > 3 { Text("+\(files.count - 3)").font(.meta).foregroundStyle(.secondary) }
+            if files.count > 3 {
+                Button(action: more) {
+                    Text("+\(files.count - 3)").font(.meta).foregroundStyle(.secondary)
+                        .padding(.horizontal, Space.s).padding(.vertical, 5)
+                }
+                .buttonStyle(.hover(.capsule))
+                .help("Ouvrir le fil et toutes ses pièces jointes")
+            }
         }
     }
 
@@ -511,6 +533,43 @@ struct MailFileChips: View {
         case "tablecells.fill": Color(hex: Palette.green)
         case "doc.zipper": .secondary
         default: Color(hex: Palette.blue)
+        }
+    }
+}
+
+/// One file under a line: its icon (a wheel while it comes from Gmail), its name; a click previews it, or
+/// saves what Polhub never opens (AttachmentSafety).
+struct MailFileChip: View {
+    let file: MailAttachment
+    let opening: Bool
+    let open: () -> Void
+    let save: () -> Void
+
+    var body: some View {
+        let previews = AttachmentSafety.canOpen(name: file.filename)
+        Button(action: open) {
+            HStack(spacing: Space.s) {
+                Group {
+                    if opening {
+                        ProgressView().controlSize(.mini)
+                    } else {
+                        Image(systemName: MailFileChips.icon(file)).foregroundStyle(MailFileChips.tint(file))
+                    }
+                }
+                .frame(width: 16, height: 16)
+                Text(MailFileChips.short(file.filename)).lineLimit(1)
+            }
+            .font(.meta)
+            .padding(.horizontal, Space.m).padding(.vertical, 5)
+            .fixedSize()
+            .overlay(Capsule().strokeBorder(Color.primary.opacity(0.16)))
+        }
+        .buttonStyle(.hover(.capsule))
+        .help(previews ? "Aperçu de \(file.filename) · \(MailText.size(file.size))"
+            : "\(file.filename) · \(MailText.size(file.size)) : ce type de fichier ne s'ouvre pas dans Polhub, il s'enregistre")
+        .contextMenu {
+            if previews { Button("Aperçu", action: open) }
+            Button("Enregistrer…", action: save)
         }
     }
 }

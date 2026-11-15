@@ -1,16 +1,25 @@
 import Foundation
 import GRDB
 
-/// The three tabs of the list (Paul, 14/11): what people wrote; what services send on their own; the
-/// newsletters and promotions.
+/// The two tabs of the list (Paul, 15/11): what people wrote; what services and lists send on their own. The
+/// newsletters joined the notifications: their case (Newsletters) still says which they are.
 public enum MailTab: String, Hashable, Sendable, CaseIterable {
-    case personnes, notifications, newsletters
+    case personnes, notifications
+
+    /// Tolerant: « newsletters », the third tab of 0.13 to 0.16 that a sender may still hold in `mail_sender.tab`,
+    /// reads as Notifications. No migration rewrites it.
+    public init?(rawValue: String) {
+        switch rawValue {
+        case "personnes": self = .personnes
+        case "notifications", "newsletters": self = .notifications
+        default: return nil
+        }
+    }
 
     public var title: String {
         switch self {
         case .personnes: "Personnes"
         case .notifications: "Notifications"
-        case .newsletters: "Newsletters"
         }
     }
 
@@ -18,17 +27,15 @@ public enum MailTab: String, Hashable, Sendable, CaseIterable {
     public var explanation: String {
         switch self {
         case .personnes: "Les mails écrits par des personnes : clients, collègues, proches."
-        case .notifications: "Ce que des services envoient tout seuls : reçus, confirmations, alertes, rappels. Rien n'y attend de réponse."
-        case .newsletters: "Les lettres d'information, les promotions et les réseaux sociaux."
+        case .notifications: "Ce que des services et des listes envoient tout seuls : reçus, alertes, rappels, lettres d'information, promotions. Rien n'y attend de réponse."
         }
     }
 
-    /// Gmail's category of a mail: notifications are Gmail's « Notifications », newsletters its « Promotions »
-    /// and « Réseaux sociaux »; everything else (« Principale », « Forums », none) is people.
+    /// Gmail's category of a mail: its « Notifications », « Promotions » and « Réseaux sociaux » are automatic;
+    /// everything else (« Principale », « Forums », none) is people.
     public static func of(category: String?) -> MailTab {
         switch category {
-        case "updates": .notifications
-        case "promotions", "social": .newsletters
+        case "updates", "promotions", "social": .notifications
         default: .personnes
         }
     }
@@ -69,8 +76,7 @@ public enum MailFiling: Hashable, Sendable {
     public var tab: MailTab {
         switch self {
         case .project, .perso, .none: .personnes
-        case .newsletters: .newsletters
-        case .payments, .services: .notifications
+        case .newsletters, .payments, .services: .notifications
         }
     }
 
@@ -151,7 +157,8 @@ public enum ProjectNames {
 /// 3. the senders are contacts of one project (of several: the one the subject names); people in copy never
 ///    count, so a stranger cannot put his mail in a project by copying a contact;
 /// 4. the sender's domain, neither everyone's nor Paul's, when its contacts share one project;
-/// 5. a thread Paul never wrote in, automatic: Newsletters, Paiements or Services;
+/// 5. a thread Paul never wrote in, automatic: Newsletters (Gmail's Promotions and Réseaux sociaux, or a sender
+///    Paul once put in the old Newsletters tab), Paiements or Services;
 /// 6. else no case. Perso is never guessed.
 /// A contact, someone Paul wrote to, a thread he wrote in: never hidden among the automatic mails.
 public struct MailFilingRules: Sendable {
@@ -221,14 +228,18 @@ public struct MailFilingRules: Sendable {
             let found = domains.compactMap { domainProjects[$0] }.reduce(into: Set<UUID>()) { $0.formUnion($1) }
             if found.count == 1, let id = found.first { return (.project(id), .domain) }
         }
-        if !thread.paulWrote {
-            switch base {
-            case .newsletters: return (.newsletters, .signals)
-            case .notifications: return (Self.isPayment(subject: thread.subject, sender: thread.lastSender) ? .payments : .services, .signals)
-            case .personnes: break
-            }
+        if !thread.paulWrote, base == .notifications {
+            if isNewsletter(thread) { return (.newsletters, .signals) }
+            return (Self.isPayment(subject: thread.subject, sender: thread.lastSender) ? .payments : .services, .signals)
         }
         return nil
+    }
+
+    /// A letter or a promotion: Gmail's Promotions and Réseaux sociaux, or a sender Paul put in the old
+    /// Newsletters tab (0.13), who keeps that case now the tab is gone (15/11).
+    public func isNewsletter(_ thread: MailThreadRow) -> Bool {
+        if ["promotions", "social"].contains(thread.category ?? "") { return true }
+        return thread.lastSender.flatMap { senders[$0.lowercased()]?.tab } == "newsletters"
     }
 
     /// A contact, or someone Paul wrote to.
