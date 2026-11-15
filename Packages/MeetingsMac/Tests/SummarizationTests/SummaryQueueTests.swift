@@ -102,6 +102,52 @@ final class Flag: @unchecked Sendable {
         #expect(try SummaryStore(database).job(meetingID: row.id) == nil)
     }
 
+    /// 15/11: « Refaire le compte rendu » works with the automatic summaries off, and only for that meeting.
+    @Test func turnedOffItStillRedoesWhenAsked() async throws {
+        let asked = try meeting(hoursAgo: 30, title: "Ancien point")
+        let other = try meeting(hoursAgo: 2, title: "Atelier maquette")
+        let engine = FakeEngine()
+        let queue = SummaryQueue(database: database, engine: engine, isEnabled: { false }, now: { [now] in now })
+        await queue.redo(meetingID: asked.id)
+        await queue.waitForIdle()
+        #expect(try SummaryStore(database).job(meetingID: asked.id)?.state == .done)
+        #expect(try meetings.summary(meetingID: asked.id) != nil)
+        #expect(try SummaryStore(database).job(meetingID: other.id) == nil)
+        await queue.wake()
+        await queue.waitForIdle()
+        #expect(try SummaryStore(database).job(meetingID: other.id) == nil)
+    }
+
+    /// 15/11: asked while a meeting goes on, it starts once the meeting ends, even turned off.
+    @Test func turnedOffARedoAskedDuringAMeetingWaitsForItsEnd() async throws {
+        let row = try meeting(hoursAgo: 2, title: "Atelier maquette")
+        let queue = SummaryQueue(database: database, engine: FakeEngine(), isEnabled: { false }, now: { [now] in now })
+        await queue.meetingActivity(true)
+        await queue.redo(meetingID: row.id)
+        #expect(try SummaryStore(database).job(meetingID: row.id)?.state == .queued)
+        await queue.meetingActivity(false)
+        await queue.waitForIdle()
+        #expect(try SummaryStore(database).job(meetingID: row.id)?.state == .done)
+    }
+
+    /// 15/11: a meeting with too few words keeps the summary it had (the vault's) and its actions.
+    @Test func aShortTranscriptNeverErasesAnExistingSummary() async throws {
+        let row = try meeting(hoursAgo: 2, title: "Atelier maquette")
+        try TranscriptStore(database).replaceUtterances(meetingID: row.id, [
+            UtteranceRow(meetingID: row.id, speaker: .moi, startMs: 0, endMs: 900, text: "Bonjour.", doubtful: false),
+        ])
+        try meetings.setSummary(meetingID: row.id, summary: "## Résumé\n\nVenu du coffre.")
+        try ProjectStore(database).replaceMeetingActions(meetingID: row.id, projectID: nil, actions: [ActionRow(text: "Du coffre", position: 0, createdAt: now)])
+        let engine = FakeEngine()
+        let queue = queue(engine)
+        await queue.redo(meetingID: row.id)
+        await queue.waitForIdle()
+        #expect(engine.calls == 0)
+        #expect(try meetings.summary(meetingID: row.id) == "## Résumé\n\nVenu du coffre.")
+        #expect(try ProjectStore(database).actions(meetingID: row.id).map(\.text) == ["Du coffre"])
+        #expect(try SummaryStore(database).job(meetingID: row.id)?.state == .done)
+    }
+
     @Test func aStopIsNeverAFailureEvenWhenTheModelCallsItAnError() async throws {
         let row = try meeting(hoursAgo: 2, title: "Atelier maquette")
         let engine = FakeEngine()

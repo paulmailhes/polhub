@@ -1,8 +1,30 @@
 import Domain
 import Foundation
+import FoundationModels
 import Persistence
 import Testing
 @testable import Summarization
+
+/// 15/11: the model's limits of the moment wait a minute, never counted as failures; a refusal and a window
+/// overflow are told apart, so that the pipeline can deal with them part by part.
+@Suite struct AppleErrorsTests {
+    @Test func aBusyModelIsUnavailableForAMinute() {
+        let busy = SummaryError.unavailable(AppleSummaryEngine.busy)
+        #expect(AppleSummaryEngine.mapped(LanguageModelError.rateLimited(.init(resetDate: nil, debugDescription: "limite"))) as? SummaryError == busy)
+        #expect(AppleSummaryEngine.mapped(LanguageModelSession.Error.concurrentRequests) as? SummaryError == busy)
+        #expect(AppleSummaryEngine.mapped(LanguageModelSession.GenerationError.rateLimited(.init(debugDescription: "limite"))) as? SummaryError == busy)
+        #expect(AppleSummaryEngine.mapped(LanguageModelSession.GenerationError.concurrentRequests(.init(debugDescription: "deux"))) as? SummaryError == busy)
+    }
+
+    @Test func refusalsAndOverflowsAreToldApart() {
+        #expect(AppleSummaryEngine.mapped(LanguageModelError.guardrailViolation(.init(debugDescription: "non"))) as? SummaryError == .refused)
+        #expect(AppleSummaryEngine.mapped(LanguageModelSession.GenerationError.guardrailViolation(.init(debugDescription: "non"))) as? SummaryError == .refused)
+        #expect(AppleSummaryEngine.mapped(LanguageModelError.contextSizeExceeded(.init(contextSize: 8_192, tokenCount: 9_000, debugDescription: "trop")))
+                as? SummaryError == .tooLong)
+        #expect(AppleSummaryEngine.mapped(LanguageModelSession.GenerationError.exceededContextWindowSize(.init(debugDescription: "trop")))
+                as? SummaryError == .tooLong)
+    }
+}
 
 /// The summary of a meeting, made on the Mac by Apple's model (14/11): the pure parts.
 @Suite struct SummaryPlanTests {

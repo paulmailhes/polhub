@@ -29,13 +29,20 @@ public struct SummaryAction: Codable, Equatable, Sendable {
     }
 }
 
-public enum SummaryError: Error, CustomStringConvertible {
+public enum SummaryError: Error, Equatable, CustomStringConvertible {
     case model(String)
+    /// Not now: the model is missing or busy; it starts again a minute later, without counting as a failure.
     case unavailable(String)
+    /// The text does not fit the model's window.
+    case tooLong
+    /// The model refused the passage (its guardrails).
+    case refused
 
     public var description: String {
         switch self {
         case .model(let text), .unavailable(let text): text
+        case .tooLong: "La transcription dépasse la fenêtre du modèle."
+        case .refused: "Le modèle d'Apple a refusé ce passage."
         }
     }
 }

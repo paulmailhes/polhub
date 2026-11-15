@@ -55,15 +55,38 @@ public struct AppleSummaryEngine: SummaryEngine {
         } catch _ where Task.isCancelled {
             // Stopped by a meeting: never a failure (review of 14/11, Important 4).
             throw CancellationError()
-        } catch let error as LanguageModelSession.GenerationError {
+        } catch {
+            throw Self.mapped(error)
+        }
+    }
+
+    static let busy = "Le modèle d'Apple est occupé : le compte rendu reprend dans une minute."
+
+    /// macOS 27 names the model's errors anew (`LanguageModelError`); the older names are kept, in case. A limit of
+    /// the moment (too many requests, another one under way) waits a minute and is never a failure (15/11).
+    static func mapped(_ error: any Error) -> any Error {
+        if let error = error as? LanguageModelError {
             switch error {
-            case .exceededContextWindowSize: throw SummaryError.model("La transcription dépasse la fenêtre du modèle.")
-            case .guardrailViolation, .refusal: throw SummaryError.model("Le modèle d'Apple a refusé ce passage.")
-            case .unsupportedLanguageOrLocale: throw SummaryError.model("Le modèle d'Apple ne prend pas cette langue.")
-            case .assetsUnavailable: throw SummaryError.unavailable("Le modèle d'Apple n'est pas disponible pour l'instant.")
-            default: throw SummaryError.model("Le modèle d'Apple n'a pas répondu : \(error.localizedDescription)")
+            case .contextSizeExceeded: return SummaryError.tooLong
+            case .guardrailViolation, .refusal: return SummaryError.refused
+            case .rateLimited: return SummaryError.unavailable(busy)
+            case .unsupportedLanguageOrLocale: return SummaryError.model("Le modèle d'Apple ne prend pas cette langue.")
+            default: return SummaryError.model("Le modèle d'Apple n'a pas répondu : \(error.localizedDescription)")
             }
         }
+        if let error = error as? LanguageModelSession.Error, error == .concurrentRequests { return SummaryError.unavailable(busy) }
+        if error is SystemLanguageModel.Error { return SummaryError.unavailable("Le modèle d'Apple n'est pas disponible pour l'instant.") }
+        if let error = error as? LanguageModelSession.GenerationError {
+            switch error {
+            case .exceededContextWindowSize: return SummaryError.tooLong
+            case .guardrailViolation, .refusal: return SummaryError.refused
+            case .rateLimited, .concurrentRequests: return SummaryError.unavailable(busy)
+            case .unsupportedLanguageOrLocale: return SummaryError.model("Le modèle d'Apple ne prend pas cette langue.")
+            case .assetsUnavailable: return SummaryError.unavailable("Le modèle d'Apple n'est pas disponible pour l'instant.")
+            default: return SummaryError.model("Le modèle d'Apple n'a pas répondu : \(error.localizedDescription)")
+            }
+        }
+        return error
     }
 }
 
