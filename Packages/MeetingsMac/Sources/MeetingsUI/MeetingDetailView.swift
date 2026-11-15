@@ -9,8 +9,8 @@ import Summarization
 import PolhubDesign
 import SwiftUI
 
-/// One meeting: who and when, its summary and actions, the dialogue, and the player floating at the bottom
-/// (14/11). The rare gestures live in the « … » menu of the toolbar.
+/// One meeting, on one page (14/11, 15/11): who and when, its summary in four parts and its actions, then the
+/// dialogue, and the player floating at the bottom. The rare gestures live in the « … » menu of the toolbar.
 struct MeetingDetailView: View {
     let row: MeetingRow
     let store: MeetingStore
@@ -21,10 +21,13 @@ struct MeetingDetailView: View {
     let queue: TranscriptionQueue?
     var summaries: SummaryQueue?
     var summaryUnavailable: String?
+    /// Where the summary under way is, part by part.
+    var summaryProgress: SummaryProgress?
     let job: JobRow?
     let meetingActive: Bool
     @ObservedObject var router: WindowRouter
 
+    @AppStorage(Preferences.Key.summariesEnabled) private var summariesEnabled = true
     @State private var player: MeetingPlayer?
     @State private var file: MeetingFile?
     @State private var microphones: [String] = []
@@ -32,6 +35,8 @@ struct MeetingDetailView: View {
     @State private var confirmingDelete = false
     @State private var showingDetails = false
     @State private var lines: [UtteranceRow] = []
+    /// The turns of speech, computed when the dialogue changes, never at the player's ticks (15/11).
+    @State private var paragraphs: [TranscriptModel.Paragraph] = []
     @State private var observations: [AnyDatabaseCancellable] = []
     @State private var summary: String?
     @State private var summaryJob: SummaryJobRow?
@@ -44,14 +49,15 @@ struct MeetingDetailView: View {
     var body: some View {
         ScrollViewReader { scroll in
             ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: Space.xl) {
                     header
                     summaryCard
                     transcript(scroll)
                 }
-                .padding(.horizontal, 28)
-                .padding(.vertical, 24)
-                .frame(maxWidth: 860, alignment: .leading)
+                .padding(.horizontal, PageMetrics.horizontal)
+                .padding(.top, Space.xl)
+                .padding(.bottom, PageMetrics.bottom)
+                .frame(maxWidth: PageMetrics.readingWidth, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -65,7 +71,10 @@ struct MeetingDetailView: View {
         }
         .onAppear {
             observations = [
-                transcripts.observeUtterances(meetingID: row.id) { lines = $0 },
+                transcripts.observeUtterances(meetingID: row.id) { utterances in
+                    lines = utterances
+                    paragraphs = TranscriptModel.paragraphs(utterances)
+                },
                 SummaryStore(store.database).observeJob(meetingID: row.id) { job in
                     summaryJob = job
                     reloadSummary()
@@ -85,49 +94,62 @@ struct MeetingDetailView: View {
 
     // MARK: - Header
 
+    private var dateText: String {
+        let text = row.startedAt.formatted(.dateTime.weekday(.wide).day().month(.wide).hour().minute().locale(Locale(identifier: "fr_FR")))
+        return text.prefix(1).uppercased() + text.dropFirst()
+    }
+
     private var header: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(row.title).font(.largeTitle.bold()).fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 8) {
-                Text(row.startedAt.formatted(.dateTime.weekday(.wide).day().month(.wide).hour().minute().locale(Locale(identifier: "fr_FR"))))
-                Text("·")
-                Text(MeetingListModel.durationText(row, now: .now))
+        VStack(alignment: .leading, spacing: Space.m) {
+            Text(row.title).font(.title.bold()).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+            FlowLayout(spacing: Space.s) {
+                Chip(dateText, systemImage: "calendar")
                 if row.status.isUnfinished {
-                    Badge(text: "En cours", color: .red)
+                    Chip("En cours", systemImage: "record.circle", tint: .red).symbolEffect(.pulse)
+                } else {
+                    Chip(MeetingListModel.durationText(row, now: .now), systemImage: "clock")
+                    if row.status == .interrupted { Chip("Interrompue", tint: .orange) }
                 }
             }
-            .foregroundStyle(.secondary)
-            HStack(spacing: 10) {
-                if !projects.isEmpty {
-                    Menu {
-                        Button("Aucun") { file(nil) }
-                        Divider()
-                        ForEach(projects.filter { $0.status != .termine || $0.id == row.projectID }
-                            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }) { project in
-                            Button(project.name) { file(project.id) }
+            if !projects.isEmpty || !participants.isEmpty {
+                FlowLayout(spacing: Space.s) {
+                    if !projects.isEmpty { projectMenu }
+                    ForEach(participants.prefix(6)) { contact in
+                        Button { router.openContact(contact.id) } label: {
+                            HStack(spacing: 6) {
+                                Avatar(contact.initials, size: 22)
+                                Text(contact.name).font(.meta).lineLimit(1)
+                            }
+                            .padding(.leading, Space.xs)
+                            .padding(.trailing, Space.s)
+                            .padding(.vertical, Space.xs)
                         }
-                    } label: {
-                        Label(project?.name ?? "Ranger dans un projet", systemImage: "square.grid.3x2")
+                        .buttonStyle(.hover(.capsule))
+                        .help(contact.email ?? contact.name)
                     }
-                    .menuStyle(.button)
-                    .buttonStyle(.glass)
-                    .fixedSize()
-                }
-                ForEach(participants.prefix(6)) { contact in
-                    Button { router.openContact(contact.id) } label: {
-                        HStack(spacing: 6) {
-                            Avatar(contact.initials, size: 22)
-                            Text(contact.name).lineLimit(1)
-                        }
+                    if participants.count > 6 {
+                        Text("+\(participants.count - 6)").font(.meta).foregroundStyle(.secondary)
+                            .help(participants.dropFirst(6).map(\.name).joined(separator: ", "))
                     }
-                    .buttonStyle(.plain)
-                    .help(contact.email ?? contact.name)
-                }
-                if participants.count > 6 {
-                    Text("+\(participants.count - 6)").foregroundStyle(.secondary)
                 }
             }
         }
+    }
+
+    private var projectMenu: some View {
+        Menu {
+            Button("Aucun") { file(nil) }
+            Divider()
+            ForEach(projects.filter { $0.status != .termine || $0.id == row.projectID }
+                .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }) { project in
+                Button(project.name) { file(project.id) }
+            }
+        } label: {
+            Label(project?.name ?? "Ranger dans un projet", systemImage: "square.grid.3x2")
+        }
+        .menuStyle(.button)
+        .buttonStyle(.glass)
+        .fixedSize()
     }
 
     private func file(_ projectID: UUID?) {
@@ -138,62 +160,31 @@ struct MeetingDetailView: View {
 
     @ViewBuilder
     private var summaryCard: some View {
-        let status = TranscriptModel.summaryText(summaryJob, hasSummary: summary?.isEmpty == false, unavailable: summaryUnavailable)
-        if summary?.isEmpty == false || status != nil || !actions.isEmpty {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Label("Compte rendu", systemImage: "sparkles").font(.headline)
-                    Spacer()
-                    if summaryJob?.state == .running { ProgressView().controlSize(.small) }
-                    if summaryJob?.state == .failed {
-                        Button("Réessayer") { redoSummary() }.buttonStyle(.glass).controlSize(.small)
-                    }
-                }
-                if let status {
-                    Text(status).foregroundStyle(summaryJob?.state == .failed ? Color.orange : .secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                if let summary, !summary.isEmpty {
-                    MarkdownView(text: summary).frame(maxWidth: .infinity, alignment: .leading)
-                }
-                if !actions.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Actions").font(.title3.bold())
-                        ForEach(actions) { action in actionRow(action) }
-                    }
-                }
-            }
-            .padding(Space.l + 2)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .cardSurface()
+        let hasSummary = summary?.isEmpty == false
+        // Transcribed, and the queue has not taken it yet: it is waiting, it says so (15/11).
+        let waiting = summariesEnabled && row.source != .imported && row.transcribedAt != nil && !row.status.isUnfinished && !lines.isEmpty
+        let status = TranscriptModel.summaryText(summaryJob, hasSummary: hasSummary, unavailable: summaryUnavailable,
+                                                 progress: summaryProgress, waiting: waiting)
+        if hasSummary || status != nil || !actions.isEmpty {
+            let redo: (() -> Void)? = canRedo ? { redoSummary() } : nil
+            SummaryCard(title: row.title, subtitle: dateText, summary: summary, job: summaryJob, status: status, progress: summaryProgress,
+                        actions: actions, project: project, redo: redo,
+                        setDone: { action, done in setDone(action, done) },
+                        addToProject: { action, project in addToProject(action, project: project) })
+                .transition(.opacity)
         }
     }
 
-    private func actionRow(_ action: ActionRow) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Toggle(isOn: Binding(get: { action.done }, set: { done in
-                var changed = action
-                changed.done = done
-                changed.updatedAt = Date()
-                try? ProjectStore(store.database).saveAction(changed)
-                reloadSummary()
-            })) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(action.text).strikethrough(action.done).foregroundStyle(action.done ? .secondary : .primary)
-                    if let owner = action.owner { Text(owner).font(.tag).foregroundStyle(.secondary) }
-                }
-            }
-            .toggleStyle(.checkbox)
-            Spacer(minLength: 8)
-            if action.projectID != nil {
-                Label("Dans le projet", systemImage: "checkmark.circle").font(.tag).foregroundStyle(.secondary).labelStyle(.titleAndIcon)
-            } else if let project {
-                Button { addToProject(action, project: project) } label: { Label("Ajouter au projet", systemImage: "plus") }
-                    .buttonStyle(.borderless)
-                    .font(.tag)
-                    .help("Ajoute cette action à celles de « \(project.name) »")
-            }
-        }
+    private var canRedo: Bool {
+        summaries != nil && !lines.isEmpty && row.source != .imported && summaryJob?.state != .running
+    }
+
+    private func setDone(_ action: ActionRow, _ done: Bool) {
+        var changed = action
+        changed.done = done
+        changed.updatedAt = Date()
+        try? ProjectStore(store.database).saveAction(changed)
+        reloadSummary()
     }
 
     private func addToProject(_ action: ActionRow, project: ProjectRow) {
@@ -230,20 +221,20 @@ struct MeetingDetailView: View {
             Label(loadError, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
         }
         if let status = TranscriptModel.status(job, meeting: row, meetingActive: meetingActive) {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: Space.m) {
                 TranscriptHeader(status: status, meetingID: row.id, queue: queue)
                 if !lines.isEmpty {
                     if let player {
-                        DialogueList(lines: lines, player: player, scroll: scroll)
+                        DialogueList(lines: lines, paragraphs: paragraphs, player: player, scroll: scroll)
                     } else {
-                        DialogueParagraphs(lines: lines, current: nil, seek: nil)
+                        DialogueParagraphs(paragraphs: paragraphs, seek: nil)
                     }
                 } else if case .done = status {
                     Text("Personne n'a parlé, ou rien n'a pu être transcrit.").foregroundStyle(.secondary)
                 }
             }
         } else if row.source == .imported, !lines.isEmpty {
-            DialogueParagraphs(lines: lines, current: nil, seek: nil)
+            DialogueParagraphs(paragraphs: paragraphs, seek: nil)
         }
     }
 
@@ -252,19 +243,13 @@ struct MeetingDetailView: View {
     @ViewBuilder
     private var playerBar: some View {
         if let player {
-            PlayerView(player: player)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .glassEffect(.regular, in: .capsule)
-                .padding(.horizontal, 24)
-                .padding(.bottom, 14)
+            FloatingBar { PlayerView(player: player) }
                 .frame(maxWidth: 760)
         } else if row.audioPurgedAt != nil, row.source != .imported {
-            Label("L'audio a été effacé (30 jours après la transcription).", systemImage: "trash")
-                .font(.callout).foregroundStyle(.secondary)
-                .padding(.horizontal, 16).padding(.vertical, 8)
-                .glassEffect(.regular, in: .capsule)
-                .padding(.bottom, 14)
+            FloatingBar {
+                Label("L'audio a été effacé (30 jours après la transcription).", systemImage: "trash")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -278,7 +263,7 @@ struct MeetingDetailView: View {
             }
             Menu {
                 Button("Refaire le compte rendu") { redoSummary() }
-                    .disabled(summaries == nil || lines.isEmpty || row.source == .imported || summaryJob?.state == .running)
+                    .disabled(!canRedo)
                 Button("Copier la transcription") {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(TranscriptModel.plainText(lines, title: row.title), forType: .string)
@@ -302,7 +287,7 @@ struct MeetingDetailView: View {
     }
 
     private var recordingDetails: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Space.s) {
             Text("Enregistrement").font(.headline)
             if !microphones.isEmpty { LabeledContent("Micro retenu", value: microphones.joined(separator: ", ")) }
             if let health = file?.health {
@@ -315,7 +300,7 @@ struct MeetingDetailView: View {
             if let reason = row.endReason { LabeledContent("Fin", value: Self.words(reason)) }
             if microphones.isEmpty, file == nil, row.endReason == nil { Text("Rien à signaler.").foregroundStyle(.secondary) }
         }
-        .padding(16)
+        .padding(Space.l)
         .frame(width: 320, alignment: .leading)
     }
 
@@ -378,22 +363,27 @@ struct MeetingDetailView: View {
     }
 }
 
+/// The player, in its glass capsule: −15 s, play, +15 s, the time, the speed and the voices. Its buttons stay plain
+/// with a circle under the pointer: no glass on glass (15/11).
 struct PlayerView: View {
     @ObservedObject var player: MeetingPlayer
     @State private var scrubbing: Double?
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: Space.s) {
+            IconButton("gobackward.15", help: "Reculer de 15 secondes", size: 16) { player.skip(by: -MeetingPlayer.skipSeconds) }
             Button {
                 player.isPlaying ? player.pause() : player.play()
             } label: {
                 Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
                     .font(.title3)
-                    .frame(width: 28, height: 28)
+                    .contentTransition(.symbolEffect(.replace))
+                    .frame(width: 32, height: 32)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.hover(.circle))
             .keyboardShortcut(.space, modifiers: [])
             .help(player.isPlaying ? "Pause" : "Lecture")
+            IconButton("goforward.15", help: "Avancer de 15 secondes", size: 16) { player.skip(by: MeetingPlayer.skipSeconds) }
 
             Slider(
                 value: Binding(get: { scrubbing ?? player.currentSeconds }, set: { scrubbing = $0 }),
@@ -407,14 +397,34 @@ struct PlayerView: View {
             Text("\(DurationText.clock(Int(scrubbing ?? player.currentSeconds))) / \(DurationText.clock(Int(player.durationSeconds)))")
                 .font(.callout.monospacedDigit())
                 .foregroundStyle(.secondary)
+                .fixedSize()
+            Menu {
+                Picker("Vitesse", selection: $player.rate) {
+                    ForEach(MeetingPlayer.rates, id: \.self) { rate in Text(MeetingPlayer.rateLabel(rate)).tag(rate) }
+                }
+                .pickerStyle(.inline)
+            } label: {
+                Text(MeetingPlayer.rateLabel(player.rate)).font(.callout.monospacedDigit().weight(.semibold))
+            }
+            .menuStyle(.button)
+            .buttonStyle(.borderless)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .frame(minWidth: 44, minHeight: 32)
+            .hoverRow(radius: 16)
+            .help("La vitesse de lecture")
             Menu {
                 Toggle("Moi", isOn: $player.moiEnabled)
                 Toggle("Les autres", isOn: $player.autresEnabled)
             } label: {
                 Image(systemName: "person.2.wave.2")
             }
-            .menuStyle(.borderlessButton)
+            .menuStyle(.button)
+            .buttonStyle(.borderless)
+            .menuIndicator(.hidden)
             .fixedSize()
+            .frame(width: 36, height: 32)
+            .hoverRow(radius: 16)
             .help("Les voix à écouter")
         }
     }

@@ -152,6 +152,29 @@ public struct MeetingStore: Sendable {
             })
     }
 
+    /// The summaries of the latest meetings, each reduced by `digest` (its first lines, for the list: 15/11), on
+    /// the main queue, now and after every change. Read apart: the summary stays outside `MeetingRow`.
+    public func observeSummaries(limit: Int, digest: @escaping @Sendable (String) -> String?,
+                                 onChange: @escaping @MainActor @Sendable ([UUID: String]) -> Void) -> AnyDatabaseCancellable {
+        ValueObservation
+            .tracking { db in
+                var digests: [UUID: String] = [:]
+                let rows = try Row.fetchAll(db, sql: """
+                    SELECT id, summary FROM meeting WHERE deletedAt IS NULL AND summary IS NOT NULL AND summary != ''
+                    ORDER BY startedAt DESC LIMIT ?
+                    """, arguments: [limit])
+                for row in rows {
+                    guard let id = UUID(uuidString: row["id"]), let text = digest(row["summary"]) else { continue }
+                    digests[id] = text
+                }
+                return digests
+            }
+            .removeDuplicates()
+            .start(in: writer, scheduling: .async(onQueue: .main), onError: { _ in }, onChange: { digests in
+                MainActor.assumeIsolated { onChange(digests) }
+            })
+    }
+
     /// Calls `onChange` on the main queue with the latest meetings, now and after every change.
     public func observeRecent(limit: Int, onChange: @escaping @MainActor @Sendable ([MeetingRow]) -> Void) -> AnyDatabaseCancellable {
         ValueObservation

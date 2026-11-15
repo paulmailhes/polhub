@@ -46,15 +46,25 @@ public struct SummaryStore: Sendable {
     /// an imported one, nor one in the Trash, nor one that failed twice, nor one that already has a summary
     /// from elsewhere (the vault's, merged at the history import: review of 14/11) unless Paul asks.
     public func nextPending() throws -> UUID? {
-        try writer.read { db in
+        try nextPending(among: nil)
+    }
+
+    /// The same, among these meetings only: with the automatic summaries off, only those Paul asked for
+    /// (« Refaire le compte rendu », 15/11).
+    public func nextPending(among ids: Set<UUID>?) throws -> UUID? {
+        if let ids, ids.isEmpty { return nil }
+        let keys = ids.map { $0.map(Self.key) } ?? []
+        let among = ids == nil ? "" : "AND meeting.id IN (\(keys.map { _ in "?" }.joined(separator: ", ")))"
+        return try writer.read { db in
             try String.fetchOne(db, sql: """
                 SELECT meeting.id FROM meeting LEFT JOIN summary_job AS job ON job.meetingID = meeting.id
                 WHERE meeting.deletedAt IS NULL AND meeting.source != 'imported' AND meeting.transcribedAt IS NOT NULL
                   AND EXISTS (SELECT 1 FROM utterance WHERE utterance.meetingID = meeting.id)
                   AND ((job.meetingID IS NULL AND meeting.summary IS NULL) OR job.state = 'queued'
                        OR (job.state IN ('done', 'failed') AND job.sourceTranscribedAt < meeting.transcribedAt))
+                  \(among)
                 ORDER BY meeting.startedAt DESC LIMIT 1
-                """)
+                """, arguments: StatementArguments(keys))
         }.flatMap(UUID.init(uuidString:))
     }
 
@@ -77,9 +87,14 @@ public struct SummaryStore: Sendable {
     }
 
     /// The summary is written: its text on the meeting, its actions on the meeting (not in a project: Paul
-    /// adds the ones he wants).
+    /// adds the ones he wants). Without a summary (too few words), what the meeting has stays: a summary from the
+    /// vault, its actions (15/11).
     public func finish(meetingID: UUID, summary: String?, actions: [ActionRow], at date: Date) throws {
         try writer.write { db in
+            guard let summary else {
+                try update(db, meetingID, at: date) { $0.state = .done; $0.error = nil }
+                return
+            }
             try db.execute(sql: "UPDATE meeting SET summary = ? WHERE id = ?", arguments: [summary, Self.key(meetingID)])
             // An action found again keeps its row (ticked, put in a project, its place); the untouched ones that are
             // gone leave; the new ones come in (review of 14/11).
@@ -149,6 +164,16 @@ public struct SummaryStore: Sendable {
             .tracking { try SummaryJobRow.fetchOne($0, key: ["meetingID": key]) }
             .start(in: writer, scheduling: .async(onQueue: .main), onError: { _ in }, onChange: { job in
                 MainActor.assumeIsolated { onChange(job) }
+            })
+    }
+
+    /// Every meeting's summary job, for the list (15/11).
+    public func observeJobs(onChange: @escaping @MainActor @Sendable ([UUID: SummaryJobRow]) -> Void) -> AnyDatabaseCancellable {
+        ValueObservation
+            .tracking { db in Dictionary(try SummaryJobRow.fetchAll(db).map { ($0.meetingID, $0) }, uniquingKeysWith: { first, _ in first }) }
+            .removeDuplicates()
+            .start(in: writer, scheduling: .async(onQueue: .main), onError: { _ in }, onChange: { jobs in
+                MainActor.assumeIsolated { onChange(jobs) }
             })
     }
 

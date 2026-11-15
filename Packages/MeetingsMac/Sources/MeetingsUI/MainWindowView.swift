@@ -271,7 +271,7 @@ public struct MainWindowView<Diagnostic: View>: View {
                                 router.open(meetingID: id, at: seconds)
                             }
                         } else {
-                            MeetingListView(library: library, selection: $router.selection)
+                            MeetingListView(library: library, selection: $router.selection, paths: paths, projects: projects?.projects ?? [])
                         }
                     }
                     .frame(width: 300)
@@ -281,7 +281,7 @@ public struct MainWindowView<Diagnostic: View>: View {
                             MeetingDetailView(row: row, store: library.store, paths: paths, transcripts: library.transcripts,
                                               projects: projects?.projects ?? [],
                                               queue: library.queue, summaries: library.summaries, summaryUnavailable: library.summaryUnavailable,
-                                              job: library.jobs[row.id], meetingActive: library.meetingActive,
+                                              summaryProgress: library.summaryProgress[row.id], job: library.jobs[row.id], meetingActive: library.meetingActive,
                                               router: router)
                                 .id(id)
                         } else {
@@ -313,9 +313,13 @@ public struct MainWindowView<Diagnostic: View>: View {
     }
 }
 
+/// The meetings by day, newest first: the newest opens by itself, a right click gives the usual gestures (15/11).
 struct MeetingListView: View {
     @ObservedObject var library: MeetingLibrary
     @Binding var selection: UUID?
+    var paths: AppPaths?
+    var projects: [ProjectRow] = []
+    @State private var deleting: MeetingRow?
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
@@ -328,53 +332,109 @@ struct MeetingListView: View {
                     ForEach(sections) { section in
                         Section(section.title) {
                             ForEach(section.rows) { row in
-                                MeetingRowView(row: row, now: context.date, badge: TranscriptModel.badge(library.jobs[row.id])).tag(row.id)
+                                MeetingRowView(row: row, now: context.date, badge: TranscriptModel.badge(library.jobs[row.id]),
+                                               project: projectName(row),
+                                               summary: MeetingListModel.summaryLine(overview: library.overviews[row.id], job: library.summaryJobs[row.id]))
+                                    .tag(row.id)
+                                    .contextMenu { menu(row) }
                             }
                         }
                     }
                 }
             }
         }
+        .onAppear(perform: openNewest)
+        .onChange(of: library.rows) { _, _ in openNewest() }
+        .confirmationDialog("Supprimer « \(deleting?.title ?? "") » ?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+                            presenting: deleting) { row in
+            Button("Mettre à la Corbeille", role: .destructive) { delete(row) }
+            Button("Annuler", role: .cancel) {}
+        } message: { _ in
+            Text("L'audio va à la Corbeille, d'où tu peux encore le récupérer.")
+        }
+    }
+
+    private func projectName(_ row: MeetingRow) -> String? {
+        row.projectID.flatMap { id in projects.first { $0.id == id }?.name }
+    }
+
+    /// Nothing chosen, or the meeting chosen is gone: the newest opens.
+    private func openNewest() {
+        let open = MeetingListModel.meetingToOpen(selection: selection, rows: library.rows)
+        if open != selection { selection = open }
+    }
+
+    @ViewBuilder
+    private func menu(_ row: MeetingRow) -> some View {
+        Button("Ouvrir") { selection = row.id }
+        Button("Refaire le compte rendu") {
+            let summaries = library.summaries, id = row.id
+            Task { await summaries?.redo(meetingID: id) }
+        }
+        .disabled(library.summaries == nil || row.source == .imported || row.status.isUnfinished || row.transcribedAt == nil
+                  || library.summaryJobs[row.id]?.state == .running)
+        if let paths {
+            Divider()
+            Button("Afficher dans le Finder") { NSWorkspace.shared.activateFileViewerSelecting([paths.meetingFolder(row.id)]) }
+                .disabled(row.source == .imported)
+            Button("Supprimer…", role: .destructive) { deleting = row }
+                .disabled(row.status.isUnfinished)
+        }
+    }
+
+    private func delete(_ row: MeetingRow) {
+        guard let paths else { return }
+        if selection == row.id { selection = MeetingListModel.neighbor(of: row.id, in: library.rows) }
+        library.moveToTrash(row, folder: paths.meetingFolder(row.id))
     }
 }
 
+/// One meeting: its title, when and how long (and its project), then its summary's first lines (15/11).
 struct MeetingRowView: View {
     let row: MeetingRow
     let now: Date
     var badge: String?
+    var project: String?
+    var summary: MeetingListModel.SummaryLine?
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(row.title).font(.body.weight(.medium)).lineLimit(1)
-                Text("\(row.startedAt.formatted(date: .omitted, time: .shortened)) · \(MeetingListModel.durationText(row, now: now))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: Space.xs) {
+            HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+                Text(row.title).font(.rowTitle.weight(.medium)).lineLimit(1)
+                Spacer(minLength: Space.xs)
+                chips
             }
-            Spacer()
-            if row.status.isUnfinished {
-                Badge(text: "En cours", color: .red)
-            } else if row.status == .interrupted {
-                Badge(text: "Interrompue", color: .orange)
-            }
-            if let badge, !row.status.isUnfinished {
-                Badge(text: badge, color: badge == "Échec" || badge == "À vérifier" ? .orange : .secondary)
+            Text(MeetingListModel.metaText(row, project: project, now: now))
+                .font(.meta.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            if let summary {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Image(systemName: summary.kind == .failed ? "exclamationmark.triangle" : "sparkles")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(summary.kind == .failed ? Color.orange : Color(hex: Palette.violet))
+                        .symbolEffect(.pulse, isActive: summary.kind == .writing)
+                    Text(summary.text)
+                        .font(.rowBody)
+                        .foregroundStyle(summary.kind == .failed ? Color.orange : .secondary)
+                        .lineLimit(2)
+                }
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, Space.xs)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .hoverRow(inset: Space.s)
     }
-}
 
-struct Badge: View {
-    let text: String
-    let color: Color
-
-    var body: some View {
-        Text(text)
-            .font(.caption2.weight(.semibold))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .foregroundStyle(color)
-            .background(color.opacity(0.12), in: Capsule())
+    @ViewBuilder
+    private var chips: some View {
+        if row.status.isUnfinished {
+            Chip("En cours", systemImage: "record.circle", tint: .red)
+        } else if row.status == .interrupted {
+            Chip("Interrompue", tint: .orange)
+        }
+        if let badge, !row.status.isUnfinished {
+            Chip(badge, tint: badge == "Échec" || badge == "À vérifier" ? .orange : nil)
+        }
     }
 }

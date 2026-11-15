@@ -1,8 +1,30 @@
 import Domain
 import Foundation
+import FoundationModels
 import Persistence
 import Testing
 @testable import Summarization
+
+/// 15/11: the model's limits of the moment wait a minute, never counted as failures; a refusal and a window
+/// overflow are told apart, so that the pipeline can deal with them part by part.
+@Suite struct AppleErrorsTests {
+    @Test func aBusyModelIsUnavailableForAMinute() {
+        let busy = SummaryError.unavailable(AppleSummaryEngine.busy)
+        #expect(AppleSummaryEngine.mapped(LanguageModelError.rateLimited(.init(resetDate: nil, debugDescription: "limite"))) as? SummaryError == busy)
+        #expect(AppleSummaryEngine.mapped(LanguageModelSession.Error.concurrentRequests) as? SummaryError == busy)
+        #expect(AppleSummaryEngine.mapped(LanguageModelSession.GenerationError.rateLimited(.init(debugDescription: "limite"))) as? SummaryError == busy)
+        #expect(AppleSummaryEngine.mapped(LanguageModelSession.GenerationError.concurrentRequests(.init(debugDescription: "deux"))) as? SummaryError == busy)
+    }
+
+    @Test func refusalsAndOverflowsAreToldApart() {
+        #expect(AppleSummaryEngine.mapped(LanguageModelError.guardrailViolation(.init(debugDescription: "non"))) as? SummaryError == .refused)
+        #expect(AppleSummaryEngine.mapped(LanguageModelSession.GenerationError.guardrailViolation(.init(debugDescription: "non"))) as? SummaryError == .refused)
+        #expect(AppleSummaryEngine.mapped(LanguageModelError.contextSizeExceeded(.init(contextSize: 8_192, tokenCount: 9_000, debugDescription: "trop")))
+                as? SummaryError == .tooLong)
+        #expect(AppleSummaryEngine.mapped(LanguageModelSession.GenerationError.exceededContextWindowSize(.init(debugDescription: "trop")))
+                as? SummaryError == .tooLong)
+    }
+}
 
 /// The summary of a meeting, made on the Mac by Apple's model (14/11): the pure parts.
 @Suite struct SummaryPlanTests {
@@ -83,6 +105,24 @@ import Testing
         let text = SummaryText.markdown(MeetingSummary(overview: "On lance la refonte.", decisions: ["Garder WordPress."], actions: [SummaryAction(text: "X")]))
         #expect(text == "## Résumé\n\nOn lance la refonte.\n\n## Décisions\n\n- Garder WordPress.")
         #expect(SummaryText.markdown(MeetingSummary(overview: "Court.", decisions: [], actions: [])) == "## Résumé\n\nCourt.")
+    }
+
+    /// 15/11: « Points clés » between the summary and the decisions, without repeats nor decisions said again.
+    @Test func keyPointsComeBetweenTheSummaryAndTheDecisions() {
+        let summary = MeetingSummary(overview: "On lance la refonte.", points: ["le client veut un site plus simple.", "Le client veut un site plus simple",
+                                                                            "Garder WordPress.", " ", "Le blog attendra."] + (1...8).map { "Point \($0)" },
+                                     decisions: ["Garder WordPress."], actions: [])
+        let clean = SummaryChecks.clean(summary, transcript: "", participants: [])
+        #expect(clean.points.prefix(2) == ["Le client veut un site plus simple.", "Le blog attendra."] && clean.points.count == SummaryChecks.maxPoints)
+        let text = SummaryText.markdown(MeetingSummary(overview: "On lance la refonte.", points: ["Le blog attendra."], decisions: ["Garder WordPress."], actions: []))
+        #expect(text == "## Résumé\n\nOn lance la refonte.\n\n## Points clés\n\n- Le blog attendra.\n\n## Décisions\n\n- Garder WordPress.")
+    }
+
+    /// A summary written before 15/11, without its key points, still reads.
+    @Test func anOlderSummaryWithoutKeyPointsDecodes() throws {
+        let data = Data(#"{"overview":"Un point.","decisions":["A"],"actions":[]}"#.utf8)
+        let summary = try JSONDecoder().decode(MeetingSummary.self, from: data)
+        #expect(summary.points.isEmpty && summary.missing == nil && summary.decisions == ["A"])
     }
 
     @Test func actionsBecomeRowsWithTheirDueDateInTheText() {

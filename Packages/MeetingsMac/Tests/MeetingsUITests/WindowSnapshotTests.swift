@@ -30,7 +30,7 @@ struct WindowSnapshotTests {
             UtteranceRow(meetingID: row.id, speaker: index % 2 == 0 ? .autres : .moi, startMs: index * 20_000, endMs: index * 20_000 + 15_000,
                          text: String(repeating: "Une phrase de la réunion qui continue assez longtemps. ", count: index % 3 + 1), doubtful: index == 5)
         })
-        try SummaryStore(database).finish(meetingID: row.id, summary: "## Résumé\n\nLe client valide la refonte ; la maquette de l'accueil part vendredi.\n\n## Décisions\n\n- Garder WordPress.\n- Une page par expertise.",
+        try SummaryStore(database).finish(meetingID: row.id, summary: "## Résumé\n\nLe client valide la refonte ; la maquette de l'accueil part vendredi.\n\n## Points clés\n\n- Le blog attendra la deuxième version.\n- Les photos de l'équipe manquent encore.\n\n## Décisions\n\n- Garder WordPress.\n- Une page par expertise.",
                                           actions: [ActionRow(text: "Envoyer la maquette (vendredi)", owner: "Moi", position: 0, createdAt: start),
                                                     ActionRow(text: "Rassembler les photos", owner: "Camille", position: 1, createdAt: start)], at: start)
         let library = MeetingLibrary(store: store)
@@ -47,8 +47,9 @@ struct WindowSnapshotTests {
         measure("fiche", MeetingDetailView(row: row, store: store, paths: paths, transcripts: library.transcripts, queue: nil,
                                            job: nil, meetingActive: false, router: router))
         measure("en-tête de transcription", TranscriptHeader(status: .done(doubtful: true), meetingID: row.id, queue: nil))
-        measure("répliques", DialogueParagraphs(lines: try TranscriptStore(database).utterances(meetingID: row.id), current: nil, seek: { _ in }))
-        measure("ligne de liste", MeetingRowView(row: row, now: Date(), badge: "Transcription 50 %"))
+        measure("répliques", DialogueParagraphs(paragraphs: TranscriptModel.paragraphs(try TranscriptStore(database).utterances(meetingID: row.id)), seek: { _ in }))
+        measure("ligne de liste", MeetingRowView(row: row, now: Date(), badge: "Transcription 50 %", project: "Refonte du site",
+                                                 summary: .init(text: "Le client valide la refonte ; la maquette de l'accueil part vendredi.", kind: .ready)))
 
         for width in [860.0, 1_280] {
             try await LiveWindow.capture(MainWindowView(library: library, router: router, paths: paths) { EmptyView() },

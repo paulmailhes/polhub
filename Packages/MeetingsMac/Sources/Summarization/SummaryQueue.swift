@@ -19,10 +19,17 @@ public actor SummaryQueue {
     private var current: (meetingID: UUID, task: Task<Void, Never>)?
     /// The model's assets were missing: nothing starts before this (review of 14/11, Important 5).
     private var retryAfter: Date?
+    /// The meetings Paul asked « Refaire » for: they are summarized even with the automatic summaries off (15/11).
+    private var asked: Set<UUID> = []
+    /// Where the summary under way is, part by part, for the meeting's page; `nil` once it is over (15/11). In
+    /// memory only: the base has no column for it.
+    public nonisolated let progress: AsyncStream<SummaryProgressUpdate>
+    private nonisolated let progressSink: AsyncStream<SummaryProgressUpdate>.Continuation
 
     public init(database: AppDatabase, engine: any SummaryEngine, otherWork: @escaping @Sendable () async -> Bool = { false },
                 isEnabled: @escaping @Sendable () -> Bool = { true }, now: @escaping @Sendable () -> Date = Date.init,
                 onFinished: @escaping @Sendable (UUID, String) -> Void = { _, _ in }) {
+        (progress, progressSink) = AsyncStream.makeStream(bufferingPolicy: .bufferingNewest(32))
         self.onFinished = onFinished
         self.isEnabled = isEnabled
         self.database = database
@@ -58,9 +65,10 @@ public actor SummaryQueue {
     /// Starts the newest waiting summary, if nothing runs and nothing stops it.
     public func wake() async {
         if let retryAfter, now() < retryAfter { return }
-        guard isEnabled() else { return }
+        let enabled = isEnabled()
+        guard enabled || !asked.isEmpty else { return }
         guard !busy, current == nil, engine.unavailableReason == nil, await !otherWork(), !busy, current == nil,
-              let meetingID = try? store.nextPending() else { return }
+              let meetingID = try? store.nextPending(among: enabled ? nil : asked) else { return }
         try? store.start(meetingID: meetingID, at: now())
         let task = Task { await self.run(meetingID) }
         current = (meetingID, task)
@@ -69,6 +77,7 @@ public actor SummaryQueue {
     /// « Refaire le compte rendu ».
     public func redo(meetingID: UUID) async {
         try? store.redo(meetingID: meetingID, at: now())
+        asked.insert(meetingID)
         await wake()
     }
 
@@ -78,7 +87,8 @@ public actor SummaryQueue {
     }
 
     private func run(_ meetingID: UUID) async {
-        let otherWork = otherWork
+        let otherWork = otherWork, sink = progressSink
+        defer { sink.yield(SummaryProgressUpdate(meetingID: meetingID, progress: nil)) }
         do {
             let meetings = MeetingStore(database)
             let lines = try TranscriptStore(database).utterances(meetingID: meetingID)
@@ -86,9 +96,11 @@ public actor SummaryQueue {
             let participants = try ContactStore(database).participants(meetingID: meetingID).map(\.name)
             // A transcription that starts stops the summary: the Mac computes one thing at a time (review of 14/11).
             let summary = try await Summarizer.make(lines: lines, title: title, participants: participants, engine: engine,
-                                                    shouldStop: { await otherWork() })
+                                                    shouldStop: { await otherWork() },
+                                                    onProgress: { sink.yield(SummaryProgressUpdate(meetingID: meetingID, progress: $0)) })
             try store.finish(meetingID: meetingID, summary: summary.map(SummaryText.markdown),
                              actions: SummaryText.actionRows(summary?.actions ?? [], at: now()), at: now())
+            asked.remove(meetingID)
             if summary != nil { onFinished(meetingID, title) }
         } catch {
             if Task.isCancelled || error is CancellationError {
@@ -99,9 +111,22 @@ public actor SummaryQueue {
                 retryAfter = now().addingTimeInterval(60)
             } else {
                 try? store.fail(meetingID: meetingID, error: (error as? SummaryError)?.description ?? error.localizedDescription, at: now())
+                // Asked by Paul, it keeps its second attempt even with the automatic summaries off.
+                if (try? store.job(meetingID: meetingID))??.state != .queued { asked.remove(meetingID) }
             }
         }
         current = nil
         await wake()
+    }
+}
+
+/// A step of the summary under way: `progress` is `nil` once it is over.
+public struct SummaryProgressUpdate: Equatable, Sendable {
+    public var meetingID: UUID
+    public var progress: SummaryProgress?
+
+    public init(meetingID: UUID, progress: SummaryProgress?) {
+        self.meetingID = meetingID
+        self.progress = progress
     }
 }

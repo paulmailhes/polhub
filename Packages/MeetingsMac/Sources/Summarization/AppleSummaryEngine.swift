@@ -20,23 +20,68 @@ public struct AppleSummaryEngine: SummaryEngine {
         Tu prends des notes de réunion en français. « Moi » est l'utilisateur de l'application, qui a enregistré la réunion ; \
         « Les autres » sont ses interlocuteurs. N'invente rien : seulement ce qui est dit dans l'extrait.
         """
+    static let mergeInstructions = """
+        Tu fusionnes des notes de réunion en français, prises partie par partie, en notes plus courtes. « Moi » est \
+        l'utilisateur de l'application. Garde les décisions et les actions avec leur porteur et leur échéance ; fusionne \
+        les doublons ; n'invente rien.
+        """
     static let summaryInstructions = """
         Tu rédiges le compte rendu d'une réunion en français, à partir des notes prises partie par partie. « Moi » est \
         l'utilisateur de l'application. Fusionne les doublons, garde l'essentiel, n'invente rien. Une décision est ce qui a été \
         arrêté ; une action est ce que quelqu'un fera après la réunion.
         """
+    /// What a refused passage is asked again with, as plain text (15/11).
+    static let plainNotesRequest = """
+        Écris des notes en trois parties, « Points : », « Décisions : » et « Actions : », une ligne commençant par « - » \
+        pour chaque élément.
+        """
+    /// An invented exchange, for the model's count of characters per token (15/11).
+    static let sample = """
+        [12:04] Moi : Bon, on reprend la maquette de l'accueil : la photo du haut est trop sombre, on la change ?
+        [12:10] Les autres : D'accord, j'en envoie trois autres d'ici jeudi, avec les textes de la page des services.
+        [12:21] Moi : Parfait. Et pour le devis, je le refais avec deux options, l'une sans le blog, l'autre avec.
+        [12:35] Les autres : Très bien, on en parle vendredi en début d'après-midi, après la réunion de l'équipe.
+        """
+
+    /// The window, less the instructions, the schema and the answer, in characters of French: the larger request
+    /// (the summary's) counts. Ten thousand characters at most, as measured on 14/11; the window and the ratio
+    /// are the model's own counts, not measured by hand (15/11).
+    public func characterBudget() async -> Int {
+        let model = SystemLanguageModel.default
+        guard case .available = model.availability else { return SummaryPlan.maxCharacters }
+        do {
+            let notes = try await model.tokenCount(for: Instructions(Self.notesInstructions)) + model.tokenCount(for: PartNotes.generationSchema)
+            let summary = try await model.tokenCount(for: Instructions(Self.summaryInstructions)) + model.tokenCount(for: Summary.generationSchema)
+            let sampleTokens = try await model.tokenCount(for: Self.sample)
+            return SummaryPlan.characterBudget(contextSize: model.contextSize, fixedTokens: max(notes, summary),
+                                               sampleCharacters: Self.sample.count, sampleTokens: sampleTokens)
+        } catch {
+            return SummaryPlan.maxCharacters
+        }
+    }
 
     public func notes(for chunk: String, part: Int, of count: Int) async throws -> String {
-        let session = LanguageModelSession(instructions: Self.notesInstructions)
-        let notes = try await respond {
-            try await session.respond(to: "Extrait \(part) sur \(count) de la transcription :\n\n" + chunk, generating: PartNotes.self).content
+        let prompt = "Extrait \(part) sur \(count) de la transcription :\n\n" + chunk
+        do {
+            let session = LanguageModelSession(instructions: Self.notesInstructions)
+            let notes = try await respond { try await session.respond(to: prompt, generating: PartNotes.self).content }
+            return notes.text(part: part)
+        } catch SummaryError.refused {
+            // Asked again as plain text, with the guardrails Apple gives to the transformations of a text: they only
+            // relax answers in text (not measured on French meetings, 15/11). Refused again, the part is left out.
+            let model = SystemLanguageModel(guardrails: .permissiveContentTransformations)
+            let session = LanguageModelSession(model: model, instructions: Self.notesInstructions)
+            let text = try await respond { try await session.respond(to: prompt + "\n\n" + Self.plainNotesRequest).content }
+            return "Partie \(part)\n" + text.trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        var text = "Partie \(part)\nPoints :\n" + notes.points.map { "- \($0)" }.joined(separator: "\n")
-        text += "\nDécisions :\n" + notes.decisions.map { "- \($0)" }.joined(separator: "\n")
-        text += "\nActions :\n" + notes.actions.map { action in
-            "- \(action.texte) (porteur : \(action.porteur.isEmpty ? "?" : action.porteur)\(action.echeance.isEmpty ? "" : ", échéance : \(action.echeance)"))"
-        }.joined(separator: "\n")
-        return text
+    }
+
+    public func merge(_ notes: String, part: Int, of count: Int) async throws -> String {
+        let session = LanguageModelSession(instructions: Self.mergeInstructions)
+        let merged = try await respond {
+            try await session.respond(to: "Notes \(part) sur \(count) à fusionner :\n\n" + notes, generating: PartNotes.self).content
+        }
+        return merged.text(part: part)
     }
 
     public func summary(of notes: [String], title: String) async throws -> MeetingSummary {
@@ -44,7 +89,7 @@ public struct AppleSummaryEngine: SummaryEngine {
         let answer = try await respond {
             try await session.respond(to: "Titre de la réunion : \(title)\n\nNotes :\n\n" + notes.joined(separator: "\n\n"), generating: Summary.self).content
         }
-        return MeetingSummary(overview: answer.resume, decisions: answer.decisions,
+        return MeetingSummary(overview: answer.resume, points: answer.points, decisions: answer.decisions,
                               actions: answer.actions.map { SummaryAction(text: $0.texte, owner: $0.porteur, due: $0.echeance) })
     }
 
@@ -55,15 +100,38 @@ public struct AppleSummaryEngine: SummaryEngine {
         } catch _ where Task.isCancelled {
             // Stopped by a meeting: never a failure (review of 14/11, Important 4).
             throw CancellationError()
-        } catch let error as LanguageModelSession.GenerationError {
+        } catch {
+            throw Self.mapped(error)
+        }
+    }
+
+    static let busy = "Le modèle d'Apple est occupé : le compte rendu reprend dans une minute."
+
+    /// macOS 27 names the model's errors anew (`LanguageModelError`); the older names are kept, in case. A limit of
+    /// the moment (too many requests, another one under way) waits a minute and is never a failure (15/11).
+    static func mapped(_ error: any Error) -> any Error {
+        if let error = error as? LanguageModelError {
             switch error {
-            case .exceededContextWindowSize: throw SummaryError.model("La transcription dépasse la fenêtre du modèle.")
-            case .guardrailViolation, .refusal: throw SummaryError.model("Le modèle d'Apple a refusé ce passage.")
-            case .unsupportedLanguageOrLocale: throw SummaryError.model("Le modèle d'Apple ne prend pas cette langue.")
-            case .assetsUnavailable: throw SummaryError.unavailable("Le modèle d'Apple n'est pas disponible pour l'instant.")
-            default: throw SummaryError.model("Le modèle d'Apple n'a pas répondu : \(error.localizedDescription)")
+            case .contextSizeExceeded: return SummaryError.tooLong
+            case .guardrailViolation, .refusal: return SummaryError.refused
+            case .rateLimited: return SummaryError.unavailable(busy)
+            case .unsupportedLanguageOrLocale: return SummaryError.model("Le modèle d'Apple ne prend pas cette langue.")
+            default: return SummaryError.model("Le modèle d'Apple n'a pas répondu : \(error.localizedDescription)")
             }
         }
+        if let error = error as? LanguageModelSession.Error, error == .concurrentRequests { return SummaryError.unavailable(busy) }
+        if error is SystemLanguageModel.Error { return SummaryError.unavailable("Le modèle d'Apple n'est pas disponible pour l'instant.") }
+        if let error = error as? LanguageModelSession.GenerationError {
+            switch error {
+            case .exceededContextWindowSize: return SummaryError.tooLong
+            case .guardrailViolation, .refusal: return SummaryError.refused
+            case .rateLimited, .concurrentRequests: return SummaryError.unavailable(busy)
+            case .unsupportedLanguageOrLocale: return SummaryError.model("Le modèle d'Apple ne prend pas cette langue.")
+            case .assetsUnavailable: return SummaryError.unavailable("Le modèle d'Apple n'est pas disponible pour l'instant.")
+            default: return SummaryError.model("Le modèle d'Apple n'a pas répondu : \(error.localizedDescription)")
+            }
+        }
+        return error
     }
 }
 
@@ -77,10 +145,19 @@ public struct AppleSummaryEngine: SummaryEngine {
     @Guide(description: "Les points importants de cet extrait, en phrases courtes", .maximumCount(6)) var points: [String]
     @Guide(description: "Les décisions prises dans cet extrait : ce qui a été arrêté, pas ce qui a été simplement évoqué", .maximumCount(5)) var decisions: [String]
     @Guide(description: "Ce qu'une personne s'engage à faire après la réunion ; jamais un geste fait pendant la réunion (partager l'écran, présenter)", .maximumCount(5)) var actions: [ActionNote]
+
+    /// As the next request reads them.
+    func text(part: Int) -> String {
+        SummaryNotes.text(part: part, points: points, decisions: decisions, actions: actions.map { action in
+            "\(action.texte) (porteur : \(action.porteur.isEmpty ? "?" : action.porteur)\(action.echeance.isEmpty ? "" : ", échéance : \(action.echeance)"))"
+        })
+    }
 }
 
+/// The resume comes first, as measured on 14/11; the key points follow it (15/11, their quality not measured).
 @Generable struct Summary {
     @Guide(description: "Résumé de la réunion en un paragraphe de 4 à 6 phrases") var resume: String
+    @Guide(description: "Les points clés de la réunion, une phrase chacun, sans répéter les décisions", .maximumCount(6)) var points: [String]
     @Guide(description: "Les décisions les plus importantes, sans doublon", .maximumCount(8)) var decisions: [String]
     @Guide(description: "Les actions à faire après la réunion, sans doublon, les plus importantes d'abord", .maximumCount(10)) var actions: [ActionNote]
 }

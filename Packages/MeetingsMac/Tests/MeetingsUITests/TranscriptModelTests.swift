@@ -1,6 +1,7 @@
 import Domain
 import Foundation
 import Persistence
+import Summarization
 import Testing
 @testable import MeetingsUI
 
@@ -107,5 +108,23 @@ import Testing
         #expect(TranscriptModel.summaryText(SummaryJobRow(meetingID: id, state: .done, updatedAt: now), hasSummary: false, unavailable: nil)
                 == "Trop peu de paroles pour un compte rendu.")
         #expect(TranscriptModel.summaryText(SummaryJobRow(meetingID: id, state: .done, updatedAt: now), hasSummary: true, unavailable: nil) == nil)
+    }
+
+    /// 15/11: the card says which part is read, then the last step; and that a transcribed meeting waits, before
+    /// the queue takes it.
+    @Test func theSummarySaysWhichPartIsRead() {
+        let now = Date(timeIntervalSince1970: 1_794_562_920)
+        let running = SummaryJobRow(meetingID: id, state: .running, updatedAt: now)
+        #expect(TranscriptModel.summaryText(running, hasSummary: false, unavailable: nil, progress: SummaryProgress(done: 1, total: 5))
+                == "Compte rendu : partie 2 sur 5…")
+        #expect(TranscriptModel.summaryText(running, hasSummary: false, unavailable: nil, progress: SummaryProgress(done: 5, total: 5, finishing: true))
+                == "Compte rendu : dernière étape…")
+        #expect(TranscriptModel.summaryText(running, hasSummary: false, unavailable: nil, progress: SummaryProgress(done: 0, total: 1))
+                == "Compte rendu en cours d'écriture…")
+        #expect(TranscriptModel.summaryText(nil, hasSummary: false, unavailable: nil, waiting: true)
+                == "Compte rendu en attente : il se fait après la transcription, jamais pendant une réunion.")
+        #expect(TranscriptModel.summaryText(nil, hasSummary: true, unavailable: nil, waiting: true) == nil)
+        #expect(TranscriptModel.summaryText(nil, hasSummary: false, unavailable: "Active Apple Intelligence.", waiting: true) == "Active Apple Intelligence.")
+        #expect(SummaryProgress(done: 2, total: 3).fraction == 0.5)
     }
 }

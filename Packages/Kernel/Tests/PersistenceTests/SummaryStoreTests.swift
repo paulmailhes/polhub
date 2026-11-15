@@ -143,6 +143,31 @@ import Testing
         #expect(after.first { $0.text == "Relire la maquette" }?.done == true)
     }
 
+    /// 15/11: « Refaire » on a meeting with too few words never erases the summary it has (the vault's).
+    @Test func noSummaryLeavesTheMeetingsSummaryAndActionsAlone() throws {
+        let (store, meetings, transcripts, database) = try base()
+        let row = try meeting(meetings, transcripts, hoursAgo: 2)
+        try meetings.setSummary(meetingID: row.id, summary: "## Résumé\n\nVenu du coffre.")
+        try ProjectStore(database).replaceMeetingActions(meetingID: row.id, projectID: nil, actions: [ActionRow(text: "Du coffre", position: 0, createdAt: now)])
+        try store.redo(meetingID: row.id, at: now)
+        try store.start(meetingID: row.id, at: now)
+        try store.finish(meetingID: row.id, summary: nil, actions: [], at: now)
+        #expect(try meetings.summary(meetingID: row.id) == "## Résumé\n\nVenu du coffre.")
+        #expect(try ProjectStore(database).actions(meetingID: row.id).map(\.text) == ["Du coffre"])
+        #expect(try store.job(meetingID: row.id)?.state == .done)
+        #expect(try store.nextPending() == nil)
+    }
+
+    /// 15/11: with the automatic summaries off, only the meetings Paul asked for are summarized.
+    @Test func theNextOneCanBeChosenAmongAFew() throws {
+        let (store, meetings, transcripts, _) = try base()
+        let older = try meeting(meetings, transcripts, hoursAgo: 30)
+        try meeting(meetings, transcripts, hoursAgo: 2)
+        #expect(try store.nextPending(among: [older.id]) == older.id)
+        #expect(try store.nextPending(among: []) == nil)
+        #expect(try store.nextPending(among: [UUID()]) == nil)
+    }
+
     @Test func importedAndDeletedMeetingsAreLeftAlone() throws {
         let (store, meetings, transcripts, _) = try base()
         try meeting(meetings, transcripts, hoursAgo: 3, source: .imported)
