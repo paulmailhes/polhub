@@ -180,17 +180,17 @@ struct MeetingDetailView: View {
             })) {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(action.text).strikethrough(action.done).foregroundStyle(action.done ? .secondary : .primary)
-                    if let owner = action.owner { Text(owner).font(.caption).foregroundStyle(.secondary) }
+                    if let owner = action.owner { Text(owner).font(.tag).foregroundStyle(.secondary) }
                 }
             }
             .toggleStyle(.checkbox)
             Spacer(minLength: 8)
             if action.projectID != nil {
-                Label("Dans le projet", systemImage: "checkmark.circle").font(.caption).foregroundStyle(.secondary).labelStyle(.titleAndIcon)
+                Label("Dans le projet", systemImage: "checkmark.circle").font(.tag).foregroundStyle(.secondary).labelStyle(.titleAndIcon)
             } else if let project {
                 Button { addToProject(action, project: project) } label: { Label("Ajouter au projet", systemImage: "plus") }
                     .buttonStyle(.borderless)
-                    .font(.caption)
+                    .font(.tag)
                     .help("Ajoute cette action à celles de « \(project.name) »")
             }
         }

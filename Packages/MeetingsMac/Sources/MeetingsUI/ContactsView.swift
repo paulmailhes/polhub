@@ -36,7 +36,7 @@ struct ContactsView: View {
                             Avatar(contact.initials)
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(contact.name)
-                                if let company = contact.company { Text(company).font(.caption).foregroundStyle(.secondary) }
+                                if let company = contact.company { Text(company).font(.tag).foregroundStyle(.secondary) }
                             }
                         }
                         .padding(.vertical, 2)

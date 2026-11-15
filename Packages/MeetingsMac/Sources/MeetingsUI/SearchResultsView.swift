@@ -27,7 +27,7 @@ struct SearchResultsView: View {
                                 } label: {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text("\(TranscriptModel.timestamp(excerpt.startMs)) · \(excerpt.speaker.label)")
-                                            .font(.caption).foregroundStyle(.secondary)
+                                            .font(.tag).foregroundStyle(.secondary)
                                         Text(excerpt.text).lineLimit(3)
                                     }
                                 }
@@ -35,7 +35,7 @@ struct SearchResultsView: View {
                             }
                             if group.more > 0 {
                                 Text("et \(group.more) autre\(group.more > 1 ? "s" : "") passage\(group.more > 1 ? "s" : "")")
-                                    .font(.caption).foregroundStyle(.secondary)
+                                    .font(.tag).foregroundStyle(.secondary)
                             }
                         }
                     }

@@ -14,6 +14,32 @@ public enum Space {
     public static let xxl: CGFloat = 32
 }
 
+/// Text read all day sits a step above the system's 13-point body, and nothing to read goes under 12 points
+/// (Paul, 15/11: « tout est un peu petit… trop serré et illisible »).
+public enum TextSize {
+    /// The first line of a row: who, or what.
+    public static let rowTitle: CGFloat = 15
+    /// The second line of a row, and text to read in a list.
+    public static let rowBody: CGFloat = 14
+    /// Dates, addresses, counts, explanations.
+    public static let meta: CGFloat = 13
+    /// A label in a capsule; the smallest text of the app.
+    public static let tag: CGFloat = 12
+    /// The body of a message, in CSS pixels.
+    public static let reading: CGFloat = 15
+}
+
+extension Font {
+    /// 15 points: the first line of a row.
+    public static let rowTitle = Font.system(size: TextSize.rowTitle)
+    /// 14 points: the second line of a row.
+    public static let rowBody = Font.system(size: TextSize.rowBody)
+    /// 13 points: dates, addresses, counts.
+    public static let meta = Font.system(size: TextSize.meta)
+    /// 12 points: a label in a capsule.
+    public static let tag = Font.system(size: TextSize.tag)
+}
+
 /// Corner radii, always with the continuous style.
 public enum Radius {
     public static let small: CGFloat = 6
@@ -180,7 +206,7 @@ public struct Chip: View {
             if let systemImage { Image(systemName: systemImage) }
             Text(text).lineLimit(1)
         }
-        .font(.caption.weight(.semibold))
+        .font(.tag.weight(.semibold))
         .padding(.horizontal, Space.s)
         .padding(.vertical, 3)
         .foregroundStyle(tint ?? .secondary)

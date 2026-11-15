@@ -3,6 +3,22 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.15.3 — 15 novembre 2026
+
+**Une interface plus grande et plus aérée.** Comprend aussi les corrections de la 0.15.2, qui n'a pas été
+publiée.
+
+- **La liste des mails** passe sur deux lignes : l'expéditeur, sa case et la date ; puis l'objet et le début
+  du texte. Le texte est plus grand (15 et 14 points au lieu de 12), les lignes plus hautes, les jours mieux
+  séparés. Au survol, archiver, supprimer et lu/non lu s'affichent à la place de la date.
+- **Un fil** : titre plus grand ; l'adresse, la date et les destinataires de chaque message ne sont plus en
+  10 points ; le texte d'un mail écrit sans mise en forme passe de 13 à 15 pixels.
+- **Écrire** : champs, objet et texte plus grands, boutons plus hauts.
+- **Brouillons et Abonnements** suivent la même mise en page que la liste.
+- **Partout** : plus aucun texte à lire en 10 points (étiquettes, sous-titres de l'accueil, page d'un
+  projet, contacts, réunions, recherche, détail d'un rendez-vous) : 12 points au moins. La grille du
+  calendrier garde sa taille.
+
 ## 0.15.2 — 14 novembre 2026
 
 **Mails : corrections de la relecture de Ranger et des agents.**

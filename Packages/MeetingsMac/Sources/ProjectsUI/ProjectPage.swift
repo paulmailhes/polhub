@@ -186,7 +186,7 @@ struct ProjectPage: View {
                     Text(action.text).strikethrough(action.done).foregroundStyle(action.done ? .secondary : .primary)
                     let detail = [action.owner, action.meetingID != nil ? "d'une réunion" : nil,
                                   action.addedOn?.formatted(.dateTime.day().month(.abbreviated).locale(Self.locale))].compactMap { $0 }
-                    if !detail.isEmpty { Text(detail.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary) }
+                    if !detail.isEmpty { Text(detail.joined(separator: " · ")).font(.tag).foregroundStyle(.secondary) }
                 }
             }
             .toggleStyle(.checkbox)
@@ -263,7 +263,7 @@ struct ProjectPage: View {
                             Avatar(contact.initials, size: 26)
                             VStack(alignment: .leading, spacing: 0) {
                                 Text(contact.name).foregroundStyle(.primary)
-                                if let company = contact.company { Text(company).font(.caption).foregroundStyle(.secondary) }
+                                if let company = contact.company { Text(company).font(.tag).foregroundStyle(.secondary) }
                             }
                             Spacer(minLength: 0)
                         }
@@ -282,7 +282,7 @@ struct ProjectPage: View {
                         VStack(alignment: .leading, spacing: 1) {
                             Text(meeting.title).lineLimit(1).foregroundStyle(.primary)
                             Text(meeting.startedAt.formatted(.dateTime.day().month(.abbreviated).hour().minute().locale(Self.locale)))
-                                .font(.caption).foregroundStyle(.secondary)
+                                .font(.tag).foregroundStyle(.secondary)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
@@ -299,7 +299,7 @@ struct ProjectPage: View {
                                 Text(thread.subject).fontWeight(thread.unread ? .semibold : .regular).lineLimit(1)
                                 Text("\(thread.senders.last { $0.email.lowercased() == thread.lastSender }?.display ?? thread.lastSender ?? "Moi") · "
                                      + thread.lastMessageAt.formatted(.dateTime.day().month(.abbreviated).locale(Self.locale)))
-                                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                    .font(.tag).foregroundStyle(.secondary).lineLimit(1)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .contentShape(Rectangle())
@@ -315,7 +315,7 @@ struct ProjectPage: View {
                         VStack(alignment: .leading, spacing: 1) {
                             Text(event.title).lineLimit(1)
                             Text(event.startAt.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).hour().minute().locale(Self.locale)))
-                                .font(.caption).foregroundStyle(.secondary)
+                                .font(.tag).foregroundStyle(.secondary)
                         }
                     }
                 }

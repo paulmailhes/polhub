@@ -373,7 +373,7 @@ struct EventPopover: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(event.title).font(.title3.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
                     Text(when).foregroundStyle(.secondary)
-                    Text("\(AccountStyle.label(for: event.account)) · \(event.account)").font(.caption).foregroundStyle(.secondary)
+                    Text("\(AccountStyle.label(for: event.account)) · \(event.account)").font(.tag).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
                 if EventCopies.canEdit(event), let edit {
@@ -383,7 +383,7 @@ struct EventPopover: View {
             .fixedSize(horizontal: false, vertical: true)
             if !EventCopies.canEdit(event), let organizer = event.organizer {
                 Text("Invitation de \(agenda.contact(email: organizer)?.name ?? organizer) : seul l'organisateur la modifie.")
-                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    .font(.tag).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
 
             if event.meetCode != nil {
@@ -423,22 +423,22 @@ struct EventPopover: View {
                         Text(project.name).tag(Optional(project.id))
                     }
                 }
-                if let reason { Text(reason).font(.caption).foregroundStyle(.secondary) }
+                if let reason { Text(reason).font(.tag).foregroundStyle(.secondary) }
             }
 
             if !event.guests.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Invités · \(event.guests.count)").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    Text("Invités · \(event.guests.count)").font(.tag.weight(.semibold)).foregroundStyle(.secondary)
                     ForEach(event.guests.prefix(8), id: \.email) { guest in
                         GuestRow(guest: guest, agenda: agenda, router: router, close: close)
                     }
                     if event.guests.count > 8 {
-                        Text("et \(event.guests.count - 8) autres").font(.caption).foregroundStyle(.secondary)
+                        Text("et \(event.guests.count - 8) autres").font(.tag).foregroundStyle(.secondary)
                     }
                 }
             }
             if let link = event.htmlLink.flatMap(URL.init(string:)) {
-                Link("Ouvrir dans Google Agenda", destination: link).font(.caption)
+                Link("Ouvrir dans Google Agenda", destination: link).font(.tag)
             }
         }
         .padding(16)
@@ -485,7 +485,7 @@ struct GuestRow: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Text(contact?.name ?? Linker.name(for: guest)).font(.callout).foregroundStyle(.primary)
                     if let company = contact?.company ?? Linker.company(forEmail: guest.email) {
-                        Text(company).font(.caption).foregroundStyle(.secondary)
+                        Text(company).font(.tag).foregroundStyle(.secondary)
                     }
                 }
                 Spacer(minLength: 0)

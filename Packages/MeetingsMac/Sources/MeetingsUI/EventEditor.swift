@@ -113,7 +113,7 @@ struct EventEditor: View {
                             Avatar(contact?.initials ?? String(email.prefix(1)).uppercased(), size: 24)
                             VStack(alignment: .leading, spacing: 0) {
                                 Text(contact?.name ?? email)
-                                if contact != nil { Text(email).font(.caption).foregroundStyle(.secondary) }
+                                if contact != nil { Text(email).font(.tag).foregroundStyle(.secondary) }
                             }
                             Spacer()
                             Button { draft.guests.removeAll { $0 == email } } label: { Image(systemName: "xmark.circle.fill") }
@@ -173,10 +173,10 @@ struct EventEditor: View {
                 Label(otherFailure, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
             } else if editing?.recurringEventID != nil {
                 Label("Ce rendez-vous fait partie d'une série : seul celui-ci change.", systemImage: "repeat")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.tag).foregroundStyle(.secondary)
             } else if editing != nil, detailsRead, details == nil {
                 Label("Google n'a pas pu être lu : la description et les invités ne changent que si tu les modifies.", systemImage: "info.circle")
-                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    .font(.tag).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             HStack {
                 if editing != nil {

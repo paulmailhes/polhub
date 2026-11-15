@@ -40,10 +40,19 @@ Référence : [Adopting Liquid Glass](https://developer.apple.com/documentation/
 | Rôle | Style |
 |---|---|
 | Titre de page | `.largeTitle`, gras (`PageHeader`) |
+| Titre d'un fil ou d'une fiche ouverte | `.title`, gras |
 | Titre de carte ou de partie | `.headline` (`SectionTitle`) |
 | Texte | `.body` |
-| Détail, méta | `.callout` ou `.caption`, `.secondary` |
+| Ligne d'une liste : première ligne (qui, quoi) | `.rowTitle` (15 pt) |
+| Ligne d'une liste : deuxième ligne (objet, extrait) | `.rowBody` (14 pt) |
+| Détail, méta (dates, adresses, nombres) | `.meta` (13 pt) ou `.callout`, `.secondary` |
+| Étiquette (`Chip`), plus petit texte de l'app | `.tag` (12 pt) |
+| Corps d'un mail | 15 px (`TextSize.reading`) |
 | Heures, durées | `.monospacedDigit()` |
+
+Rien à lire sous 12 points : `.caption` et `.caption2` (10 points) ne servent qu'aux icônes et à la grille
+du calendrier (Paul, 15/11 : « tout est un peu petit… trop serré et illisible »). Une liste qu'on lit toute
+la journée (les mails) a des lignes de deux lignes de texte, d'environ 64 points de haut.
 
 ## Les couleurs
 

@@ -14,7 +14,7 @@ public enum MailHTML {
     /// reply behind « ••• » (the app's own script does it, the HTML stays as it is). The page has no background
     /// of its own: the mail sits on the app's (Paul, 14/11). In `dark`, the app's script darkens what is light.
     public static func document(body: String, isHTML: Bool, images: Bool, collapseQuote: Bool, dark: Bool = false) -> String {
-        let content = isHTML ? body : "<div style=\"white-space:pre-wrap;font:13px/1.5 -apple-system,Helvetica,sans-serif\">\(linkified(escape(body)))</div>"
+        let content = isHTML ? body : "<div style=\"white-space:pre-wrap;font:15px/1.55 -apple-system,Helvetica,sans-serif\">\(linkified(escape(body)))</div>"
         // Hidden until the script has adapted the colors: no white flash. CSS shows it anyway after a moment.
         let darkStyle = dark
             ? "html,body{color:#e3e3e3}a{color:#8ab4f8}body{visibility:hidden;animation:polhub-show 0s .8s forwards}@keyframes polhub-show{to{visibility:visible}}"
@@ -23,7 +23,7 @@ public enum MailHTML {
         <!doctype html><html><head><meta charset="utf-8">
         <meta http-equiv="Content-Security-Policy" content="\(policy(images: images))">
         <meta name="color-scheme" content="\(dark ? "dark" : "light only")">
-        <style>html,body{margin:0;padding:0;background:transparent;color:#222;font:small/1.5 Arial,Helvetica,sans-serif;overflow-wrap:break-word}\(darkStyle)</style>
+        <style>html,body{margin:0;padding:0;background:transparent;color:#222;font:15px/1.5 Arial,Helvetica,sans-serif;overflow-wrap:break-word}\(darkStyle)</style>
         </head><body data-collapse="\(collapseQuote ? "1" : "0")" data-dark="\(dark ? "1" : "0")">\(content)</body></html>
         """
     }
@@ -173,7 +173,7 @@ public enum MailHTML {
             var button = document.createElement('button');
             button.textContent = '•••';
             button.title = 'Afficher le texte cité';
-            button.setAttribute('style', 'display:block;margin:10px 0;padding:0 8px;border:0;border-radius:6px;background:rgba(128,128,128,0.2);color:inherit;font:13px/1.4 -apple-system,sans-serif;cursor:pointer');
+            button.setAttribute('style', 'display:block;margin:10px 0;padding:0 8px;border:0;border-radius:6px;background:rgba(128,128,128,0.2);color:inherit;font:14px/1.5 -apple-system,sans-serif;cursor:pointer');
             for (var m = 0; m < hidden.length; m++) hidden[m].style.display = 'none';
             quote.parentNode.insertBefore(button, quote);
             button.addEventListener('click', function () {

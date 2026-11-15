@@ -101,7 +101,7 @@ struct HomeView: View {
                                 .font(.callout.monospacedDigit()).foregroundStyle(.secondary).frame(width: 52, alignment: .leading)
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(event.title).lineLimit(1)
-                                if let name = projectName(event.projectID) { Text(name).font(.caption).foregroundStyle(.secondary) }
+                                if let name = projectName(event.projectID) { Text(name).font(.tag).foregroundStyle(.secondary) }
                             }
                             Spacer(minLength: 0)
                         }
@@ -131,7 +131,7 @@ struct HomeView: View {
                             Text(project.name)
                             let detail = [project.todo, project.dueDate.map { "échéance \($0.formatted(date: .abbreviated, time: .omitted))" }]
                                 .compactMap { $0 }.joined(separator: " · ")
-                            if !detail.isEmpty { Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(2) }
+                            if !detail.isEmpty { Text(detail).font(.tag).foregroundStyle(.secondary).lineLimit(2) }
                         }
                         Spacer(minLength: 0)
                     }
@@ -150,7 +150,7 @@ struct HomeView: View {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(row.title).lineLimit(1)
                         Text([row.startedAt.formatted(date: .abbreviated, time: .shortened), projectName(row.projectID)]
-                            .compactMap { $0 }.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary)
+                            .compactMap { $0 }.joined(separator: " · ")).font(.tag).foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
@@ -187,7 +187,7 @@ struct NextEventCard: View {
         HStack(alignment: .center, spacing: 16) {
             RoundedRectangle(cornerRadius: 3).fill(color).frame(width: 6, height: 54)
             VStack(alignment: .leading, spacing: 4) {
-                Text(HomeModel.when(event, now: now).uppercased()).font(.caption.weight(.semibold)).foregroundStyle(color)
+                Text(HomeModel.when(event, now: now).uppercased()).font(.tag.weight(.semibold)).foregroundStyle(color)
                 Text(event.title).font(.title2.weight(.semibold)).lineLimit(2)
                 Text([event.startAt.formatted(date: .omitted, time: .shortened) + " – " + event.endAt.formatted(date: .omitted, time: .shortened),
                       AccountStyle.label(for: event.account),

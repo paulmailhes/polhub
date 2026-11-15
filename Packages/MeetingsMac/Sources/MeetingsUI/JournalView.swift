@@ -18,7 +18,7 @@ struct JournalView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(entry.message).fixedSize(horizontal: false, vertical: true)
                         Text(entry.createdAt.formatted(date: .abbreviated, time: .shortened))
-                            .font(.caption)
+                            .font(.tag)
                             .foregroundStyle(.secondary)
                     }
                 }

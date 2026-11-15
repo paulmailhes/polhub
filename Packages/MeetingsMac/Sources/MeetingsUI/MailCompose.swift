@@ -43,13 +43,13 @@ struct RecipientField: View {
         let matches = focused ? suggest(text).filter { match in !addresses.contains { $0.email == match.email } } : []
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-                Text(label).foregroundStyle(.secondary).frame(width: 34, alignment: .leading)
+                Text(label).foregroundStyle(.secondary).frame(width: 48, alignment: .leading)
                 FlowLayout(spacing: 6) {
                     ForEach(addresses, id: \.email) { address in
                         let valid = MIMEBuilder.isValid(address.email)
                         let known = isKnown(address.email)
                         HStack(spacing: 3) {
-                            if !known, valid { Image(systemName: "questionmark.circle").font(.caption) }
+                            if !known, valid { Image(systemName: "questionmark.circle").font(.meta) }
                             // A stranger's name never hides its address: « camille@client.exemple » could be anyone's.
                             Text(known ? (address.name ?? address.email) : [address.name, address.email].compactMap { $0 }.joined(separator: " · "))
                                 .lineLimit(1)
@@ -57,7 +57,7 @@ struct RecipientField: View {
                                 .buttonStyle(.plain)
                                 .help("Retirer \(address.email)")
                         }
-                        .padding(.horizontal, 8).padding(.vertical, 2)
+                        .padding(.horizontal, Space.s + 2).padding(.vertical, 3)
                         .background(!valid ? Color.red.opacity(0.18) : (known ? Surface.raised : Color.orange.opacity(0.16)), in: Capsule())
                         .foregroundStyle(!valid ? Color.red : (known ? Color.primary : Color.orange))
                         .help(!valid ? "« \(address.email) » n'est pas une adresse valide"
@@ -86,21 +86,20 @@ struct RecipientField: View {
                     ForEach(matches, id: \.email) { match in
                         Button { commit(match) } label: {
                             HStack(spacing: Space.s) {
-                                Avatar(String((match.name ?? match.email).prefix(1)).uppercased(), size: 20, tint: MailText.tint(for: match.email))
+                                Avatar(String((match.name ?? match.email).prefix(1)).uppercased(), size: 24, tint: MailText.tint(for: match.email))
                                 Text(match.name ?? match.email)
                                 if match.name != nil { Text(match.email).foregroundStyle(.secondary) }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, Space.s).padding(.vertical, 4)
+                            .padding(.horizontal, Space.s).padding(.vertical, 5)
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }
                 }
-                .font(.callout)
                 .padding(.vertical, 4)
                 .background(Surface.raised, in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
-                .padding(.leading, 42)
+                .padding(.leading, 48 + Space.s)
             }
         }
     }
@@ -148,41 +147,43 @@ struct ComposeView: View {
                 if draft.origin == .agent {
                     Label("Préparé par un agent : relis-le avant d'envoyer. Une adresse en orange n'est ni un contact ni une personne à qui tu as écrit.",
                           systemImage: "sparkles")
-                        .font(.callout)
+                        .font(.meta)
                         .padding(Space.m)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
                 }
                 TextEditor(text: $text)
-                    .font(.body)
+                    .font(.system(size: TextSize.reading))
+                    .lineSpacing(3)
                     .scrollContentBackground(.hidden)
                     .focused($focus, equals: .body)
-                    .frame(minHeight: 160)
+                    .frame(minHeight: 180)
                     .onChange(of: text) { _, typed in if loaded { mails.edit(draftID) { $0.body = typed } } }
                     .overlay(alignment: .topLeading) {
                         if text.isEmpty {
-                            Text(draft.mode == .new ? "Écris ton mail…" : "Écris ta réponse…").foregroundStyle(.tertiary).padding(.leading, 5).allowsHitTesting(false)
+                            Text(draft.mode == .new ? "Écris ton mail…" : "Écris ta réponse…").font(.system(size: TextSize.reading)).foregroundStyle(.tertiary)
+                                .padding(.leading, 5).allowsHitTesting(false)
                         }
                     }
                 if !draft.files.isEmpty { files(draft) }
                 if let signature = mails.signature(of: draft.account) {
                     Toggle(isOn: binding(\.signature, default: true)) {
-                        Text(signature).font(.caption).foregroundStyle(.secondary).lineLimit(3)
+                        Text(signature).font(.meta).foregroundStyle(.secondary).lineLimit(3)
                     }
                     .toggleStyle(.checkbox)
                     .help("Ta signature Gmail, ajoutée sous ton texte")
                 }
                 if let quote = draft.quoteText {
                     DisclosureGroup(isExpanded: $showQuote) {
-                        Text(quote).font(.caption).foregroundStyle(.secondary).textSelection(.enabled).lineLimit(30)
+                        Text(quote).font(.meta).foregroundStyle(.secondary).textSelection(.enabled).lineLimit(30)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     } label: {
-                        Text(draft.mode == .forward ? "Message transféré" : "Message cité").font(.caption).foregroundStyle(.secondary)
+                        Text(draft.mode == .forward ? "Message transféré" : "Message cité").font(.meta).foregroundStyle(.secondary)
                     }
                 }
                 footer(draft, leaving: leaving)
             }
-            .padding(Space.l)
+            .padding(Space.xl)
             .background(Surface.fill, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
             .overlay {
                 if dropping {
@@ -221,9 +222,9 @@ struct ComposeView: View {
 
     @ViewBuilder
     private func fields(_ draft: MailDraftRow) -> some View {
-        VStack(alignment: .leading, spacing: Space.s) {
+        VStack(alignment: .leading, spacing: Space.m) {
             HStack(spacing: Space.s) {
-                Text("De").foregroundStyle(.secondary).frame(width: 34, alignment: .leading)
+                Text("De").foregroundStyle(.secondary).frame(width: 48, alignment: .leading)
                 if draft.mode == .new {
                     Menu {
                         ForEach(mails.accounts) { account in
@@ -248,7 +249,7 @@ struct ComposeView: View {
                     if !showCc { Button("Cc") { showCc = true }.buttonStyle(.borderless) }
                     if !showBcc { Button("Cci") { showBcc = true }.buttonStyle(.borderless) }
                 }
-                .font(.callout)
+                .font(.meta)
             ), onFocus: { recipientsFocused = $0 })
             if showCc {
                 RecipientField(label: "Cc", addresses: binding(\.cc, default: []), text: $pendingCc, suggest: mails.suggestions(for:), isKnown: mails.isKnown,
@@ -259,12 +260,13 @@ struct ComposeView: View {
                                onFocus: { recipientsFocused = $0 })
             }
             HStack(spacing: Space.s) {
-                Text("Objet").foregroundStyle(.secondary).frame(width: 34, alignment: .leading)
-                TextField("", text: $subject).textFieldStyle(.plain).font(.body.weight(.medium))
+                Text("Objet").foregroundStyle(.secondary).frame(width: 48, alignment: .leading)
+                TextField("", text: $subject).textFieldStyle(.plain).font(.rowTitle.weight(.medium))
                     .focused($focus, equals: .subject)
                     .onChange(of: subject) { _, typed in if loaded { mails.edit(draftID) { $0.subject = typed } } }
             }
         }
+        .font(.rowBody)
     }
 
     private func fromLabel(_ draft: MailDraftRow, choose: Bool) -> some View {
@@ -286,15 +288,15 @@ struct ComposeView: View {
             ForEach(draft.files, id: \.filename) { file in
                 let type = UTType(filenameExtension: (file.filename as NSString).pathExtension) ?? .data
                 HStack(spacing: 6) {
-                    Image(nsImage: NSWorkspace.shared.icon(for: type)).resizable().frame(width: 18, height: 18)
+                    Image(nsImage: NSWorkspace.shared.icon(for: type)).resizable().frame(width: 20, height: 20)
                     Text(file.filename).lineLimit(1).truncationMode(.middle)
                     Text(MailText.size(file.size)).foregroundStyle(.secondary)
                     Button { mails.removeFile(file, from: draftID) } label: { Image(systemName: "xmark").font(.caption2.bold()) }
                         .buttonStyle(.plain)
                         .help("Retirer")
                 }
-                .font(.callout)
-                .padding(.horizontal, 8).padding(.vertical, 4)
+                .font(.meta)
+                .padding(.horizontal, Space.s + 2).padding(.vertical, 5)
                 .background(Surface.raised, in: Capsule())
             }
         }
@@ -318,10 +320,11 @@ struct ComposeView: View {
                 .help("Joindre des fichiers (ou les glisser ici)")
             status(draft, leaving: leaving)
             Spacer()
-            Button(role: .destructive) { confirmingDiscard = true } label: { Image(systemName: "trash") }
+            Button(role: .destructive) { confirmingDiscard = true } label: { Image(systemName: "trash").font(.system(size: 15)) }
                 .buttonStyle(.borderless)
                 .help("Supprimer le brouillon")
         }
+        .controlSize(.large)
     }
 
     /// The addresses typed and not yet chips go with the mail; an incomplete one stops it.
@@ -363,7 +366,7 @@ struct ComposeView: View {
                 Button("Prendre celui de Gmail") { mails.forgetDraft(draftID, gmailKept: true) }
             }
         }
-        .font(.callout)
+        .font(.meta)
         .padding(Space.m)
         .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
     }
@@ -383,7 +386,7 @@ struct ComposeView: View {
                 Text("Enregistré sur le Mac")
             }
         }
-        .font(.caption)
+        .font(.meta)
         .foregroundStyle(.secondary)
     }
 }
@@ -399,10 +402,10 @@ struct NewMailPanel: View {
                 PanelCloseButton { mails.closeComposer() }
                 Text(mails.drafts.first { $0.id == draftID }?.subject.isEmpty == false
                      ? mails.drafts.first { $0.id == draftID }!.subject : "Nouveau mail")
-                    .font(.title2.bold()).lineLimit(1)
+                    .font(.title.bold()).lineLimit(1)
                 Spacer()
             }
-            .padding(.horizontal, Space.xl).padding(.vertical, Space.m)
+            .padding(.horizontal, Space.xl).padding(.vertical, Space.l)
             Divider()
             ScrollView {
                 ComposeView(draftID: draftID, mails: mails)
@@ -431,18 +434,18 @@ struct MailDraftListView: View {
                         row(account: draft.account, people: draft.to.map { $0.name ?? $0.email }, subject: draft.subject,
                             extract: draft.body, date: draft.updatedAt, error: draft.lastError, agent: draft.origin == .agent) { mails.open(draft, router: router) }
                             .contextMenu { Button("Supprimer le brouillon", role: .destructive) { mails.discard(draft.id) } }
-                        Divider().padding(.leading, 64)
+                        Divider().padding(.leading, MailRow.textInset)
                     }
                     if !mails.gmailDrafts.isEmpty {
                         Text("Commencés dans Gmail")
-                            .font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+                            .font(.meta.weight(.semibold)).foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, Space.l).padding(.top, Space.l).padding(.bottom, 6)
+                            .padding(.leading, MailRow.textInset).padding(.top, Space.l + 4).padding(.bottom, Space.s)
                         ForEach(mails.gmailDrafts) { message in
                             row(account: message.account, people: message.to.map { $0.name ?? $0.email }, subject: message.subject,
                                 extract: message.snippet, date: message.date, error: nil) { mails.resume(message, router: router) }
                                 .help("Reprendre ce brouillon dans Polhub")
-                            Divider().padding(.leading, 64)
+                            Divider().padding(.leading, MailRow.textInset)
                         }
                     }
                 }
@@ -450,23 +453,31 @@ struct MailDraftListView: View {
         }
     }
 
+    /// Two lines, as in the list of threads: to whom and when; the subject and the start of the text.
     private func row(account: String, people: [String], subject: String, extract: String, date: Date, error: String?, agent: Bool = false,
                      open: @escaping () -> Void) -> some View {
         HStack(spacing: 0) {
-            RoundedRectangle(cornerRadius: 1.5).fill(mails.color(for: account)).frame(width: 3, height: 22).padding(.leading, Space.m)
-            Text("Brouillon").font(.caption.weight(.semibold)).foregroundStyle(.red).frame(width: 70)
-            Text(people.isEmpty ? "(sans destinataire)" : people.joined(separator: ", ")).lineLimit(1).frame(width: 180, alignment: .leading)
-            (Text(subject.isEmpty ? "(sans objet)" : subject).fontWeight(.medium)
-                + Text(extract.isEmpty ? "" : "  —  \(extract.replacingOccurrences(of: "\n", with: " "))").foregroundStyle(.secondary))
-                .lineLimit(1).frame(maxWidth: .infinity, alignment: .leading).padding(.leading, Space.s)
-            if agent {
-                Label("préparé par un agent", systemImage: "sparkles").font(.caption).foregroundStyle(Color.accentColor).padding(.leading, Space.s)
+            RoundedRectangle(cornerRadius: 1.5).fill(mails.color(for: account)).frame(width: 3, height: 36).padding(.leading, Space.l)
+            Color.clear.frame(width: 36, height: 1)
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+                    Text("Brouillon").font(.meta.weight(.semibold)).foregroundStyle(.red).fixedSize()
+                    Text(people.isEmpty ? "(sans destinataire)" : people.joined(separator: ", ")).font(.rowTitle).lineLimit(1)
+                    Spacer(minLength: Space.m)
+                    if agent {
+                        Label("préparé par un agent", systemImage: "sparkles").font(.meta).foregroundStyle(Color.accentColor).fixedSize()
+                    }
+                    if error != nil { Image(systemName: "exclamationmark.triangle").font(.meta).foregroundStyle(.orange).help(error ?? "") }
+                    Text(MailText.date(date)).font(.meta).foregroundStyle(.secondary).fixedSize()
+                }
+                (Text(subject.isEmpty ? "(sans objet)" : subject).fontWeight(.medium)
+                    + Text(extract.isEmpty ? "" : "  —  \(extract.replacingOccurrences(of: "\n", with: " "))").foregroundStyle(.secondary))
+                    .font(.rowBody)
+                    .lineLimit(1)
             }
-            if error != nil { Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange).help(error ?? "") }
-            Text(MailText.date(date)).font(.callout).foregroundStyle(.secondary).frame(width: 92, alignment: .trailing).padding(.trailing, Space.l)
+            .padding(.trailing, Space.xl)
         }
-        .font(.callout)
-        .frame(height: 40)
+        .padding(.vertical, Space.m)
         .contentShape(Rectangle())
         .onTapGesture(perform: open)
     }

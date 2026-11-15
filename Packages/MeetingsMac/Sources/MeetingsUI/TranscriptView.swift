@@ -84,9 +84,9 @@ struct DialogueParagraphs: View {
                                 if let seek {
                                     Button(TranscriptModel.timestamp(paragraph.startMs)) { seek(Double(paragraph.startMs) / 1_000) }
                                         .buttonStyle(.link)
-                                        .font(.caption.monospacedDigit())
+                                        .font(.tag.monospacedDigit())
                                 } else {
-                                    Text(TranscriptModel.timestamp(paragraph.startMs)).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                                    Text(TranscriptModel.timestamp(paragraph.startMs)).font(.tag.monospacedDigit()).foregroundStyle(.secondary)
                                 }
                             }
                             .frame(width: 84, alignment: .leading)

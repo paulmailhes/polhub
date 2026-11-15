@@ -98,7 +98,8 @@ struct MailUndoBar: View {
                 }
             }
         }
-        .padding(.horizontal, Space.l).padding(.vertical, Space.s)
+        .font(.rowBody)
+        .padding(.horizontal, Space.xl).padding(.vertical, Space.m)
         .glassEffect(.regular, in: Capsule())
         .padding(.bottom, Space.l)
         .opacity(mails.undoable == nil && mails.message == nil && mails.sending == nil ? 0 : 1)
@@ -195,8 +196,8 @@ struct MailListView: View {
             }
             if let progress = mails.progress {
                 Divider()
-                Text(progress).font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, Space.l).padding(.vertical, 6)
+                Text(progress).font(.meta).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, Space.xl).padding(.vertical, Space.s)
             }
         }
         .toolbar { toolbar }
@@ -236,11 +237,12 @@ struct MailListView: View {
         VStack(spacing: 0) {
             HStack(spacing: Space.s) {
                 Image(systemName: icon).foregroundStyle(tint)
-                Text(text).font(.callout).foregroundStyle(.secondary).lineLimit(2)
+                Text(text).foregroundStyle(.secondary).lineLimit(2)
                 Spacer(minLength: Space.m)
                 action()
             }
-            .padding(.horizontal, Space.l).padding(.vertical, Space.s)
+            .font(.meta)
+            .padding(.horizontal, Space.xl).padding(.vertical, Space.m)
             .frame(maxWidth: .infinity, alignment: .leading)
             Divider()
         }
@@ -255,13 +257,14 @@ struct MailListView: View {
                             ForEach(section.threads) { thread in
                                 MailRow(thread: thread, mails: mails, mine: mine) { open(thread.id) }
                                     .id(thread.id)
-                                Divider().padding(.leading, 64)
+                                Divider().padding(.leading, MailRow.textInset)
                             }
                         } header: {
                             Text(section.title)
-                                .font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+                                .font(.meta.weight(.semibold)).foregroundStyle(.secondary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, Space.l).padding(.top, Space.m).padding(.bottom, 6)
+                                .padding(.leading, MailRow.textInset).padding(.trailing, Space.l)
+                                .padding(.top, Space.l + 4).padding(.bottom, Space.s)
                                 .background(.bar)
                         }
                     }
@@ -413,8 +416,9 @@ struct MailListView: View {
     }
 }
 
-/// One thread in the list: the mailbox's color, who, the subject and an extract, the date. Unread: a dot, in
-/// bold; read: quieter. On hover, a box to tick and the gestures.
+/// One thread in the list, on two lines (Paul, 15/11: « trop serré et illisible »): who, its case and the date;
+/// then the subject and an extract. The mailbox's color on the left. Unread: a dot, in bold. On hover, a box to
+/// tick and the gestures, over the date.
 struct MailRow: View {
     let thread: MailThreadRow
     @ObservedObject var mails: MailLibrary
@@ -422,61 +426,72 @@ struct MailRow: View {
     let open: () -> Void
     @State private var hovering = false
 
+    /// Where the text of a row starts: the section titles and the separators line up on it.
+    static let textInset: CGFloat = Space.l + 3 + 36
+
     var body: some View {
         let ticked = mails.selected.contains(thread.id)
         let boxes = mails.selecting || !mails.selected.isEmpty || hovering
+        let actions = hovering && (!boxes || mails.selected.isEmpty)
         HStack(spacing: 0) {
-            RoundedRectangle(cornerRadius: 1.5).fill(mails.color(for: thread.account)).frame(width: 3, height: 22)
-                .padding(.leading, Space.m)
+            RoundedRectangle(cornerRadius: 1.5).fill(mails.color(for: thread.account)).frame(width: 3, height: 36)
+                .padding(.leading, Space.l)
                 .help(thread.account)
             ZStack {
                 if boxes {
                     Image(systemName: ticked ? "checkmark.square.fill" : "square")
-                        .font(.body)
+                        .font(.system(size: 16))
                         .foregroundStyle(ticked ? Color.accentColor : .secondary)
                         .contentShape(Rectangle())
                         .onTapGesture { mails.select(thread.id, extend: NSEvent.modifierFlags.contains(.shift)) }
                         .help("Sélectionner")
                 } else if thread.unread {
-                    Circle().fill(Color.accentColor).frame(width: 9, height: 9).help("Non lu")
+                    Circle().fill(Color.accentColor).frame(width: 10, height: 10).help("Non lu")
                 }
             }
-            .frame(width: 40)
-            (Text(MailText.senders(thread, mine: mine)).foregroundStyle(thread.unread ? Color.primary : Color.secondary)
-                + (mails.drafts.contains { $0.threadKey == thread.id } ? Text(" Brouillon").foregroundStyle(Color.red) : Text("")))
-                .fontWeight(thread.unread ? .semibold : .regular)
-                .lineLimit(1)
-                .frame(width: 190, alignment: .leading)
-            MailFilingChip(thread: thread, mails: mails, always: hovering && mails.filing(of: thread) == nil && mails.tab(of: thread) == .personnes)
-                .padding(.leading, Space.s)
-            (Text(thread.subject).fontWeight(thread.unread ? .semibold : .regular).foregroundStyle(thread.unread ? Color.primary : Color.primary.opacity(0.8))
-                + Text(thread.snippet.isEmpty ? "" : "  —  \(thread.snippet)").foregroundStyle(thread.unread ? .secondary : .tertiary))
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, Space.s)
-            if thread.hasAttachment { Image(systemName: "paperclip").font(.caption).foregroundStyle(.secondary).padding(.leading, Space.s) }
-            Group {
-                if hovering, !boxes || mails.selected.isEmpty {
-                    HStack(spacing: Space.xs) {
-                        Button { mails.perform(.archive, on: thread) } label: { Image(systemName: "archivebox") }.help("Archiver")
-                        Button { mails.perform(.trash, on: thread) } label: { Image(systemName: "trash") }.help("Supprimer")
-                        Button { mails.perform(thread.unread ? .markRead : .markUnread, on: thread, undoable: false) } label: {
-                            Image(systemName: thread.unread ? "envelope.open" : "envelope.badge")
-                        }
-                        .help(thread.unread ? "Marquer comme lu" : "Marquer comme non lu")
+            .frame(width: 36)
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+                    Text(MailText.senders(thread, mine: mine))
+                        .font(.rowTitle.weight(thread.unread ? .semibold : .regular))
+                        .lineLimit(1)
+                    if mails.drafts.contains(where: { $0.threadKey == thread.id }) {
+                        Text("Brouillon").font(.meta.weight(.medium)).foregroundStyle(.red).fixedSize()
                     }
-                    .buttonStyle(.borderless)
-                } else {
+                    MailFilingChip(thread: thread, mails: mails, always: hovering && mails.filing(of: thread) == nil && mails.tab(of: thread) == .personnes)
+                    Spacer(minLength: Space.m)
+                    if thread.hasAttachment { Image(systemName: "paperclip").font(.meta).foregroundStyle(.secondary) }
                     Text(MailText.date(thread.lastMessageAt))
-                        .font(.callout).fontWeight(thread.unread ? .semibold : .regular)
+                        .font(.meta.weight(thread.unread ? .semibold : .regular))
                         .foregroundStyle(thread.unread ? .primary : .secondary)
+                        .fixedSize()
+                        .opacity(actions ? 0 : 1)
                 }
+                (Text(thread.subject.isEmpty ? "(sans objet)" : thread.subject).fontWeight(thread.unread ? .semibold : .regular)
+                    + Text(thread.snippet.isEmpty ? "" : "  —  \(thread.snippet)").foregroundStyle(.secondary))
+                    .font(.rowBody)
+                    .lineLimit(1)
             }
-            .frame(width: 92, alignment: .trailing)
-            .padding(.trailing, Space.l)
+            .padding(.trailing, Space.xl)
         }
-        .font(.callout)
-        .frame(height: 40)
+        .padding(.vertical, Space.m)
+        .overlay(alignment: .trailing) {
+            if actions {
+                HStack(spacing: Space.s) {
+                    Button { mails.perform(.archive, on: thread) } label: { Image(systemName: "archivebox") }.help("Archiver")
+                    Button { mails.perform(.trash, on: thread) } label: { Image(systemName: "trash") }.help("Supprimer")
+                    Button { mails.perform(thread.unread ? .markRead : .markUnread, on: thread, undoable: false) } label: {
+                        Image(systemName: thread.unread ? "envelope.open" : "envelope.badge")
+                    }
+                    .help(thread.unread ? "Marquer comme lu" : "Marquer comme non lu")
+                }
+                .font(.system(size: 15))
+                .buttonStyle(.borderless)
+                .padding(.horizontal, Space.s).padding(.vertical, 6)
+                .background(.regularMaterial, in: Capsule())
+                .padding(.trailing, Space.l)
+            }
+        }
         .background(ticked ? Surface.selected : (mails.focused == thread.id ? Surface.raised : (hovering ? Surface.fill : .clear)))
         .contentShape(Rectangle())
         .onTapGesture {
@@ -548,8 +563,8 @@ struct MailFilingChip: View {
         let found = mails.filing(of: thread)
         if let label = label(found?.filing) {
             Menu { MailFilingMenu(thread: thread, mails: mails) } label: {
-                Text(label.text).font(.caption.weight(.medium)).lineLimit(1)
-                    .padding(.horizontal, 7).padding(.vertical, 2)
+                Text(label.text).font(.tag.weight(.medium)).lineLimit(1)
+                    .padding(.horizontal, Space.s).padding(.vertical, 3)
                     .foregroundStyle(label.color)
                     .background(label.color.opacity(0.14), in: Capsule())
             }
@@ -779,8 +794,8 @@ struct MailThreadView: View {
                                             collapseQuote: message.id != model.messages.first?.id, reply: { mode in reply(mode, to: message) })
                         case .more(let count):
                             Button { model.showAll = true } label: {
-                                Text("\(count) messages plus anciens").font(.callout.weight(.medium))
-                                    .padding(.horizontal, Space.m).padding(.vertical, 4)
+                                Text("\(count) messages plus anciens").font(.meta.weight(.medium))
+                                    .padding(.horizontal, Space.m).padding(.vertical, 5)
                                     .background(Surface.raised, in: Capsule())
                             }
                             .buttonStyle(.plain)
@@ -806,7 +821,8 @@ struct MailThreadView: View {
                                 .help("Transférer")
                         }
                         .buttonStyle(.glass)
-                        .padding(.top, Space.l)
+                        .controlSize(.large)
+                        .padding(.top, Space.xl)
                     }
                 }
                 .padding(.horizontal, PageMetrics.horizontal)
@@ -843,7 +859,7 @@ struct MailThreadView: View {
             if let close { PanelCloseButton(action: close) }
             VStack(alignment: .leading, spacing: 4) {
                 Text(thread?.subject ?? model.messages.first?.subject ?? "")
-                    .font(.title2.bold()).lineLimit(2).textSelection(.enabled)
+                    .font(.title.bold()).lineLimit(2).textSelection(.enabled)
                 if let thread {
                     HStack(spacing: 6) {
                         ColorDot(mails.color(for: thread.account), size: 8)
@@ -853,12 +869,12 @@ struct MailThreadView: View {
                         Text("·")
                         MailFilingChip(thread: thread, mails: mails, always: true)
                     }
-                    .font(.callout).foregroundStyle(.secondary)
+                    .font(.rowBody).foregroundStyle(.secondary)
                 }
             }
             Spacer(minLength: Space.m)
             HStack(spacing: Space.xs) {
-                if let position = mails.position(of: key) { Text(position).font(.caption).foregroundStyle(.secondary).monospacedDigit() }
+                if let position = mails.position(of: key) { Text(position).font(.meta).foregroundStyle(.secondary).monospacedDigit() }
                 Button { go(-1) } label: { Image(systemName: "chevron.up") }
                     .disabled(mails.neighbor(of: key, offset: -1) == nil).help("Fil précédent (↑)")
                     .keyboardShortcut(.upArrow, modifiers: [])
@@ -896,11 +912,11 @@ struct MailThreadView: View {
                 .help("Plus")
             }
             .buttonStyle(.borderless)
-            .font(.body)
-            .padding(.horizontal, Space.m).padding(.vertical, 6)
+            .font(.system(size: 15))
+            .padding(.horizontal, Space.m).padding(.vertical, Space.s)
             .glassEffect(.regular, in: Capsule())
         }
-        .padding(.horizontal, Space.xl).padding(.vertical, Space.m)
+        .padding(.horizontal, Space.xl).padding(.vertical, Space.l)
     }
 }
 
@@ -928,21 +944,20 @@ struct MailMessageView: View {
 
     var body: some View {
         if model.expanded.contains(message.id) {
-            VStack(alignment: .leading, spacing: Space.m) {
+            VStack(alignment: .leading, spacing: Space.l) {
                 header
-                content.padding(.leading, 46)
+                content.padding(.leading, 40 + Space.m)
             }
-            .padding(.vertical, Space.l)
+            .padding(.vertical, Space.xl)
         } else {
             HStack(spacing: Space.m) {
-                Avatar(initial, size: 30, tint: tint)
-                Text(sender).fontWeight(message.isUnread ? .semibold : .medium).lineLimit(1).frame(width: 170, alignment: .leading)
-                Text(message.snippet).foregroundStyle(.secondary).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
-                if !message.files.isEmpty { Image(systemName: "paperclip").font(.caption).foregroundStyle(.secondary) }
-                Text(MailText.date(message.date)).font(.callout).foregroundStyle(.secondary)
+                Avatar(initial, size: 36, tint: tint)
+                Text(sender).font(.rowTitle.weight(message.isUnread ? .semibold : .medium)).lineLimit(1).frame(width: 190, alignment: .leading)
+                Text(message.snippet).font(.rowBody).foregroundStyle(.secondary).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+                if !message.files.isEmpty { Image(systemName: "paperclip").font(.meta).foregroundStyle(.secondary) }
+                Text(MailText.date(message.date)).font(.meta).foregroundStyle(.secondary)
             }
-            .font(.callout)
-            .padding(.vertical, Space.m)
+            .padding(.vertical, Space.l)
             .contentShape(Rectangle())
             .onTapGesture { model.toggle(message) }
         }
@@ -950,28 +965,28 @@ struct MailMessageView: View {
 
     private var header: some View {
         HStack(alignment: .top, spacing: Space.m) {
-            Avatar(initial, size: 34, tint: tint)
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(sender).fontWeight(.semibold)
-                    if let email = message.sender?.email, !isMine { Text(email).font(.caption).foregroundStyle(.secondary).textSelection(.enabled) }
+            Avatar(initial, size: 40, tint: tint)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+                    Text(sender).font(.rowTitle.weight(.semibold))
+                    if let email = message.sender?.email, !isMine { Text(email).font(.meta).foregroundStyle(.secondary).textSelection(.enabled) }
                 }
                 Button { details.toggle() } label: {
                     HStack(spacing: 3) {
                         let people = (message.to + message.cc).map { mine.contains($0.email) ? "moi" : ($0.name ?? $0.email) }
                         Text(people.isEmpty ? "détails" : "à \(people.joined(separator: ", "))").lineLimit(1)
-                        Image(systemName: details ? "chevron.up" : "chevron.down").font(.caption2)
+                        Image(systemName: details ? "chevron.up" : "chevron.down").font(.system(size: 10, weight: .semibold))
                     }
                 }
                 .buttonStyle(.plain)
-                .font(.caption).foregroundStyle(.secondary)
+                .font(.meta).foregroundStyle(.secondary)
                 if details { detailGrid }
             }
             .contentShape(Rectangle())
             .onTapGesture { model.toggle(message) }
             Spacer(minLength: Space.m)
-            Text(MailText.longDate(message.date)).font(.caption).foregroundStyle(.secondary)
-            HStack(spacing: Space.xs) {
+            Text(MailText.longDate(message.date)).font(.meta).foregroundStyle(.secondary)
+            HStack(spacing: Space.s) {
                 Button { reply(.reply) } label: { Image(systemName: "arrowshape.turn.up.left") }
                     .help("Répondre à ce message")
                 Menu {
@@ -998,6 +1013,7 @@ struct MailMessageView: View {
                 .menuIndicator(.hidden)
                 .fixedSize()
             }
+            .font(.system(size: 15))
             .buttonStyle(.borderless)
         }
     }
@@ -1014,7 +1030,7 @@ struct MailMessageView: View {
     }
 
     private var detailGrid: some View {
-        Grid(alignment: .leading, horizontalSpacing: Space.m, verticalSpacing: 3) {
+        Grid(alignment: .leading, horizontalSpacing: Space.m, verticalSpacing: 4) {
             ForEach(detailRows, id: \.0) { title, value in
                 GridRow {
                     Text(title).foregroundStyle(.secondary).gridColumnAlignment(.trailing)
@@ -1022,8 +1038,8 @@ struct MailMessageView: View {
                 }
             }
         }
-        .font(.caption)
-        .padding(Space.s)
+        .font(.meta)
+        .padding(Space.m)
         .background(Surface.fill, in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
     }
 
@@ -1037,7 +1053,7 @@ struct MailMessageView: View {
                 if !images, message.bodyIsHTML, MailHTML.hasRemoteImages(body) {
                     HStack(spacing: Space.s) {
                         Image(systemName: "photo").foregroundStyle(.secondary)
-                        Text("Images masquées : leur expéditeur verrait que tu as ouvert le mail.").font(.callout).foregroundStyle(.secondary)
+                        Text("Images masquées : leur expéditeur verrait que tu as ouvert le mail.").font(.meta).foregroundStyle(.secondary)
                         Spacer()
                         Button("Afficher") { model.allowed.insert(message.id) }
                         if message.authenticated, let email = message.sender?.email {
@@ -1047,8 +1063,7 @@ struct MailMessageView: View {
                             }
                         }
                     }
-                    .controlSize(.small)
-                    .padding(.horizontal, Space.m).padding(.vertical, 6)
+                    .padding(.horizontal, Space.m).padding(.vertical, Space.s)
                     .background(Surface.fill, in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
                 }
                 MailBodyView(document: MailHTML.document(body: body, isHTML: message.bodyIsHTML, images: images, collapseQuote: collapseQuote,
@@ -1062,7 +1077,7 @@ struct MailMessageView: View {
                 if !message.files.isEmpty { files }
             }
         } else if let failure = model.failed[message.id] {
-            Label("Ce message n'a pas pu être lu : \(failure)", systemImage: "exclamationmark.triangle").font(.callout).foregroundStyle(.orange)
+            Label("Ce message n'a pas pu être lu : \(failure)", systemImage: "exclamationmark.triangle").font(.rowBody).foregroundStyle(.orange)
         } else {
             ProgressView().controlSize(.small)
         }
@@ -1071,12 +1086,12 @@ struct MailMessageView: View {
     private var files: some View {
         VStack(alignment: .leading, spacing: Space.s) {
             HStack {
-                Text(message.files.count > 1 ? "\(message.files.count) pièces jointes" : "1 pièce jointe").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                Text(message.files.count > 1 ? "\(message.files.count) pièces jointes" : "1 pièce jointe").font(.meta.weight(.semibold)).foregroundStyle(.secondary)
                 if message.files.count > 1 {
-                    Button("Tout enregistrer…") { model.saveAll(of: message) }.buttonStyle(.link).font(.caption)
+                    Button("Tout enregistrer…") { model.saveAll(of: message) }.buttonStyle(.link).font(.meta)
                 }
             }
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 210, maximum: 260), spacing: Space.s)], alignment: .leading, spacing: Space.s) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 230, maximum: 280), spacing: Space.s)], alignment: .leading, spacing: Space.s) {
                 ForEach(message.files, id: \.partID) { file in AttachmentTile(file: file) { model.open(file, of: message) } save: { model.save(file, of: message) } }
             }
         }
@@ -1093,17 +1108,17 @@ struct AttachmentTile: View {
     var body: some View {
         let type = UTType(filenameExtension: (file.filename as NSString).pathExtension) ?? .data
         HStack(spacing: Space.s) {
-            Image(nsImage: NSWorkspace.shared.icon(for: type)).resizable().frame(width: 30, height: 30)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(file.filename).font(.callout).lineLimit(1).truncationMode(.middle)
-                Text(MailText.size(file.size)).font(.caption).foregroundStyle(.secondary)
+            Image(nsImage: NSWorkspace.shared.icon(for: type)).resizable().frame(width: 34, height: 34)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(file.filename).font(.rowBody).lineLimit(1).truncationMode(.middle)
+                Text(MailText.size(file.size)).font(.tag).foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
             if hovering {
                 Button(action: save) { Image(systemName: "arrow.down.circle") }.buttonStyle(.borderless).help("Enregistrer…")
             }
         }
-        .padding(Space.s)
+        .padding(Space.m)
         .background(hovering ? Surface.raised : Surface.fill, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
         .contentShape(Rectangle())
         .onTapGesture(perform: open)
@@ -1159,7 +1174,7 @@ struct MailOriginalSheet: View {
                 Button("Fermer", action: close).keyboardShortcut(.cancelAction)
             }
             ScrollView {
-                Text(text).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+                Text(text).font(.system(size: TextSize.tag, design: .monospaced)).textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -1181,12 +1196,12 @@ struct MailSubscriptionsView: View {
             ScrollView {
                 LazyVStack(spacing: 0) {
                     Text("Les 90 derniers jours, des plus bavards aux plus discrets.")
-                        .font(.callout).foregroundStyle(.secondary)
+                        .font(.rowBody).foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, Space.l).padding(.vertical, Space.m)
+                        .padding(.horizontal, Space.xl).padding(.top, Space.l).padding(.bottom, Space.m)
                     ForEach(mails.subscriptions) { subscription in
                         row(subscription)
-                        Divider().padding(.leading, 64)
+                        Divider().padding(.leading, Space.xl + 40 + Space.m)
                     }
                 }
             }
@@ -1197,16 +1212,17 @@ struct MailSubscriptionsView: View {
         let method = mails.unsubscribeMethod(subscription)
         let left = mails.unsubscribed[subscription.sender.email]
         return HStack(spacing: Space.m) {
-            Avatar(String(subscription.sender.display.prefix(1)).uppercased(), size: 30, tint: MailText.tint(for: subscription.sender.email))
-                .padding(.leading, Space.l)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(subscription.sender.display).fontWeight(.medium).lineLimit(1)
-                Text(subscription.sender.email).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            Avatar(String(subscription.sender.display.prefix(1)).uppercased(), size: 40, tint: MailText.tint(for: subscription.sender.email))
+                .padding(.leading, Space.xl)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(subscription.sender.display).font(.rowTitle.weight(.medium)).lineLimit(1)
+                Text(subscription.sender.email).font(.meta).foregroundStyle(.secondary).lineLimit(1)
             }
-            .frame(width: 280, alignment: .leading)
-            VStack(alignment: .leading, spacing: 2) {
+            .frame(width: 300, alignment: .leading)
+            VStack(alignment: .leading, spacing: 4) {
                 Text("\(subscription.count) mail\(subscription.count > 1 ? "s" : "")" + (subscription.unread > 0 ? " · \(subscription.unread) non lu\(subscription.unread > 1 ? "s" : "")" : ""))
-                Text("Dernier : \(MailText.date(subscription.lastAt))").font(.caption).foregroundStyle(.secondary)
+                    .font(.rowBody)
+                Text("Dernier : \(MailText.date(subscription.lastAt))").font(.meta).foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             if !subscription.inboxThreads.isEmpty {
@@ -1215,7 +1231,7 @@ struct MailSubscriptionsView: View {
             }
             if let left {
                 Label("Désabonné le \(left.formatted(.dateTime.day().month(.abbreviated).locale(MailText.locale)))", systemImage: "checkmark.circle")
-                    .font(.callout).foregroundStyle(.secondary)
+                    .font(.meta).foregroundStyle(.secondary)
             } else if let method {
                 Button("Se désabonner") { mails.askUnsubscribe(sender: subscription.sender, method: method) }
                     .help({
@@ -1227,8 +1243,8 @@ struct MailSubscriptionsView: View {
                     }())
             }
         }
-        .font(.callout)
-        .padding(.trailing, Space.l)
-        .frame(height: 54)
+        .controlSize(.large)
+        .padding(.trailing, Space.xl)
+        .padding(.vertical, Space.l)
     }
 }
