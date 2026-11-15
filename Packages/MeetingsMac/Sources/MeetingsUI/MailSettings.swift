@@ -71,8 +71,8 @@ struct MailSortingSections: View {
     static let steps = [
         "Ton choix pour ce fil, puis pour son expéditeur (clic droit › « Ranger dans »).",
         "Un fil où tu as écrit, un de tes contacts ou quelqu'un à qui tu as écrit : Personnes. Un contact d'un seul projet range le fil dans ce projet.",
-        "Un mail automatique : Newsletters si on peut s'en désabonner, sinon Notifications (Paiements pour un reçu ou une facture, Services pour le reste).",
-        "Sinon, la catégorie de Gmail : Notifications reste dans Notifications ; Promotions et Réseaux sociaux vont dans Newsletters ; le reste dans Personnes.",
+        "Un mail automatique : Notifications, avec sa case, Newsletters (une lettre, une promotion), Paiements (un reçu, une facture) ou Services (le reste).",
+        "Sinon, la catégorie de Gmail : Notifications, Promotions et Réseaux sociaux vont dans Notifications ; le reste dans Personnes.",
     ]
 
     var body: some View {
@@ -86,7 +86,7 @@ struct MailSortingSections: View {
         } header: {
             Text("Tri des onglets")
         } footer: {
-            Text("La première règle qui répond l'emporte. Une personne ne doit jamais finir cachée dans Notifications ou Newsletters : si ça arrive, clic droit sur le mail › « Ranger dans ».")
+            Text("La première règle qui répond l'emporte. Une personne ne doit jamais finir cachée dans Notifications : si ça arrive, clic droit sur le mail › « Ranger dans ».")
         }
         Section {
             let remembered = mails.senders.values.filter { $0.tab != nil || $0.filing != nil || $0.images }.sorted { $0.address < $1.address }

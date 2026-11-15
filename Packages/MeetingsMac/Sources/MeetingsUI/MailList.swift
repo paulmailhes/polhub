@@ -278,13 +278,11 @@ struct MailTabButton: View {
     let selected: Bool
     let unread: Int
     let action: () -> Void
-    @State private var hovering = false
 
     static func tint(_ tab: MailTab) -> Color {
         switch tab {
         case .personnes: MailSurface.blue
         case .notifications: Color(hex: Palette.orange)
-        case .newsletters: Color(hex: Palette.green)
         }
     }
 
@@ -292,7 +290,6 @@ struct MailTabButton: View {
         switch tab {
         case .personnes: "person.2"
         case .notifications: "info.circle"
-        case .newsletters: "tag"
         }
     }
 
@@ -312,17 +309,14 @@ struct MailTabButton: View {
             .foregroundStyle(selected ? tint : Color.secondary)
             .padding(.horizontal, Space.l)
             .frame(minWidth: 180, maxWidth: 250, minHeight: 50, alignment: .leading)
-            .background(hovering ? Surface.fill : .clear)
             .overlay(alignment: .bottom) {
                 if selected {
                     UnevenRoundedRectangle(topLeadingRadius: 3, topTrailingRadius: 3, style: .continuous)
                         .fill(tint).frame(height: 3).padding(.horizontal, Space.s)
                 }
             }
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
+        .buttonStyle(HoverButtonStyle(.rounded, fill: Surface.fill))
         .help(tab.explanation)
     }
 }

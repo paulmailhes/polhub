@@ -235,7 +235,7 @@ struct NotificationsSettingsPane: View {
             } header: {
                 Text("Mails")
             } footer: {
-                Text("Jamais pour les notifications ni les newsletters, ni pendant la première lecture d'une boîte. Un clic ouvre le fil.")
+                Text("Jamais pour l'onglet Notifications (services, lettres d'information), ni pendant la première lecture d'une boîte. Un clic ouvre le fil.")
             }
             Section {
                 Toggle("Son", isOn: $sound)

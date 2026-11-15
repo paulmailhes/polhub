@@ -278,10 +278,9 @@ struct MailScreenTests {
         UserDefaults.standard.set(true, forKey: Preferences.Key.floatingPages)
         try await capture("mails-personnes")
         try await capture("mails-personnes-sombre", dark: true)
+        // 15/11: two tabs; the newsletters are among the notifications.
         mails.tab = .notifications
         try await capture("mails-notifications")
-        mails.tab = .newsletters
-        try await capture("mails-newsletters")
         mails.tab = .personnes
         mails.selecting = true
         mails.selected = [MailThreadRow.key(account: "moi@exemple.fr", threadID: "a"), MailThreadRow.key(account: "paul@atelier-nord.fr", threadID: "f")]
@@ -290,7 +289,7 @@ struct MailScreenTests {
         router.mailSelection = MailThreadRow.key(account: "moi@exemple.fr", threadID: "a")
         try await capture("mails-fil-flottant")
         try await capture("mails-fil-flottant-sombre", dark: true)
-        mails.tab = .newsletters
+        mails.tab = .notifications
         router.mailSelection = MailThreadRow.key(account: "moi@exemple.fr", threadID: "b")
         try await capture("mails-lettre-sombre", dark: true)
         // 14/11, step « Écrire »: a reply below its thread, a new mail over the list, the drafts.

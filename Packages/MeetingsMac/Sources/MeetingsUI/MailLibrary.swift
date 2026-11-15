@@ -340,7 +340,7 @@ public final class MailLibrary: ObservableObject {
         perform(.archive, on: visible(inbox).filter { tab(of: $0) == tab })
     }
 
-    /// Not written by a person: the notifications and the newsletters.
+    /// Not written by a person: the Notifications tab (services, letters, promotions).
     public func isAutomatic(_ thread: MailThreadRow) -> Bool {
         tab(of: thread) != .personnes
     }
