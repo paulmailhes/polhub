@@ -42,49 +42,46 @@ public enum MailAfterGesture: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-/// The size of the Kanban's cards (Paul, 14/11: the large ones were too large; a choice in Réglages › Projets).
+/// The size of the Kanban's cards (Paul, 14/11; two sizes since 15/11), a choice in Réglages › Projets. The raw
+/// values are those already stored: « medium » for the normal cards, « small » for the compact ones; an old
+/// « large » reads as normal.
 public enum CardSize: String, CaseIterable, Identifiable, Sendable {
-    case small, medium, large
+    case medium, small
+
+    public init(stored: String?) {
+        self = stored.flatMap(CardSize.init(rawValue:)) ?? .medium
+    }
 
     public var id: String { rawValue }
 
     public var title: String {
         switch self {
-        case .small: "Petites"
-        case .medium: "Moyennes"
-        case .large: "Grandes"
+        case .medium: "Normales"
+        case .small: "Compactes"
         }
     }
 
+    /// A compact card shows its logo, its name and its client, nothing else.
+    public var isCompact: Bool { self == .small }
+
     public var columnWidth: CGFloat {
         switch self {
-        case .small: 220
-        case .medium: 256
-        case .large: 300
+        case .medium: 272
+        case .small: 230
         }
     }
 
     public var padding: CGFloat {
         switch self {
+        case .medium: Space.m + 2
         case .small: Space.s + 2
-        case .medium: Space.m
-        case .large: Space.m + 2
         }
     }
 
-    public var todoLines: Int {
+    public var logoSize: CGFloat {
         switch self {
-        case .small: 2
-        case .medium: 2
-        case .large: 3
-        }
-    }
-
-    public var titleFont: Font {
-        switch self {
-        case .small: .callout.weight(.semibold)
-        case .medium: .body.weight(.semibold)
-        case .large: .headline
+        case .medium: 30
+        case .small: 24
         }
     }
 }
@@ -94,6 +91,8 @@ public enum CardSize: String, CaseIterable, Identifiable, Sendable {
 public struct Preferences: @unchecked Sendable {
     public enum Key {
         public static let cardSize = "projets.tailleDesCartes"
+        /// Réglages › Projets (15/11): the logos asked of the clients' sites.
+        public static let projectLogos = "projets.logosEnLigne"
         public static let defaultAccount = "agenda.agendaParDefaut"
         public static let eventMinutes = "agenda.dureeParDefaut"
         public static let eventMeet = "agenda.meetParDefaut"
@@ -149,7 +148,9 @@ public struct Preferences: @unchecked Sendable {
         self.defaults = defaults
     }
 
-    public var cardSize: CardSize { CardSize(rawValue: defaults.string(forKey: Key.cardSize) ?? "") ?? .medium }
+    public var cardSize: CardSize { CardSize(stored: defaults.string(forKey: Key.cardSize)) }
+    /// Polhub asks each client's site for its icon; off, the projects keep their initials.
+    public var projectLogos: Bool { flag(Key.projectLogos) }
     /// `nil`: the last one used.
     public var defaultAccount: String? { defaults.string(forKey: Key.defaultAccount).flatMap { $0.isEmpty ? nil : $0 } }
     public var eventMinutes: Int { (defaults.object(forKey: Key.eventMinutes) as? Int) ?? Default.eventMinutes }

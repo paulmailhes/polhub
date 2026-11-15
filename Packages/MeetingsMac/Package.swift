@@ -67,12 +67,12 @@ let package = Package(
         // The projects module: board, views, project page.
         .target(name: "ProjectsUI", dependencies: [
             "PolhubDesign",
-            "VaultImport",
             .product(name: "Domain", package: "Kernel"),
             .product(name: "Persistence", package: "Kernel"),
             .product(name: "GRDB", package: "GRDB.swift"),
         ]),
-        // Reads the Obsidian vault for the import of the projects: read-only, never writes.
+        // Reads the Obsidian vault (the history of meetings and contacts): read-only, never writes. The import of the
+        // projects is gone (15/11): it would bring the old statuses back.
         .target(name: "VaultImport", dependencies: [
             .product(name: "Domain", package: "Kernel"),
             .product(name: "Persistence", package: "Kernel"),
@@ -142,7 +142,7 @@ let package = Package(
         .testTarget(name: "ComputeTests", dependencies: ["Compute", "Transcription", "Recording", .product(name: "Domain", package: "Kernel")], resources: [.copy("Fixtures")]),
         .testTarget(name: "ReadingKitTests", dependencies: ["ReadingKit", "MailFormat", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "VaultImportTests", dependencies: ["VaultImport", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")], resources: [.copy("Fixtures")]),
-        .testTarget(name: "ProjectsUITests", dependencies: ["ProjectsUI", "PolhubDesign", "VaultImport", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
+        .testTarget(name: "ProjectsUITests", dependencies: ["ProjectsUI", "PolhubDesign", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "UpdatesTests", dependencies: ["Updates"]),
         .testTarget(name: "NotificationsTests", dependencies: ["Notifications", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "SummarizationTests", dependencies: ["Summarization", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),

@@ -18,7 +18,7 @@ import Testing
         let app = try AppDatabase(path: path)
         let tools = try AppDatabase.forTools(path: path)
         let store = ProjectStore(app)
-        let project = try store.addProject(name: "Alpha", status: .idee, at: Date())
+        let project = try store.addProject(name: "Alpha", status: .priorite1, at: Date())
 
         let seen = Counter()
         let observation = ValueObservation.tracking { try ActionRow.fetchCount($0) }
@@ -77,7 +77,7 @@ final class Counter: @unchecked Sendable {
         defer { try? FileManager.default.removeItem(at: folder) }
         let source = folder.appending(path: "Source.sqlite").path(percentEncoded: false)
         let app = try AppDatabase(path: source)
-        _ = try ProjectStore(app).addProject(name: "Alpha", status: .idee, at: Date())
+        _ = try ProjectStore(app).addProject(name: "Alpha", status: .priorite1, at: Date())
         try app.writer.writeWithoutTransaction { try $0.execute(sql: "PRAGMA wal_checkpoint(TRUNCATE)") }
         // The main file alone, in WAL mode, as SQLite leaves it once every connection is closed.
         let path = folder.appending(path: "Polhub.sqlite").path(percentEncoded: false)

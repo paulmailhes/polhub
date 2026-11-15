@@ -2,7 +2,6 @@ import Domain
 import Foundation
 import Persistence
 import Testing
-import VaultImport
 @testable import ProjectsUI
 
 /// Revue finale du module Projets : ce que la première version faisait mal.
@@ -47,7 +46,7 @@ import VaultImport
     @Test func aStatusChangedOnThePageGoesToTheBottomOfItsColumn() async throws {
         let (projects, store, _) = try library()
         _ = try store.addProject(name: "Déjà là", status: .priorite1, at: now)
-        var moving = try store.addProject(name: "Arrive", status: .idee, at: now)
+        var moving = try store.addProject(name: "Arrive", status: .enPause, at: now)
         moving.status = .priorite1
         moving.todo = "Nouvelle chose"
         projects.save(moving)
@@ -59,22 +58,12 @@ import VaultImport
     // Mineur 9 : ranger une réunion met à jour « À surveiller » sans attendre.
     @Test func filingAMeetingRefreshesTheLastMeetings() async throws {
         let (projects, store, meetings) = try library()
-        let project = try store.addProject(name: "Atelier client", status: .priorite3, at: now)
+        let project = try store.addProject(name: "Atelier client", status: .priorite2, at: now)
         let meeting = MeetingRow(createdAt: now, status: .ended, source: .dia, candidateKey: "t/a", title: "Cadrage", startedAt: now)
         try meetings.save(meeting)
         #expect(await eventually { projects.loaded })
         try store.setProject(meetingID: meeting.id, projectID: project.id)
         #expect(await eventually { projects.lastAppMeetings[project.id] != nil })
-    }
-
-    // Mineur 10 : un coffre sans projet ne remplace rien.
-    @Test func anEmptyVaultReplacesNothing() throws {
-        let (_, store, _) = try library()
-        _ = try store.addProject(name: "Gardé", status: .idee, at: now)
-        #expect(throws: ImportError.self) {
-            try ProjectImport.apply(VaultSnapshot(projects: [], cardOrder: [:], lastMeetings: [:], warnings: []), store: store, now: now)
-        }
-        #expect(try store.projects().map(\.name) == ["Gardé"])
     }
 }
 

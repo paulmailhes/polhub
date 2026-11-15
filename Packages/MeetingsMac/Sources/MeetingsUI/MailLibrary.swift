@@ -248,7 +248,7 @@ public final class MailLibrary: ObservableObject {
     /// The projects a thread can go to: those under way, by name; the others apart.
     public var filingProjects: (current: [ProjectRow], others: [ProjectRow]) {
         let sorted = agenda.projects.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-        let underWay: Set<ProjectStatus> = [.priorite1, .priorite2, .priorite3, .enAttente]
+        let underWay: Set<ProjectStatus> = [.priorite1, .priorite2, .enPause]
         return (sorted.filter { underWay.contains($0.status) }, sorted.filter { !underWay.contains($0.status) })
     }
 

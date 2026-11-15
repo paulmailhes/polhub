@@ -2,7 +2,6 @@ import Domain
 import Foundation
 import GRDB
 import Persistence
-import VaultImport
 
 /// The projects of the window, kept up to date from the base.
 @MainActor
@@ -39,7 +38,7 @@ public final class ProjectLibrary: ObservableObject {
         observations.append(store.observeLastMeetings { [weak self] last in self?.lastAppMeetings = last })
     }
 
-    /// The vault the import reads (read-only), chosen once by Paul: no path is written in the code.
+    /// The vault the history import reads (read-only), chosen once by Paul: no path is written in the code.
     public var vaultPath: String? {
         get { defaults.string(forKey: Self.vaultKey) }
         set { defaults.set(newValue, forKey: Self.vaultKey) }
@@ -86,19 +85,6 @@ public final class ProjectLibrary: ObservableObject {
         }
         try? store.save(project, at: Date())
     }
-
-    /// The vault, read off the main thread.
-    public func readVault() async throws -> VaultSnapshot {
-        guard let vaultPath else { throw VaultError.notAVault("(aucun dossier choisi)") }
-        let vault = URL(fileURLWithPath: vaultPath, isDirectory: true)
-        return try await Task.detached(priority: .userInitiated) { try VaultReader.read(vault: vault) }.value
-    }
-
-    public func apply(_ snapshot: VaultSnapshot) throws -> ImportReport {
-        try ProjectImport.apply(snapshot, store: store, now: Date())
-    }
-
-    /// Replaces every project of the app with those of the vault.
 
     public func project(_ id: UUID?) -> ProjectRow? {
         id.flatMap { id in projects.first { $0.id == id } }

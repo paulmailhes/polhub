@@ -332,7 +332,11 @@ public struct MailStore: Sendable {
             contactProjects[email.lowercased(), default: []].insert(id)
         }
         let contacts = Set(try String.fetchAll(db, sql: "SELECT lower(email) FROM contact WHERE email IS NOT NULL"))
-        let projects = try ProjectRow.fetchAll(db).map { (id: $0.id, name: $0.name) }
+        // Raw rows, never ProjectRow: the mails' rules must not depend on the statuses (review of 15/11).
+        let projects = try Row.fetchAll(db, sql: "SELECT id, name FROM project").compactMap { row -> (id: UUID, name: String)? in
+            guard let id = (row["id"] as String?).flatMap(UUID.init(uuidString:)), let name: String = row["name"] else { return nil }
+            return (id: id, name: name)
+        }
         let mine = Set(try String.fetchAll(db, sql: "SELECT lower(email) FROM google_account"))
         return MailFilingRules(choices: choices, senders: senders, contactProjects: contactProjects, contacts: contacts, projects: projects,
                                mine: mine, correspondents: try correspondents(db))

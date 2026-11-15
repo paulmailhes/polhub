@@ -214,6 +214,25 @@ import Testing
         #expect(try contacts.contact(email: "camille@studio.exemple") == nil)
     }
 
+    /// Review of 15/11: a project written with an old status (an older `polhub mcp`, a row the migration left
+    /// in the bin) never breaks the mails' rules, nor the projects' reading.
+    @Test func anOldStatusNeverBreaksTheRules() throws {
+        let database = try AppDatabase.inMemory()
+        let old = UUID(), odd = UUID()
+        try database.writer.write { db in
+            for (id, name, status, deleted) in [(old, "Ancien", "idée", true), (odd, "Bizarre", "statut inconnu", false)] {
+                try db.execute(sql: """
+                    INSERT INTO project (id, name, status, contacts, notes, kanbanOrder, createdAt, updatedAt, deletedAt)
+                    VALUES (?, ?, ?, '[]', '', 0, ?, ?, ?)
+                    """, arguments: [id.uuidString.lowercased(), name, status, now, now, deleted ? now : nil])
+            }
+        }
+        let rules = try MailStore(database).filingRules()
+        #expect(Set(rules.projects.map(\.id)) == [old, odd])
+        let all = try database.writer.read { try ProjectRow.fetchAll($0) }
+        #expect(Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0.status) }) == [old: .priorite1, odd: .enPause])
+    }
+
     /// Review of 14/11: Paul's change is written on the row as it is now, Gmail's answer meanwhile included.
     @Test func changingADraftKeepsWhatGmailAnswered() throws {
         let mails = try store()

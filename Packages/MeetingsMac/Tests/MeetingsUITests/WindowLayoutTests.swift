@@ -46,7 +46,7 @@ import ProjectsUI
         let database = try AppDatabase.inMemory()
         let store = MeetingStore(database)
         let projectStore = ProjectStore(database)
-        for (index, status) in [ProjectStatus.idee, .priorite3, .priorite2, .priorite1, .enAttente, .termine].enumerated() {
+        for (index, status) in ProjectStatus.allCases.enumerated() {
             for copy in 0..<2 {
                 var project = try projectStore.addProject(name: "Projet au nom assez long \(index)-\(copy)", status: status, at: Date())
                 project.todo = "Une chose à faire qui prend de la place sur la carte du kanban"
@@ -70,7 +70,7 @@ import ProjectsUI
         window.layoutIfNeeded()
         try await Task.sleep(for: .milliseconds(300))
         window.layoutIfNeeded()
-        #expect(projects.projects.count == 12)
+        #expect(projects.projects.count == ProjectStatus.allCases.count * 2)
         #expect(host.fittingSize.width <= width + 1)
     }
 }

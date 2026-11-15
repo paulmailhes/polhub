@@ -64,9 +64,10 @@ struct WindowSnapshotTests {
         let database = try AppDatabase.inMemory()
         let store = ProjectStore(database)
         let samples: [(String, ProjectStatus, String?, Int?, String?)] = [
-            ("Site vitrine", .idee, "Freelance", nil, nil), ("Refonte site", .priorite1, "Atelier Nord", -2, "Envoyer la maquette de l'accueil"),
+            ("Site vitrine", .enPause, "Freelance", nil, nil), ("Refonte site", .priorite1, "Atelier Nord", -2, "Envoyer la maquette de l'accueil"),
             ("Identité", .priorite1, "Studio Sud", 0, "Valider la typographie"), ("Studio photo", .priorite2, "Atelier Nord", 6, "Relancer pour les contenus"),
-            ("Landing", .priorite3, "Atelier Nord", 12, "Préparer le cadrage"), ("Agence", .enAttente, "Atelier Nord", nil, nil),
+            ("Landing", .priorite2, "Atelier Nord", 12, "Préparer le cadrage"), ("Agence", .enPause, "Atelier Nord", nil, nil),
+            ("Ancien site", .termine, "Studio Sud", nil, nil), ("Carte de vœux", .termine, nil, nil, nil),
         ]
         for (name, status, client, due, todo) in samples {
             var project = try store.addProject(name: name, status: status, at: Date())
@@ -74,6 +75,8 @@ struct WindowSnapshotTests {
             project.dueDate = due.map { Date().addingTimeInterval(Double($0) * 86_400) }
             project.todo = todo
             project.color = name == "Identité" ? "purple" : nil
+            // 15/11: « Réunion il y a 3 semaines », in words.
+            project.lastMeetingImported = name == "Refonte site" ? Date().addingTimeInterval(-21 * 86_400) : nil
             try store.save(project, at: Date())
         }
         let library = MeetingLibrary(store: MeetingStore(database))
@@ -102,12 +105,37 @@ struct WindowSnapshotTests {
         try store.save(project, at: Date())
         try store.saveAction(ActionRow(projectID: project.id, text: "Lire la fiche du client", addedOn: Date(), position: 0, createdAt: Date()))
         try store.saveAction(ActionRow(projectID: project.id, text: "Envoyer le devis", done: true, addedOn: Date(), position: 1, createdAt: Date()))
+        // 15/11: five actions, then « Voir les N autres »; three entries of the journal, two plain lines each.
+        for index in 2..<9 {
+            try store.saveAction(ActionRow(projectID: project.id, text: "Action ouverte \(index)", addedOn: Date(), position: Double(index), createdAt: Date()))
+        }
         try store.addJournal(ProjectJournalRow(projectID: project.id, date: Date(), title: "Maquette envoyée", body: "- Deux pages.\n- Retour attendu lundi.", createdAt: Date()))
-        let projects = ProjectLibrary(store: store, meetings: MeetingStore(database), defaults: UserDefaults(suiteName: "page-\(UUID().uuidString)")!)
+        for day in 1...4 {
+            try store.addJournal(ProjectJournalRow(projectID: project.id, date: Date().addingTimeInterval(Double(-day) * 86_400), title: "Étape \(day)",
+                                                   body: "## Fait\n- Une **chose** faite, avec un [lien](https://exemple.fr).\n- Une autre, plus longue, qui prend la place d'une deuxième ligne entière pour voir la coupe.",
+                                                   createdAt: Date()))
+        }
+        let meetings = MeetingStore(database)
+        for day in 1...6 {
+            let start = Date().addingTimeInterval(Double(-day) * 86_400)
+            let meeting = MeetingRow(createdAt: start, status: .ended, source: .dia, candidateKey: "t/\(day)", title: "Point \(day)", startedAt: start,
+                                     endedAt: start.addingTimeInterval(1_800))
+            try meetings.save(meeting)
+            try store.setProject(meetingID: meeting.id, projectID: project.id)
+            if day == 1 { try meetings.setSummary(meetingID: meeting.id, summary: "## Résumé\n\nLe client valide la maquette ; la page Contact reste à revoir.") }
+        }
+        let projects = ProjectLibrary(store: store, meetings: meetings, defaults: UserDefaults(suiteName: "page-\(UUID().uuidString)")!)
+        let quiet = UserDefaults(suiteName: "logos-\(UUID().uuidString)")!
+        quiet.set(false, forKey: Preferences.Key.projectLogos)
+        let folder = FileManager.default.temporaryDirectory.appending(path: "logos \(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let logos = ProjectLogos(folder: folder, database: nil, defaults: quiet)
+        logos.setSite("exemple.fr", for: project.id)
         try await Task.sleep(for: .milliseconds(300))
         projects.selected = project.id
         UserDefaults.standard.set(false, forKey: Preferences.Key.floatingPages)
-        try await LiveWindow.capture(ProjectsView(library: projects), to: output.appending(path: "projet.png"), size: NSSize(width: 1_200, height: 900))
+        try await LiveWindow.capture(ProjectsView(library: projects).environment(\.projectLogos, logos), to: output.appending(path: "projet.png"),
+                                     size: NSSize(width: 1_200, height: 1_100))
         // 14/11: the page floats over the board, which stays in sight.
         UserDefaults.standard.set(true, forKey: Preferences.Key.floatingPages)
         try await LiveWindow.capture(ProjectsView(library: projects), to: output.appending(path: "projet-flottant.png"), size: NSSize(width: 1_200, height: 900))
@@ -152,6 +180,10 @@ struct WindowSnapshotTests {
         var beta = try projectStore.addProject(name: "Site vitrine", status: .priorite2, at: Date())
         beta.color = "vert"
         try projectStore.save(beta, at: Date())
+        // 15/11: Accueil shows six projects in priorité 1, then « Voir les N autres ».
+        for name in ["Studio photo", "Identité", "Landing", "Agence", "Catalogue", "Boutique", "Carte de vœux"] {
+            try projectStore.addProject(name: name, status: .priorite1, at: Date())
+        }
         let calendar = CalendarStore(database)
         try calendar.addAccount(email: "moi@exemple.fr", at: Date())
         let monday = CalendarView.monday(of: .now)

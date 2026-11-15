@@ -8,7 +8,7 @@ import Persistence
 public struct ProjectDesk: Sendable {
     public static let briefActions = 15
     /// The order of `projets`, as in the `obsidian` server: priorities first, done last.
-    static let listOrder: [ProjectStatus] = [.priorite1, .priorite2, .priorite3, .enAttente, .idee, .none, .termine]
+    static let listOrder: [ProjectStatus] = ProjectStatus.allCases
     let projects: ProjectStore
     let meetings: MeetingStore
     let reader: MeetingReader

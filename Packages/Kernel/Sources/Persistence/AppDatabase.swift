@@ -1,20 +1,59 @@
 import Foundation
 import GRDB
 
+public enum AppDatabaseError: Error, LocalizedError, Equatable {
+    /// The base holds migrations this version of the app does not know.
+    case newerBase
+
+    public var errorDescription: String? {
+        switch self {
+        case .newerBase: "La base vient d'une version plus récente de Polhub : installe la dernière version pour l'ouvrir."
+        }
+    }
+}
+
 /// The app's SQLite base. Readable from outside (`sqlite3`, Claude Code): text identifiers, ISO dates.
 /// Tables are created when a step needs them; step 1 needs the four of migration `v1`.
 public final class AppDatabase: Sendable {
     public let writer: any DatabaseWriter
 
     public init(path: String) throws {
-        try FileManager.default.createDirectory(
-            at: URL(fileURLWithPath: path).deletingLastPathComponent(), withIntermediateDirectories: true
-        )
+        let folder = URL(fileURLWithPath: path).deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let existed = FileManager.default.fileExists(atPath: path)
         // WAL: the command line and Claude Code read while the app writes, and never make it fail.
         var configuration = Configuration()
         configuration.busyMode = .timeout(5)
         writer = try DatabasePool(path: path, configuration: configuration)
+        if existed {
+            try Self.protect(writer, backups: folder.appending(path: "Sauvegardes", directoryHint: .isDirectory), now: Date())
+        }
         try Self.migrator.migrate(writer)
+    }
+
+    /// Before any migration of a base that already holds Paul's data (review of 15/11): a base left by a newer
+    /// Polhub is refused, never read with the wrong meanings; a base about to change gets a copy first, named
+    /// after the first migration it is about to get.
+    static func protect(_ writer: any DatabaseWriter, backups: URL, now: Date) throws {
+        let migrator = Self.migrator
+        let (superseded, applied) = try writer.read { db in
+            (try migrator.hasBeenSuperseded(db), try migrator.appliedIdentifiers(db))
+        }
+        if superseded { throw AppDatabaseError.newerBase }
+        guard let pending = migrator.migrations.first(where: { !applied.contains($0) }), !applied.isEmpty else { return }
+        try FileManager.default.createDirectory(at: backups, withIntermediateDirectories: true)
+        let target = backups.appending(path: backupName(before: pending, on: now))
+        // A copy of the same day is already the base before this migration: it stays.
+        guard !FileManager.default.fileExists(atPath: target.path(percentEncoded: false)) else { return }
+        try writer.backup(to: DatabaseQueue(path: target.path(percentEncoded: false)))
+    }
+
+    /// `Polhub-avant-v12-20261115.sqlite`.
+    public static func backupName(before migration: String, on date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd"
+        return "Polhub-avant-\(migration)-\(formatter.string(from: date)).sqlite"
     }
 
     private init(writer: any DatabaseWriter) throws {
@@ -418,6 +457,56 @@ public final class AppDatabase: Sendable {
                 t.column("createdAt", .datetime).notNull()
             }
         }
+        // 15/11 (Paul): four statuses. On raw rows, never ProjectRow: the enum no longer knows the old values.
+        migrator.registerMigration("v12") { db in
+            try ProjectStatusMigration.run(db)
+        }
         return migrator
+    }
+}
+
+/// The seven statuses of the vault become four, in one pass: « priorité 2 » changes meaning, so a chain of
+/// UPDATEs would merge everything (review of 15/11). The cards of each new column are numbered again, the
+/// old columns one after the other; a project in the bin changes status and keeps its place.
+enum ProjectStatusMigration {
+    /// Old raw value → new raw value, and the rank of the old column inside the new one.
+    static let mapping: [String: (status: String, group: Int)] = [
+        "priorité 1": ("priorité 1", 0), "priorité 2": ("priorité 1", 1), "idée": ("priorité 1", 2),
+        "priorité 3": ("priorité 2", 0),
+        "en attente": ("en pause", 0), "": ("en pause", 1),
+        "terminé": ("terminé", 0),
+    ]
+
+    private struct Card {
+        let id: String
+        let name: String
+        let status: String
+        let group: Int
+        let order: Double
+        let deleted: Bool
+    }
+
+    static func run(_ db: Database) throws {
+        let cards = try Row.fetchAll(db, sql: "SELECT id, name, status, kanbanOrder, deletedAt FROM project").map { row in
+            let old = ((row["status"] as String?) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            // Anything else (a status typed by hand in the vault) waits « en pause », after the others.
+            let target = mapping[old] ?? ("en pause", 2)
+            return Card(id: row["id"], name: row["name"], status: target.status, group: target.group,
+                        order: row["kanbanOrder"], deleted: !(row["deletedAt"] as DatabaseValue).isNull)
+        }
+        for card in cards where card.deleted {
+            try db.execute(sql: "UPDATE project SET status = ? WHERE id = ?", arguments: [card.status, card.id])
+        }
+        for column in Dictionary(grouping: cards.filter { !$0.deleted }, by: \.status).values {
+            let sorted = column.sorted { a, b in
+                if a.group != b.group { return a.group < b.group }
+                if a.order != b.order { return a.order < b.order }
+                return a.name < b.name
+            }
+            for (rank, card) in sorted.enumerated() {
+                try db.execute(sql: "UPDATE project SET status = ?, kanbanOrder = ? WHERE id = ?",
+                               arguments: [card.status, Double(rank), card.id])
+            }
+        }
     }
 }

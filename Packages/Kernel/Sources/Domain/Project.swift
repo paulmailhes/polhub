@@ -1,25 +1,47 @@
 import Foundation
 
-/// A project's column on the board: the statuses of Paul's Obsidian vault, with the same raw values.
+/// A project's column on the board: four statuses since 15/11 (Paul). The raw values stay lowercase, as the
+/// `projets` tool of `polhub mcp` writes them.
 public enum ProjectStatus: String, Codable, Sendable, CaseIterable {
-    case idee = "idée"
-    case priorite3 = "priorité 3"
-    case priorite2 = "priorité 2"
     case priorite1 = "priorité 1"
-    case enAttente = "en attente"
+    case priorite2 = "priorité 2"
+    case enPause = "en pause"
     case termine = "terminé"
-    /// A status missing or unknown in the vault (« Uncategorized » in Obsidian).
-    case none = ""
 
-    /// The order of the board's columns, as in `Projets.base`.
-    public static let boardOrder: [ProjectStatus] = [.idee, .priorite3, .priorite2, .priorite1, .enAttente, .termine, .none]
+    /// The order of the board's columns, Terminé on the right.
+    public static let boardOrder: [ProjectStatus] = allCases
 
-    public init(obsidian: String?) {
-        self = obsidian.flatMap { ProjectStatus(rawValue: $0.trimmingCharacters(in: .whitespaces)) } ?? .none
+    /// A value read from the base, never refused: an old status (before the migration `v12`, or written by
+    /// an older `polhub mcp`) finds its new column, anything else goes « En pause ». « priorité 2 » keeps its
+    /// meaning here: only the migration moves the old ones.
+    public init(tolerant raw: String) {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let status = ProjectStatus(rawValue: trimmed) {
+            self = status
+            return
+        }
+        switch trimmed {
+        case "idée": self = .priorite1
+        case "priorité 3": self = .priorite2
+        default: self = .enPause
+        }
     }
 
-    public var label: String { self == .none ? "Sans statut" : rawValue }
+    /// An unknown value would otherwise empty the board without a word (review of 15/11).
+    public init(from decoder: any Decoder) throws {
+        self.init(tolerant: try decoder.singleValueContainer().decode(String.self))
+    }
 
-    /// Priority 1, 2 or 3: the projects « À rendre » and « À surveiller » look at.
-    public var isPriority: Bool { [.priorite1, .priorite2, .priorite3].contains(self) }
+    /// Lowercase, for `polhub mcp`: « priorité 1 ».
+    public var label: String { rawValue }
+
+    /// For the window: « Priorité 1 ».
+    public var title: String {
+        switch self {
+        case .priorite1: "Priorité 1"
+        case .priorite2: "Priorité 2"
+        case .enPause: "En pause"
+        case .termine: "Terminé"
+        }
+    }
 }
