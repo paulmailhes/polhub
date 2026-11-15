@@ -334,8 +334,13 @@ public struct MailStore: Sendable {
         let contacts = Set(try String.fetchAll(db, sql: "SELECT lower(email) FROM contact WHERE email IS NOT NULL"))
         let projects = try ProjectRow.fetchAll(db).map { (id: $0.id, name: $0.name) }
         let mine = Set(try String.fetchAll(db, sql: "SELECT lower(email) FROM google_account"))
-        return MailFilingRules(choices: choices, senders: senders, contactProjects: contactProjects, contacts: contacts, projects: projects,
-                               mine: mine, correspondents: try correspondents(db))
+        // One reading of what Paul sent gives both who he wrote to and how often (15/11).
+        let stats = try correspondentStats(db)
+        var rules = MailFilingRules(choices: choices, senders: senders, contactProjects: contactProjects, contacts: contacts, projects: projects,
+                                    mine: mine, correspondents: Set(stats.keys))
+        rules.correspondentStats = stats
+        rules.excludedProjects = try excludedProjects(db)
+        return rules
     }
 
     public func observeFilingRules(onChange: @escaping @MainActor @Sendable (MailFilingRules) -> Void) -> AnyDatabaseCancellable {
@@ -455,15 +460,7 @@ public struct MailStore: Sendable {
     }
 
     static func correspondents(_ db: Database) throws -> Set<String> {
-        let decoder = JSONDecoder()
-        var found: Set<String> = []
-        for row in try Row.fetchAll(db, sql: #"SELECT "to", cc FROM mail_message WHERE labels LIKE '%"SENT"%'"#) {
-            for column in ["to", "cc"] {
-                guard let text: String = row[column], let people = try? decoder.decode([MailAddress].self, from: Data(text.utf8)) else { continue }
-                for person in people { found.insert(person.email.lowercased()) }
-            }
-        }
-        return found
+        Set(try correspondentStats(db).keys)
     }
 
     /// The threads Paul wrote in, the most recent first: the « Envoyés ».

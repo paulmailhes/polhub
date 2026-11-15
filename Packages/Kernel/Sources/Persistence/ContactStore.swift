@@ -148,6 +148,16 @@ public struct ContactStore: Sendable {
         }
     }
 
+    /// Calls `onChange` on the main queue with every link, removed ones included, now and after every change
+    /// (15/11: who is in an event's or a thread's project shows at once).
+    public func observeLinks(onChange: @escaping @MainActor @Sendable ([ContactProjectRow]) -> Void) -> AnyDatabaseCancellable {
+        ValueObservation
+            .tracking { try ContactProjectRow.fetchAll($0) }
+            .start(in: writer, scheduling: .async(onQueue: .main), onError: { _ in }, onChange: { rows in
+                MainActor.assumeIsolated { onChange(rows) }
+            })
+    }
+
     /// Calls `onChange` on the main queue with every contact, now and after every change.
     public func observeContacts(onChange: @escaping @MainActor @Sendable ([ContactRow]) -> Void) -> AnyDatabaseCancellable {
         ValueObservation

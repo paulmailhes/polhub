@@ -162,6 +162,10 @@ public struct MailFilingRules: Sendable {
     public var projects: [(id: UUID, name: String)]
     public var mine: Set<String>
     public var correspondents: Set<String>
+    /// The people Paul wrote to, how often and when last (15/11): what ranks the suggestions.
+    public var correspondentStats: [String: MailCorrespondent] = [:]
+    /// The projects Paul took each address out of (15/11).
+    public var excludedProjects: [String: Set<UUID>] = [:]
     private var domainProjects: [String: Set<UUID>] = [:]
     private var myDomains: Set<String> = []
     /// Paul's domains that are only his (not gmail.com and the like).
