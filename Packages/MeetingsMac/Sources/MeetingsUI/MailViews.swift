@@ -403,6 +403,8 @@ struct MailThreadView: View {
     @State private var thread: MailThreadRow?
     /// The draft just begun: the page scrolls to it.
     @State private var replying: String?
+    /// A reply below has the keyboard.
+    @FocusedValue(\.writingMail) private var writing
 
     init(key: String, mails: MailLibrary, router: WindowRouter, close: (() -> Void)?) {
         self.key = key
@@ -540,6 +542,9 @@ struct MailThreadView: View {
                         MailFilingChip(thread: thread, mails: mails, always: true)
                     }
                     .font(.rowBody).foregroundStyle(.secondary)
+                    // Its people, and who of them is in its project (15/11).
+                    ThreadPeopleRow(thread: thread, messages: model.messages, mails: mails, router: router)
+                        .padding(.top, Space.xs)
                 }
             }
             Spacer(minLength: Space.m)
@@ -547,10 +552,11 @@ struct MailThreadView: View {
                 if let position = mails.position(of: key) { Text(position).font(.meta).foregroundStyle(.secondary).monospacedDigit() }
                 Button { go(-1) } label: { Image(systemName: "chevron.up") }
                     .disabled(mails.neighbor(of: key, offset: -1) == nil).help("Fil précédent (↑)")
-                    .keyboardShortcut(.upArrow, modifiers: [])
+                    // While a reply is written, the arrows stay in it (15/11).
+                    .keyboardShortcut(writing == true ? nil : KeyboardShortcut(.upArrow, modifiers: []))
                 Button { go(1) } label: { Image(systemName: "chevron.down") }
                     .disabled(mails.neighbor(of: key, offset: 1) == nil).help("Fil suivant (↓)")
-                    .keyboardShortcut(.downArrow, modifiers: [])
+                    .keyboardShortcut(writing == true ? nil : KeyboardShortcut(.downArrow, modifiers: []))
                 Divider().frame(height: 18)
                 Button { gesture(.archive) } label: { Image(systemName: "archivebox") }.help("Archiver")
                 Button { gesture(.trash) } label: { Image(systemName: "trash") }.help("Supprimer")
@@ -606,9 +612,18 @@ struct MailMessageView: View {
     @State private var details = false
     /// The script found a mail made of images: on a light card, even in dark mode.
     @State private var imagesMail = false
+    /// The pointer is on the header: « + » shows by the sender (15/11).
+    @State private var hoveringHeader = false
 
     private var isMine: Bool { message.sender.map { mine.contains($0.email) } ?? false }
-    private var sender: String { isMine ? "Moi" : (message.sender?.display ?? "Expéditeur inconnu") }
+    /// A contact's name as Paul spelled it, else the mail's.
+    private var sender: String {
+        if isMine { return "Moi" }
+        if let email = message.sender?.email, let name = mails.agenda.contact(email: email)?.name, !name.isEmpty, name.lowercased() != email { return name }
+        return message.sender?.display ?? "Expéditeur inconnu"
+    }
+    /// The thread's project: who is in it shows.
+    private var projectID: UUID? { thread.flatMap { mails.filing(of: $0)?.filing.projectID } }
     private var initial: String { String(sender.prefix(1)).uppercased() }
     private var tint: Color { MailText.tint(for: message.sender?.email ?? "") }
 
@@ -635,11 +650,14 @@ struct MailMessageView: View {
 
     private var header: some View {
         HStack(alignment: .top, spacing: Space.m) {
-            Avatar(initial, size: 40, tint: tint)
+            MessagePersonAvatar(person: isMine ? nil : message.sender, initials: initial, tint: tint, project: projectID, agenda: mails.agenda)
             VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline, spacing: Space.s) {
                     Text(sender).font(.rowTitle.weight(.semibold))
                     if let email = message.sender?.email, !isMine { Text(email).font(.meta).foregroundStyle(.secondary).textSelection(.enabled) }
+                    if let person = message.sender, !isMine {
+                        MessageAddButton(person: person, project: projectID, mails: mails, visible: hoveringHeader)
+                    }
                 }
                 Button { details.toggle() } label: {
                     HStack(spacing: 3) {
@@ -686,6 +704,7 @@ struct MailMessageView: View {
             .font(.system(size: 15))
             .buttonStyle(.borderless)
         }
+        .onHover { hoveringHeader = $0 }
     }
 
     private var detailRows: [(String, String)] {
@@ -704,7 +723,12 @@ struct MailMessageView: View {
             ForEach(detailRows, id: \.0) { title, value in
                 GridRow {
                     Text(title).foregroundStyle(.secondary).gridColumnAlignment(.trailing)
-                    Text(value).textSelection(.enabled)
+                    // Who is a contact, and a click for the small menu of each (15/11).
+                    if title == "À" || title == "Cc" {
+                        MessagePeople(people: title == "À" ? message.to : message.cc, mine: mine, project: projectID, mails: mails)
+                    } else {
+                        Text(value).textSelection(.enabled)
+                    }
                 }
             }
         }

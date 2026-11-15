@@ -192,6 +192,7 @@ struct ComposeView: View {
             }
             .padding(Space.xl)
             .background(Surface.fill, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+            .focusedValue(\.writingMail, true)
             .overlay {
                 if dropping {
                     RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [6]))

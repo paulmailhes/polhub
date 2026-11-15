@@ -56,6 +56,11 @@ extension PersonBadge {
 
 // MARK: - Suggestions
 
+extension FocusedValues {
+    /// A mail being written has the keyboard: a thread's bare arrows leave its fields alone (15/11).
+    @Entry var writingMail: Bool?
+}
+
 /// ↑ and ↓ move among the suggestions, ↩ or ⇥ take the one lit, Échap closes them (15/11, as Gmail). With no
 /// suggestion, the keys keep their usual sense.
 struct SuggestionKeys: ViewModifier {
@@ -66,7 +71,7 @@ struct SuggestionKeys: ViewModifier {
     let accept: () -> Void
 
     /// The line lit after a move, kept inside the list.
-    static func next(_ current: Int, step: Int, count: Int) -> Int {
+    nonisolated static func next(_ current: Int, step: Int, count: Int) -> Int {
         guard count > 0 else { return 0 }
         return min(max(current + step, 0), count - 1)
     }
@@ -140,6 +145,8 @@ struct PersonSuggestionList: View {
     let matches: [PersonSuggestion]
     @Binding var highlighted: Int
     let project: (PersonSuggestion) -> ProjectRow?
+    /// Glass under a mail's field; none in a form, already on its own surface.
+    var glass = true
     let choose: (PersonSuggestion) -> Void
 
     var body: some View {
@@ -152,9 +159,9 @@ struct PersonSuggestionList: View {
                 .onHover { if $0 { highlighted = index } }
             }
         }
-        .padding(Space.xs)
+        .padding(glass ? Space.xs : 0)
         .frame(maxWidth: 520, alignment: .leading)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
+        .glassEffect(glass ? .regular : .identity, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
         .animation(Motion.quick, value: highlighted)
     }
 }
@@ -293,6 +300,92 @@ struct ThreadPeopleRow: View {
                 }
             }
             .animation(Motion.standard, value: newcomers.count)
+        }
+    }
+}
+
+// MARK: - A message's people
+
+/// The sender of a message: a check when a contact, in the color of the thread's project when in it.
+struct MessagePersonAvatar: View {
+    let person: MailAddress?
+    let initials: String
+    let tint: Color
+    let project: UUID?
+    @ObservedObject var agenda: AgendaLibrary
+
+    var body: some View {
+        let badge = person.map { agenda.badge(of: $0.email, project: project) } ?? PersonBadge.none
+        // A stranger has nothing at rest: « + » shows by the name under the pointer.
+        let shown = badge == .add ? PersonBadge.none : badge
+        PersonAvatar(initials: initials, tint: tint, badge: shown, size: 40)
+            .help(shown.help(project: agenda.projects.first { $0.id == project }?.name))
+    }
+}
+
+/// « + » by a sender's name, under the pointer: into the thread's project, or among the contacts. Always laid
+/// out, so nothing moves when it shows.
+struct MessageAddButton: View {
+    let person: MailAddress
+    let project: UUID?
+    let mails: MailLibrary
+    let visible: Bool
+    @ObservedObject var agenda: AgendaLibrary
+
+    init(person: MailAddress, project: UUID?, mails: MailLibrary, visible: Bool) {
+        self.person = person
+        self.project = project
+        self.mails = mails
+        self.visible = visible
+        self.agenda = mails.agenda
+    }
+
+    var body: some View {
+        let link = agenda.link(of: person.email, project: project)
+        let name = mails.project(project)?.name
+        let title: String? = project != nil ? (link == .member ? nil : "Ajouter à « \(name ?? "le projet") »")
+            : (link == .stranger ? "Ajouter aux contacts" : nil)
+        if let title {
+            Button { mails.add([person], to: project, respectRemoval: false) } label: {
+                Image(systemName: "person.crop.circle.badge.plus").font(.system(size: 14)).frame(width: 24, height: 24)
+            }
+            .buttonStyle(.hover(.circle))
+            .foregroundStyle(.secondary)
+            .help(title)
+            .accessibilityLabel(title)
+            .opacity(visible ? 1 : 0)
+            .allowsHitTesting(visible)
+            .animation(Motion.quick, value: visible)
+        }
+    }
+}
+
+/// À and Cc in a message's details: each person a chip with its menu; Paul as « moi ».
+struct MessagePeople: View {
+    let people: [MailAddress]
+    let mine: Set<String>
+    let project: UUID?
+    let mails: MailLibrary
+    @ObservedObject var agenda: AgendaLibrary
+
+    init(people: [MailAddress], mine: Set<String>, project: UUID?, mails: MailLibrary) {
+        self.people = people
+        self.mine = mine
+        self.project = project
+        self.mails = mails
+        self.agenda = mails.agenda
+    }
+
+    var body: some View {
+        let project = mails.project(project)
+        FlowLayout(spacing: 4) {
+            ForEach(people, id: \.email) { person in
+                if mine.contains(person.email) {
+                    Text("moi").padding(.horizontal, Space.s).padding(.vertical, 3).background(Surface.fill, in: Capsule()).help(person.email)
+                } else {
+                    mails.chip(person, project: project, router: nil, contacts: true)
+                }
+            }
         }
     }
 }

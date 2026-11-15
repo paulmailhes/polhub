@@ -99,6 +99,18 @@ import Testing
         #expect(people == [MailAddress(name: "Camille Martin", email: "camille@studio.exemple"), MailAddress(name: "Lou Bernard", email: "lou@studio.exemple")])
     }
 
+    /// An event's guests: never Paul, under any of his accounts, nor a room; the title says who is in the project.
+    @Test func theGuestsOfAnEvent() {
+        let event = CalendarEventRow(account: "moi@exemple.fr", eventID: "e1", title: "Point", startAt: now, endAt: now.addingTimeInterval(3_600),
+                                     attendees: [Attendee(email: "moi@exemple.fr", isSelf: true), Attendee(email: "paul@atelier-nord.exemple"),
+                                                 Attendee(email: "salle@ressource.exemple", isResource: true), Attendee(email: "camille@studio.exemple")],
+                                     updatedAt: now)
+        #expect(EventGuests.guests(of: event, mine: ["moi@exemple.fr", "paul@atelier-nord.exemple"]).map(\.email) == ["camille@studio.exemple"])
+        #expect(EventGuests.title(count: 5, members: 3, project: "Site vitrine") == "Invités · 5 · 3 dans « Site vitrine »")
+        #expect(EventGuests.title(count: 5, members: 0, project: "Site vitrine") == "Invités · 5")
+        #expect(EventGuests.title(count: 2, members: 2, project: nil) == "Invités · 2")
+    }
+
     @Test func theUndoLineSaysWhoJoined() {
         let camille = MailAddress(name: "Camille Martin", email: "camille@studio.exemple")
         let lou = MailAddress(name: "Lou Bernard", email: "lou@studio.exemple")
