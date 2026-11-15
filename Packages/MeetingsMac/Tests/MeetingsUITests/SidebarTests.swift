@@ -107,8 +107,21 @@ import Testing
         defaults.set("small", forKey: Preferences.Key.cardSize)
         defaults.set("auto", forKey: Preferences.Key.transcriptionLanguage)
         #expect(settings.cardSize == .small && settings.transcriptionLanguage == nil)
-        #expect(CardSize.small.columnWidth < CardSize.medium.columnWidth && CardSize.medium.columnWidth < CardSize.large.columnWidth)
-        #expect(CardSize.large.columnWidth == 300 && CardSize.medium.columnWidth < 300)
+    }
+
+    /// Réglages › Projets (15/11): two sizes of cards, the old « large » reads as normal; the logos asked of
+    /// the clients' sites, on by default.
+    @Test func projectSettingsHaveSensibleDefaults() throws {
+        let defaults = try #require(UserDefaults(suiteName: "projets-\(UUID().uuidString)"))
+        let settings = Preferences(defaults: defaults)
+        #expect(settings.cardSize == .medium && settings.projectLogos)
+        #expect(CardSize.allCases.map(\.title) == ["Normales", "Compactes"])
+        #expect(CardSize.allCases.map(\.rawValue) == ["medium", "small"])
+        #expect(CardSize.small.columnWidth < CardSize.medium.columnWidth && CardSize.small.isCompact && !CardSize.medium.isCompact)
+        defaults.set("large", forKey: Preferences.Key.cardSize)
+        #expect(settings.cardSize == .medium && CardSize(stored: "large") == .medium && CardSize(stored: nil) == .medium)
+        defaults.set(false, forKey: Preferences.Key.projectLogos)
+        #expect(!settings.projectLogos && Preferences.Key.projectLogos == "projets.logosEnLigne")
     }
 
     /// 14/11: notifications on by default, reminders ten minutes and one minute before.

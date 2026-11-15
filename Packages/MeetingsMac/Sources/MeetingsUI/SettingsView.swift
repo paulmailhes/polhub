@@ -280,24 +280,6 @@ struct NotificationStatus: View {
     }
 }
 
-/// Réglages › Projets.
-struct ProjectsSettingsPane: View {
-    @AppStorage(Preferences.Key.cardSize) private var cardSize = CardSize.medium.rawValue
-
-    var body: some View {
-        Form {
-            Section("Kanban") {
-                Picker("Taille des cartes", selection: $cardSize) {
-                    ForEach(CardSize.allCases) { Text($0.title).tag($0.rawValue) }
-                }
-                .pickerStyle(.segmented)
-            }
-        }
-        .formStyle(.grouped)
-        .frame(maxWidth: 640)
-    }
-}
-
 /// Réglages › Réunions.
 struct MeetingsSettingsPane: View {
     @ObservedObject var library: MeetingLibrary

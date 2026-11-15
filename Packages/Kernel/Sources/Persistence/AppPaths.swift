@@ -26,6 +26,8 @@ public struct AppPaths: Sendable, Equatable {
     public var database: URL { root.appending(path: "Polhub.sqlite") }
     public var meetings: URL { root.appending(path: "Reunions", directoryHint: .isDirectory) }
     public var backups: URL { root.appending(path: "Sauvegardes", directoryHint: .isDirectory) }
+    /// The projects' logos, and the sites they come from (15/11): outside the base.
+    public var logos: URL { root.appending(path: "Logos", directoryHint: .isDirectory) }
 
     public func meetingFolder(_ id: UUID) -> URL {
         meetings.appending(path: id.uuidString.lowercased(), directoryHint: .isDirectory)

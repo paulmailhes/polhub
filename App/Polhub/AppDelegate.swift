@@ -25,6 +25,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var library: MeetingLibrary?
     /// The projects module (copy of the vault's projects, imported by Paul).
     private var projects: ProjectLibrary?
+    /// The projects' logos (15/11): Paul's images and the icons of the clients' sites, in `Logos/`.
+    private var projectLogos: ProjectLogos?
     /// Calendars, contacts and the loop of 13/11.
     private var agenda: AgendaLibrary?
     private var mails: MailLibrary?
@@ -161,6 +163,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         self.store = store
         library = MeetingLibrary(store: store)
         projects = ProjectLibrary(store: ProjectStore(store.database), meetings: store)
+        projectLogos = ProjectLogos(folder: paths.logos, database: store.database)
         startAgenda(database: store.database)
         // Before the diagnostic, which may open the window: the window takes the update service as it is
         // when it opens, and Réglages › Mises à jour needs it (13/11).
@@ -480,7 +483,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                     DiagnosticView(model: diagnostic) { [weak self] in self?.showProbeWindow() }
                 }
             }
-            let host = NSHostingController(rootView: view)
+            // Every logo of a project reads it there; without it, initials (15/11).
+            let host = NSHostingController(rootView: view.environment(\.projectLogos, projectLogos))
             // Each page's title and toolbar go to the window (14/11).
             host.sceneBridgingOptions = [.title, .toolbars]
             let window = NSWindow(contentViewController: host)
