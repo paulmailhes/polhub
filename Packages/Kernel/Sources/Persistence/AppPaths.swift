@@ -28,6 +28,8 @@ public struct AppPaths: Sendable, Equatable {
     public var backups: URL { root.appending(path: "Sauvegardes", directoryHint: .isDirectory) }
     /// The projects' logos, and the sites they come from (15/11): outside the base.
     public var logos: URL { root.appending(path: "Logos", directoryHint: .isDirectory) }
+    /// The notifications Polhub sent, as its own list shows them (15/11): a small file, outside the base.
+    public var notifications: URL { root.appending(path: "Notifications.json") }
 
     public func meetingFolder(_ id: UUID) -> URL {
         meetings.appending(path: id.uuidString.lowercased(), directoryHint: .isDirectory)

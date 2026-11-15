@@ -304,7 +304,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                                      }
                                  },
                                  handsOver: LaunchContext.current == .user)
-        let hub = NotificationHub(agenda: agenda)
+        // What it notifies is also kept in Polhub's own list, read by the bell of the sidebar (15/11).
+        let hub = NotificationHub(agenda: agenda, inbox: NotificationInbox(file: paths.notifications))
         notifications = hub
         agenda.notifications = hub
         // The new mails of the main tab (14/11).
@@ -341,46 +342,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         completionHandler([.banner, .list, .sound])
     }
 
-    /// A click: « Rejoindre » joins the Meet with the event's account; otherwise the event or the meeting opens.
+    /// A click: « Rejoindre » joins the Meet with the event's account; otherwise the event, the meeting or the
+    /// thread opens. The same as a click in Polhub's own list (`perform`, 15/11).
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                             withCompletionHandler completionHandler: @escaping () -> Void) {
         let info = response.notification.request.content.userInfo
-        let meet = info[NoticeKey.meet] as? String, account = info[NoticeKey.account] as? String
-        let event = info[NoticeKey.event] as? String, meeting = (info[NoticeKey.meeting] as? String).flatMap(UUID.init(uuidString:))
-        let thread = info[NoticeKey.thread] as? String, folder = info[NoticeKey.folder] as? String
         let action = response.actionIdentifier
         let kind = (info[NoticeKey.kind] as? String).flatMap(PlannedNotice.Kind.init(rawValue:))
         // A click joins only a reminder or a meeting not recorded; a new event, days ahead, opens its card (review
         // of 14/11). « Rejoindre » always joins.
         let join = action == NoticeKey.joinAction
             || (action == UNNotificationDefaultActionIdentifier && (kind == .reminder || kind == .unrecorded))
+        let opened = NoticeAction.of(kind: kind, eventID: info[NoticeKey.event] as? String, meetCode: info[NoticeKey.meet] as? String,
+                                     account: info[NoticeKey.account] as? String,
+                                     meetingID: (info[NoticeKey.meeting] as? String).flatMap(UUID.init(uuidString:)),
+                                     threadKey: info[NoticeKey.thread] as? String, folder: info[NoticeKey.folder] as? String, join: join)
         completionHandler()
-        Task { @MainActor in
-            if kind == .mail {
-                self.router.openMail(thread)
-                // No thread: the folder it names (« Programmés » for a mail that waits for Paul, wave B).
-                if thread == nil { self.mails?.show(folderNamed: folder) }
-                self.showMainWindow()
-            } else {
-                self.open(meet: meet, account: account, event: event, meeting: meeting, join: join)
-            }
-        }
+        Task { @MainActor in self.perform(opened) }
     }
 
-    private func open(meet: String?, account: String?, event: String?, meeting: UUID?, join: Bool) {
-        if join, let meet, let account {
-            agenda?.joinMeet(code: meet, account: account)
-        } else if let meeting {
-            router.open(meetingID: meeting, at: nil)
-            showMainWindow()
-        } else if let event {
-            router.openEvent(event)
-            showMainWindow()
-        } else {
-            // « Nouveaux rendez-vous » (several at once): the Calendrier.
-            router.section = .calendar
-            showMainWindow()
-        }
+    /// What a notification is about, opened: the Meet in Dia, or the window on the meeting, the event, the thread,
+    /// the mails' folder (« Programmés » for a mail that waits for Paul, wave B), Calendrier for several events.
+    func perform(_ action: NoticeAction) {
+        if router.perform(action, agenda: agenda, mails: mails) { showMainWindow() }
     }
 
     /// No meeting (from the pop-up to the end) and no transcription under way.
