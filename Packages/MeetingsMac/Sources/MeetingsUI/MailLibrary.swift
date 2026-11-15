@@ -292,7 +292,7 @@ public final class MailLibrary: ObservableObject {
         var takeBack: [() -> Void] = []
         var filed = 0
         for thread in threads {
-            guard let undo = fileOne(thread, as: filing, at: date, linking: Self.isPeople(thread, rules: rules)) else { break }
+            guard let undo = fileOne(thread, as: filing, at: date, linking: Self.isPeople(thread, rules: rules), bringingBack: false) else { break }
             takeBack += undo
             filed += 1
         }
@@ -313,8 +313,10 @@ public final class MailLibrary: ObservableObject {
     }
 
     /// The case of one thread, kept for it and for its sender; filed in a project, its sender becomes a contact
-    /// of it when `linking`. Returns what takes it back; `nil` when nothing could be written.
-    private func fileOne(_ thread: MailThreadRow, as filing: MailFiling, at date: Date, linking: Bool) -> [() -> Void]? {
+    /// of it when `linking`. Someone Paul removed from the project comes back only when `bringingBack` (one thread
+    /// filed by hand); several threads at once leave them out, like the other gestures on many people (15/11).
+    /// Returns what takes it back; `nil` when nothing could be written.
+    private func fileOne(_ thread: MailThreadRow, as filing: MailFiling, at date: Date, linking: Bool, bringingBack: Bool = true) -> [() -> Void]? {
         let previousChoice = rules.choices[thread.id]
         let sender = thread.lastSender?.lowercased()
         let previousMemory = sender.flatMap { rules.senders[$0]?.filing }
@@ -343,6 +345,7 @@ public final class MailLibrary: ObservableObject {
                     created = true
                 }
                 let before = try contacts.links().first { $0.contactID == contact.id && $0.projectID == projectID }
+                if before?.excluded == true && !bringingBack { return takeBack }
                 if before == nil || before?.excluded == true { try contacts.include(contactID: contact.id, projectID: projectID, at: date) }
                 takeBack.append {
                     if created {

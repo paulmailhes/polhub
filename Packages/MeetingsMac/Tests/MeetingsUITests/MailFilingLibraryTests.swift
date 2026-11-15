@@ -88,6 +88,44 @@ import Testing
         #expect(MailLibrary.filedText(.none, project: nil, count: 4) == "Sans case : 4 fils")
     }
 
+    /// Someone Paul removed from a project stays out when several threads go there at once, like the other
+    /// gestures on many people; one thread filed by hand still brings them back.
+    @Test func filingSeveralThreadsLeavesRemovedPeopleOut() async throws {
+        let database = try AppDatabase.inMemory()
+        try CalendarStore(database).addAccount(email: account, at: Date())
+        let project = try ProjectStore(database).addProject(name: "Site vitrine", status: .priorite1, at: Date())
+        let contacts = ContactStore(database)
+        let lou = try contacts.upsert(email: "lou@studio.exemple", name: "Lou Bernard", company: nil, at: Date())
+        try contacts.exclude(contactID: lou.id, projectID: project.id, at: Date())
+        let store = MailStore(database)
+        try store.apply(account: account, upserts: [
+            MailMessageRow(account: account, messageID: "m1", threadID: "t1", date: Date(), sender: MailAddress(name: "Lou Bernard", email: "lou@studio.exemple"),
+                           subject: "Une question", snippet: "", labels: ["INBOX", "CATEGORY_PERSONAL"]),
+            MailMessageRow(account: account, messageID: "m2", threadID: "t2", date: Date(), sender: MailAddress(name: "Jules Martin", email: "jules@atelier.exemple"),
+                           subject: "Le devis", snippet: "", labels: ["INBOX", "CATEGORY_PERSONAL"]),
+        ])
+        let root = FileManager.default.temporaryDirectory.appending(path: "ranger-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let mails = MailLibrary(agenda: AgendaLibrary(database: database), root: root, defaults: UserDefaults(suiteName: "ranger-\(UUID().uuidString)")!)
+        let threads = try ["t1", "t2"].map { try #require(try store.thread(MailThreadRow.key(account: account, threadID: $0))) }
+        try await waitUntil { !mails.rules.mine.isEmpty }
+
+        mails.file(threads, as: .project(project.id))
+        try await waitUntil { threads.allSatisfy { mails.filing(of: $0)?.filing == .project(project.id) } }
+        let links = try contacts.links().filter { $0.projectID == project.id }
+        #expect(links.first { $0.contactID == lou.id }?.excluded == true)
+        #expect(links.filter { !$0.excluded }.count == 1)
+
+        mails.undo()
+        try await waitUntil { threads.allSatisfy { mails.filing(of: $0)?.filing != .project(project.id) } }
+        #expect(try contacts.links().first { $0.contactID == lou.id }?.excluded == true)
+        #expect(try contacts.contact(email: "lou@studio.exemple") != nil)
+
+        mails.file(threads[0], as: .project(project.id))
+        try await waitUntil { mails.filing(of: threads[0])?.filing == .project(project.id) }
+        #expect(try contacts.links().first { $0.contactID == lou.id }?.excluded == false)
+    }
+
     /// The menu of several threads ticks the case only when they all share it.
     @Test func theMenuTicksTheCaseTheThreadsShare() {
         let site = UUID()
