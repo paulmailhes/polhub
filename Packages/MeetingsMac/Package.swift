@@ -42,7 +42,8 @@ let package = Package(
         .target(name: "Updates"),
         // Google calendars, contacts, and the automatic links between events, meetings, contacts and projects.
         // The design system: tokens and components every screen uses (14/11, docs/design-system.md).
-        .target(name: "PolhubDesign"),
+        // Its icons are Phosphor's, duotone weight (MIT, the license beside them in Icons/) (15/11).
+        .target(name: "PolhubDesign", resources: [.copy("Icons")]),
         // Polhub's notifications: reminders, new events, meetings not recorded, summaries (14/11).
         .target(name: "Notifications", dependencies: [
             .product(name: "Domain", package: "Kernel"),
