@@ -180,6 +180,10 @@ struct WindowSnapshotTests {
         var beta = try projectStore.addProject(name: "Site vitrine", status: .priorite2, at: Date())
         beta.color = "vert"
         try projectStore.save(beta, at: Date())
+        // 15/11: Accueil shows six projects in priorité 1, then « Voir les N autres ».
+        for name in ["Studio photo", "Identité", "Landing", "Agence", "Catalogue", "Boutique", "Carte de vœux"] {
+            try projectStore.addProject(name: name, status: .priorite1, at: Date())
+        }
         let calendar = CalendarStore(database)
         try calendar.addAccount(email: "moi@exemple.fr", at: Date())
         let monday = CalendarView.monday(of: .now)

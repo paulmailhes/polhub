@@ -244,7 +244,7 @@ struct MailFilingChip: View {
         switch filing {
         case .project(let id)?:
             let project = mails.project(id)
-            return (project?.name ?? "Projet", ProjectViews.cardHex(project?.color).map(Color.init(hex:)) ?? .accentColor)
+            return (project?.name ?? "Projet", project.map(ProjectViews.tint) ?? .accentColor)
         case .perso?: return ("Perso", .pink)
         case .payments?: return ("Paiements", .green)
         case .services? where always: return ("Services", .secondary)

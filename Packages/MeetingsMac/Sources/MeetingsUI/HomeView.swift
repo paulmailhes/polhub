@@ -120,24 +120,27 @@ struct HomeView: View {
         }
     }
 
+    /// Six projects in the board's order, then « Voir les N autres » (15/11: fifteen after the four statuses).
     private var urgentCard: some View {
         HomeCard(title: "Priorité 1", systemImage: "flag") {
-            if urgent.isEmpty { Text("Aucun projet en priorité 1.").foregroundStyle(.secondary) }
-            ForEach(urgent) { project in
+            if urgent.isEmpty { EmptyLine("Aucun projet en priorité 1.") }
+            ShowMoreList(urgent, limit: 6) { project in
                 Button { router.openProject(project.id) } label: {
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        Circle().fill(ProjectViews.cardHex(project.color).map(Color.init(hex:)) ?? .accentColor).frame(width: 8, height: 8)
+                    HStack(alignment: .center, spacing: Space.m) {
+                        ProjectLogo(project, size: 28)
                         VStack(alignment: .leading, spacing: 1) {
-                            Text(project.name)
+                            Text(project.name).font(.rowBody.weight(.medium)).foregroundStyle(.primary).lineLimit(1)
                             let detail = [project.todo, project.dueDate.map { "échéance \($0.formatted(date: .abbreviated, time: .omitted))" }]
                                 .compactMap { $0 }.joined(separator: " · ")
-                            if !detail.isEmpty { Text(detail).font(.tag).foregroundStyle(.secondary).lineLimit(2) }
+                            if !detail.isEmpty { Text(detail).font(.meta).foregroundStyle(.secondary).lineLimit(2) }
                         }
                         Spacer(minLength: 0)
                     }
+                    .padding(.vertical, Space.xs)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .hoverRow(inset: Space.s)
             }
         }
     }
