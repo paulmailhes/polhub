@@ -189,7 +189,9 @@ public final class WindowRouter: ObservableObject {
 public struct MainWindowView<Diagnostic: View>: View {
     /// The sidebar, the 300-point list and a detail of 360 points at least.
     public static var minimumWidth: CGFloat { 860 }
-    static var sidebarWidth: CGFloat { 230 }
+    /// Fixed (Paul, 15/11): the smallest width that shows « Boîte de réception » with a two-digit count, and
+    /// « Tous les messages », whole at the large row size.
+    static var sidebarWidth: CGFloat { 252 }
 
     @ObservedObject var library: MeetingLibrary
     let projects: ProjectLibrary?
@@ -282,7 +284,7 @@ public struct MainWindowView<Diagnostic: View>: View {
                                               projects: projects?.projects ?? [],
                                               queue: library.queue, summaries: library.summaries, summaryUnavailable: library.summaryUnavailable,
                                               summaryProgress: library.summaryProgress[row.id], job: library.jobs[row.id], meetingActive: library.meetingActive,
-                                              router: router)
+                                              router: router, agenda: agenda)
                                 .id(id)
                         } else {
                             ContentUnavailableView("Aucune réunion choisie", systemImage: "waveform",

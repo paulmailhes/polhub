@@ -176,6 +176,36 @@ import Testing
     }
 
     /// From a thread: « Ajouter N au projet » takes the people missing, says it, and one « Annuler » takes it back.
+    /// 15/11: a meeting's participants get the small menu of the mails, for the meeting's project, in place of a
+    /// trip to Contacts: « Ajouter à « P » » puts them in, « Retirer de « P » » takes them out.
+    @Test func aMeetingsParticipantsJoinItsProjectFromTheirMenu() async throws {
+        let database = try AppDatabase.inMemory()
+        try CalendarStore(database).addAccount(email: account, at: Date())
+        let project = try ProjectStore(database).addProject(name: "Site vitrine", status: .priorite1, at: Date())
+        let contacts = ContactStore(database)
+        let camille = try contacts.upsert(email: "Camille@studio.exemple", name: "Camille Martin", company: "Studio", at: Date())
+        let agenda = AgendaLibrary(database: database)
+        try await waitUntil { !agenda.accounts.isEmpty && agenda.contacts.count == 1 }
+
+        let person = MeetingPeople.person(camille, email: try #require(camille.email))
+        #expect(person == MailAddress(name: "Camille Martin", email: "camille@studio.exemple"))
+        // Not yet in the meeting's project: « + »; without a project, a contact.
+        #expect(MeetingPeople.badge(of: person, project: project.id, agenda: agenda) == .add)
+        #expect(MeetingPeople.badge(of: person, project: nil, agenda: agenda) == .contact)
+
+        let projectRow = try #require(try ProjectStore(database).project(id: project.id))
+        let items = MeetingPeople.items(person, project: projectRow, agenda: agenda, router: WindowRouter())
+        #expect(items.link == .contact && items.project?.id == project.id)
+        items.add()
+        try await waitUntil { agenda.link(of: person.email, project: project.id) == .member }
+        #expect(try contacts.contacts(projectID: project.id).map(\.id) == [camille.id])
+        #expect(MeetingPeople.badge(of: person, project: project.id, agenda: agenda) != .add)
+
+        MeetingPeople.items(person, project: projectRow, agenda: agenda, router: WindowRouter()).remove()
+        try await waitUntil { agenda.link(of: person.email, project: project.id) == .removed }
+        #expect(try contacts.contacts(projectID: project.id).isEmpty)
+    }
+
     @Test func aThreadsPeopleJoinItsProjectWithOneAnnuler() async throws {
         let database = try AppDatabase.inMemory()
         try CalendarStore(database).addAccount(email: account, at: Date())

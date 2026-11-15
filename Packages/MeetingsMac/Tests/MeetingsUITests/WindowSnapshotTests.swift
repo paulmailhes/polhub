@@ -33,6 +33,14 @@ struct WindowSnapshotTests {
         try SummaryStore(database).finish(meetingID: row.id, summary: "## Résumé\n\nLe client valide la refonte ; la maquette de l'accueil part vendredi.\n\n## Points clés\n\n- Le blog attendra la deuxième version.\n- Les photos de l'équipe manquent encore.\n\n## Décisions\n\n- Garder WordPress.\n- Une page par expertise.",
                                           actions: [ActionRow(text: "Envoyer la maquette (vendredi)", owner: "Moi", position: 0, createdAt: start),
                                                     ActionRow(text: "Rassembler les photos", owner: "Camille", position: 1, createdAt: start)], at: start)
+        // 15/11: the participants open their small menu in place, as in the mails.
+        try CalendarStore(database).addAccount(email: "moi@exemple.fr", at: Date())
+        let contacts = ContactStore(database)
+        let guests = try [("camille.martin@exemple-studio.fr", "Camille Martin"), ("jules@atelier-nord.fr", "Jules Durand")].map { email, name in
+            try contacts.upsert(email: email, name: name, company: nil, at: Date())
+        }
+        try contacts.setParticipants(meetingID: row.id, contactIDs: guests.map(\.id))
+        let agenda = AgendaLibrary(database: database)
         let library = MeetingLibrary(store: store)
         let router = WindowRouter()
         router.section = .meetings
@@ -52,7 +60,7 @@ struct WindowSnapshotTests {
                                                  summary: .init(text: "Le client valide la refonte ; la maquette de l'accueil part vendredi.", kind: .ready)))
 
         for width in [860.0, 1_280] {
-            try await LiveWindow.capture(MainWindowView(library: library, router: router, paths: paths) { EmptyView() },
+            try await LiveWindow.capture(MainWindowView(library: library, agenda: agenda, router: router, paths: paths) { EmptyView() },
                                          to: output.appending(path: "fenetre-\(Int(width)).png"), size: NSSize(width: width, height: 760))
         }
     }
@@ -218,7 +226,19 @@ struct WindowSnapshotTests {
         let camille = try contacts.upsert(email: "camille.martin@exemple-studio.fr", name: "Camille Martin", company: "Exemple Studio", at: Date())
         try contacts.link(contactID: camille.id, projectID: alpha.id, origin: .agenda, at: Date())
         try contacts.upsert(email: "jules@atelier-nord.fr", name: "Jules", company: "Atelier Nord", at: Date())
-        let library = MeetingLibrary(store: MeetingStore(database))
+        // 15/11: Accueil's latest meetings show the first line of their summary.
+        let meetingStore = MeetingStore(database)
+        for (index, title) in ["Point hebdo", "Cadrage du site vitrine", "Revue des maquettes"].enumerated() {
+            let start = Date().addingTimeInterval(Double(-index - 1) * 86_400)
+            let meeting = MeetingRow(createdAt: start, status: .ended, source: .dia, candidateKey: "t/\(index)", title: title, startedAt: start,
+                                     endedAt: start.addingTimeInterval(1_800))
+            try meetingStore.save(meeting)
+            if index == 0 { try projectStore.setProject(meetingID: meeting.id, projectID: alpha.id) }
+            if index < 2 {
+                try meetingStore.setSummary(meetingID: meeting.id, summary: "## Résumé\n\nLe client valide la maquette de l'accueil ; la page Contact reste à revoir avant vendredi.")
+            }
+        }
+        let library = MeetingLibrary(store: meetingStore)
         let projects = ProjectLibrary(store: projectStore, meetings: MeetingStore(database), defaults: UserDefaults(suiteName: "agenda-\(UUID().uuidString)")!)
         let agenda = AgendaLibrary(database: database)
         let router = WindowRouter()
@@ -230,6 +250,11 @@ struct WindowSnapshotTests {
                                                         paths: AppPaths(root: root, logs: root)) { EmptyView() },
                                          to: output.appending(path: "\(name).png"))
         }
+        // 15/11: at the window's smallest width, Accueil's cards go one under the other.
+        router.section = .home
+        try await LiveWindow.capture(MainWindowView(library: library, projects: projects, agenda: agenda, router: router,
+                                                    paths: AppPaths(root: root, logs: root)) { EmptyView() },
+                                     to: output.appending(path: "accueil-etroit.png"), size: NSSize(width: MainWindowView<EmptyView>.minimumWidth, height: 780))
         // 14/11: Réglages › Comptes Google, one mailbox authorized, two still to authorize.
         try calendar.setGrantedScopes(email: "moi@exemple.fr", scopes: "openid https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.modify")
         try await Task.sleep(for: .milliseconds(300))

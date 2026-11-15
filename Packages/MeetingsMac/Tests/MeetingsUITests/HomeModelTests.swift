@@ -27,6 +27,16 @@ import Testing
         #expect(HomeModel.next([event("fini", -60)], now: now) == nil)
     }
 
+    /// 15/11: two columns that each stack their cards, so a short card never leaves a hole beside a long one;
+    /// every card once, in either layout.
+    @Test func everyCardOnceInEitherLayout() {
+        let all = Set(HomeModel.Part.allCases)
+        #expect(HomeModel.columns.count == 2)
+        #expect(HomeModel.columns.flatMap { $0 }.count == all.count && Set(HomeModel.columns.flatMap { $0 }) == all)
+        #expect(HomeModel.single.count == all.count && Set(HomeModel.single) == all)
+        #expect(HomeModel.columns[0].first == .today && HomeModel.columns[1].first == .urgent)
+    }
+
     @Test func theStartIsSaidPlainly() {
         #expect(HomeModel.when(event("a", 12), now: now) == "dans 12 min")
         #expect(HomeModel.when(event("b", -5), now: now) == "en cours")

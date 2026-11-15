@@ -23,7 +23,7 @@ public struct MarkdownView: View {
     @ViewBuilder private func view(for block: MarkdownBlock) -> some View {
         switch block {
         case .heading(let level, let text):
-            inline(text).font(level <= 1 ? .title3.bold() : level == 2 ? .headline : .subheadline.bold())
+            inline(text).font(level <= 1 ? .title3.bold() : level == 2 ? .headline : .body.weight(.semibold))
                 .padding(.top, 4)
         case .bullet(let depth, let text):
             HStack(alignment: .firstTextBaseline, spacing: 6) {

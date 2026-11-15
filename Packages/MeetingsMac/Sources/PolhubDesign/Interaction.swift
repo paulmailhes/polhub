@@ -38,9 +38,10 @@ struct HoverRow: ViewModifier {
     @State private var hovering = false
     @Environment(\.isEnabled) private var enabled
 
-    /// The selection wins over the hover; nothing at rest.
-    static func fill(selected: Bool, hovering: Bool) -> Color {
+    /// The selection wins over the hover; nothing at rest. Pressed, a row darkens a step.
+    static func fill(selected: Bool, hovering: Bool, pressed: Bool = false) -> Color {
         if selected { return Surface.selected }
+        if pressed { return Surface.raised }
         return hovering ? Surface.fill : .clear
     }
 
@@ -82,6 +83,140 @@ struct CardHover: ViewModifier {
 }
 
 // MARK: - Buttons
+
+/// A row that is a button (15/11): the row's highlight under the pointer, a step darker while pressed, the
+/// selection's color when `selected`. Nothing moves: the label keeps its size, the fill spills `inset` points
+/// left and right of it, as `hoverRow`.
+public struct RowButtonStyle: ButtonStyle {
+    let selected: Bool
+    let radius: CGFloat
+    let inset: CGFloat
+
+    public init(selected: Bool = false, radius: CGFloat = Radius.control, inset: CGFloat = 0) {
+        self.selected = selected
+        self.radius = radius
+        self.inset = inset
+    }
+
+    public func makeBody(configuration: Configuration) -> some View {
+        RowButtonBody(configuration: configuration, selected: selected, radius: radius, inset: inset)
+    }
+}
+
+extension ButtonStyle where Self == RowButtonStyle {
+    /// A row's highlight under the pointer, darker pressed.
+    public static var row: RowButtonStyle { RowButtonStyle() }
+    /// A row's highlight, selected or not, its fill spilling `inset` points past the text.
+    public static func row(selected: Bool = false, radius: CGFloat = Radius.control, inset: CGFloat = 0) -> RowButtonStyle {
+        RowButtonStyle(selected: selected, radius: radius, inset: inset)
+    }
+}
+
+private struct RowButtonBody: View {
+    let configuration: ButtonStyleConfiguration
+    let selected: Bool
+    let radius: CGFloat
+    let inset: CGFloat
+    @State private var hovering = false
+    @Environment(\.isEnabled) private var enabled
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        let pressed = configuration.isPressed
+        configuration.label
+            .padding(.horizontal, inset)
+            .background {
+                shape.fill(HoverRow.fill(selected: selected, hovering: hovering && enabled, pressed: pressed))
+            }
+            .contentShape(shape)
+            .onHover { hovering = $0 }
+            .padding(.horizontal, -inset)
+            .opacity(enabled ? 1 : 0.45)
+            .animation(Motion.quick, value: hovering)
+            .animation(Motion.quick, value: pressed)
+            .animation(Motion.quick, value: selected)
+    }
+}
+
+/// A clickable row of a card: the whole width answers, its text lined up with the card's, its highlight
+/// spilling past it.
+public struct RowButton<Label: View>: View {
+    let selected: Bool
+    let action: () -> Void
+    let label: Label
+
+    public init(selected: Bool = false, action: @escaping () -> Void, @ViewBuilder label: () -> Label) {
+        self.selected = selected
+        self.action = action
+        self.label = label()
+    }
+
+    public var body: some View {
+        Button(action: action) {
+            label
+                .padding(.vertical, Space.xs)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.row(selected: selected, inset: Space.s))
+    }
+}
+
+/// A word to click in a card (« Modifier », « Changer », « Tout enregistrer… »): its capsule under the pointer,
+/// its text lined up with the card's, as « Voir les N autres ».
+public struct TextButton: View {
+    let title: String
+    let action: () -> Void
+
+    public init(_ title: String, action: @escaping () -> Void) {
+        self.title = title
+        self.action = action
+    }
+
+    public var body: some View {
+        Button(action: action) {
+            Text(title).font(.meta.weight(.medium)).padding(.horizontal, Space.s).padding(.vertical, 3)
+        }
+        .buttonStyle(.hover(.capsule))
+        .foregroundStyle(Color.accentColor)
+        .padding(.horizontal, -Space.s)
+    }
+}
+
+/// A full-width line of a list, as Gmail's (the mails, the drafts): on its own ground, a shadow under the pointer
+/// lifts it, a shade darker while pressed. Nothing moves.
+public struct LineButtonStyle: ButtonStyle {
+    let ground: Color
+
+    public init(ground: Color) {
+        self.ground = ground
+    }
+
+    public func makeBody(configuration: Configuration) -> some View {
+        LineButtonBody(configuration: configuration, ground: ground)
+    }
+}
+
+private struct LineButtonBody: View {
+    let configuration: ButtonStyleConfiguration
+    let ground: Color
+    @State private var hovering = false
+
+    var body: some View {
+        let pressed = configuration.isPressed
+        configuration.label
+            .background {
+                Rectangle().fill(ground)
+                    .overlay { Color.primary.opacity(pressed ? 0.05 : 0) }
+                    .shadow(color: .black.opacity(hovering ? 0.2 : 0), radius: hovering ? 3 : 0, y: hovering ? 1 : 0)
+            }
+            .contentShape(Rectangle())
+            .zIndex(hovering ? 1 : 0)
+            .onHover { hovering = $0 }
+            .animation(Motion.quick, value: hovering)
+            .animation(Motion.quick, value: pressed)
+    }
+}
 
 /// A button that answers: a fill under the pointer, a little smaller and lighter while pressed. It does not
 /// change the label's size: the label carries its own margins (an `IconButton` is 32 × 32).
@@ -165,6 +300,34 @@ public struct IconButton: View {
         }
         .buttonStyle(.hover(.circle))
         .foregroundStyle(.secondary)
+        .help(help)
+        .accessibilityLabel(help)
+    }
+}
+
+/// A round icon that opens a menu, drawn and answering as `IconButton`.
+public struct IconMenu<Content: View>: View {
+    let systemImage: String
+    let help: String
+    let size: CGFloat
+    let content: () -> Content
+
+    public init(_ systemImage: String, help: String, size: CGFloat = 15, @ViewBuilder content: @escaping () -> Content) {
+        self.systemImage = systemImage
+        self.help = help
+        self.size = size
+        self.content = content
+    }
+
+    public var body: some View {
+        Menu(content: content) {
+            Image(systemName: systemImage).font(.system(size: size)).foregroundStyle(.secondary)
+                .frame(width: 32, height: 32)
+        }
+        .menuStyle(.button)
+        .buttonStyle(.hover(.circle))
+        .menuIndicator(.hidden)
+        .fixedSize()
         .help(help)
         .accessibilityLabel(help)
     }

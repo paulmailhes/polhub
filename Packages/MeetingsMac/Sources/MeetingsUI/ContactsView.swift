@@ -32,14 +32,17 @@ struct ContactsView: View {
                     empty
                 } else {
                     List(shown, selection: $router.contactSelection) { contact in
-                        HStack(spacing: 10) {
-                            Avatar(contact.initials)
+                        HStack(spacing: Space.m) {
+                            Avatar(contact.initials, tint: MailText.tint(for: contact.email ?? contact.name))
                             VStack(alignment: .leading, spacing: 1) {
-                                Text(contact.name)
-                                if let company = contact.company { Text(company).font(.tag).foregroundStyle(.secondary) }
+                                Text(contact.name).font(.rowTitle).lineLimit(1)
+                                if let company = contact.company { Text(company).font(.meta).foregroundStyle(.secondary).lineLimit(1) }
                             }
+                            Spacer(minLength: 0)
                         }
-                        .padding(.vertical, 2)
+                        .padding(.vertical, Space.xs)
+                        // A native list keeps its selection; the row answers the pointer too (15/11).
+                        .hoverRow(inset: Space.s)
                         .tag(contact.id)
                     }
                 }
@@ -79,9 +82,9 @@ struct ContactPage: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                HStack(spacing: 14) {
-                    Avatar(contact.initials, size: 56)
+            VStack(alignment: .leading, spacing: Space.xl) {
+                HStack(spacing: Space.l) {
+                    Avatar(contact.initials, size: 56, tint: MailText.tint(for: contact.email ?? contact.name))
                     VStack(alignment: .leading, spacing: 2) {
                         Text(contact.name).font(.title2.bold())
                         if let company = contact.company { Text(company).foregroundStyle(.secondary) }
@@ -96,23 +99,29 @@ struct ContactPage: View {
                 }
                 .formStyle(.grouped)
                 .frame(maxWidth: 560)
+                // A grouped form keeps 20 points around its card: the card lines up with the name above.
+                .padding(.horizontal, -(Space.l + Space.xs))
                 .onSubmit { agenda.save(contact) }
                 .onDisappear { agenda.save(contact) }
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Projets").font(.headline)
+                VStack(alignment: .leading, spacing: Space.s) {
+                    SectionTitle("Projets", count: projects.count)
                     FlowRow(items: projects) { project in
-                        HStack(spacing: 4) {
-                            Text(project.name)
+                        HStack(spacing: Space.xs) {
+                            ColorDot(ProjectViews.tint(project), size: 8)
+                            Text(project.name).font(.meta).lineLimit(1)
                             Button {
                                 agenda.remove(contact: contact, from: project.id)
                                 reload()
-                            } label: { Image(systemName: "xmark.circle.fill") }
-                                .buttonStyle(.borderless)
-                                .help("Retirer de ce projet : le lien ne reviendra pas tout seul.")
+                            } label: {
+                                Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).frame(width: 20, height: 20)
+                            }
+                            .buttonStyle(.hover(.circle))
+                            .foregroundStyle(.secondary)
+                            .help("Retirer de ce projet : le lien ne reviendra pas tout seul.")
                         }
-                        .padding(.horizontal, 10).padding(.vertical, 5)
-                        .background(Color.primary.opacity(0.06), in: Capsule())
+                        .padding(.leading, Space.m).padding(.trailing, Space.xs).padding(.vertical, 3)
+                        .background(Surface.fill, in: Capsule())
                     }
                     Menu("Ajouter à un projet") {
                         ForEach(agenda.projects.filter { project in project.status != .termine && !projects.contains { $0.id == project.id } }
@@ -127,30 +136,42 @@ struct ContactPage: View {
                 }
 
                 if !meetings.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Réunions").font(.headline)
-                        ForEach(meetings) { meeting in
-                            Button { router.open(meetingID: meeting.id, at: nil) } label: {
-                                Text("\(meeting.startedAt.formatted(date: .abbreviated, time: .shortened)) · \(meeting.title)")
+                    VStack(alignment: .leading, spacing: Space.xs) {
+                        SectionTitle("Réunions", count: meetings.count)
+                        ShowMoreList(meetings, limit: 5) { meeting in
+                            RowButton(action: { router.open(meetingID: meeting.id, at: nil) }) {
+                                dated(meeting.startedAt, meeting.title)
                             }
-                            .buttonStyle(.link)
                         }
                     }
+                    .frame(maxWidth: 560, alignment: .leading)
                 }
                 let events = agenda.events(of: contact)
                 if !events.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Rendez-vous").font(.headline)
-                        ForEach(events.prefix(20)) { event in
-                            Text("\(event.startAt.formatted(date: .abbreviated, time: .shortened)) · \(event.title)").foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: Space.xs) {
+                        SectionTitle("Rendez-vous", count: events.count)
+                        ShowMoreList(Array(events.prefix(20)), limit: 5) { event in
+                            RowButton(action: { router.openEvent(event.id) }) {
+                                dated(event.startAt, event.title)
+                            }
                         }
                     }
+                    .frame(maxWidth: 560, alignment: .leading)
                 }
             }
-            .padding(24)
+            .padding(Space.xl)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .onAppear(perform: reload)
+    }
+
+    /// « 12 nov. 2026, 14:00 » then what it was.
+    private func dated(_ date: Date, _ title: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: Space.m) {
+            Text(date.formatted(date: .abbreviated, time: .shortened)).font(.meta.monospacedDigit()).foregroundStyle(.secondary)
+                .frame(width: 150, alignment: .leading)
+            Text(title).font(.rowBody).foregroundStyle(.primary).lineLimit(1)
+        }
     }
 
     private func reload() {
@@ -166,7 +187,7 @@ struct FlowRow<Item: Identifiable, Content: View>: View {
 
     var body: some View {
         if items.isEmpty {
-            Text("Aucun").foregroundStyle(.secondary)
+            EmptyLine("Aucun")
         } else {
             FlowLayout(spacing: 6) {
                 ForEach(items) { content($0) }

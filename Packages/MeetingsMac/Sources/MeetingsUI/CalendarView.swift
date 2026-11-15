@@ -126,7 +126,7 @@ struct CalendarView: View {
     // MARK: - No account yet
 
     private var setup: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: Space.m) {
             Image(systemName: "calendar").font(.system(size: 44, weight: .light)).foregroundStyle(.secondary)
             Text("Connecte tes agendas Google").font(.title2.bold())
             if agenda.hasGoogleKey {
@@ -196,16 +196,19 @@ struct CalendarView: View {
                 VStack(spacing: 2) {
                     ForEach(allDay.filter { $0.startAt <= day && $0.endAt > day }) { event in
                         let color = agenda.color(for: event.account)
-                        Text(event.title).font(.caption.weight(.medium)).lineLimit(1)
-                            .padding(.horizontal, 6).padding(.vertical, 2)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(color.opacity(0.22), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                selection = event.id
-                                selectedDay = day
-                            }
-                            .popover(isPresented: shows(event, on: day), arrowEdge: .bottom) { popover(event) }
+                        Button {
+                            selection = event.id
+                            selectedDay = day
+                        } label: {
+                            Text(event.title).font(.caption.weight(.medium)).foregroundStyle(.primary).lineLimit(1)
+                                .padding(.horizontal, 6).padding(.vertical, 2)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(color.opacity(0.22), in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
+                                .contentShape(Rectangle())
+                        }
+                        // Its color a shade stronger under the pointer, pressed a touch smaller (15/11).
+                        .buttonStyle(HoverButtonStyle(.rounded, fill: color.opacity(0.14)))
+                        .popover(isPresented: shows(event, on: day), arrowEdge: .bottom) { popover(event) }
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -291,7 +294,20 @@ struct CalendarView: View {
         let declined = event.attendees.first(where: \.isSelf)?.response == "declined"
         let color = agenda.color(for: event.account)
         let selected = selection == event.id
-        return VStack(alignment: .leading, spacing: 1) {
+        return Button {
+            selection = event.id
+            selectedDay = day
+        } label: {
+            eventLabel(event, height: height, color: color, selected: selected)
+        }
+        // Its color a shade stronger under the pointer, pressed a touch smaller (15/11).
+        .buttonStyle(HoverButtonStyle(.rounded, fill: color.opacity(0.14)))
+        .opacity(declined ? 0.45 : 1)
+        .help(event.title)
+    }
+
+    private func eventLabel(_ event: CalendarEventRow, height: CGFloat, color: Color, selected: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
             HStack(spacing: 3) {
                 Text(event.title).font(.caption.weight(.semibold)).lineLimit(height > 44 ? 2 : 1)
                 Spacer(minLength: 0)
@@ -306,16 +322,11 @@ struct CalendarView: View {
         .padding(.trailing, 4)
         .padding(.vertical, 3)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(color.opacity(selected ? 0.38 : 0.2), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .foregroundStyle(.primary)
+        .background(color.opacity(selected ? 0.38 : 0.2), in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
         .overlay(alignment: .leading) { Capsule().fill(color).frame(width: 3).padding(.vertical, 3).padding(.leading, 2) }
-        .overlay { if selected { RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(color, lineWidth: 1) } }
-        .opacity(declined ? 0.45 : 1)
+        .overlay { if selected { RoundedRectangle(cornerRadius: Radius.small, style: .continuous).strokeBorder(color, lineWidth: 1) } }
         .contentShape(Rectangle())
-        .onTapGesture {
-            selection = event.id
-            selectedDay = day
-        }
-        .help(event.title)
     }
 
     private func project(_ event: CalendarEventRow) -> ProjectRow? {
@@ -341,7 +352,7 @@ struct SyncStatus: View {
     @ObservedObject var agenda: AgendaLibrary
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Space.s) {
             if agenda.syncing {
                 ProgressView().controlSize(.small)
             } else if let last = agenda.accounts.compactMap(\.lastSyncAt).max() {
@@ -367,13 +378,13 @@ struct EventPopover: View {
     private var color: Color { agenda.color(for: event.account) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 10) {
+        VStack(alignment: .leading, spacing: Space.m) {
+            HStack(alignment: .top, spacing: Space.s) {
                 RoundedRectangle(cornerRadius: 2).fill(color).frame(width: 4).frame(maxHeight: .infinity)
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: Space.xs) {
                     Text(event.title).font(.title3.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
                     Text(when).foregroundStyle(.secondary)
-                    Text("\(AccountStyle.label(for: event.account)) · \(event.account)").font(.tag).foregroundStyle(.secondary)
+                    Text("\(AccountStyle.label(for: event.account)) · \(event.account)").font(.meta).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
                 if EventCopies.canEdit(event), let edit {
@@ -383,7 +394,7 @@ struct EventPopover: View {
             .fixedSize(horizontal: false, vertical: true)
             if !EventCopies.canEdit(event), let organizer = event.organizer {
                 Text("Invitation de \(agenda.contact(email: organizer)?.name ?? organizer) : seul l'organisateur la modifie.")
-                    .font(.tag).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    .font(.meta).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
 
             if event.meetCode != nil {
@@ -423,16 +434,16 @@ struct EventPopover: View {
                         Text(project.name).tag(Optional(project.id))
                     }
                 }
-                if let reason { Text(reason).font(.tag).foregroundStyle(.secondary) }
+                if let reason { Text(reason).font(.meta).foregroundStyle(.secondary) }
             }
 
             // Who is a contact, who is in the event's project, and a click to change it, here (15/11).
             EventGuests(event: event, agenda: agenda, router: router, close: close)
             if let link = event.htmlLink.flatMap(URL.init(string:)) {
-                Link("Ouvrir dans Google Agenda", destination: link).font(.tag)
+                TextButton("Ouvrir dans Google Agenda") { NSWorkspace.shared.open(link) }
             }
         }
-        .padding(16)
+        .padding(Space.l)
         .frame(width: 320, alignment: .leading)
     }
 

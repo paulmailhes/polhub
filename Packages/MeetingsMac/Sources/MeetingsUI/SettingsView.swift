@@ -59,7 +59,7 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
                 Section {
                     ForEach(group, id: \.self) { pane in
                         Button { router.settingsPane = pane } label: { SettingsRow(pane: pane) }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.row(radius: Radius.small, inset: Space.s))
                     }
                 }
             }
@@ -113,13 +113,13 @@ struct SettingsRow: View {
                 .frame(width: 26, height: 26)
                 .background(Color(hex: pane.tint), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             VStack(alignment: .leading, spacing: 1) {
-                Text(pane.title)
-                Text(pane.subtitle).font(.caption).foregroundStyle(.secondary)
+                Text(pane.title).font(.rowBody.weight(.medium))
+                Text(pane.subtitle).font(.meta).foregroundStyle(.secondary)
             }
             Spacer()
             Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, Space.xs)
         .contentShape(Rectangle())
     }
 }
@@ -179,7 +179,7 @@ struct StartupToggle: View {
         } message: {
             Text("macOS prend Polhub sous sa garde : cette fenêtre se ferme, rouvre-la par l'icône de la barre des menus.")
         }
-        if let message = startup.message { Text(message).font(.caption).foregroundStyle(.orange) }
+        if let message = startup.message { Text(message).font(.meta).foregroundStyle(.orange) }
     }
 }
 
@@ -291,7 +291,7 @@ struct MeetingsSettingsPane: View {
             Section {
                 Toggle("Comptes rendus automatiques", isOn: $summaries)
                 Text(library.summaryUnavailable ?? "Écrits sur le Mac par le modèle d'Apple, après la transcription, jamais pendant une réunion.")
-                    .font(.caption).foregroundStyle(library.summaryUnavailable == nil ? Color.secondary : .orange)
+                    .font(.meta).foregroundStyle(library.summaryUnavailable == nil ? Color.secondary : .orange)
             }
             Section("Transcription") {
                 Picker("Langue des réunions", selection: $language) {
@@ -300,7 +300,7 @@ struct MeetingsSettingsPane: View {
                     Text("Détectée par le moteur").tag("auto")
                 }
                 Text("Pour les prochaines réunions ; « Retranscrire », dans une réunion, en change une seule.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.meta).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
@@ -321,7 +321,7 @@ struct UpdatesSettingsView: View {
                 } ?? "pas encore")
                 Toggle("Installer automatiquement les mises à jour", isOn: $updates.autoInstall)
                 Text("Jamais pendant une réunion ni une transcription : elle attend que tout soit au repos.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.meta).foregroundStyle(.secondary)
                 if let text = UpdateService.text(updates.state) {
                     Text(text).foregroundStyle(stateColor)
                 }

@@ -27,15 +27,18 @@ struct SearchResultsView: View {
                                 } label: {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text("\(TranscriptModel.timestamp(excerpt.startMs)) · \(excerpt.speaker.label)")
-                                            .font(.tag).foregroundStyle(.secondary)
-                                        Text(excerpt.text).lineLimit(3)
+                                            .font(.meta.monospacedDigit()).foregroundStyle(.secondary)
+                                        Text(excerpt.text).font(.rowBody).foregroundStyle(.primary).lineLimit(3)
                                     }
+                                    .padding(.vertical, Space.xs)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .contentShape(Rectangle())
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(.row(inset: Space.s))
                             }
                             if group.more > 0 {
                                 Text("et \(group.more) autre\(group.more > 1 ? "s" : "") passage\(group.more > 1 ? "s" : "")")
-                                    .font(.tag).foregroundStyle(.secondary)
+                                    .font(.meta).foregroundStyle(.secondary)
                             }
                         }
                     }

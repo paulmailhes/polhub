@@ -67,19 +67,25 @@ Elle copie Gmail, l'outil que Paul connaît le mieux (Paul, 15/11 : « calque-to
 - **non lu** : fond le plus clair (`MailSurface.unread`, blanc en clair) et gras ; **lu** : fond bleu-gris
   (`MailSurface.read`) ; **coché** : bleu clair (`MailSurface.ticked`) ; le bleu des cases et de l'onglet
   Personnes est celui de Gmail (`MailSurface.blue`), quelle que soit la couleur d'accent du Mac ;
-- **les pièces jointes** en pastilles sous la ligne, en densité « Par défaut » ;
+- **les pièces jointes** en pastilles sous la ligne, en densité « Par défaut » ; un clic sur une pastille
+  ouvre le fichier dans Coup d'œil (Quick Look) sans ouvrir le fil ; un type que Polhub n'ouvre jamais
+  s'enregistre ;
 - **le survol ne déplace rien** : une ombre sous la ligne, et les gestes par-dessus la date, sur le fond de la
   ligne ; aucun élément n'apparaît ni ne disparaît dans la mise en page ;
-- **les onglets** (Personnes, Notifications, Newsletters) sous la barre des gestes, chacun sa couleur, souligné
-  quand il est ouvert ; **les dossiers et les boîtes** dans la barre latérale, sous « Mails », avec
-  **« Nouveau mail »** en tête, comme le bouton de Gmail (⌘N dans Mails) ;
-- la barre latérale a **une largeur fixe** (230 points) : elle ne change plus d'une section à l'autre.
+- **deux onglets**, Personnes et Notifications (les lettres d'information y sont), sous la barre des gestes,
+  chacun sa couleur, souligné quand il est ouvert ; **les dossiers et les boîtes** dans la barre latérale, sous
+  « Mails », avec **« Nouveau mail »** en tête, comme le bouton de Gmail (⌘N dans Mails) ;
+- la barre latérale a **une largeur fixe** (252 points, la plus petite qui montre « Boîte de réception » avec un
+  nombre à deux chiffres, et « Tous les messages », en grandes rangées) : elle ne change plus d'une section à
+  l'autre.
 
 ## Les couleurs
 
 - Une seule palette (`Palette`) pour les comptes Google, les projets et les statuts.
-- La couleur d'un **compte** marque ses rendez-vous ; celle d'un **statut** marque les colonnes du Kanban ;
-  celle d'un **projet** marque sa carte (un trait à gauche).
+- La couleur d'un **compte** marque ses rendez-vous (et la carte du prochain rendez-vous, sur l'Accueil) ;
+  celle d'un **statut** marque les colonnes du Kanban (un point, un fond très léger) ; celle d'un **projet**
+  teinte sa carte (≈ 14 % en clair, 22 % en sombre, un trait plus franc à gauche), et marque son logo, sa
+  pastille dans les mails, son point dans Contacts : une seule source, `ProjectViews.tint(_:)`.
 - Chaque **section** a sa couleur, la même dans la barre latérale et dans Réglages : Accueil sarcelle, Projets
   bleu, Réunions violet, Calendrier orange, Mails rose, Contacts vert, Réglages gris.
 - La couleur d'accent du système reste celle de la sélection et de « Moi » dans les transcriptions.
@@ -98,6 +104,20 @@ Elle copie Gmail, l'outil que Paul connaît le mieux (Paul, 15/11 : « calque-to
 | `ColorDot(couleur)` | Un compte, un statut, un projet |
 | `FloatingBar { }` | Des commandes flottantes en bas d'une page, en verre |
 | `.windowTitle(_:subtitle:)` | Le titre de la fenêtre |
+| `TextButton("Modifier") { }` | Un mot à cliquer dans une carte (« Modifier », « Changer », « Tout enregistrer… ») : sa capsule au survol, son texte aligné sur la carte |
+| `RowButton { ligne }` | Une ligne cliquable d'une carte (Accueil, page d'un projet, Contacts) : toute la largeur répond, le fond déborde sans décaler le texte |
+| `IconMenu("ellipsis", help: "Plus") { }` | Un menu derrière une icône ronde, dessiné comme `IconButton` |
+| `ProjectLogo(projet, size:)` (module `ProjectsUI`) | Le logo d'un projet : l'icône du site du client sur une plaque blanche, sinon ses initiales sur sa couleur (le monogramme, aussi dans les tests et les captures) |
+
+Les personnes (module `MeetingsUI`, `PeopleViews.swift`), partout où Paul croise quelqu'un, jamais en passant par
+la page Contacts :
+
+| Composant | Usage |
+|---|---|
+| `PersonAvatar(initials:, tint:, badge:)` | Les initiales d'une personne et ce qu'elle est pour le projet : dans le projet (une coche à sa couleur), un contact (une coche grise), à ajouter (« + ») |
+| `PersonChip(person:, badge:, help:) { menu }` | Une personne sur une pastille (avatar, prénom, coche ou « + ») ; un clic ouvre son petit menu |
+| `PersonMenuItems` | Le petit menu d'une personne : « Ajouter à « P » » ou « Retirer de « P » » (« Ajouter aux contacts » sans projet), « Écrire », « Copier l'adresse » ; le même dans un fil, un rendez-vous et une réunion |
+| `PersonSuggestionList` | Les suggestions sous un champ À ou Invités : ↑ ↓, ↩ ou ⇥ pour prendre, Échap pour fermer ; le survol allume la ligne comme les flèches |
 
 ## Les boutons
 
@@ -106,6 +126,10 @@ Elle copie Gmail, l'outil que Paul connaît le mieux (Paul, 15/11 : « calque-to
 - Une action secondaire visible : `.buttonStyle(.glass)`.
 - Dans une liste ou une carte : `.buttonStyle(.hover)` (ou `IconButton` pour une icône), qui reste discret au
   repos et répond au survol et à l'appui ; plus de `.borderless` ni de `.plain` sans retour.
+- Une ligne qui est un bouton : `.buttonStyle(.row)` (ou `RowButton`) ; une ligne pleine largeur d'une liste à
+  la Gmail (les brouillons) : `LineButtonStyle(ground:)`.
+- Dans une capsule de verre (le lecteur, les gestes d'un fil ouvert), des `IconButton` : pas de verre sur le
+  verre.
 
 ## L'interaction
 
@@ -120,6 +144,8 @@ rien** : il change un fond, une ombre, une échelle, jamais une marge ni la plac
 | `Motion.standard` (0,25 s) | Ce qui s'ouvre, se ferme, se déplie ou bouge |
 | `Motion.gentle` (0,35 s) | Un plus grand changement de contenu |
 | `.hoverRow(selected:, radius:, inset:)` | Une ligne cliquable : un fond arrondi au survol (`Surface.fill`), la couleur de la sélection quand elle est choisie (`Surface.selected`) ; `inset` laisse le fond déborder à gauche et à droite sans décaler le texte |
+| `.buttonStyle(.row(selected:, radius:, inset:))` | La même ligne quand c'est un bouton : un cran plus sombre à l'appui (`Surface.raised`) |
+| `LineButtonStyle(ground:)` | Une ligne pleine largeur sur son fond (les brouillons, comme les mails) : une ombre au survol, un voile à l'appui |
 | `.cardHover(radius:)` | Une carte cliquable qui se soulève : ombre, un peu plus grande, bord plus net ; elle dessine le bord de la carte |
 | `.buttonStyle(.hover)`, `.hover(.circle)`, `.hover(.capsule)` | Un bouton : un fond au survol, plus petit et plus clair à l'appui ; le libellé garde ses marges (`HoverButtonStyle(fill:)` pour une autre couleur) |
 | `IconButton("archivebox", help: "Archiver") { }` | Un bouton rond à icône de 32 points, gris, son cercle au survol |
@@ -128,8 +154,11 @@ rien** : il change un fond, une ombre, une échelle, jamais une marge ni la plac
 
 - Une liste dans une carte ne montre que **quelques lignes** (5 en général), puis « Voir les N autres » :
   jamais de liste coupée en silence.
-- Les listes natives (`List`, `Table` : la barre latérale, Réunions, Contacts) gardent la sélection du
-  système, sans survol ajouté.
+- Les listes natives (`List` : Réunions, Contacts) gardent la sélection du système, et leurs lignes prennent
+  aussi `.hoverRow(inset:)` au survol. Seule la barre latérale reste entièrement celle du système. Dans un
+  tableau (`Table`, la liste des projets), le nom du projet est un bouton `.hover` qui l'ouvre d'un clic.
+- Un bloc du calendrier est un bouton `HoverButtonStyle(fill:)` à la couleur de son compte : un cran plus
+  soutenu au survol, un peu plus petit à l'appui.
 - Le mouvement respecte « Réduire les animations » : sans échelle, les fondus restent.
 
 ## Les réglages
@@ -146,7 +175,7 @@ rien** : il change un fond, une ombre, une échelle, jamais une marge ni la plac
 Les captures hors écran ne dessinent ni le verre ni la barre d'outils. Pour voir le vrai rendu :
 
 ```sh
-POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter WindowSnapshotTests
+POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter "WindowSnapshotTests|MailScreenTests/theMailScreens|PeopleScreenTests"
 ```
 
 La fenêtre s'affiche un instant, puis le système la capture (il faut l'autorisation d'enregistrement de

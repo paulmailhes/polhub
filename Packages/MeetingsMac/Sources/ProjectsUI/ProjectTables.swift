@@ -15,10 +15,18 @@ struct ProjectListView: View {
         let rows = ProjectListRow.rows(projects, lastMeetings: library.lastAppMeetings, status: status).sorted(using: order)
         Table(rows, selection: $selection, sortOrder: $order) {
             TableColumn("Projet", value: \.name) { row in
-                HStack(spacing: Space.s) {
-                    ProjectLogo(row.project, size: 20)
-                    Text(row.project.name).fontWeight(.medium)
+                // The name opens the project in one click, with the design system's hover and press (15/11); a double
+                // click on the row still does.
+                Button { library.selected = row.project.id } label: {
+                    HStack(spacing: Space.s) {
+                        ProjectLogo(row.project, size: 20)
+                        Text(row.project.name).font(.rowBody.weight(.medium)).foregroundStyle(.primary).lineLimit(1)
+                    }
+                    .padding(.horizontal, Space.s).padding(.vertical, 3)
                 }
+                .buttonStyle(.hover)
+                .padding(.horizontal, -Space.s)
+                .help("Ouvrir « \(row.project.name) »")
             }
             .width(min: 180, ideal: 260)
             TableColumn("Statut", value: \.statusRank) { row in

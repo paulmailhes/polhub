@@ -261,8 +261,7 @@ struct ProjectPage: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .hoverRow(inset: Space.s)
+            .buttonStyle(.row(inset: Space.s))
             if open {
                 MarkdownView(text: entry.body).font(.rowBody).padding(.leading, 66).padding(.bottom, Space.xs)
                     .transition(.opacity)
@@ -327,7 +326,7 @@ struct ProjectPage: View {
                 SectionTitle("Contacts", systemImage: "person.2", count: contacts.count)
                 if contacts.isEmpty { EmptyLine("Les invités de ses rendez-vous arrivent ici tout seuls.") }
                 ShowMoreList(contacts, limit: Self.sideRows) { contact in
-                    SideRow(action: { library.openContact?(contact.id) }) {
+                    RowButton(action: { library.openContact?(contact.id) }) {
                         HStack(spacing: Space.s) {
                             Avatar(contact.initials, size: 28)
                             VStack(alignment: .leading, spacing: 0) {
@@ -342,7 +341,7 @@ struct ProjectPage: View {
                 SectionTitle("Réunions", systemImage: "waveform", count: meetings.count)
                 if meetings.isEmpty { EmptyLine("Ses réunions enregistrées arrivent ici toutes seules.") }
                 ShowMoreList(meetings, limit: Self.sideRows) { meeting in
-                    SideRow(action: { library.openMeeting?(meeting.id) }) {
+                    RowButton(action: { library.openMeeting?(meeting.id) }) {
                         VStack(alignment: .leading, spacing: 1) {
                             Text(meeting.title).font(.rowBody.weight(.medium)).lineLimit(1).foregroundStyle(.primary)
                             Text(meeting.startedAt.formatted(.dateTime.day().month(.abbreviated).hour().minute().locale(Self.locale)))
@@ -358,7 +357,7 @@ struct ProjectPage: View {
                 Card {
                     SectionTitle("Mails", systemImage: "envelope", count: mails.count)
                     ShowMoreList(mails, limit: Self.sideRows) { thread in
-                        SideRow(action: { library.openMail?(thread.id) }) {
+                        RowButton(action: { library.openMail?(thread.id) }) {
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(thread.subject).font(.rowBody).fontWeight(thread.unread ? .semibold : .regular).lineLimit(1)
                                     .foregroundStyle(.primary)
@@ -403,44 +402,6 @@ struct ProjectPage: View {
         events = ((try? CalendarStore(library.store.database).events(projectID: project.id)) ?? [])
             .filter { $0.endAt > Date() }
             .reduce(into: [CalendarEventRow]()) { seen, event in if !seen.contains(where: { $0.eventID == event.eventID }) { seen.append(event) } }
-    }
-}
-
-/// A word to click in a card (« Modifier », « Changer »): its capsule under the pointer, its text lined up with
-/// the card's, as « Voir les N autres ».
-struct TextButton: View {
-    let title: String
-    let action: () -> Void
-
-    init(_ title: String, action: @escaping () -> Void) {
-        self.title = title
-        self.action = action
-    }
-
-    var body: some View {
-        Button(action: action) {
-            Text(title).font(.meta.weight(.medium)).padding(.horizontal, Space.s).padding(.vertical, 3)
-        }
-        .buttonStyle(.hover(.capsule))
-        .foregroundStyle(Color.accentColor)
-        .padding(.horizontal, -Space.s)
-    }
-}
-
-/// A clickable row of a side card: its highlight under the pointer, its text lined up with the card's.
-struct SideRow<Content: View>: View {
-    let action: () -> Void
-    @ViewBuilder let label: Content
-
-    var body: some View {
-        Button(action: action) {
-            label
-                .padding(.vertical, Space.xs)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .hoverRow(inset: Space.s)
     }
 }
 

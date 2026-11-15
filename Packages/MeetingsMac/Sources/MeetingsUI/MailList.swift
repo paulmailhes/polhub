@@ -195,29 +195,6 @@ struct MailSearchLine: View {
     }
 }
 
-/// A round icon that opens a menu, drawn and answering as the design system's `IconButton`.
-struct MailIconMenu<Content: View>: View {
-    let systemImage: String
-    let help: String
-    @ViewBuilder let content: () -> Content
-
-    init(_ systemImage: String, help: String, @ViewBuilder content: @escaping () -> Content) {
-        self.systemImage = systemImage
-        self.help = help
-        self.content = content
-    }
-
-    var body: some View {
-        Menu(content: content) {
-            Image(systemName: systemImage).font(.system(size: 15)).foregroundStyle(.secondary)
-                .frame(width: 32, height: 32)
-        }
-        .menuStyle(.button).buttonStyle(.hover(.circle)).menuIndicator(.hidden).fixedSize()
-        .help(help)
-        .accessibilityLabel(help)
-    }
-}
-
 /// Above the list, as Gmail's: the box that ticks every thread, then the gestures on the threads ticked, or
 /// « Relever » and « Plus »; « Non lus » on the right.
 struct MailListBar: View {
@@ -255,13 +232,13 @@ struct MailListBar: View {
                 IconButton("envelope.open", help: "Marquer comme lus") { mails.performOnSelection(.markRead) }
                 IconButton("envelope.badge", help: "Marquer comme non lus") { mails.performOnSelection(.markUnread) }
                 // 15/11: the ticked threads in one case, one « Annuler » for all.
-                MailIconMenu("folder", help: "Ranger dans un projet ou une case") {
+                IconMenu("folder", help: "Ranger dans un projet ou une case") {
                     MailFilingMenu(selection: mails.selectedThreads, mails: mails)
                 }
                 Text("\(count) sélectionné\(count > 1 ? "s" : "")").font(.meta).foregroundStyle(.secondary).padding(.leading, Space.s)
             } else {
                 IconButton("arrow.clockwise", help: "Relever les mails maintenant") { mails.refresh() }
-                MailIconMenu("ellipsis", help: "Tout marquer comme lu, tout archiver, réglages") {
+                IconMenu("ellipsis", help: "Tout marquer comme lu, tout archiver, réglages") {
                     if mails.folder == .inbox, mails.found == nil {
                         Button("Tout marquer comme lu dans « \(mails.tab.title) »") { mails.markAllRead() }
                             .disabled(mails.unread(in: mails.tab) == 0)
@@ -480,7 +457,7 @@ struct MailRow: View {
             IconButton(thread.unread ? "envelope.open" : "envelope.badge", help: thread.unread ? "Marquer comme lu" : "Marquer comme non lu") {
                 mails.perform(thread.unread ? .markRead : .markUnread, on: thread, undoable: false)
             }
-            MailIconMenu("folder", help: "Ranger dans un projet ou une case") { MailFilingMenu(thread: thread, mails: mails) }
+            IconMenu("folder", help: "Ranger dans un projet ou une case") { MailFilingMenu(thread: thread, mails: mails) }
         }
         .padding(.leading, Space.xxl)
         .background(LinearGradient(stops: [.init(color: ground.opacity(0), location: 0), .init(color: ground, location: 0.3)],

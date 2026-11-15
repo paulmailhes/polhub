@@ -23,6 +23,15 @@ enum HomeModel {
         if minutes < 60 { return "dans \(minutes) min" }
         return "à " + event.startAt.formatted(date: .omitted, time: .shortened)
     }
+
+    /// The cards of Accueil, in two columns that each stack their cards (15/11: a short card left a hole beside a
+    /// long one): the day on the left, the work on the right; one column when the window is narrow.
+    enum Part: CaseIterable {
+        case today, meetings, urgent, unfiled
+    }
+
+    static let columns: [[Part]] = [[.today, .meetings], [.urgent, .unfiled]]
+    static let single: [Part] = [.today, .urgent, .meetings, .unfiled]
 }
 
 /// Accueil: the next event to join, then today at a glance. Kept light on purpose: it will become a
@@ -31,6 +40,9 @@ struct HomeView: View {
     @ObservedObject var agenda: AgendaLibrary
     @ObservedObject var library: MeetingLibrary
     @ObservedObject var router: WindowRouter
+
+    /// A column of cards: two side by side from this width each, else one under the other.
+    static let columnWidth: CGFloat = 320
 
     private var calendar: Calendar { CalendarView.calendar }
     private var today: [CalendarEventRow] {
@@ -45,30 +57,37 @@ struct HomeView: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(Self.title(context.date)).font(.largeTitle.bold())
-                        Text(summary).foregroundStyle(.secondary)
+            Page {
+                PageHeader(Self.title(context.date), subtitle: summary)
+                if let next = HomeModel.next(agenda.shown, now: context.date) {
+                    NextEventCard(event: next, now: context.date, agenda: agenda, router: router)
+                }
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .top, spacing: Space.l) {
+                        ForEach(HomeModel.columns, id: \.self) { cards in
+                            VStack(alignment: .leading, spacing: Space.l) {
+                                ForEach(cards, id: \.self) { card($0, now: context.date) }
+                            }
+                            .frame(minWidth: Self.columnWidth, idealWidth: Self.columnWidth, maxWidth: .infinity, alignment: .top)
+                        }
                     }
-                    if let next = HomeModel.next(agenda.shown, now: context.date) {
-                        NextEventCard(event: next, now: context.date, agenda: agenda, router: router)
-                    }
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: 18, alignment: .top)], alignment: .leading, spacing: 18) {
-                        todayCard(now: context.date)
-                        urgentCard
-                        meetingsCard
-                        unfiledCard
+                    VStack(alignment: .leading, spacing: Space.l) {
+                        ForEach(HomeModel.single, id: \.self) { card($0, now: context.date) }
                     }
                 }
-                .padding(.horizontal, PageMetrics.horizontal)
-                .padding(.top, PageMetrics.top)
-                .padding(.bottom, PageMetrics.bottom)
-                .frame(maxWidth: PageMetrics.maxWidth, alignment: .leading)
-                .frame(maxWidth: .infinity)
             }
         }
         .windowTitle("Accueil")
+    }
+
+    @ViewBuilder
+    private func card(_ card: HomeModel.Part, now: Date) -> some View {
+        switch card {
+        case .today: todayCard(now: now)
+        case .meetings: meetingsCard
+        case .urgent: urgentCard
+        case .unfiled: unfiledCard
+        }
     }
 
     static func title(_ date: Date) -> String {
@@ -90,30 +109,28 @@ struct HomeView: View {
     private func todayCard(now: Date) -> some View {
         HomeCard(title: "Aujourd'hui", systemImage: "calendar") {
             if today.isEmpty {
-                Text(agenda.accounts.isEmpty ? "Connecte tes agendas dans Calendrier." : "Aucun rendez-vous.").foregroundStyle(.secondary)
+                EmptyLine(agenda.accounts.isEmpty ? "Connecte tes agendas dans Calendrier." : "Aucun rendez-vous.")
             }
-            ForEach(today) { event in
-                HStack(spacing: 10) {
-                    Button { router.openEvent(event.id) } label: {
-                        HStack(alignment: .firstTextBaseline, spacing: 10) {
-                            Circle().fill(agenda.color(for: event.account)).frame(width: 8, height: 8).alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
-                            Text(event.allDay ? "Journée" : event.startAt.formatted(date: .omitted, time: .shortened))
-                                .font(.callout.monospacedDigit()).foregroundStyle(.secondary).frame(width: 52, alignment: .leading)
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(event.title).lineLimit(1)
-                                if let name = projectName(event.projectID) { Text(name).font(.tag).foregroundStyle(.secondary) }
-                            }
-                            Spacer(minLength: 0)
+            ShowMoreList(today, limit: 6) { event in
+                let joinable = event.meetCode != nil && event.endAt > now && !event.allDay
+                RowButton(action: { router.openEvent(event.id) }) {
+                    HStack(alignment: .firstTextBaseline, spacing: Space.m) {
+                        ColorDot(agenda.color(for: event.account), size: 8).alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
+                        Text(event.allDay ? "Journée" : event.startAt.formatted(date: .omitted, time: .shortened))
+                            .font(.meta.monospacedDigit()).foregroundStyle(.secondary).frame(width: 52, alignment: .leading)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(event.title).font(.rowTitle).foregroundStyle(.primary).lineLimit(1)
+                            if let name = projectName(event.projectID) { Text(name).font(.meta).foregroundStyle(.secondary).lineLimit(1) }
                         }
-                        .contentShape(Rectangle())
-                        .opacity(event.endAt < now && !event.allDay ? 0.5 : 1)
+                        Spacer(minLength: 0)
+                        // Room for « Rejoindre », laid over the row so that its highlight runs to the end.
+                        if joinable { Color.clear.frame(width: 32, height: 1) }
                     }
-                    .buttonStyle(.plain)
-                    if event.meetCode != nil, event.endAt > now, !event.allDay {
-                        Button { agenda.join(event) } label: { Image(systemName: "video.fill") }
-                            .buttonStyle(.glass)
-                            .controlSize(.small)
-                            .help("Rejoindre avec \(event.account)")
+                    .opacity(event.endAt < now && !event.allDay ? 0.5 : 1)
+                }
+                .overlay(alignment: .trailing) {
+                    if joinable {
+                        IconButton("video.fill", help: "Rejoindre avec \(event.account)") { agenda.join(event) }
                     }
                 }
             }
@@ -125,60 +142,67 @@ struct HomeView: View {
         HomeCard(title: "Priorité 1", systemImage: "flag") {
             if urgent.isEmpty { EmptyLine("Aucun projet en priorité 1.") }
             ShowMoreList(urgent, limit: 6) { project in
-                Button { router.openProject(project.id) } label: {
+                RowButton(action: { router.openProject(project.id) }) {
                     HStack(alignment: .center, spacing: Space.m) {
                         ProjectLogo(project, size: 28)
                         VStack(alignment: .leading, spacing: 1) {
-                            Text(project.name).font(.rowBody.weight(.medium)).foregroundStyle(.primary).lineLimit(1)
+                            Text(project.name).font(.rowTitle.weight(.medium)).foregroundStyle(.primary).lineLimit(1)
                             let detail = [project.todo, project.dueDate.map { "échéance \($0.formatted(date: .abbreviated, time: .omitted))" }]
                                 .compactMap { $0 }.joined(separator: " · ")
                             if !detail.isEmpty { Text(detail).font(.meta).foregroundStyle(.secondary).lineLimit(2) }
                         }
                         Spacer(minLength: 0)
                     }
-                    .padding(.vertical, Space.xs)
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .hoverRow(inset: Space.s)
             }
         }
     }
 
+    /// The five latest meetings, each with the first line of its summary when there is one (15/11); the others
+    /// are one click away, in Réunions.
     private var meetingsCard: some View {
         HomeCard(title: "Dernières réunions", systemImage: "waveform") {
-            if library.rows.isEmpty { Text("Aucune réunion enregistrée.").foregroundStyle(.secondary) }
+            if library.rows.isEmpty { EmptyLine("Aucune réunion enregistrée.") }
             ForEach(library.rows.prefix(5)) { row in
-                Button { router.open(meetingID: row.id, at: nil) } label: {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(row.title).lineLimit(1)
+                RowButton(action: { router.open(meetingID: row.id, at: nil) }) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(row.title).font(.rowTitle).foregroundStyle(.primary).lineLimit(1)
                         Text([row.startedAt.formatted(date: .abbreviated, time: .shortened), projectName(row.projectID)]
-                            .compactMap { $0 }.joined(separator: " · ")).font(.tag).foregroundStyle(.secondary)
+                            .compactMap { $0 }.joined(separator: " · "))
+                            .font(.meta).foregroundStyle(.secondary).lineLimit(1)
+                        if let overview = library.overviews[row.id] {
+                            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                Image(systemName: "sparkles").font(.system(size: 11, weight: .semibold)).foregroundStyle(Color(hex: Palette.violet))
+                                Text(overview).font(.rowBody).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                        }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+            }
+            if library.rows.count > 5 {
+                TextButton("Toutes les réunions") { router.section = .meetings }
             }
         }
     }
 
     private var unfiledCard: some View {
         HomeCard(title: "À classer", systemImage: "tray") {
-            if unfiled.isEmpty { Text("Tout est rangé.").foregroundStyle(.secondary) }
-            ForEach(unfiled.prefix(8)) { event in
-                Button { router.openEvent(event.id) } label: {
-                    Text("\(event.startAt.formatted(date: .abbreviated, time: .omitted)) · \(event.title)").lineLimit(1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
+            if unfiled.isEmpty { EmptyLine("Tout est rangé.") }
+            ShowMoreList(unfiled, limit: 5) { event in
+                RowButton(action: { router.openEvent(event.id) }) {
+                    HStack(alignment: .firstTextBaseline, spacing: Space.m) {
+                        Text(event.startAt.formatted(.dateTime.day().month(.abbreviated).locale(CalendarView.locale)))
+                            .font(.meta.monospacedDigit()).foregroundStyle(.secondary).frame(width: 52, alignment: .leading)
+                        Text(event.title).font(.rowTitle).foregroundStyle(.primary).lineLimit(1)
+                    }
                 }
-                .buttonStyle(.plain)
             }
         }
     }
 }
 
-/// The next event, large, with « Rejoindre » under its account's color.
+/// The next event, large, on a card tinted with its account's color (no glass under text, 15/11): « Détails » and
+/// « Rejoindre », the page's main actions, in glass.
 struct NextEventCard: View {
     let event: CalendarEventRow
     let now: Date
@@ -187,18 +211,19 @@ struct NextEventCard: View {
 
     var body: some View {
         let color = agenda.color(for: event.account)
-        HStack(alignment: .center, spacing: 16) {
-            RoundedRectangle(cornerRadius: 3).fill(color).frame(width: 6, height: 54)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(HomeModel.when(event, now: now).uppercased()).font(.tag.weight(.semibold)).foregroundStyle(color)
+        HStack(alignment: .center, spacing: Space.l) {
+            RoundedRectangle(cornerRadius: 3, style: .continuous).fill(color).frame(width: 6, height: 54)
+            VStack(alignment: .leading, spacing: Space.xs) {
+                Text(HomeModel.when(event, now: now).uppercased()).font(.meta.weight(.semibold)).foregroundStyle(color)
                 Text(event.title).font(.title2.weight(.semibold)).lineLimit(2)
                 Text([event.startAt.formatted(date: .omitted, time: .shortened) + " – " + event.endAt.formatted(date: .omitted, time: .shortened),
                       AccountStyle.label(for: event.account),
                       event.projectID.flatMap { id in agenda.projects.first { $0.id == id }?.name }]
                     .compactMap { $0 }.joined(separator: " · "))
+                    .font(.rowBody)
                     .foregroundStyle(.secondary)
             }
-            Spacer(minLength: 12)
+            Spacer(minLength: Space.m)
             Button("Détails") { router.openEvent(event.id) }
                 .buttonStyle(.glass)
                 .controlSize(.large)
@@ -210,8 +235,9 @@ struct NextEventCard: View {
                     .help("Ouvre le Meet dans Dia avec le compte \(event.account)")
             }
         }
-        .padding(18)
-        .glassEffect(.regular.tint(color.opacity(0.12)), in: .rect(cornerRadius: Radius.hero))
+        .padding(Space.l + Space.xs)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardSurface(radius: Radius.hero, fill: color.opacity(0.1))
     }
 }
 

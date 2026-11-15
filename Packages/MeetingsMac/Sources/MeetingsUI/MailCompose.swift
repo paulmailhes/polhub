@@ -488,9 +488,14 @@ struct MailDraftLine: View {
     let error: String?
     var agent = false
     let open: () -> Void
-    @State private var hovering = false
 
     var body: some View {
+        // The line of the list, as Gmail's: a shadow under the pointer, a shade darker pressed (15/11).
+        Button(action: open) { line }
+            .buttonStyle(LineButtonStyle(ground: MailSurface.unread))
+    }
+
+    private var line: some View {
         HStack(spacing: 0) {
             RoundedRectangle(cornerRadius: 1.5).fill(color).frame(width: 3, height: 22).padding(.leading, Space.m).help(account)
             Color.clear.frame(width: 44, height: 1)
@@ -509,16 +514,10 @@ struct MailDraftLine: View {
             if error != nil { Image(systemName: "exclamationmark.triangle").font(.meta).foregroundStyle(.orange).help(error ?? "").padding(.horizontal, Space.s) }
             Text(MailText.date(date)).font(.meta).foregroundStyle(.secondary).monospacedDigit().lineLimit(1).frame(minWidth: 58, alignment: .trailing)
         }
+        .foregroundStyle(.primary)
         .padding(.vertical, Space.m)
         .padding(.trailing, Space.l)
-        .background {
-            Rectangle().fill(MailSurface.unread)
-                .shadow(color: .black.opacity(hovering ? 0.2 : 0), radius: hovering ? 3 : 0, y: hovering ? 1 : 0)
-        }
         .overlay(alignment: .bottom) { MailLine() }
-        .zIndex(hovering ? 1 : 0)
         .contentShape(Rectangle())
-        .onTapGesture(perform: open)
-        .onHover { hovering = $0 }
     }
 }

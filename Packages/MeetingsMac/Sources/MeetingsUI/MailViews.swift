@@ -106,7 +106,7 @@ struct MailUndoBar: View {
             } else if let message = mails.message {
                 HStack(spacing: Space.m) {
                     Text(message).fixedSize(horizontal: false, vertical: true)
-                    Button { mails.message = nil } label: { Image(systemName: "xmark") }.buttonStyle(.borderless)
+                    IconButton("xmark", help: "Fermer", size: 13) { mails.message = nil }
                 }
             }
         }
@@ -489,7 +489,7 @@ struct MailThreadView: View {
                                     .padding(.horizontal, Space.m).padding(.vertical, 5)
                                     .background(Surface.raised, in: Capsule())
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.hover(.capsule))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, Space.s)
                         }
@@ -568,18 +568,18 @@ struct MailThreadView: View {
             Spacer(minLength: Space.m)
             HStack(spacing: Space.xs) {
                 if let position = mails.position(of: key) { Text(position).font(.meta).foregroundStyle(.secondary).monospacedDigit() }
-                Button { go(-1) } label: { Image(systemName: "chevron.up") }
-                    .disabled(mails.neighbor(of: key, offset: -1) == nil).help("Fil précédent (↑)")
+                IconButton("chevron.up", help: "Fil précédent (↑)") { go(-1) }
+                    .disabled(mails.neighbor(of: key, offset: -1) == nil)
                     // While a reply is written, the arrows stay in it (15/11).
                     .keyboardShortcut(writing == true ? nil : KeyboardShortcut(.upArrow, modifiers: []))
-                Button { go(1) } label: { Image(systemName: "chevron.down") }
-                    .disabled(mails.neighbor(of: key, offset: 1) == nil).help("Fil suivant (↓)")
+                IconButton("chevron.down", help: "Fil suivant (↓)") { go(1) }
+                    .disabled(mails.neighbor(of: key, offset: 1) == nil)
                     .keyboardShortcut(writing == true ? nil : KeyboardShortcut(.downArrow, modifiers: []))
                 Divider().frame(height: 18)
-                Button { gesture(.archive) } label: { Image(systemName: "archivebox") }.help("Archiver")
-                Button { gesture(.trash) } label: { Image(systemName: "trash") }.help("Supprimer")
-                Button { gesture(.markUnread) } label: { Image(systemName: "envelope.badge") }.help("Marquer comme non lu")
-                Menu {
+                IconButton("archivebox", help: "Archiver") { gesture(.archive) }
+                IconButton("trash", help: "Supprimer") { gesture(.trash) }
+                IconButton("envelope.badge", help: "Marquer comme non lu") { gesture(.markUnread) }
+                IconMenu("ellipsis", help: "Plus") {
                     if let thread {
                         Button("Répondre") { reply(.reply) }
                         Button("Répondre à tous") { reply(.replyAll) }
@@ -598,16 +598,9 @@ struct MailThreadView: View {
                         Divider()
                         Button("Ouvrir dans Gmail") { NSWorkspace.shared.open(mails.gmailURL(thread)) }
                     }
-                } label: {
-                    Image(systemName: "ellipsis")
                 }
-                .menuIndicator(.hidden)
-                .fixedSize()
-                .help("Plus")
             }
-            .buttonStyle(.borderless)
-            .font(.system(size: 15))
-            .padding(.horizontal, Space.m).padding(.vertical, Space.s)
+            .padding(.horizontal, Space.s).padding(.vertical, Space.xs)
             .glassEffect(.regular, in: Capsule())
         }
         .padding(.horizontal, Space.xl).padding(.vertical, Space.l)
@@ -653,16 +646,20 @@ struct MailMessageView: View {
             }
             .padding(.vertical, Space.xl)
         } else {
-            HStack(spacing: Space.m) {
-                Avatar(initial, size: 36, tint: tint)
-                Text(sender).font(.rowTitle.weight(message.isUnread ? .semibold : .medium)).lineLimit(1).frame(width: 190, alignment: .leading)
-                Text(message.snippet).font(.rowBody).foregroundStyle(.secondary).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
-                if !message.files.isEmpty { Image(systemName: "paperclip").font(.meta).foregroundStyle(.secondary) }
-                Text(MailText.date(message.date)).font(.meta).foregroundStyle(.secondary)
+            Button { model.toggle(message) } label: {
+                HStack(spacing: Space.m) {
+                    Avatar(initial, size: 36, tint: tint)
+                    Text(sender).font(.rowTitle.weight(message.isUnread ? .semibold : .medium)).foregroundStyle(.primary).lineLimit(1)
+                        .frame(width: 190, alignment: .leading)
+                    Text(message.snippet).font(.rowBody).foregroundStyle(.secondary).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+                    if !message.files.isEmpty { Image(systemName: "paperclip").font(.meta).foregroundStyle(.secondary) }
+                    Text(MailText.date(message.date)).font(.meta).foregroundStyle(.secondary)
+                }
+                .padding(.vertical, Space.m)
+                .contentShape(Rectangle())
             }
-            .padding(.vertical, Space.l)
-            .contentShape(Rectangle())
-            .onTapGesture { model.toggle(message) }
+            .buttonStyle(.row(inset: Space.s))
+            .padding(.vertical, Space.xs)
         }
     }
 
@@ -683,19 +680,20 @@ struct MailMessageView: View {
                         Text(people.isEmpty ? "détails" : "à \(people.joined(separator: ", "))").lineLimit(1)
                         Image(systemName: details ? "chevron.up" : "chevron.down").font(.system(size: 10, weight: .semibold))
                     }
+                    .padding(.horizontal, Space.s).padding(.vertical, 2)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.hover(.capsule))
                 .font(.meta).foregroundStyle(.secondary)
+                .padding(.horizontal, -Space.s)
                 if details { detailGrid }
             }
             .contentShape(Rectangle())
             .onTapGesture { model.toggle(message) }
             Spacer(minLength: Space.m)
             Text(MailText.longDate(message.date)).font(.meta).foregroundStyle(.secondary)
-            HStack(spacing: Space.s) {
-                Button { reply(.reply) } label: { Image(systemName: "arrowshape.turn.up.left") }
-                    .help("Répondre à ce message")
-                Menu {
+            HStack(spacing: 2) {
+                IconButton("arrowshape.turn.up.left", help: "Répondre à ce message") { reply(.reply) }
+                IconMenu("ellipsis", help: "Plus") {
                     Button("Répondre") { reply(.reply) }
                     Button("Répondre à tous") { reply(.replyAll) }
                     Button("Transférer") { reply(.forward) }
@@ -713,14 +711,9 @@ struct MailMessageView: View {
                             if model.light.contains(message.id) { model.light.remove(message.id) } else { model.light.insert(message.id) }
                         }
                     }
-                } label: {
-                    Image(systemName: "ellipsis")
                 }
-                .menuIndicator(.hidden)
-                .fixedSize()
             }
-            .font(.system(size: 15))
-            .buttonStyle(.borderless)
+            .padding(.top, -6)
         }
         .onHover { hoveringHeader = $0 }
     }
@@ -800,7 +793,7 @@ struct MailMessageView: View {
             HStack {
                 Text(message.files.count > 1 ? "\(message.files.count) pièces jointes" : "1 pièce jointe").font(.meta.weight(.semibold)).foregroundStyle(.secondary)
                 if message.files.count > 1 {
-                    Button("Tout enregistrer…") { model.saveAll(of: message) }.buttonStyle(.link).font(.meta)
+                    TextButton("Tout enregistrer…") { model.saveAll(of: message) }.padding(.leading, Space.s)
                 }
             }
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 230, maximum: 280), spacing: Space.s)], alignment: .leading, spacing: Space.s) {
@@ -819,22 +812,30 @@ struct AttachmentTile: View {
 
     var body: some View {
         let type = UTType(filenameExtension: (file.filename as NSString).pathExtension) ?? .data
-        HStack(spacing: Space.s) {
-            Image(nsImage: NSWorkspace.shared.icon(for: type)).resizable().frame(width: 34, height: 34)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(file.filename).font(.rowBody).lineLimit(1).truncationMode(.middle)
-                Text(MailText.size(file.size)).font(.tag).foregroundStyle(.secondary)
+        Button(action: open) {
+            HStack(spacing: Space.s) {
+                Image(nsImage: NSWorkspace.shared.icon(for: type)).resizable().frame(width: 34, height: 34)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(file.filename).font(.rowBody).foregroundStyle(.primary).lineLimit(1).truncationMode(.middle)
+                    Text(MailText.size(file.size)).font(.meta).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+                // Room for « Enregistrer… », laid over the tile: nothing moves when it shows.
+                Color.clear.frame(width: 32, height: 1)
             }
-            Spacer(minLength: 0)
-            if hovering {
-                Button(action: save) { Image(systemName: "arrow.down.circle") }.buttonStyle(.borderless).help("Enregistrer…")
-            }
+            .padding(Space.m)
+            .background(Surface.fill, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
         }
-        .padding(Space.m)
-        .background(hovering ? Surface.raised : Surface.fill, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
-        .contentShape(Rectangle())
-        .onTapGesture(perform: open)
+        .buttonStyle(.row)
+        .overlay(alignment: .trailing) {
+            IconButton("arrow.down.circle", help: "Enregistrer…") { save() }
+                .padding(.trailing, Space.s)
+                .opacity(hovering ? 1 : 0)
+                .allowsHitTesting(hovering)
+        }
         .onHover { hovering = $0 }
+        .animation(Motion.quick, value: hovering)
         .contextMenu { Button("Enregistrer…", action: save) }
         .help(AttachmentSafety.canOpen(name: file.filename) ? "Aperçu" : "Ce type de fichier ne s'ouvre pas dans Polhub : il s'enregistre.")
     }
@@ -911,6 +912,7 @@ struct MailSubscriptionsView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             if !subscription.inboxThreads.isEmpty {
                 Button("Tout archiver (\(subscription.inboxThreads.count))") { mails.archiveAll(subscription) }
+                    .buttonStyle(.glass)
                     .help("Archiver ses mails encore en boîte de réception")
             }
             if let left {
@@ -918,6 +920,7 @@ struct MailSubscriptionsView: View {
                     .font(.meta).foregroundStyle(.secondary)
             } else if let method {
                 Button("Se désabonner") { mails.askUnsubscribe(sender: subscription.sender, method: method) }
+                    .buttonStyle(.glass)
                     .help({
                         switch method {
                         case .oneClick: "En un clic, auprès de \(method.domain)"
@@ -927,7 +930,6 @@ struct MailSubscriptionsView: View {
                     }())
             }
         }
-        .controlSize(.large)
         .padding(.trailing, Space.xl)
         .padding(.vertical, Space.l)
     }

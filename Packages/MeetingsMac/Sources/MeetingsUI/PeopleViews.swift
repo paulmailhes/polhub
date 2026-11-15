@@ -224,10 +224,9 @@ struct PersonChip<Items: View>: View {
             .background(Surface.fill, in: Capsule())
         }
         .menuStyle(.button)
-        .buttonStyle(.plain)
+        .buttonStyle(.hover(.capsule))
         .menuIndicator(.hidden)
         .fixedSize()
-        .hoverRow(radius: 14)
         .help("\(person.display) · \(person.email)\(help.isEmpty ? "" : " · \(help)")")
     }
 }
@@ -292,10 +291,9 @@ struct ThreadPeopleRow: View {
                             .background(Surface.fill, in: Capsule())
                     }
                     .menuStyle(.button)
-                    .buttonStyle(.plain)
+                    .buttonStyle(.hover(.capsule))
                     .menuIndicator(.hidden)
                     .fixedSize()
-                    .hoverRow(radius: 14)
                     .help("Les autres personnes du fil")
                 }
                 if let project, !newcomers.isEmpty {
@@ -398,5 +396,97 @@ struct MessagePeople: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - A meeting's people
+
+/// The participants of a meeting, on its page (15/11): the same chips and small menu as in the mails and the
+/// calendar, for the meeting's project. Never a trip to the Contacts page.
+@MainActor
+enum MeetingPeople {
+    /// A participant as the mails know people: Paul's spelling of the name.
+    static func person(_ contact: ContactRow, email: String) -> MailAddress {
+        MailAddress(name: contact.name.trimmingCharacters(in: .whitespaces).isEmpty ? nil : contact.name, email: email.lowercased())
+    }
+
+    /// In the meeting's project (its color), to add to it (« + »); a contact when the meeting has no project.
+    static func badge(of person: MailAddress, project: UUID?, agenda: AgendaLibrary) -> PersonBadge {
+        agenda.badge(of: person.email, project: project, contacts: false)
+    }
+
+    /// « Ajouter à « P » » or « Retirer de « P » », « Écrire », « Copier l'adresse ».
+    static func items(_ person: MailAddress, project: ProjectRow?, agenda: AgendaLibrary, router: WindowRouter) -> PersonMenuItems {
+        let write: (() -> Void)? = agenda.mails.map { mails in { [weak mails, weak router] in mails?.write(to: person, router: router) } }
+        return PersonMenuItems(person: person, link: agenda.link(of: person.email, project: project?.id), project: project,
+                               add: {
+                                   _ = try? agenda.add([person], to: project?.id, respectRemoval: false)
+                                   Task { await agenda.runLinks() }
+                               },
+                               remove: {
+                                   guard let id = project?.id else { return }
+                                   _ = try? agenda.remove(person, from: id)
+                                   Task { await agenda.runLinks() }
+                               },
+                               write: write)
+    }
+}
+
+/// A participant on a chip: their small menu when the agenda is there and they have an address; else the name.
+struct MeetingPersonChip: View {
+    static let shown = 6
+
+    let contact: ContactRow
+    let project: ProjectRow?
+    let agenda: AgendaLibrary?
+    let router: WindowRouter
+
+    var body: some View {
+        if let agenda, let email = contact.email, !email.isEmpty {
+            Observing(agenda) { agenda in
+                let person = MeetingPeople.person(contact, email: email)
+                let badge = MeetingPeople.badge(of: person, project: project?.id, agenda: agenda)
+                PersonChip(person: person, badge: badge, help: badge.help(project: project?.name)) {
+                    MeetingPeople.items(person, project: project, agenda: agenda, router: router)
+                }
+            }
+        } else {
+            HStack(spacing: 6) {
+                Avatar(contact.initials, size: 22, tint: MailText.tint(for: contact.email ?? contact.name))
+                Text(contact.name).font(.meta).lineLimit(1)
+            }
+            .padding(.leading, 3).padding(.trailing, Space.s).padding(.vertical, 3)
+            .background(Surface.fill, in: Capsule())
+            .help(contact.name)
+        }
+    }
+}
+
+/// « +3 »: the other participants, each with their small menu.
+struct MeetingMorePeople: View {
+    let people: [ContactRow]
+    let project: ProjectRow?
+    let agenda: AgendaLibrary?
+    let router: WindowRouter
+
+    var body: some View {
+        Menu {
+            ForEach(people) { contact in
+                if let agenda, let email = contact.email, !email.isEmpty {
+                    Menu(contact.name) { MeetingPeople.items(MeetingPeople.person(contact, email: email), project: project, agenda: agenda, router: router) }
+                } else {
+                    Text(contact.name)
+                }
+            }
+        } label: {
+            Text("+\(people.count)").font(.meta.weight(.medium)).foregroundStyle(.secondary)
+                .padding(.horizontal, Space.s).padding(.vertical, 5)
+                .background(Surface.fill, in: Capsule())
+        }
+        .menuStyle(.button)
+        .buttonStyle(.hover(.capsule))
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help(people.map(\.name).joined(separator: ", "))
     }
 }

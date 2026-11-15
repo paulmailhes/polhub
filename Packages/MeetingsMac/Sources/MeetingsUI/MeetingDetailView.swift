@@ -26,6 +26,8 @@ struct MeetingDetailView: View {
     let job: JobRow?
     let meetingActive: Bool
     @ObservedObject var router: WindowRouter
+    /// The contacts and their projects: the participants' small menu works through it.
+    var agenda: AgendaLibrary?
 
     @AppStorage(Preferences.Key.summariesEnabled) private var summariesEnabled = true
     @State private var player: MeetingPlayer?
@@ -114,22 +116,13 @@ struct MeetingDetailView: View {
             if !projects.isEmpty || !participants.isEmpty {
                 FlowLayout(spacing: Space.s) {
                     if !projects.isEmpty { projectMenu }
-                    ForEach(participants.prefix(6)) { contact in
-                        Button { router.openContact(contact.id) } label: {
-                            HStack(spacing: 6) {
-                                Avatar(contact.initials, size: 22)
-                                Text(contact.name).font(.meta).lineLimit(1)
-                            }
-                            .padding(.leading, Space.xs)
-                            .padding(.trailing, Space.s)
-                            .padding(.vertical, Space.xs)
-                        }
-                        .buttonStyle(.hover(.capsule))
-                        .help(contact.email ?? contact.name)
+                    // Who took part, and who of them is in the meeting's project; a click opens their small
+                    // menu here, as in the mails and the calendar (15/11: Paul never opens Contacts).
+                    ForEach(participants.prefix(MeetingPersonChip.shown)) { contact in
+                        MeetingPersonChip(contact: contact, project: project, agenda: agenda, router: router)
                     }
-                    if participants.count > 6 {
-                        Text("+\(participants.count - 6)").font(.meta).foregroundStyle(.secondary)
-                            .help(participants.dropFirst(6).map(\.name).joined(separator: ", "))
+                    if participants.count > MeetingPersonChip.shown {
+                        MeetingMorePeople(people: Array(participants.dropFirst(MeetingPersonChip.shown)), project: project, agenda: agenda, router: router)
                     }
                 }
             }
@@ -405,26 +398,23 @@ struct PlayerView: View {
                 .pickerStyle(.inline)
             } label: {
                 Text(MeetingPlayer.rateLabel(player.rate)).font(.callout.monospacedDigit().weight(.semibold))
+                    .frame(minWidth: 44, minHeight: 32)
             }
             .menuStyle(.button)
-            .buttonStyle(.borderless)
+            .buttonStyle(.hover(.capsule))
             .menuIndicator(.hidden)
             .fixedSize()
-            .frame(minWidth: 44, minHeight: 32)
-            .hoverRow(radius: 16)
             .help("La vitesse de lecture")
             Menu {
                 Toggle("Moi", isOn: $player.moiEnabled)
                 Toggle("Les autres", isOn: $player.autresEnabled)
             } label: {
-                Image(systemName: "person.2.wave.2")
+                Image(systemName: "person.2.wave.2").frame(width: 36, height: 32)
             }
             .menuStyle(.button)
-            .buttonStyle(.borderless)
+            .buttonStyle(.hover(.capsule))
             .menuIndicator(.hidden)
             .fixedSize()
-            .frame(width: 36, height: 32)
-            .hoverRow(radius: 16)
             .help("Les voix à écouter")
         }
     }

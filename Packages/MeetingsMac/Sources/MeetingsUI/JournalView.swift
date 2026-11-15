@@ -13,16 +13,16 @@ struct JournalView: View {
                                    description: Text("Aucune réunion manquée, aucune alerte."))
         } else {
             List(entries) { entry in
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                HStack(alignment: .firstTextBaseline, spacing: Space.m) {
                     icon(entry.kind)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(entry.message).fixedSize(horizontal: false, vertical: true)
+                        Text(entry.message).font(.rowBody).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
                         Text(entry.createdAt.formatted(date: .abbreviated, time: .shortened))
-                            .font(.tag)
+                            .font(.meta.monospacedDigit())
                             .foregroundStyle(.secondary)
                     }
                 }
-                .padding(.vertical, 3)
+                .padding(.vertical, Space.xs)
             }
         }
     }

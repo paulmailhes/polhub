@@ -31,6 +31,14 @@ import Testing
         #expect(HoverRow.fill(selected: true, hovering: true) == Surface.selected)
     }
 
+    /// 15/11: a row that is a button darkens a step while pressed; the selection still wins.
+    @Test func aRowButtonDarkensWhilePressed() {
+        #expect(HoverRow.fill(selected: false, hovering: true, pressed: true) == Surface.raised)
+        #expect(HoverRow.fill(selected: false, hovering: false, pressed: true) == Surface.raised)
+        #expect(HoverRow.fill(selected: true, hovering: true, pressed: true) == Surface.selected)
+        #expect(HoverRow.fill(selected: false, hovering: false, pressed: false) == .clear)
+    }
+
     @Test func motionsGoFromQuickToGentle() {
         #expect(Motion.quick != Motion.standard && Motion.standard != Motion.gentle)
     }
