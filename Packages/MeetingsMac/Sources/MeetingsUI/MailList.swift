@@ -46,13 +46,7 @@ struct MailListView: View {
             }
         }
         .background(MailSurface.unread)
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button { mails.newMail() } label: { Label("Nouveau mail", systemImage: "square.and.pencil") }
-                    .help("Nouveau mail (⌘N)")
-                    .keyboardShortcut("n", modifiers: .command)
-            }
-        }
+        // « Nouveau mail » is at the top of « Mails », in the sidebar, as Gmail's (15/11); ⌘N is in MailSectionView.
         .searchable(text: $mails.query, placement: .toolbar, prompt: "Chercher dans Gmail")
         .onSubmit(of: .search) { Task { await mails.search(mails.query) } }
         .onChange(of: mails.query) { _, text in if text.isEmpty { mails.endSearch() } }
@@ -175,12 +169,11 @@ struct MailLine: View {
     var body: some View { Rectangle().fill(MailSurface.line).frame(height: 1) }
 }
 
-/// A round icon button, as Gmail's above and in the list: its circle shows on hover.
+/// A round icon button, as Gmail's above and in the list: the design system's `IconButton` (15/11).
 struct MailIconButton: View {
     let systemImage: String
     let help: String
     let action: () -> Void
-    @State private var hovering = false
 
     init(_ systemImage: String, help: String, action: @escaping () -> Void) {
         self.systemImage = systemImage
@@ -189,17 +182,7 @@ struct MailIconButton: View {
     }
 
     var body: some View {
-        Button(action: action) {
-            Image(systemName: systemImage)
-                .font(.system(size: 15))
-                .frame(width: 32, height: 32)
-                .background(hovering ? Surface.raised : .clear, in: Circle())
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(.secondary)
-        .onHover { hovering = $0 }
-        .help(help)
+        IconButton(systemImage, help: help, action: action)
     }
 }
 

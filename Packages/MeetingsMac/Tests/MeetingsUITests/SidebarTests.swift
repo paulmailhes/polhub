@@ -1,4 +1,5 @@
 import Foundation
+import Persistence
 import PolhubDesign
 import Testing
 @testable import MeetingsUI
@@ -11,6 +12,75 @@ import Testing
         #expect(SidebarItem.visible(hasProjects: true, hasAgenda: true).map(\.title) == ["Accueil", "Projets", "Réunions", "Calendrier", "Contacts"])
         #expect(SidebarItem.visible(hasProjects: false, hasAgenda: false) == [.meetings])
         #expect(SidebarItem.settings.title == "Réglages")
+    }
+
+    /// 15/11: a color and a symbol per section, as Mail's and the Finder's; the color of its family in Réglages.
+    @Test func eachSectionHasItsColorAndItsSymbol() {
+        let all: [SidebarItem] = [.home, .projects, .meetings, .calendar, .mails, .contacts, .settings]
+        #expect(Set(all.map(\.tint)).count == all.count)
+        #expect(Set(all.map(\.icon)).count == all.count)
+        #expect(SidebarItem.calendar.tint == SettingsPane.calendar.tint && SidebarItem.mails.tint == SettingsPane.mails.tint)
+        #expect(SidebarItem.projects.tint == SettingsPane.projects.tint && SidebarItem.meetings.tint == SettingsPane.meetings.tint)
+        #expect(SidebarItem.settings.tint == SettingsPane.general.tint)
+        #expect(SidebarItem.home.tint == Palette.teal && SidebarItem.contacts.tint == Palette.green)
+    }
+
+    /// The row lit: the folder under « Mails » open, « Mails » when closed, none above Réglages (which has its
+    /// own row at the bottom).
+    @Test func theSidebarLightsTheRightRow() {
+        #expect(SidebarRow.selected(section: .mails, folder: .sent, mailsOpen: true) == .mail(.sent))
+        #expect(SidebarRow.selected(section: .mails, folder: .sent, mailsOpen: false) == .section(.mails))
+        #expect(SidebarRow.selected(section: .mails, folder: nil, mailsOpen: true) == .section(.mails))
+        #expect(SidebarRow.selected(section: .calendar, folder: .inbox, mailsOpen: true) == .section(.calendar))
+        #expect(SidebarRow.selected(section: .settings, folder: .inbox, mailsOpen: true) == nil)
+    }
+
+    /// Calendrier counts what is left of the day: the event under way and those to come, neither whole days,
+    /// nor declined ones, nor tomorrow's.
+    @Test func calendrierCountsTheEventsLeftToday() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "Europe/Paris"))
+        let now = try #require(calendar.date(from: DateComponents(year: 2026, month: 11, day: 17, hour: 10, minute: 0)))
+        func event(_ id: String, _ startMinutes: Double, _ minutes: Double = 30, allDay: Bool = false, declined: Bool = false) -> CalendarEventRow {
+            CalendarEventRow(account: "moi@exemple.fr", eventID: id, title: id, startAt: now.addingTimeInterval(startMinutes * 60),
+                             endAt: now.addingTimeInterval((startMinutes + minutes) * 60), allDay: allDay,
+                             attendees: [Attendee(email: "moi@exemple.fr", response: declined ? "declined" : "accepted", isSelf: true)], updatedAt: now)
+        }
+        let events = [event("fini", -90), event("en-cours", -10), event("plus-tard", 120), event("ce-soir", 600),
+                      event("journee", -600, 24 * 60, allDay: true), event("refuse", 60, declined: true), event("demain", 24 * 60)]
+        #expect(SidebarCounts.eventsLeftToday(events, now: now, calendar: calendar) == 3)
+        #expect(SidebarCounts.eventsLeftToday([], now: now, calendar: calendar) == 0)
+    }
+
+    /// « Nouveau mail » twice: the blank mail of the first click goes, a single new one stays open, over Mails.
+    @Test func nouveauMailNeverLeavesAnEmptyDraftBehind() async throws {
+        let database = try AppDatabase.inMemory()
+        let calendar = CalendarStore(database)
+        try calendar.addAccount(email: "moi@exemple.fr", at: Date())
+        try calendar.setGrantedScopes(email: "moi@exemple.fr",
+                                      scopes: "openid https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.modify")
+        let root = FileManager.default.temporaryDirectory.appending(path: "nouveau-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let agenda = AgendaLibrary(database: database)
+        let mails = MailLibrary(agenda: agenda, root: root, defaults: try #require(UserDefaults(suiteName: "nouveau-\(UUID().uuidString)")), flavor: .dev)
+        let router = WindowRouter()
+        router.section = .projects
+        try await waitUntil { !mails.accounts.isEmpty }
+
+        mails.writeNewMail(router: router)
+        let first = try #require(mails.composing)
+        #expect(router.section == .mails)
+        mails.writeNewMail(router: router)
+        let second = try #require(mails.composing)
+        #expect(first != second)
+        let store = MailStore(database)
+        try await waitUntil { (try? store.draft(first)) == nil }
+        #expect(try store.draft(second) != nil)
+    }
+
+    private func waitUntil(_ condition: () -> Bool) async throws {
+        for _ in 0..<100 where !condition() { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(condition())
     }
 
     /// 14/11: Réglages opens on its families, as Apple's; each family is entered.

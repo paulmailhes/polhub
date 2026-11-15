@@ -24,13 +24,26 @@ public enum SidebarItem: String, Hashable, Sendable {
 
     var icon: String {
         switch self {
-        case .home: "house"
-        case .projects: "square.grid.3x2"
+        case .home: "house.fill"
+        case .projects: "square.grid.3x2.fill"
         case .meetings: "waveform"
         case .calendar: "calendar"
-        case .mails: "envelope"
-        case .contacts: "person.2"
-        case .settings: "gearshape"
+        case .mails: "envelope.fill"
+        case .contacts: "person.2.fill"
+        case .settings: "gearshape.fill"
+        }
+    }
+
+    /// One color per section, as in Mail's and the Finder's sidebar; the same as its family in Réglages (15/11).
+    var tint: String {
+        switch self {
+        case .home: Palette.teal
+        case .projects: Palette.blue
+        case .meetings: Palette.violet
+        case .calendar: Palette.orange
+        case .mails: Palette.pink
+        case .contacts: Palette.green
+        case .settings: Palette.gray
         }
     }
 
@@ -209,46 +222,22 @@ public struct MainWindowView<Diagnostic: View>: View {
 
     public var body: some View {
         NavigationSplitView(columnVisibility: $columns) {
-            let items = SidebarItem.visible(hasProjects: projects != nil, hasAgenda: agenda != nil, hasMails: mails != nil)
-            Group {
-                if let mails {
-                    MailAwareSidebar(router: router, mails: mails, items: items)
-                } else {
-                    List(selection: Binding { Optional(SidebarRow.section(router.section)) } set: { row in
-                        if case .section(let item)? = row { router.section = item }
-                    }) {
-                        ForEach(items, id: \.self) { item in Label(item.title, systemImage: item.icon).tag(SidebarRow.section(item)) }
+            Sidebar(router: router, library: library, agenda: agenda, mails: mails,
+                    items: SidebarItem.visible(hasProjects: projects != nil, hasAgenda: agenda != nil, hasMails: mails != nil))
+                // One width, always: a sidebar free to resize changed size from one section to the next (Paul, 15/11).
+                .navigationSplitViewColumnWidth(Self.sidebarWidth)
+                // The window is made by hand: SwiftUI does not add this button there. It keeps a toolbar on every
+                // page, so the window's buttons never move and nothing sticks to the top (Paul, 14/11).
+                .toolbar {
+                    ToolbarItem {
+                        Button {
+                            withAnimation(Motion.standard) { columns = columns == .detailOnly ? .all : .detailOnly }
+                        } label: {
+                            Label("Barre latérale", systemImage: "sidebar.left")
+                        }
+                        .help("Afficher ou masquer la barre latérale")
                     }
                 }
-            }
-            // One width, always: a sidebar free to resize changed size from one section to the next (Paul, 15/11).
-            .navigationSplitViewColumnWidth(Self.sidebarWidth)
-            // Réglages at the bottom, apart from the work (Paul, 14/11).
-            .safeAreaInset(edge: .bottom) {
-                Button { router.openSettings(nil) } label: {
-                    Label(SidebarItem.settings.title, systemImage: SidebarItem.settings.icon)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, Space.s)
-                        .padding(.vertical, 6)
-                        .background(router.section == .settings ? Surface.selected : .clear, in: RoundedRectangle(cornerRadius: Radius.small + 2, style: .continuous))
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, Space.s + 2)
-                .padding(.bottom, Space.m)
-            }
-            // The window is made by hand: SwiftUI does not add this button there. It keeps a toolbar on every
-            // page, so the window's buttons never move and nothing sticks to the top (Paul, 14/11).
-            .toolbar {
-                ToolbarItem {
-                    Button {
-                        withAnimation { columns = columns == .detailOnly ? .all : .detailOnly }
-                    } label: {
-                        Label("Barre latérale", systemImage: "sidebar.left")
-                    }
-                    .help("Afficher ou masquer la barre latérale")
-                }
-            }
         } detail: {
             switch router.section {
             case .home:
@@ -321,92 +310,6 @@ public struct MainWindowView<Diagnostic: View>: View {
         router.projectSelection = nil
         projects.selected = id
 
-    }
-}
-
-/// A row of the sidebar: a section, or one of the mails' folders under « Mails » (Paul, 15/11).
-enum SidebarRow: Hashable {
-    case section(SidebarItem)
-    case mail(MailFolder)
-}
-
-/// The sidebar with « Mails » open on its folders, as Gmail's on the left (Paul, 15/11: « quand on clique
-/// dessus on a des sous-menus : boîte de réception, envoyés… »), then the mailboxes to show or hide.
-struct MailAwareSidebar: View {
-    @ObservedObject var router: WindowRouter
-    @ObservedObject var mails: MailLibrary
-    let items: [SidebarItem]
-    @AppStorage(Preferences.Key.mailSidebarOpen) private var open = true
-
-    private var selection: Binding<SidebarRow?> {
-        Binding {
-            router.section == .mails ? .mail(mails.folder) : .section(router.section)
-        } set: { row in
-            switch row {
-            case .section(.mails)?: show(.inbox)
-            case .section(let item)?: router.section = item
-            case .mail(let folder)?: show(folder)
-            case nil: break
-            }
-        }
-    }
-
-    /// A folder, from the top: no thread open over it, no search left from before.
-    private func show(_ folder: MailFolder) {
-        router.section = .mails
-        router.mailSelection = nil
-        if !mails.query.isEmpty { mails.query = "" }
-        mails.endSearch()
-        mails.folder = folder
-        open = true
-    }
-
-    private func count(_ folder: MailFolder) -> Int {
-        switch folder {
-        case .inbox: mails.unreadCount
-        case .drafts: mails.draftCount
-        default: 0
-        }
-    }
-
-    var body: some View {
-        List(selection: selection) {
-            ForEach(items, id: \.self) { item in
-                if item == .mails {
-                    DisclosureGroup(isExpanded: $open) {
-                        ForEach(MailFolder.allCases, id: \.self) { folder in
-                            Label(folder.title, systemImage: folder.icon).badge(count(folder)).tag(SidebarRow.mail(folder))
-                        }
-                        if mails.accounts.count > 1 {
-                            Text("Boîtes").font(.meta.weight(.semibold)).foregroundStyle(.secondary).padding(.top, Space.s)
-                            ForEach(mails.accounts) { account in box(account.email) }
-                        }
-                    } label: {
-                        Label(item.title, systemImage: item.icon).badge(open ? 0 : mails.unreadCount).tag(SidebarRow.section(.mails))
-                    }
-                } else {
-                    Label(item.title, systemImage: item.icon).tag(SidebarRow.section(item))
-                }
-            }
-        }
-    }
-
-    /// A mailbox, ticked in its color when the list shows it, as the calendars in Apple's Calendar.
-    private func box(_ email: String) -> some View {
-        let shown = !mails.hidden.contains(email)
-        return Button {
-            if shown { mails.hidden.insert(email) } else { mails.hidden.remove(email) }
-        } label: {
-            Label {
-                Text(AccountStyle.label(for: email)).foregroundStyle(shown ? Color.primary : Color.secondary).lineLimit(1)
-            } icon: {
-                Image(systemName: shown ? "checkmark.square.fill" : "square").foregroundStyle(mails.color(for: email))
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help(shown ? "\(email) — cliquer pour masquer cette boîte" : "\(email) — masquée, cliquer pour l'afficher")
     }
 }
 

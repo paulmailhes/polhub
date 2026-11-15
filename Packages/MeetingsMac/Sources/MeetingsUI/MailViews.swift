@@ -51,6 +51,15 @@ struct MailSectionView: View {
         .animation(.snappy(duration: 0.25), value: router.mailSelection)
         .animation(.snappy(duration: 0.25), value: mails.composing)
         .overlay(alignment: .bottom) { MailUndoBar(mails: mails) }
+        // ⌘N writes a new mail from Mails only; the button is at the top of « Mails », in the sidebar (15/11).
+        .background {
+            Button("Nouveau mail") { mails.writeNewMail(router: router) }
+                .keyboardShortcut("n", modifiers: .command)
+                .opacity(0)
+                .frame(width: 0, height: 0)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
         .onAppear { mails.router = router }
         .confirmationDialog("Se désabonner de \(mails.unsubscribeRequest?.name ?? "") ?",
                             isPresented: Binding(get: { mails.unsubscribeRequest != nil }, set: { if !$0 { mails.unsubscribeRequest = nil } }),
