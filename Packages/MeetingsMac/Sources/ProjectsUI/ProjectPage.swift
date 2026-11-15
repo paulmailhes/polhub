@@ -32,6 +32,8 @@ struct ProjectPage: View {
     @State private var openEntries: Set<UUID> = []
     @State private var editingNotes = false
     @State private var showingDone = false
+    /// The actions Paul added or ticked on this page: they stay in sight past the first five.
+    @State private var touchedActions: Set<UUID> = []
     @State private var choosingFolder = false
     /// Two columns when the page is wide enough: decided from its width, not from its texts' (review of 14/11).
     @State private var wide = true
@@ -158,19 +160,26 @@ struct ProjectPage: View {
         }
     }
 
-    /// The open actions first, five of them, then « Voir les N autres »; the done ones on request.
+    /// The open actions first, five of them, then « Voir les N autres »; the done ones on request, in their own list
+    /// below. An action Paul just added or ticked shows even past the first five (correctifs, 15/11).
     private var actionsCard: some View {
         Card {
-            SectionTitle("Actions", systemImage: "checklist", count: actions.filter { !$0.done }.count) {
-                if actions.contains(where: \.done) {
+            let open = actions.filter { !$0.done }
+            let done = actions.filter(\.done)
+            SectionTitle("Actions", systemImage: "checklist", count: open.count) {
+                if !done.isEmpty {
                     TextButton(showingDone ? "Masquer les faites" : "Voir les faites") {
                         withAnimation(Motion.standard) { showingDone.toggle() }
                     }
                 }
             }
-            let shown = actions.filter { !$0.done } + (showingDone ? actions.filter(\.done) : [])
-            if shown.isEmpty { EmptyLine("Aucune action en cours.") }
-            ShowMoreList(shown, limit: 5) { action in actionRow(action) }
+            if open.isEmpty { EmptyLine("Aucune action en cours.") }
+            ShowMoreList(open, limit: 5, alwaysShown: touchedActions) { action in actionRow(action) }
+            if showingDone, !done.isEmpty {
+                ShowMoreList(done, limit: 5, alwaysShown: touchedActions) { action in actionRow(action) }
+                    .padding(.top, Space.xs)
+                    .transition(.opacity)
+            }
             TextField("Nouvelle action", text: $newAction)
                 .textFieldStyle(.roundedBorder)
                 .onSubmit(addAction)
@@ -184,6 +193,7 @@ struct ProjectPage: View {
                 changed.done = done
                 changed.updatedAt = Date()
                 try? library.store.saveAction(changed)
+                touchedActions.insert(action.id)
                 reload()
             })) {
                 VStack(alignment: .leading, spacing: 1) {
@@ -273,7 +283,9 @@ struct ProjectPage: View {
         let text = newAction.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return }
         let position = (actions.map(\.position).max() ?? -1) + 1
-        try? library.store.saveAction(ActionRow(projectID: project.id, text: text, addedOn: Date(), position: position, createdAt: Date()))
+        let action = ActionRow(projectID: project.id, text: text, addedOn: Date(), position: position, createdAt: Date())
+        try? library.store.saveAction(action)
+        touchedActions.insert(action.id)
         newAction = ""
         reload()
     }

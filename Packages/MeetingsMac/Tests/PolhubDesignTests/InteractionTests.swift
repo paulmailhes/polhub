@@ -23,6 +23,19 @@ import Testing
         #expect(ShowMore.hidden(count: 3, limit: -1) == 3 && ShowMore.visible([1, 2], limit: -1, expanded: false).isEmpty)
     }
 
+    struct Row: Identifiable, Equatable {
+        let id: Int
+    }
+
+    /// Correctifs du 15/11 : ce que Paul vient d'ajouter se voit, même au-delà des premières lignes.
+    @Test func aRowJustAddedShowsEvenPastTheLimit() {
+        let rows = (1...8).map(Row.init)
+        #expect(ShowMore.visible(rows, limit: 5, expanded: false, alwaysShown: [8]).map(\.id) == [1, 2, 3, 4, 5, 8])
+        #expect(ShowMore.hidden(rows, limit: 5, alwaysShown: [8]) == 2)
+        #expect(ShowMore.hidden(rows, limit: 5, alwaysShown: [2]) == 3)
+        #expect(ShowMore.visible(rows, limit: 5, expanded: true, alwaysShown: [8]) == rows)
+    }
+
     /// The selection wins over the hover; nothing at rest.
     @Test func aRowLightsUpUnderThePointer() {
         #expect(HoverRow.fill(selected: false, hovering: false) == .clear)

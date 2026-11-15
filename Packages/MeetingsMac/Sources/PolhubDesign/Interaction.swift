@@ -372,25 +372,28 @@ public struct ShowMoreButton: View {
     }
 }
 
-/// The first `limit` rows, then « Voir les N autres »: a list never cut in silence.
+/// The first `limit` rows, then « Voir les N autres »: a list never cut in silence. The rows of `alwaysShown`
+/// (what Paul just added) show even past the limit, so a gesture always shows its result (correctifs, 15/11).
 public struct ShowMoreList<Item: Identifiable, Row: View>: View {
     let items: [Item]
     let limit: Int
+    let alwaysShown: Set<Item.ID>
     let row: (Item) -> Row
     @State private var expanded = false
 
-    public init(_ items: [Item], limit: Int, @ViewBuilder row: @escaping (Item) -> Row) {
+    public init(_ items: [Item], limit: Int, alwaysShown: Set<Item.ID> = [], @ViewBuilder row: @escaping (Item) -> Row) {
         self.items = items
         self.limit = limit
+        self.alwaysShown = alwaysShown
         self.row = row
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: Space.xs) {
-            ForEach(ShowMore.visible(items, limit: limit, expanded: expanded)) { item in
+            ForEach(ShowMore.visible(items, limit: limit, expanded: expanded, alwaysShown: alwaysShown)) { item in
                 row(item).transition(.opacity)
             }
-            ShowMoreButton(hidden: ShowMore.hidden(count: items.count, limit: limit), expanded: $expanded)
+            ShowMoreButton(hidden: ShowMore.hidden(items, limit: limit, alwaysShown: alwaysShown), expanded: $expanded)
         }
     }
 }
@@ -403,6 +406,16 @@ enum ShowMore {
 
     static func visible<Item>(_ items: [Item], limit: Int, expanded: Bool) -> [Item] {
         expanded ? items : Array(items.prefix(max(0, limit)))
+    }
+
+    /// The first rows, and past them the ones that must show.
+    static func visible<Item: Identifiable>(_ items: [Item], limit: Int, expanded: Bool, alwaysShown: Set<Item.ID>) -> [Item] {
+        guard !expanded else { return items }
+        return items.enumerated().filter { $0.offset < max(0, limit) || alwaysShown.contains($0.element.id) }.map(\.element)
+    }
+
+    static func hidden<Item: Identifiable>(_ items: [Item], limit: Int, alwaysShown: Set<Item.ID>) -> Int {
+        items.count - visible(items, limit: limit, expanded: false, alwaysShown: alwaysShown).count
     }
 }
 
