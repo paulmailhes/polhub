@@ -315,6 +315,18 @@ import Testing
         #expect(try mails.sentRecipients(threadKeys: []).isEmpty)
     }
 
+    /// Correctifs du 15/11 : la recherche compare des octets, et trouve ce que `String.contains` trouvait, accents
+    /// repliés, lettres d'autres écritures et chaînes venues de Foundation comprises.
+    @Test func theSearchOfBytesFindsWhatTheSearchOfTextFound() {
+        let found = " devis ete 2026 東京 camille exemple.fr"
+        for words in [["dev"], ["ete", "camille"], ["東"], ["exemple.fr"], ["evis"], ["2026", "zzz"], ["京"], ["camillea"]] {
+            let expected = words.allSatisfy { found.contains(" " + $0) }
+            #expect(MailSearch.matches(words, in: found) == expected, "\(words)")
+            #expect(MailSearch.matches(words, in: NSString(string: found) as String) == expected, "\(words)")
+        }
+        #expect(MailSearch.matches(["dev"], in: found) && !MailSearch.matches(["evis"], in: found) && !MailSearch.matches(["dev"], in: ""))
+    }
+
     /// 15/11: the instant search reads the whole copy, never the trash, the spam nor the drafts; each thread is
     /// found by its subject, its extracts, its people (senders and recipients) and the names of its files.
     @Test func theSearchEntriesHoldTheWholeCopy() throws {
