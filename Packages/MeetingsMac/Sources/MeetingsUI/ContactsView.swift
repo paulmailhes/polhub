@@ -2,201 +2,586 @@ import Domain
 import Persistence
 import ProjectsUI
 import PolhubDesign
+import Summarization
 import SwiftUI
 
-/// Contacts: the people of the calendars and of the vault, their projects, meetings and events (13/11).
+/// Contacts (15/11): the people of the calendars, the mails and the vault, those Paul crossed lately first. Paul
+/// rarely comes on purpose: he lands from a mail or a meeting, and the page says in a glance who the person is,
+/// their projects, and the mails, meetings and events with them.
 struct ContactsView: View {
     @ObservedObject var agenda: AgendaLibrary
     @ObservedObject var router: WindowRouter
     @State private var query = ""
+    /// The last mail of each address and the last meeting of each contact, read away from the main thread.
+    @State private var lastMails: [String: Date] = [:]
+    @State private var lastMeetings: [UUID: Date] = [:]
 
-    private var shown: [ContactRow] {
-        let query = query.trimmingCharacters(in: .whitespaces)
-        let sorted = agenda.contacts.sorted { Self.sortKey($0) < Self.sortKey($1) }
-        guard !query.isEmpty else { return sorted }
-        return sorted.filter { contact in
-            [contact.name, contact.email ?? "", contact.company ?? ""].contains { $0.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
-        }
-    }
-
-    /// By last name, as the vault's « Annuaire ».
-    static func sortKey(_ contact: ContactRow) -> String {
-        let words = contact.name.replacing(#/\s*\(.*?\)/#, with: "").split(separator: " ").filter { $0.count > 1 }
-        return (words.last.map { String($0) } ?? contact.name).folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
-    }
+    /// As the meetings' list (13/11).
+    static let listWidth: CGFloat = 300
 
     var body: some View {
+        let now = Date()
+        let projects = ContactsModel.projects(links: agenda.linkIndex, projects: agenda.projects)
+        let last = lastContacts(now: now)
+        let sections = visibleSections(projects: projects, last: last, now: now)
         HStack(spacing: 0) {
-            VStack(spacing: 0) {
-                if agenda.contacts.isEmpty {
-                    empty
-                } else {
-                    List(shown, selection: $router.contactSelection) { contact in
-                        HStack(spacing: Space.m) {
-                            Avatar(contact.initials, tint: MailText.tint(for: contact.email ?? contact.name))
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(contact.name).font(.rowTitle).lineLimit(1)
-                                if let company = contact.company { Text(company).font(.meta).foregroundStyle(.secondary).lineLimit(1) }
-                            }
-                            Spacer(minLength: 0)
+            list(sections, projects: projects, last: last, now: now)
+                .frame(width: Self.listWidth)
+            Divider()
+            detail
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .windowTitle("Contacts", subtitle: selected?.name ?? "")
+        .searchable(text: $query, placement: .toolbar, prompt: "Nom, adresse, entreprise, projet")
+        .task(id: agenda.contacts.map(\.email)) { await loadActivity() }
+        .onAppear { openFirst(sections) }
+        .onChange(of: agenda.contacts.isEmpty) { _, _ in openFirst(visibleSections(projects: projects, last: last, now: now)) }
+    }
+
+    private var selected: ContactRow? {
+        router.contactSelection.flatMap { id in agenda.contacts.first { $0.id == id } }
+    }
+
+    private func visibleSections(projects: [UUID: [ProjectRow]], last: [UUID: LastContact], now: Date) -> [ContactsModel.Section] {
+        let shown = agenda.contacts.filter { ContactsModel.matches($0, projects: (projects[$0.id] ?? []).map(\.name), query: query) }
+        return ContactsModel.sections(shown, last: last, now: now)
+    }
+
+    /// The last mail, meeting or event with each contact.
+    private func lastContacts(now: Date) -> [UUID: LastContact] {
+        let events = ContactsModel.lastEvents(agenda.shown, now: now)
+        var result: [UUID: LastContact] = [:]
+        for contact in agenda.contacts {
+            let email = contact.email ?? ""
+            result[contact.id] = ContactsModel.last(mail: lastMails[email], meeting: lastMeetings[contact.id], event: events[email])
+        }
+        return result
+    }
+
+    private func loadActivity() async {
+        let database = agenda.database
+        let emails = Set(agenda.contacts.compactMap(\.email))
+        let found = await Task.detached(priority: .userInitiated) {
+            ((try? MailStore(database).lastExchanges(with: emails)) ?? [:], (try? ContactStore(database).lastMeetings()) ?? [:])
+        }.value
+        lastMails = found.0
+        lastMeetings = found.1
+    }
+
+    /// Nothing chosen, or a contact gone: the first of the list opens, as the newest meeting does (13/11).
+    private func openFirst(_ sections: [ContactsModel.Section]) {
+        guard selected == nil, let first = sections.first?.contacts.first else { return }
+        router.contactSelection = first.id
+    }
+
+    // MARK: - The list
+
+    @ViewBuilder
+    private func list(_ sections: [ContactsModel.Section], projects: [UUID: [ProjectRow]], last: [UUID: LastContact], now: Date) -> some View {
+        if agenda.contacts.isEmpty {
+            ContentUnavailableView {
+                Label("Pas encore de contacts", systemImage: "person.2")
+            } description: {
+                Text("Ils arrivent tout seuls des invités de tes agendas, et d'un clic depuis un mail ou un rendez-vous.")
+            }
+        } else if sections.isEmpty {
+            ContentUnavailableView.search(text: query)
+        } else {
+            List(selection: $router.contactSelection) {
+                ForEach(sections) { section in
+                    Section(section.title) {
+                        ForEach(section.contacts) { contact in
+                            ContactListRow(contact: contact, projects: projects[contact.id] ?? [], last: last[contact.id], now: now)
+                                .tag(contact.id)
+                                .contextMenu { menu(contact) }
                         }
-                        .padding(.vertical, Space.xs)
-                        // A native list keeps its selection; the row answers the pointer too (15/11).
-                        .hoverRow(inset: Space.s)
-                        .tag(contact.id)
                     }
                 }
             }
-            .frame(width: 300)
-            Divider()
-            if let id = router.contactSelection, let contact = agenda.contacts.first(where: { $0.id == id }) {
-                ContactPage(contact: contact, agenda: agenda, router: router).id(id)
-            } else {
-                ContentUnavailableView("Aucun contact choisi", systemImage: "person.2",
-                                       description: Text("\(agenda.contacts.count) contacts, venus de tes agendas et de ton coffre."))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
         }
-        .windowTitle("Contacts")
-        .searchable(text: $query, placement: .toolbar, prompt: "Chercher un contact")
     }
 
-    private var empty: some View {
-        VStack(spacing: 12) {
-            Text("Pas encore de contacts.").foregroundStyle(.secondary)
-            Text("Ils viennent tout seuls des invités de tes agendas Google.").font(.callout)
-                .foregroundStyle(.secondary).multilineTextAlignment(.center)
+    @ViewBuilder
+    private func menu(_ contact: ContactRow) -> some View {
+        if let email = contact.email, !email.isEmpty {
+            if let mails = agenda.mails {
+                Button("Écrire", systemImage: "square.and.pencil") { mails.write(to: MailAddress(name: contact.name, email: email), router: router) }
+            }
+            Button("Copier l'adresse", systemImage: "doc.on.doc") { MailLibrary.copy(email) }
         }
-        .padding(20)
-        .frame(maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private var detail: some View {
+        if let contact = selected {
+            ContactPage(contact: contact, agenda: agenda, router: router).id(contact.id)
+        } else if !agenda.contacts.isEmpty {
+            ContentUnavailableView("Aucun contact choisi", systemImage: "person.2",
+                                   description: Text("\(agenda.contacts.count) contacts, venus de tes agendas, de tes mails et de ton coffre."))
+        }
     }
 }
 
-/// One contact: details, projects (removable, addable), meetings and events.
-struct ContactPage: View {
-    @State var contact: ContactRow
-    @ObservedObject var agenda: AgendaLibrary
-    @ObservedObject var router: WindowRouter
-    @State private var projects: [ProjectRow] = []
-    @State private var meetings: [MeetingRow] = []
+/// One contact in the list: the avatar in the person's color, the name, the company, the projects in their colors;
+/// at the end, when Paul and they last crossed, and how.
+struct ContactListRow: View {
+    let contact: ContactRow
+    let projects: [ProjectRow]
+    let last: LastContact?
+    let now: Date
+
+    /// The projects shown on the row; the others are « +N ».
+    static let chips = 2
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Space.xl) {
-                HStack(spacing: Space.l) {
-                    Avatar(contact.initials, size: 56, tint: MailText.tint(for: contact.email ?? contact.name))
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(contact.name).font(.title2.bold())
-                        if let company = contact.company { Text(company).foregroundStyle(.secondary) }
+        HStack(alignment: .top, spacing: Space.m) {
+            Avatar(ContactsModel.initials(contact), size: 36, tint: ContactsModel.tint(contact))
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+                    Text(contact.name).font(.rowTitle.weight(.medium)).lineLimit(1)
+                    Spacer(minLength: 0)
+                    if let last {
+                        HStack(alignment: .firstTextBaseline, spacing: 3) {
+                            Image(systemName: last.kind.symbol).font(.system(size: 10, weight: .medium))
+                            Text(ContactsModel.when(last.date, now: now)).font(.meta.monospacedDigit())
+                        }
+                        .foregroundStyle(.secondary)
+                        .fixedSize()
+                        .help(ContactsModel.lastText(last, now: now))
                     }
                 }
-                Form {
-                    TextField("Nom", text: $contact.name)
-                    TextField("Entreprise", text: Binding(get: { contact.company ?? "" }, set: { contact.company = $0.isEmpty ? nil : $0 }))
-                    TextField("E-mail", text: Binding(get: { contact.email ?? "" }, set: { contact.email = $0.isEmpty ? nil : $0.lowercased() }))
-                    TextField("Téléphone", text: Binding(get: { contact.phone ?? "" }, set: { contact.phone = $0.isEmpty ? nil : $0 }))
-                    TextField("Notes", text: $contact.notes, axis: .vertical).lineLimit(2...6)
+                if let detail = ContactsModel.detail(contact) {
+                    Text(detail).font(.meta).foregroundStyle(.secondary).lineLimit(1)
                 }
-                .formStyle(.grouped)
-                .frame(maxWidth: 560)
-                // A grouped form keeps 20 points around its card: the card lines up with the name above.
-                .padding(.horizontal, -(Space.l + Space.xs))
-                .onSubmit { agenda.save(contact) }
-                .onDisappear { agenda.save(contact) }
-
-                VStack(alignment: .leading, spacing: Space.s) {
-                    SectionTitle("Projets", count: projects.count)
-                    FlowRow(items: projects) { project in
-                        HStack(spacing: Space.xs) {
-                            ColorDot(ProjectViews.tint(project), size: 8)
-                            Text(project.name).font(.meta).lineLimit(1)
-                            Button {
-                                agenda.remove(contact: contact, from: project.id)
-                                reload()
-                            } label: {
-                                Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).frame(width: 20, height: 20)
-                            }
-                            .buttonStyle(.hover(.circle))
-                            .foregroundStyle(.secondary)
-                            .help("Retirer de ce projet : le lien ne reviendra pas tout seul.")
+                if !projects.isEmpty {
+                    HStack(spacing: Space.xs) {
+                        ForEach(projects.prefix(Self.chips)) { project in
+                            Chip(project.name, tint: ProjectViews.tint(project))
                         }
-                        .padding(.leading, Space.m).padding(.trailing, Space.xs).padding(.vertical, 3)
-                        .background(Surface.fill, in: Capsule())
-                    }
-                    Menu("Ajouter à un projet") {
-                        ForEach(agenda.projects.filter { project in project.status != .termine && !projects.contains { $0.id == project.id } }
-                            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }) { project in
-                            Button(project.name) {
-                                agenda.add(contact: contact, to: project.id)
-                                reload()
-                            }
+                        if projects.count > Self.chips {
+                            Chip("+\(projects.count - Self.chips)").fixedSize()
+                                .help(projects.dropFirst(Self.chips).map(\.name).joined(separator: ", "))
                         }
                     }
-                    .fixedSize()
-                }
-
-                if !meetings.isEmpty {
-                    VStack(alignment: .leading, spacing: Space.xs) {
-                        SectionTitle("Réunions", count: meetings.count)
-                        ShowMoreList(meetings, limit: 5) { meeting in
-                            RowButton(action: { router.open(meetingID: meeting.id, at: nil) }) {
-                                dated(meeting.startedAt, meeting.title)
-                            }
-                        }
-                    }
-                    .frame(maxWidth: 560, alignment: .leading)
-                }
-                let events = agenda.events(of: contact)
-                if !events.isEmpty {
-                    VStack(alignment: .leading, spacing: Space.xs) {
-                        SectionTitle("Rendez-vous", count: events.count)
-                        // Every one of them behind « Voir les N autres »: never a list cut in silence (correctifs, 15/11).
-                        ShowMoreList(events, limit: 5) { event in
-                            RowButton(action: { router.openEvent(event.id) }) {
-                                dated(event.startAt, event.title)
-                            }
-                        }
-                    }
-                    .frame(maxWidth: 560, alignment: .leading)
+                    .padding(.top, 3)
                 }
             }
-            .padding(Space.xl)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .onAppear(perform: reload)
+        .padding(.vertical, Space.xs + 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // A native list keeps its selection; the row answers the pointer too (15/11).
+        .hoverRow(inset: Space.s)
+    }
+}
+
+// MARK: - A contact's page
+
+/// One contact (15/11): who, their projects (added and removed in place), the mails, the events and the meetings
+/// with them, their details and notes, always editable. Every list says how many, then « Voir les N autres ».
+struct ContactPage: View {
+    @ObservedObject var agenda: AgendaLibrary
+    @ObservedObject var router: WindowRouter
+    /// What Paul types; `saved` is what the base holds.
+    @State private var contact: ContactRow
+    @State private var saved: ContactRow
+    @State private var meetings: [MeetingRow] = []
+    /// The first sentence of each meeting's summary.
+    @State private var summaries: [UUID: String] = [:]
+    @State private var mails: [MailThreadRow] = []
+    @State private var saving: Task<Void, Never>?
+    @State private var copied = false
+    /// The width of the page's content: two columns when wide enough (as a project's page), the header's buttons
+    /// under the name when narrow.
+    @State private var width: CGFloat = 700
+
+    init(contact: ContactRow, agenda: AgendaLibrary, router: WindowRouter) {
+        self.agenda = agenda
+        self.router = router
+        _contact = State(initialValue: contact)
+        _saved = State(initialValue: contact)
     }
 
-    /// « 12 nov. 2026, 14:00 » then what it was.
-    private func dated(_ date: Date, _ title: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: Space.m) {
-            Text(date.formatted(date: .abbreviated, time: .shortened)).font(.meta.monospacedDigit()).foregroundStyle(.secondary)
-                .frame(width: 150, alignment: .leading)
-            Text(title).font(.rowBody).foregroundStyle(.primary).lineLimit(1)
+    /// The rows of a card before « Voir les N autres ».
+    static let rows = 5
+    /// The side column, in two columns.
+    static let sideWidth: CGFloat = 300
+    /// From this width of content, two columns.
+    static let twoColumns: CGFloat = 820
+    /// Under this width, the header's buttons go under the name.
+    static let narrow: CGFloat = 560
+
+    private var email: String? { saved.email.flatMap { $0.isEmpty ? nil : $0 } }
+    private var person: MailAddress? { email.map { MailAddress(name: saved.name, email: $0) } }
+    private var projects: [ProjectRow] { ContactsModel.projects(of: saved.id, links: agenda.linkIndex, projects: agenda.projects) }
+    private var firstName: String { saved.name.split(separator: " ").first.map(String.init) ?? saved.name }
+
+    var body: some View {
+        let now = Date()
+        let events = ContactsModel.events(agenda.shown, of: email, now: now)
+        Page {
+            header(now: now, events: events)
+            Group {
+                if width >= Self.twoColumns {
+                    HStack(alignment: .top, spacing: Space.xl) {
+                        VStack(alignment: .leading, spacing: Space.xl) {
+                            mailsCard
+                            eventsCard(events, now: now)
+                            meetingsCard(now: now)
+                        }
+                        .frame(maxWidth: .infinity)
+                        VStack(alignment: .leading, spacing: Space.xl) {
+                            projectsCard
+                            detailsCard
+                            notesCard
+                        }
+                        .frame(width: Self.sideWidth)
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: Space.xl) {
+                        projectsCard
+                        mailsCard
+                        eventsCard(events, now: now)
+                        meetingsCard(now: now)
+                        detailsCard
+                        notesCard
+                    }
+                }
+            }
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         }
+        .onAppear(perform: reload)
+        .onChange(of: contact) { _, _ in scheduleSave() }
+        .onDisappear(perform: save)
+    }
+
+    // MARK: Header
+
+    /// The avatar, the name (editable), the company and the address; when Paul and they last crossed, and the
+    /// next event; « Écrire » and the address to copy.
+    private func header(now: Date, events: (coming: [CalendarEventRow], past: [CalendarEventRow])) -> some View {
+        let narrow = width < Self.narrow
+        return VStack(alignment: .leading, spacing: Space.m) {
+            HStack(alignment: .center, spacing: Space.l) {
+                Avatar(ContactsModel.initials(saved), size: narrow ? 56 : 72, tint: ContactsModel.tint(saved))
+                VStack(alignment: .leading, spacing: Space.xs) {
+                    TextField("Nom", text: $contact.name)
+                        .font((narrow ? Font.title2 : .title).weight(.bold))
+                        .textFieldStyle(.plain)
+                        .onSubmit(save)
+                    let line = [saved.company, email].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+                    if !line.isEmpty {
+                        Text(line).font(.rowBody).foregroundStyle(.secondary).lineLimit(narrow ? 2 : 1).textSelection(.enabled)
+                    }
+                    if !narrow { glance(now: now, events: events).padding(.top, Space.xs) }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if !narrow { actions }
+            }
+            if narrow {
+                glance(now: now, events: events)
+                actions
+            }
+        }
+    }
+
+    /// Two chips: the last time Paul and they crossed, the next event; a click opens it.
+    @ViewBuilder
+    private func glance(now: Date, events: (coming: [CalendarEventRow], past: [CalendarEventRow])) -> some View {
+        let pastEvent = events.past.first { event in event.attendees.first { $0.email == email }?.response != "declined" }
+        let last = ContactsModel.last(mail: mails.first?.lastMessageAt, meeting: meetings.first?.startedAt, event: pastEvent?.startAt)
+        let next = events.coming.first
+        if last != nil || next != nil {
+            // The chips go to the next line rather than shorten.
+            FlowLayout(spacing: Space.s) {
+                if let last {
+                    Button {
+                        switch last.kind {
+                        case .mail: if let thread = mails.first { router.openMail(thread.id) }
+                        case .meeting: if let meeting = meetings.first { router.open(meetingID: meeting.id, at: nil) }
+                        case .event: if let pastEvent { router.openEvent(pastEvent.id) }
+                        }
+                    } label: {
+                        Chip(ContactsModel.lastText(last, now: now), systemImage: last.kind.symbol)
+                    }
+                    .buttonStyle(.hover(.capsule))
+                    .help(last.kind == .mail ? "Ouvrir le fil" : last.kind == .meeting ? "Ouvrir la réunion" : "Ouvrir le rendez-vous")
+                }
+                if let next {
+                    Button { router.openEvent(next.id) } label: {
+                        Chip(ContactsModel.nextText(next, now: now), systemImage: "calendar", tint: agenda.color(for: next.account))
+                    }
+                    .buttonStyle(.hover(.capsule))
+                    .help(next.title)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var actions: some View {
+        if let person {
+            HStack(spacing: Space.s) {
+                if let mails = agenda.mails {
+                    Button { mails.write(to: person, router: router) } label: {
+                        Label("Écrire", systemImage: "square.and.pencil")
+                    }
+                    .buttonStyle(.glassProminent)
+                    .controlSize(.large)
+                    .help("Un nouveau mail à \(person.email)")
+                }
+                Button {
+                    MailLibrary.copy(person.email)
+                    withAnimation(Motion.quick) { copied = true }
+                    Task {
+                        try? await Task.sleep(for: .seconds(1.5))
+                        withAnimation(Motion.quick) { copied = false }
+                    }
+                } label: {
+                    Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                        .contentTransition(.symbolEffect(.replace))
+                        .frame(width: 18)
+                }
+                .buttonStyle(.glass)
+                .buttonBorderShape(.circle)
+                .controlSize(.large)
+                .help(copied ? "Adresse copiée" : "Copier l'adresse")
+                .accessibilityLabel("Copier l'adresse")
+            }
+            .fixedSize()
+        }
+    }
+
+    // MARK: Cards
+
+    /// The projects in their colors: a click opens one, « × » takes the contact out of it (it stays out), « Ajouter »
+    /// puts them in another.
+    private var projectsCard: some View {
+        Card {
+            SectionTitle("Projets", systemImage: "square.grid.3x2", count: projects.count) { addProject }
+            if projects.isEmpty {
+                EmptyLine("Dans aucun projet.")
+            } else {
+                FlowLayout(spacing: Space.s) {
+                    ForEach(projects) { project in
+                        ContactProjectChip(project: project, open: { router.openProject(project.id) },
+                                           remove: { withAnimation(Motion.standard) { agenda.remove(contact: saved, from: project.id) } })
+                    }
+                }
+                .animation(Motion.standard, value: projects.map(\.id))
+            }
+        }
+    }
+
+    private var addProject: some View {
+        let available = agenda.projects.filter { project in project.status != .termine && !projects.contains { $0.id == project.id } }
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        return Menu {
+            ForEach(available) { project in
+                Button(project.name) { withAnimation(Motion.standard) { agenda.add(contact: saved, to: project.id) } }
+            }
+        } label: {
+            Label("Ajouter", systemImage: "plus")
+                .font(.meta.weight(.medium))
+                .foregroundStyle(Color.accentColor)
+                .padding(.horizontal, Space.s).padding(.vertical, 3)
+        }
+        .menuStyle(.button)
+        .buttonStyle(.hover(.capsule))
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .padding(.trailing, -Space.s)
+        .disabled(available.isEmpty)
+        .help(available.isEmpty ? "Déjà dans tous les projets en cours" : "Ajouter à un projet")
+    }
+
+    /// The threads they took part in, the most recent first; a click opens the thread in Mails. Only with the mails.
+    @ViewBuilder
+    private var mailsCard: some View {
+        if agenda.mails != nil {
+            Card {
+                SectionTitle("Mails", systemImage: "envelope", count: mails.count)
+                if mails.isEmpty { EmptyLine(email == nil ? "Pas d'adresse : aucun mail à montrer." : "Aucun mail échangé.") }
+                ShowMoreList(mails, limit: Self.rows) { thread in
+                    RowButton(action: { router.openMail(thread.id) }) {
+                        HStack(alignment: .firstTextBaseline, spacing: Space.m) {
+                            VStack(alignment: .leading, spacing: 1) {
+                                HStack(alignment: .firstTextBaseline, spacing: Space.xs) {
+                                    Text(thread.subject).font(.rowBody.weight(thread.unread ? .semibold : .medium)).foregroundStyle(.primary).lineLimit(1)
+                                    if thread.messageCount > 1 {
+                                        Text("\(thread.messageCount)").font(.meta.monospacedDigit()).foregroundStyle(.secondary)
+                                    }
+                                }
+                                if !thread.snippet.isEmpty {
+                                    Text(thread.snippet).font(.meta).foregroundStyle(.secondary).lineLimit(1)
+                                }
+                            }
+                            Spacer(minLength: Space.s)
+                            Text(MailText.date(thread.lastMessageAt)).font(.meta.monospacedDigit()).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// The events to come first, then the past ones; a click opens the event in Calendrier.
+    private func eventsCard(_ events: (coming: [CalendarEventRow], past: [CalendarEventRow]), now: Date) -> some View {
+        let all = events.coming + events.past
+        return Card {
+            SectionTitle("Rendez-vous", systemImage: "calendar", count: all.count)
+            if all.isEmpty { EmptyLine(email == nil ? "Pas d'adresse : aucun rendez-vous à montrer." : "Aucun rendez-vous.") }
+            ShowMoreList(all, limit: Self.rows) { event in
+                let coming = event.endAt > now
+                RowButton(action: { router.openEvent(event.id) }) {
+                    HStack(alignment: .firstTextBaseline, spacing: Space.m) {
+                        ColorDot(agenda.color(for: event.account), size: 8).alignmentGuide(.firstTextBaseline) { $0[.bottom] - 2 }
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(event.title).font(.rowBody.weight(.medium)).foregroundStyle(.primary).lineLimit(1)
+                            Text(ContactsModel.eventWhen(event, now: now)).font(.meta.monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                        Spacer(minLength: Space.s)
+                        if coming { Chip(event.startAt <= now ? "En cours" : "À venir", tint: agenda.color(for: event.account)) }
+                    }
+                }
+            }
+        }
+    }
+
+    /// The recorded meetings they took part in, each with the first sentence of its summary; a click opens it.
+    private func meetingsCard(now: Date) -> some View {
+        Card {
+            SectionTitle("Réunions", systemImage: "waveform", count: meetings.count)
+            if meetings.isEmpty { EmptyLine("Aucune réunion enregistrée.") }
+            ShowMoreList(meetings, limit: Self.rows) { meeting in
+                RowButton(action: { router.open(meetingID: meeting.id, at: nil) }) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(meeting.title).font(.rowBody.weight(.medium)).foregroundStyle(.primary).lineLimit(1)
+                        Text(ContactsModel.meetingWhen(meeting, now: now)).font(.meta.monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
+                        if let line = summaries[meeting.id] {
+                            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                Image(systemName: "sparkles").font(.system(size: 11, weight: .semibold)).foregroundStyle(Color(hex: Palette.violet))
+                                Text(line).font(.meta).foregroundStyle(.secondary).lineLimit(2)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// The company, the address and the phone, written in place.
+    private var detailsCard: some View {
+        Card {
+            SectionTitle("Coordonnées", systemImage: "person.text.rectangle")
+            field("Entreprise", text: optional(\.company))
+            field("E-mail", text: Binding(get: { contact.email ?? "" }, set: { contact.email = $0.isEmpty ? nil : $0.lowercased() }))
+            field("Téléphone", text: optional(\.phone))
+        }
+    }
+
+    private func field(_ title: String, text: Binding<String>) -> some View {
+        LabeledContent {
+            TextField(title, text: text, prompt: Text("—"))
+                .multilineTextAlignment(.trailing)
+                .textFieldStyle(.plain)
+                .onSubmit(save)
+        } label: {
+            Text(title).foregroundStyle(.secondary)
+        }
+        .font(.rowBody)
+    }
+
+    private var notesCard: some View {
+        Card {
+            SectionTitle("Notes", systemImage: "note.text")
+            TextField("Ce qu'il faut savoir de \(firstName)", text: $contact.notes, axis: .vertical)
+                .font(.rowBody)
+                .textFieldStyle(.plain)
+                .lineLimit(2...12)
+        }
+    }
+
+    // MARK: Data
+
+    private func optional(_ keyPath: WritableKeyPath<ContactRow, String?>) -> Binding<String> {
+        Binding(get: { contact[keyPath: keyPath] ?? "" }, set: { contact[keyPath: keyPath] = $0.isEmpty ? nil : $0 })
+    }
+
+    /// What Paul types is kept a moment after he stops, and when he leaves the page.
+    private func scheduleSave() {
+        saving?.cancel()
+        saving = Task {
+            try? await Task.sleep(for: .milliseconds(600))
+            guard !Task.isCancelled else { return }
+            save()
+        }
+    }
+
+    private func save() {
+        saving?.cancel()
+        var clean = contact
+        clean.name = clean.name.trimmingCharacters(in: .whitespaces)
+        // A name left empty keeps the one before: a contact always has one.
+        if clean.name.isEmpty { clean.name = saved.name }
+        guard clean != saved else { return }
+        let addressChanged = clean.email != saved.email
+        agenda.save(clean)
+        saved = clean
+        if addressChanged { reload() }
     }
 
     private func reload() {
-        projects = agenda.projects(of: contact)
-        meetings = agenda.meetings(of: contact)
+        meetings = agenda.meetings(of: saved)
+        let store = MeetingStore(agenda.database)
+        summaries = meetings.reduce(into: [:]) { lines, meeting in
+            lines[meeting.id] = ((try? store.summary(meetingID: meeting.id)) ?? nil).flatMap { SummaryText.overview($0) }
+        }
+        guard agenda.mails != nil, let email else {
+            mails = []
+            return
+        }
+        let database = agenda.database
+        Task {
+            let found = await Task.detached(priority: .userInitiated) { (try? MailStore(database).threads(with: email)) ?? [] }.value
+            mails = found
+        }
+    }
+}
+
+/// A project on a contact's page, in its color: a click opens it, « × » takes the contact out of it.
+struct ContactProjectChip: View {
+    let project: ProjectRow
+    let open: () -> Void
+    let remove: () -> Void
+    @Environment(\.self) private var environment
+
+    var body: some View {
+        let tint = ProjectViews.tint(project)
+        HStack(spacing: 0) {
+            Button(action: open) {
+                HStack(spacing: 6) {
+                    ColorDot(tint, size: 8)
+                    Text(project.name).font(.meta.weight(.medium)).foregroundStyle(tint.readable(in: environment)).lineLimit(1)
+                }
+                .padding(.leading, Space.m - 2).padding(.trailing, Space.xs).padding(.vertical, 5)
+            }
+            .buttonStyle(HoverButtonStyle(.capsule, fill: tint.opacity(0.14)))
+            .help("Ouvrir « \(project.name) »")
+            Button(action: remove) {
+                Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).frame(width: 22, height: 22)
+            }
+            .buttonStyle(HoverButtonStyle(.circle, fill: tint.opacity(0.2)))
+            .foregroundStyle(tint.readable(in: environment).opacity(0.8))
+            .padding(.trailing, 3)
+            .help("Retirer de « \(project.name) » : le lien ne reviendra pas tout seul.")
+            .accessibilityLabel("Retirer de « \(project.name) »")
+        }
+        .background(tint.opacity(0.12), in: Capsule())
+        .fixedSize()
     }
 }
 
 /// Chips that wrap to the next line.
-struct FlowRow<Item: Identifiable, Content: View>: View {
-    let items: [Item]
-    @ViewBuilder let content: (Item) -> Content
-
-    var body: some View {
-        if items.isEmpty {
-            EmptyLine("Aucun")
-        } else {
-            FlowLayout(spacing: 6) {
-                ForEach(items) { content($0) }
-            }
-        }
-    }
-}
-
 struct FlowLayout: Layout {
     var spacing: CGFloat
 

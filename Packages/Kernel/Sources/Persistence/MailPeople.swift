@@ -47,6 +47,59 @@ extension MailStore {
         return found
     }
 
+    // MARK: - A contact's mails (Contacts, 15/11)
+
+    /// A message shown somewhere: neither in the trash, nor in the spam, nor a draft (`MailMessageRow.isAside`).
+    private static let shownMessage = #"message.labels NOT LIKE '%"TRASH"%' AND message.labels NOT LIKE '%"SPAM"%' AND message.labels NOT LIKE '%"DRAFT"%'"#
+
+    /// The people of a message's column, read by SQLite itself; a column that is not JSON reads as nobody.
+    private static func people(_ column: String) -> String {
+        "json_each(CASE WHEN json_valid(message.\(column)) THEN message.\(column) ELSE '[]' END)"
+    }
+
+    /// The threads this address took part in (who wrote, To or Cc of a message shown), the most recent first:
+    /// the « Mails » of a contact's page. Every one of them: the page says how many.
+    public func threads(with email: String) throws -> [MailThreadRow] {
+        let email = email.lowercased()
+        return try database.writer.read { db in
+            let keys = try String.fetchAll(db, sql: """
+                SELECT DISTINCT message.threadKey FROM mail_message AS message
+                WHERE \(Self.shownMessage) AND (
+                    lower(json_extract(CASE WHEN json_valid(message.sender) THEN message.sender END, '$.email')) = :email
+                    OR EXISTS (SELECT 1 FROM \(Self.people("\"to\"")) WHERE lower(json_extract(value, '$.email')) = :email)
+                    OR EXISTS (SELECT 1 FROM \(Self.people("cc")) WHERE lower(json_extract(value, '$.email')) = :email))
+                """, arguments: ["email": email])
+            guard !keys.isEmpty else { return [] }
+            return try MailThreadRow.filter(keys: keys).filter(Column("hidden") == false).order(Column("lastMessageAt").desc).fetchAll(db)
+        }
+    }
+
+    /// The date of the last message shown in which each address appears (who wrote, To or Cc), by lowercased
+    /// address; only `emails` when given. One reading of the copy, for the list of the contacts.
+    public func lastExchanges(with emails: Set<String>? = nil) throws -> [String: Date] {
+        let rows = try database.writer.read { db in
+            try Row.fetchAll(db, sql: """
+                SELECT email, MAX(date) AS last FROM (
+                    SELECT lower(json_extract(message.sender, '$.email')) AS email, message.date AS date FROM mail_message AS message
+                    WHERE json_valid(message.sender) AND \(Self.shownMessage)
+                    UNION ALL
+                    SELECT lower(json_extract(value, '$.email')), message.date FROM mail_message AS message, \(Self.people("\"to\""))
+                    WHERE \(Self.shownMessage)
+                    UNION ALL
+                    SELECT lower(json_extract(value, '$.email')), message.date FROM mail_message AS message, \(Self.people("cc"))
+                    WHERE \(Self.shownMessage)
+                ) WHERE email IS NOT NULL GROUP BY email
+                """)
+        }
+        let wanted = emails.map { Set($0.map { $0.lowercased() }) }
+        var result: [String: Date] = [:]
+        for row in rows {
+            guard let email: String = row["email"], wanted?.contains(email) ?? true, let date: Date = row["last"] else { continue }
+            result[email] = date
+        }
+        return result
+    }
+
     /// The projects Paul took each address out of: a gesture on many people never puts them back.
     static func excludedProjects(_ db: Database) throws -> [String: Set<UUID>] {
         var excluded: [String: Set<UUID>] = [:]
