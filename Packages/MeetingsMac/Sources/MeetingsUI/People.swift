@@ -188,9 +188,9 @@ enum PersonBadge: Equatable {
 
 /// How Paul's projects show with people.
 enum PeopleStyle {
-    /// A project's color, as its chip in the mails.
+    /// A project's color, as its chip in the mails and its card on the board.
     static func color(of project: ProjectRow?) -> Color {
-        ProjectViews.cardHex(project?.color).map(Color.init(hex:)) ?? .accentColor
+        project.map(ProjectViews.tint) ?? .accentColor
     }
 
     /// The first name, for a chip: « Camille » for « Camille Martin », the address's start without a name.
