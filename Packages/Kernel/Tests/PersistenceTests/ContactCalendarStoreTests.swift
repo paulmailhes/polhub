@@ -23,7 +23,7 @@ import Testing
 
     @Test func aLinkRemovedByPaulNeverComesBackOnItsOwn() throws {
         let (contacts, projects, _) = try stores()
-        let project = try projects.addProject(name: "Atelier Nord", status: .idee, at: now)
+        let project = try projects.addProject(name: "Atelier Nord", status: .priorite1, at: now)
         let camille = try contacts.upsert(email: "camille@exemple.fr", name: "Camille", company: nil, at: now)
         try contacts.link(contactID: camille.id, projectID: project.id, origin: .agenda, at: now)
         #expect(try contacts.contacts(projectID: project.id).map(\.name) == ["Camille"])
@@ -58,7 +58,7 @@ import Testing
     @Test func aNewVersionFromGoogleKeepsTheLocalLinks() throws {
         let database = try AppDatabase.inMemory()
         let calendar = CalendarStore(database)
-        let project = try ProjectStore(database).addProject(name: "Atelier Nord", status: .idee, at: now)
+        let project = try ProjectStore(database).addProject(name: "Atelier Nord", status: .priorite1, at: now)
         try calendar.applyGoogle(account: "moi@exemple.fr", changed: [event("e1", start: now)], cancelled: [], at: now)
         let id = CalendarEventRow.key(account: "moi@exemple.fr", eventID: "e1")
         try calendar.setProject(eventID: id, projectID: project.id, origin: .paul)
@@ -131,59 +131,18 @@ import Testing
         #expect(try meetings.meeting(googleEventID: "evt1")?.id == row.id)
         #expect(try meetings.importedMeeting(from: "database/Meet/b.md") == nil)
     }
-
-    @Test func aProjectReimportKeepsTheProjectOfMeetingActions() throws {
-        let database = try AppDatabase.inMemory()
-        let projects = ProjectStore(database)
-        let meetings = MeetingStore(database)
-        let project = ProjectRow(name: "Atelier Nord", status: .idee, createdAt: now)
-        try projects.replaceAll([project], actions: [], journal: [])
-        let meeting = MeetingRow(createdAt: now, status: .ended, source: .imported, candidateKey: "coffre/a", title: "Point", startedAt: now)
-        try meetings.save(meeting)
-        try projects.setProject(meetingID: meeting.id, projectID: project.id)
-        try projects.saveAction(ActionRow(projectID: project.id, meetingID: meeting.id, text: "Envoyer le devis", position: 0, createdAt: now))
-        let again = ProjectRow(name: "Atelier Nord", status: .priorite1, createdAt: now)
-        try projects.replaceAll([again], actions: [], journal: [])
-        #expect(try projects.actions(projectID: again.id).map(\.text) == ["Envoyer le devis"])
-    }
 }
 
 /// Fixes of the review of 13/11.
 @Suite struct ReviewFixTests {
     let now = Date(timeIntervalSince1970: 1_794_562_920)
 
-    /// Critical 1: a new import of the projects keeps the contacts' links (removed ones included) and
-    /// Paul's filing of events.
-    @Test func aProjectReimportKeepsContactLinksAndPaulsFilings() throws {
-        let database = try AppDatabase.inMemory()
-        let projects = ProjectStore(database), contacts = ContactStore(database), calendar = CalendarStore(database)
-        let alpha = ProjectRow(name: "Alpha", status: .idee, createdAt: now)
-        try projects.replaceAll([alpha], actions: [], journal: [])
-        let camille = try contacts.upsert(email: "camille@exemple.fr", name: "Camille", company: nil, at: now)
-        let jules = try contacts.upsert(email: "jules@exemple.fr", name: "Jules", company: nil, at: now)
-        try contacts.link(contactID: camille.id, projectID: alpha.id, origin: .coffre, at: now)
-        try contacts.exclude(contactID: jules.id, projectID: alpha.id, at: now)
-        try calendar.applyGoogle(account: "moi@exemple.fr", changed: [CalendarEventRow(account: "moi@exemple.fr", eventID: "e1", title: "Point",
-                                                                                       startAt: now, endAt: now.addingTimeInterval(600), updatedAt: now)],
-                                 cancelled: [], at: now)
-        let id = CalendarEventRow.key(account: "moi@exemple.fr", eventID: "e1")
-        try calendar.setProject(eventID: id, projectID: alpha.id, origin: .paul)
-
-        let again = ProjectRow(name: "Alpha", status: .priorite1, createdAt: now)
-        try projects.replaceAll([again], actions: [], journal: [])
-
-        #expect(try contacts.contacts(projectID: again.id).map(\.name) == ["Camille"])
-        #expect(try contacts.links().first { $0.contactID == jules.id }?.excluded == true)
-        let event = try #require(try calendar.event(id: id))
-        #expect(event.projectID == again.id && event.projectOrigin == .paul)
-    }
-
     /// Important 3: an automatic filing never overwrites Paul's, even computed before it.
     @Test func anAutomaticFilingNeverOverwritesPauls() throws {
         let database = try AppDatabase.inMemory()
         let calendar = CalendarStore(database)
-        let alpha = try ProjectStore(database).addProject(name: "Alpha", status: .idee, at: now)
-        let beta = try ProjectStore(database).addProject(name: "Beta", status: .idee, at: now)
+        let alpha = try ProjectStore(database).addProject(name: "Alpha", status: .priorite1, at: now)
+        let beta = try ProjectStore(database).addProject(name: "Beta", status: .priorite1, at: now)
         try calendar.applyGoogle(account: "moi@exemple.fr", changed: [CalendarEventRow(account: "moi@exemple.fr", eventID: "e1", title: "Point",
                                                                                        startAt: now, endAt: now.addingTimeInterval(600), updatedAt: now)],
                                  cancelled: [], at: now)
@@ -210,7 +169,7 @@ import Testing
     @Test func thePageSavesOnlyWhatPaulChanged() throws {
         let database = try AppDatabase.inMemory()
         let projects = ProjectStore(database)
-        let opened = try projects.addProject(name: "Alpha", status: .idee, at: now)
+        let opened = try projects.addProject(name: "Alpha", status: .priorite1, at: now)
         var written = try #require(try projects.project(id: opened.id))
         written.notes = "- 13/11/2026 : écrit par une session."
         try projects.saveNotes(written)

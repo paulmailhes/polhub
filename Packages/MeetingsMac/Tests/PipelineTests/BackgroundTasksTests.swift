@@ -74,6 +74,15 @@ import Testing
         #expect(DatabaseBackup.toRemove(["Polhub-20261101.sqlite"]).isEmpty)
     }
 
+    /// Review of 15/11: the copies made before a migration, the three newest kept, the daily ones counted apart.
+    @Test func keepsThreeCopiesMadeBeforeAMigration() {
+        let before = ["Polhub-avant-v12-20261115.sqlite", "Polhub-avant-v13-20261201.sqlite", "Polhub-avant-v14-20261202.sqlite",
+                      "Polhub-avant-v15-20261203.sqlite", "Polhub-avant-v16-20261110.sqlite"]
+        let daily = (1...7).map { String(format: "Polhub-202611%02d.sqlite", $0) }
+        #expect(DatabaseBackup.toRemove(before + daily + ["Polhub-avant-v12.sqlite"]) == ["Polhub-avant-v12-20261115.sqlite", "Polhub-avant-v16-20261110.sqlite"])
+        #expect(DatabaseBackup.toRemove(Array(before.prefix(3))).isEmpty)
+    }
+
     @Test func aMemorySampleIsComplete() {
         let sample = MemorySampler.sample(pressure: .warning, at: now)
         #expect(sample.pressure == "warning" && sample.at == now)

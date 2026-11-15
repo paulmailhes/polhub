@@ -22,7 +22,7 @@ struct ProjectListView: View {
             }
             .width(min: 180, ideal: 260)
             TableColumn("Statut", value: \.statusRank) { row in
-                Chip(row.project.status.label.capitalizedFirst, tint: ProjectViews.statusColor(row.project.status))
+                Chip(row.project.status.title, tint: ProjectViews.statusColor(row.project.status))
             }
             .width(min: 100, ideal: 120)
             TableColumn("Client", value: \.clientSort) { row in Text(row.project.client ?? "").foregroundStyle(.secondary) }
@@ -48,8 +48,8 @@ struct ProjectListView: View {
                     Picker("Statut", selection: $status) {
                         Text("Tous les statuts").tag(ProjectStatus?.none)
                         Divider()
-                        ForEach([ProjectStatus.priorite1, .priorite2, .priorite3, .enAttente, .idee, .termine], id: \.self) { status in
-                            Text(status.label.capitalizedFirst).tag(Optional(status))
+                        ForEach(ProjectStatus.allCases, id: \.self) { status in
+                            Text(status.title).tag(Optional(status))
                         }
                     }
                     .pickerStyle(.inline)

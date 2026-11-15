@@ -1,43 +1,52 @@
 import Domain
 import Foundation
 import Persistence
+import PolhubDesign
 import SwiftUI
-
-/// The colors of the board: the column colors of `Projets.base`, and the card colors of the vault.
-public enum BoardColor: String, Equatable, Sendable {
-    case pink, red, orange, yellow, cyan, green, gray
-}
 
 public struct BoardColumn: Equatable, Identifiable, Sendable {
     public var id: String { status.rawValue }
     public let status: ProjectStatus
     public let title: String
-    public let color: BoardColor
     public let projects: [ProjectRow]
 }
 
-/// The views of `Projets.base`, rebuilt: the board, « À rendre », « À surveiller », the table.
+/// The views of the projects: the board, the table, the colors, the short texts of a card or a page.
 public enum ProjectViews {
-    /// No sign of life for this many days: « Silence » (`seuil_silence` of the vault).
-    public static let silenceDays = 14
-
-    static let columnColors: [ProjectStatus: BoardColor] = [
-        .idee: .pink, .priorite3: .red, .priorite2: .orange, .priorite1: .yellow, .enAttente: .cyan, .termine: .green, .none: .gray,
-    ]
-
-    /// A status's color, as on the board's columns.
-    public static func statusColor(_ status: ProjectStatus) -> Color {
-        (columnColors[status] ?? .gray).swiftUI
+    /// A status's color, from the one palette (docs/design-system.md): every status has its own.
+    public static func statusHex(_ status: ProjectStatus) -> String {
+        switch status {
+        case .priorite1: Palette.yellow
+        case .priorite2: Palette.orange
+        case .enPause: Palette.teal
+        case .termine: Palette.green
+        }
     }
 
-    /// The six columns of the vault in its order (« terminé » only in the « Tous » view), then « Sans statut »
-    /// when it has cards.
-    public static func columns(_ projects: [ProjectRow], includeDone: Bool) -> [BoardColumn] {
-        ProjectStatus.boardOrder.compactMap { status in
-            if status == .termine && !includeDone { return nil }
+    public static func statusColor(_ status: ProjectStatus) -> Color {
+        Color(hex: statusHex(status))
+    }
+
+    /// The colors a project without one of its own takes, by its identifier: neither red (late) nor grey.
+    static let tints = [Palette.blue, Palette.violet, Palette.green, Palette.teal, Palette.pink, Palette.orange, Palette.brown, Palette.yellow]
+
+    /// A project's color: the one Paul chose, else always the same one of the palette, picked from its
+    /// identifier (15/11). Every place that shows a project uses it: board, list, page, Accueil, mails.
+    public static func tintHex(_ project: ProjectRow) -> String {
+        if let hex = cardHex(project.color) { return hex }
+        let sum = withUnsafeBytes(of: project.id.uuid) { bytes in bytes.reduce(0) { $0 &+ Int($1) } }
+        return tints[sum % tints.count]
+    }
+
+    public static func tint(_ project: ProjectRow) -> Color {
+        Color(hex: tintHex(project))
+    }
+
+    /// The four columns, in their order, Terminé always at the right (15/11).
+    public static func columns(_ projects: [ProjectRow]) -> [BoardColumn] {
+        ProjectStatus.boardOrder.map { status in
             let cards = projects.filter { $0.status == status }.sorted { ($0.kanbanOrder, $0.name) < ($1.kanbanOrder, $1.name) }
-            if status == ProjectStatus.none && cards.isEmpty { return nil }
-            return BoardColumn(status: status, title: status.label, color: columnColors[status] ?? .gray, projects: cards)
+            return BoardColumn(status: status, title: status.title, projects: cards)
         }
     }
 
@@ -53,19 +62,18 @@ public enum ProjectViews {
         return left == 0 ? "Aujourd'hui" : "J-\(left)"
     }
 
-    /// Priorities 1, 2, 3 with a to-do: by days left, then the undated by priority, then by name.
-    public static func toHandIn(_ projects: [ProjectRow], today: Date, calendar: Calendar = .current) -> [ProjectRow] {
-        func rank(_ project: ProjectRow) -> Int {
-            if let due = project.dueDate { return days(from: today, to: due, calendar: calendar) }
-            switch project.status {
-            case .priorite1: return 9001
-            case .priorite2: return 9002
-            default: return 9003
-            }
+    /// « Réunion il y a 3 semaines »: the last meeting, in words (15/11).
+    public static func meetingLabel(_ date: Date, now: Date, calendar: Calendar = .current) -> String {
+        let ago = max(0, days(from: date, to: now, calendar: calendar))
+        let when: String = switch ago {
+        case 0: "aujourd'hui"
+        case 1: "hier"
+        case ..<7: "il y a \(ago) jours"
+        case ..<35: ago / 7 == 1 ? "il y a 1 semaine" : "il y a \(ago / 7) semaines"
+        case ..<365: "il y a \(max(1, ago / 30)) mois"
+        default: ago / 365 == 1 ? "il y a 1 an" : "il y a \(ago / 365) ans"
         }
-        return projects
-            .filter { $0.status.isPriority && !($0.todo ?? "").trimmingCharacters(in: .whitespaces).isEmpty }
-            .sorted { (rank($0), $0.name) < (rank($1), $1.name) }
+        return "Réunion \(when)"
     }
 
     /// The most recent sign of life: activity, a meeting (from the vault or filed in the app), a change of
@@ -73,16 +81,6 @@ public enum ProjectViews {
     public static func sign(_ project: ProjectRow, lastAppMeeting: Date?) -> Date {
         [project.lastActivity, project.lastMeetingImported, lastAppMeeting, project.noteModifiedAt, project.lastEditedAt]
             .compactMap { $0 }.max() ?? project.createdAt
-    }
-
-    /// Priorities 1, 2, 3 silent for 14 days or more, the longest silent first.
-    public static func toWatch(
-        _ projects: [ProjectRow], lastAppMeeting: [UUID: Date], today: Date, calendar: Calendar = .current
-    ) -> [(ProjectRow, sign: Date)] {
-        projects.filter(\.status.isPriority)
-            .map { ($0, sign: sign($0, lastAppMeeting: lastAppMeeting[$0.id])) }
-            .filter { days(from: $0.sign, to: today, calendar: calendar) >= silenceDays }
-            .sorted { ($0.sign, $0.0.name) < ($1.sign, $1.0.name) }
     }
 
     /// Every project, the most recent activity first, those without at the end.
@@ -123,6 +121,67 @@ public enum ProjectViews {
         [project.lastMeetingImported, appMeeting].compactMap { $0 }.max()
     }
 
+    /// « RS » for « Refonte site », « A » for « Agence »: the logo of a project without one.
+    public static func initials(_ name: String) -> String {
+        let words = name.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+        return words.prefix(2).compactMap(\.first).map { String($0).uppercased() }.joined()
+    }
+
+    // MARK: - Short texts
+
+    /// A text of Markdown as one plain line: no headings, no code, no marks; the bullets one after the other.
+    /// The journal shows two lines of it (15/11).
+    public static func excerpt(_ markdown: String, limit: Int = 280) -> String {
+        let parts = MarkdownBlocks.parse(markdown).compactMap { block -> String? in
+            switch block {
+            case .heading, .code: nil
+            case .bullet(_, let text), .task(_, let text), .numbered(_, _, let text), .quote(let text), .paragraph(let text): text
+            case .callout(_, let title, let body): [title, body].filter { !$0.isEmpty }.joined(separator: " ")
+            }
+        }
+        .map(plain)
+        .filter { !$0.isEmpty }
+        var text = ""
+        for part in parts {
+            if !text.isEmpty { text += text.last.map { ".!?:;…".contains($0) } == true ? " " : " · " }
+            text += part
+        }
+        return cut(text, limit: limit)
+    }
+
+    /// The first sentence a summary says, under its headings: what a meeting's row shows (15/11).
+    public static func firstLine(_ summary: String?) -> String? {
+        guard let summary else { return nil }
+        for block in MarkdownBlocks.parse(summary) {
+            let text: String? = switch block {
+            case .heading, .code: nil
+            case .bullet(_, let text), .task(_, let text), .numbered(_, _, let text), .quote(let text), .paragraph(let text): text
+            case .callout(_, let title, let body): title.isEmpty ? body : title
+            }
+            guard let line = text?.split(separator: "\n").first.map(String.init) else { continue }
+            let plain = plain(line)
+            if !plain.isEmpty { return cut(plain, limit: 200) }
+        }
+        return nil
+    }
+
+    /// Inline Markdown and wiki links taken away, the spaces put back to one.
+    static func plain(_ text: String) -> String {
+        let unlinked = text.replacing(#/\[\[([^\]|#]+)(#[^\]|]*)?(\|([^\]]+))?\]\]/#) { match in
+            String(match.output.4 ?? match.output.1)
+        }
+        let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        let read = (try? AttributedString(markdown: unlinked, options: options)).map { String($0.characters) } ?? unlinked
+        return read.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+    }
+
+    static func cut(_ text: String, limit: Int) -> String {
+        guard text.count > limit else { return text }
+        return String(text.prefix(limit)).trimmingCharacters(in: .whitespaces) + "…"
+    }
+
+    // MARK: - The vault's colors
+
     /// The palette of the vault's own plugin: French names first, English aliases.
     static let palette: [String: String] = [
         "rouge": "#E2453C", "orange": "#F08A24", "jaune": "#E8B923", "vert": "#1FA971", "cyan": "#17A2B8",
@@ -149,10 +208,8 @@ public struct ProjectListRow: Identifiable, Sendable {
     public let lastSign: Date
     public var id: UUID { project.id }
 
-    /// Priority 1 first, done last.
-    public var statusRank: Int {
-        [ProjectStatus.priorite1, .priorite2, .priorite3, .enAttente, .idee, .none, .termine].firstIndex(of: project.status) ?? 99
-    }
+    /// The board's order: Priorité 1 first, Terminé last.
+    public var statusRank: Int { ProjectStatus.allCases.firstIndex(of: project.status) ?? 99 }
     public var name: String { ProjectViews.fold(project.name) }
     /// Without a client, last.
     public var clientSort: String { project.client.map(ProjectViews.fold) ?? "\u{10FFFF}" }

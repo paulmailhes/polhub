@@ -34,8 +34,8 @@ struct NewProjectSheet: View {
                             .textFieldStyle(.plain)
                     }
                     Picker("Statut", selection: $draft.status) {
-                        ForEach([ProjectStatus.priorite1, .priorite2, .priorite3, .enAttente, .idee, .termine], id: \.self) {
-                            Text($0.label.capitalizedFirst).tag($0)
+                        ForEach(ProjectStatus.allCases, id: \.self) {
+                            Text($0.title).tag($0)
                         }
                     }
                     TextField("Client", text: text(\.client))

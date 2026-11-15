@@ -52,8 +52,8 @@ import Testing
 
     func stores() throws -> Stores {
         let stores = Stores(database: try AppDatabase.inMemory())
-        try stores.projects.replaceAll([ProjectRow(name: "Alpha", status: .idee, createdAt: now),
-                                        ProjectRow(name: "Beta Studio", status: .idee, createdAt: now)], actions: [], journal: [])
+        try stores.projects.addProject(name: "Alpha", status: .priorite1, at: now)
+        try stores.projects.addProject(name: "Beta Studio", status: .priorite1, at: now)
         return stores
     }
 

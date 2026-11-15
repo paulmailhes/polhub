@@ -3,20 +3,6 @@ import Persistence
 import PolhubDesign
 import SwiftUI
 
-extension BoardColor {
-    var swiftUI: Color {
-        switch self {
-        case .pink: .pink
-        case .red: .red
-        case .orange: .orange
-        case .yellow: .yellow
-        case .cyan: .cyan
-        case .green: .green
-        case .gray: .gray
-        }
-    }
-}
-
 /// The Kanban: one column per status (done ones in the list), large cards moved by dragging (14/11).
 struct BoardView: View {
     @ObservedObject var library: ProjectLibrary
@@ -27,7 +13,7 @@ struct BoardView: View {
     var body: some View {
         ScrollView(.horizontal) {
             HStack(alignment: .top, spacing: Space.l) {
-                ForEach(ProjectViews.columns(projects, includeDone: false)) { column in
+                ForEach(ProjectViews.columns(projects)) { column in
                     ColumnView(column: column, library: library, create: create)
                 }
             }
@@ -49,8 +35,8 @@ struct ColumnView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Space.m) {
             HStack(spacing: Space.s) {
-                ColorDot(column.color.swiftUI, size: 10)
-                Text(column.title.capitalizedFirst).font(.headline)
+                ColorDot(ProjectViews.statusColor(column.status), size: 10)
+                Text(column.title).font(.headline)
                 Text("\(column.projects.count)").font(.callout.monospacedDigit()).foregroundStyle(.secondary)
                 Spacer()
                 Button { create(column.status) } label: { Image(systemName: "plus") }
@@ -76,7 +62,7 @@ struct ColumnView: View {
         .padding(Space.m)
         .frame(width: CardSize(rawValue: sizeName)?.columnWidth ?? CardSize.medium.columnWidth)
         .frame(maxHeight: .infinity, alignment: .top)
-        .background(column.color.swiftUI.opacity(targeted ? 0.16 : 0.06), in: RoundedRectangle(cornerRadius: Radius.card + 4, style: .continuous))
+        .background(ProjectViews.statusColor(column.status).opacity(targeted ? 0.16 : 0.06), in: RoundedRectangle(cornerRadius: Radius.card + 4, style: .continuous))
         .dropDestination(for: String.self) { items, _ in
             drop(items, before: nil)
         } isTargeted: { targeted = $0 }
@@ -104,12 +90,12 @@ struct ProjectCard: View {
             HStack(alignment: .top, spacing: Space.s) {
                 if let icon = project.icon, icon.count <= 2 { Text(icon).font(.title2) }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(project.name).font(size.titleFont).lineLimit(2)
+                    Text(project.name).font(.rowTitle.weight(.semibold)).lineLimit(2)
                     if let client = project.client { Text(client).font(.callout).foregroundStyle(.secondary).lineLimit(1) }
                 }
             }
             if let todo = project.todo, !todo.isEmpty {
-                Text(todo).font(size == .small ? .caption : .callout).lineLimit(size.todoLines).fixedSize(horizontal: false, vertical: true)
+                Text(todo).font(.rowBody).lineLimit(2).fixedSize(horizontal: false, vertical: true)
             }
             let due = ProjectViews.dueLabel(project.dueDate, today: Date())
             if due != nil || lastMeeting != nil {

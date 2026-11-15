@@ -124,53 +124,6 @@ public struct ProjectStore: Sendable {
             })
     }
 
-    /// A new import: every project of the app is replaced, with its actions and journal. A meeting filed
-    /// in a project goes to the new project of the same name, or to none.
-    public func replaceAll(_ projects: [ProjectRow], actions: [ActionRow], journal: [ProjectJournalRow]) throws {
-        try writer.write { db in
-            let filed = try Row.fetchAll(db, sql: """
-                SELECT meeting.id AS meetingID, project.name AS name FROM meeting JOIN project ON project.id = meeting.projectID
-                """).map { (meetingID: $0["meetingID"] as String, name: $0["name"] as String) }
-            // Base v4 (review, Critical 1): the contacts' links, removed ones included, and the events' filings
-            // follow their project by name, as the meetings do.
-            let links = try Row.fetchAll(db, sql: """
-                SELECT contact_project.*, project.name AS name FROM contact_project JOIN project ON project.id = contact_project.projectID
-                """)
-            let events = try Row.fetchAll(db, sql: """
-                SELECT calendar_event.id AS eventID, project.name AS name FROM calendar_event JOIN project ON project.id = calendar_event.projectID
-                """).map { (eventID: $0["eventID"] as String, name: $0["name"] as String) }
-            try db.execute(sql: "UPDATE meeting SET projectID = NULL WHERE projectID IS NOT NULL")
-            // The actions of a meeting's summary (step 3) stay; those of the vault go with their project.
-            try db.execute(sql: "DELETE FROM action WHERE projectID IS NOT NULL AND meetingID IS NULL")
-            try db.execute(sql: "UPDATE action SET projectID = NULL WHERE projectID IS NOT NULL")
-            try db.execute(sql: "DELETE FROM project_journal")
-            try db.execute(sql: "DELETE FROM project")
-            for project in projects { try project.insert(db) }
-            for action in actions { try action.insert(db) }
-            for entry in journal { try entry.insert(db) }
-            let byName = Dictionary(projects.map { ($0.name, $0.id) }, uniquingKeysWith: { first, _ in first })
-            for (meetingID, name) in filed {
-                guard let id = byName[name] else { continue }
-                try db.execute(sql: "UPDATE meeting SET projectID = ? WHERE id = ?", arguments: [Self.key(id), meetingID])
-            }
-            for link in links {
-                guard let id = byName[link["name"] as String] else { continue }
-                try db.execute(sql: "INSERT OR REPLACE INTO contact_project (contactID, projectID, origin, excluded, createdAt) VALUES (?, ?, ?, ?, ?)",
-                               arguments: [link["contactID"] as String, Self.key(id), link["origin"] as String, link["excluded"] as Bool,
-                                           link["createdAt"] as Date])
-            }
-            for (eventID, name) in events {
-                guard let id = byName[name] else { continue }
-                try db.execute(sql: "UPDATE calendar_event SET projectID = ? WHERE id = ?", arguments: [Self.key(id), eventID])
-            }
-            // The actions of a meeting follow its project (base v4: the vault's old meetings have some).
-            try db.execute(sql: """
-                UPDATE action SET projectID = (SELECT meeting.projectID FROM meeting WHERE meeting.id = action.meetingID)
-                WHERE meetingID IS NOT NULL
-                """)
-        }
-    }
-
     // MARK: - Actions and journal
 
     public func actions(projectID: UUID) throws -> [ActionRow] {

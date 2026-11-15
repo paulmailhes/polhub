@@ -138,7 +138,7 @@ import Testing
     @Test func paulCanTakeAnEventOutOfAProject() throws {
         let database = try AppDatabase.inMemory()
         let calendar = CalendarStore(database)
-        _ = try ProjectStore(database).addProject(name: "Alpha", status: .idee, at: now)
+        _ = try ProjectStore(database).addProject(name: "Alpha", status: .priorite1, at: now)
         try calendar.applyGoogle(account: "moi@exemple.fr", changed: [
             CalendarEventRow(account: "moi@exemple.fr", eventID: "e1", title: "Point Alpha", startAt: now, endAt: now.addingTimeInterval(1_800), updatedAt: now),
         ], cancelled: [], at: now)

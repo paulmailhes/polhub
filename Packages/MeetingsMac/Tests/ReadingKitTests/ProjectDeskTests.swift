@@ -21,16 +21,20 @@ struct DeskFixture {
         atelier = ProjectRow(name: "Atelier Nord", status: .priorite1, client: "Studio Sud", dueDate: due, todo: "Envoyer la maquette",
                              contacts: ["Camille Martin"], codeFolder: "file:///Users/exemple/Code/atelier-nord",
                              notes: "- Une idée de départ\n\n## Liens\n- https://exemple.fr", kanbanOrder: 0, createdAt: now)
-        vitrine = ProjectRow(name: "Site vitrine", status: .idee, codeFolder: "/Users/exemple/Code/site vitrine", kanbanOrder: 0, createdAt: now)
+        vitrine = ProjectRow(name: "Site vitrine", status: .enPause, codeFolder: "/Users/exemple/Code/site vitrine", kanbanOrder: 0, createdAt: now)
         let archive = ProjectRow(name: "Ancien site", status: .termine, kanbanOrder: 0, createdAt: now)
-        try projects.replaceAll([atelier, vitrine, archive], actions: [
+        let actions = [
             ActionRow(projectID: atelier.id, text: "Relire la maquette", position: 0, createdAt: now),
             ActionRow(projectID: atelier.id, text: "Envoyer le devis", done: true, position: 1, createdAt: now),
             ActionRow(projectID: atelier.id, text: "Préparer la réunion", position: 2, createdAt: now),
-        ], journal: [
-            ProjectJournalRow(projectID: atelier.id, date: now.addingTimeInterval(-86_400), title: "Maquette v1",
-                              body: "- La page d'accueil est posée.", createdAt: now),
-        ])
+        ]
+        let entry = ProjectJournalRow(projectID: atelier.id, date: now.addingTimeInterval(-86_400), title: "Maquette v1",
+                                      body: "- La page d'accueil est posée.", createdAt: now)
+        try database.writer.write { [atelier, vitrine] db in
+            for project in [atelier, vitrine, archive] { try project.insert(db) }
+            for action in actions { try action.insert(db) }
+            try entry.insert(db)
+        }
         let start = now.addingTimeInterval(-7_200)
         let meeting = MeetingRow(createdAt: start, status: .ended, source: .dia, candidateKey: "t/a", title: "Point maquette",
                                  startedAt: start, endedAt: start.addingTimeInterval(1_800))
@@ -73,8 +77,10 @@ struct DeskFixture {
 
     @Test func theListGroupsByStatusAndPointsAtTheSessionsProject() throws {
         let text = try DeskFixture().desk(in: "/Users/exemple/Code/atelier-nord").list(filter: nil)
-        let first = try #require(text.range(of: "priorité 1")), idea = try #require(text.range(of: "idée")), done = try #require(text.range(of: "terminé"))
-        #expect(first.lowerBound < idea.lowerBound && idea.lowerBound < done.lowerBound)
+        // Lowercase, as the `obsidian` server wrote them (15/11: four statuses).
+        let first = try #require(text.range(of: "## priorité 1")), paused = try #require(text.range(of: "## en pause")),
+            done = try #require(text.range(of: "## terminé"))
+        #expect(first.lowerBound < paused.lowerBound && paused.lowerBound < done.lowerBound)
         #expect(text.contains("Atelier Nord · Studio Sud · échéance 20/11/2026"))
         #expect(text.contains("Atelier Nord") && text.contains("← ce dossier"))
         #expect(try DeskFixture().desk().list(filter: "vitrine").contains("Site vitrine"))

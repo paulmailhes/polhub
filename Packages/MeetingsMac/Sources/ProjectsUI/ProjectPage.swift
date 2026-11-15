@@ -94,11 +94,11 @@ struct ProjectPage: View {
             }
             HStack(spacing: Space.s) {
                 Menu {
-                    ForEach([ProjectStatus.priorite1, .priorite2, .priorite3, .enAttente, .idee, .termine], id: \.self) { status in
-                        Button(status.label.capitalizedFirst) { draft.status = status }
+                    ForEach(ProjectStatus.allCases, id: \.self) { status in
+                        Button(status.title) { draft.status = status }
                     }
                 } label: {
-                    Chip(draft.status.label.capitalizedFirst, systemImage: "circle.fill", tint: ProjectViews.statusColor(draft.status))
+                    Chip(draft.status.title, systemImage: "circle.fill", tint: ProjectViews.statusColor(draft.status))
                 }
                 .menuStyle(.button)
                 .buttonStyle(.plain)

@@ -64,9 +64,9 @@ struct WindowSnapshotTests {
         let database = try AppDatabase.inMemory()
         let store = ProjectStore(database)
         let samples: [(String, ProjectStatus, String?, Int?, String?)] = [
-            ("Site vitrine", .idee, "Freelance", nil, nil), ("Refonte site", .priorite1, "Atelier Nord", -2, "Envoyer la maquette de l'accueil"),
+            ("Site vitrine", .enPause, "Freelance", nil, nil), ("Refonte site", .priorite1, "Atelier Nord", -2, "Envoyer la maquette de l'accueil"),
             ("Identité", .priorite1, "Studio Sud", 0, "Valider la typographie"), ("Studio photo", .priorite2, "Atelier Nord", 6, "Relancer pour les contenus"),
-            ("Landing", .priorite3, "Atelier Nord", 12, "Préparer le cadrage"), ("Agence", .enAttente, "Atelier Nord", nil, nil),
+            ("Landing", .priorite2, "Atelier Nord", 12, "Préparer le cadrage"), ("Agence", .enPause, "Atelier Nord", nil, nil),
         ]
         for (name, status, client, due, todo) in samples {
             var project = try store.addProject(name: name, status: status, at: Date())

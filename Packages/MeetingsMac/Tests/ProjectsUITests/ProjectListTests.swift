@@ -18,8 +18,8 @@ import Testing
     }
 
     @Test func theSearchLooksInTheNameTheClientTheNextStepAndTheNotes() {
-        let projects = [project("Refonte du site", .priorite1, client: "Atelier Nord"), project("Identité", .idee, todo: "Valider la typographie"),
-                        project("Agence", .enAttente, notes: "Le **logo** est chez l'imprimeur."), project("Landing", .priorite3)]
+        let projects = [project("Refonte du site", .priorite1, client: "Atelier Nord"), project("Identité", .enPause, todo: "Valider la typographie"),
+                        project("Agence", .enPause, notes: "Le **logo** est chez l'imprimeur."), project("Landing", .priorite2)]
         #expect(ProjectViews.matching(projects, "atelier").map(\.name) == ["Refonte du site"])
         #expect(ProjectViews.matching(projects, "TYPO").map(\.name) == ["Identité"])
         #expect(ProjectViews.matching(projects, "imprimeur").map(\.name) == ["Agence"])
@@ -30,7 +30,7 @@ import Testing
     @Test func theListFiltersByStatusAndSortsByAnyColumn() {
         let projects = [project("B", .priorite2, client: "Zeta", due: now.addingTimeInterval(86_400 * 3), activity: now.addingTimeInterval(3_600)),
                         project("A", .priorite1, due: now.addingTimeInterval(86_400), activity: now.addingTimeInterval(-86_400)),
-                        project("C", .termine, client: "Alpha"), project("D", .idee, client: "beta")]
+                        project("C", .termine, client: "Alpha"), project("D", .enPause, client: "beta")]
         let rows = ProjectListRow.rows(projects, lastMeetings: [:], status: nil)
         #expect(Set(rows.map(\.project.name)) == ["A", "B", "C", "D"])
         #expect(ProjectListRow.rows(projects, lastMeetings: [:], status: .priorite1).map(\.project.name) == ["A"])
@@ -59,6 +59,6 @@ import Testing
         #expect(stored.icon == "🌿" && stored.color == "vert" && stored.codeFolder == "/Users/exemple/Code/site" && stored.notes == "Premier contact.")
         let column = try store.projects().filter { $0.status == .priorite1 }.sorted { $0.kanbanOrder < $1.kanbanOrder }
         #expect(column.map(\.name) == ["Déjà là", "Nouveau site"])
-        #expect(library.create(ProjectRow(name: " ", status: .idee, createdAt: now)) == nil)
+        #expect(library.create(ProjectRow(name: " ", status: .enPause, createdAt: now)) == nil)
     }
 }
