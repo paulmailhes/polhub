@@ -92,6 +92,20 @@ import Testing
         #expect(rules.filing(of: thread(senders: ["alertes@outil.exemple"], subject: "Programme", category: "updates"))! == (.services, .signals))
     }
 
+    /// Correctifs du 15/11 : un expéditeur que Paul avait mis dans « Notifications » en 0.16 garde ce choix, même
+    /// quand Gmail range ses mails dans Promotions : ses factures restent des Paiements, pas des Newsletters.
+    @Test func paulsNotificationsChoiceWinsOverGmailsPromotions() {
+        var rules = rules
+        rules.senders = ["factures@logiciel.exemple": MailSenderRow(address: "factures@logiciel.exemple", principal: false, images: false,
+                                                                   createdAt: Date(), tab: "notifications")]
+        let invoice = thread(senders: ["factures@logiciel.exemple"], subject: "Votre facture de novembre", category: "promotions")
+        #expect(!rules.isNewsletter(invoice))
+        #expect(rules.filing(of: invoice)! == (.payments, .signals))
+        // Without Paul's choice, Gmail's Promotions still says Newsletters.
+        rules.senders = [:]
+        #expect(rules.filing(of: invoice)! == (.newsletters, .signals))
+    }
+
     /// Second review of 14/11: a colleague of Paul's own domain, linked to one project, does not file every
     /// internal mail there; a contact taken out of a project does not come back by the domain.
     @Test func colleaguesAndRemovedContactsAreNotFiledByTheirLinks() {

@@ -239,11 +239,15 @@ public struct MailFilingRules: Sendable {
         return nil
     }
 
-    /// A letter or a promotion: Gmail's Promotions and Réseaux sociaux, or a sender Paul put in the old
-    /// Newsletters tab (0.13), who keeps that case now the tab is gone (15/11).
+    /// A letter or a promotion: a sender Paul put in the old Newsletters tab (0.13), who keeps that case now the
+    /// tab is gone (15/11), or Gmail's Promotions and Réseaux sociaux. A sender Paul put in Notifications (0.16)
+    /// keeps his choice over Gmail's category: Paiements or Services (correctifs, 15/11).
     public func isNewsletter(_ thread: MailThreadRow) -> Bool {
-        if ["promotions", "social"].contains(thread.category ?? "") { return true }
-        return thread.lastSender.flatMap { senders[$0.lowercased()]?.tab } == "newsletters"
+        switch thread.lastSender.flatMap({ senders[$0.lowercased()]?.tab }) {
+        case "newsletters": true
+        case "notifications": false
+        default: ["promotions", "social"].contains(thread.category ?? "")
+        }
     }
 
     /// A contact, or someone Paul wrote to.
