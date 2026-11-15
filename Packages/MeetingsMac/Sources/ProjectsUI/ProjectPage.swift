@@ -489,7 +489,7 @@ struct ProjectLogoEditor: View {
     }
 }
 
-/// « Site : harlay-exemple.fr (deviné) », « Changer », and the cross that gives it back to the guess (15/11).
+/// « Site : atelier-exemple.fr (deviné) », « Changer », and the cross that gives it back to the guess (15/11).
 struct SiteField: View {
     let projectID: UUID
     @ObservedObject var logos: ProjectLogos

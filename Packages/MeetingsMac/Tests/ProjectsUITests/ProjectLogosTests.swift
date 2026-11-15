@@ -37,8 +37,8 @@ func imageBytes(_ type: UTType, side: Int) throws -> Data {
     /// Everyone's mailboxes, Paul's own domain, a domain several projects share: none of them is a site.
     @Test func theSiteIsGuessedFromTheContactsOfThisProjectOnly() {
         let links = [
-            ProjectSites.Link(email: "camille@harlay-exemple.fr", projectID: alpha),
-            ProjectSites.Link(email: "jules@harlay-exemple.fr", projectID: alpha),
+            ProjectSites.Link(email: "camille@atelier-exemple.fr", projectID: alpha),
+            ProjectSites.Link(email: "jules@atelier-exemple.fr", projectID: alpha),
             ProjectSites.Link(email: "lea@autre-exemple.fr", projectID: alpha),
             ProjectSites.Link(email: "marc@gmail.com", projectID: beta),
             ProjectSites.Link(email: "paul@mon-studio.fr", projectID: beta),
@@ -49,7 +49,7 @@ func imageBytes(_ type: UTType, side: Int) throws -> Data {
         ]
         let guesses = ProjectSites.guesses(links, mine: ["paul@mon-studio.fr", "paul@gmail.com"])
         // The most frequent wins; a tie goes to the first by name.
-        #expect(guesses == [alpha: "harlay-exemple.fr", gamma: "a-exemple.fr"])
+        #expect(guesses == [alpha: "atelier-exemple.fr", gamma: "a-exemple.fr"])
     }
 
     @Test func theGuessesComeFromTheBase() throws {
@@ -58,14 +58,14 @@ func imageBytes(_ type: UTType, side: Int) throws -> Data {
         let project = try ProjectStore(database).addProject(name: "Atelier", status: .priorite1, at: now)
         let other = try ProjectStore(database).addProject(name: "Autre", status: .priorite2, at: now)
         let contacts = ContactStore(database)
-        let camille = try contacts.upsert(email: "camille@harlay-exemple.fr", name: "Camille", company: nil, at: now)
+        let camille = try contacts.upsert(email: "camille@atelier-exemple.fr", name: "Camille", company: nil, at: now)
         let removed = try contacts.upsert(email: "jo@retire-exemple.fr", name: "Jo", company: nil, at: now)
         let colleague = try contacts.upsert(email: "ana@mon-studio.fr", name: "Ana", company: nil, at: now)
         try contacts.link(contactID: camille.id, projectID: project.id, origin: .paul, at: now)
         try contacts.link(contactID: colleague.id, projectID: other.id, origin: .paul, at: now)
         try contacts.exclude(contactID: removed.id, projectID: other.id, at: now)
         try CalendarStore(database).addAccount(email: "paul@mon-studio.fr", at: now)
-        #expect(try database.writer.read(ProjectLogos.readGuesses) == [project.id: "harlay-exemple.fr"])
+        #expect(try database.writer.read(ProjectLogos.readGuesses) == [project.id: "atelier-exemple.fr"])
     }
 
     @Test func theHomePageNamesItsIconsTheBestFirst() throws {
@@ -241,9 +241,9 @@ final class TestClock: @unchecked Sendable {
         defer { try? FileManager.default.removeItem(at: folder) }
         let logos = try logos(FakeSites([:]))
         let id = UUID()
-        logos.apply(guesses: [id: "harlay-exemple.fr"])
-        #expect(logos.site(for: id) == ProjectSite(domain: "harlay-exemple.fr", guessed: true))
-        #expect(try sites()[id.uuidString.lowercased()] == SiteEntry(site: "harlay-exemple.fr", source: .guessed))
+        logos.apply(guesses: [id: "atelier-exemple.fr"])
+        #expect(logos.site(for: id) == ProjectSite(domain: "atelier-exemple.fr", guessed: true))
+        #expect(try sites()[id.uuidString.lowercased()] == SiteEntry(site: "atelier-exemple.fr", source: .guessed))
         logos.setSite("", for: id)
         #expect(logos.site(for: id) == nil)
         logos.apply(guesses: [id: "autre-exemple.fr"])
