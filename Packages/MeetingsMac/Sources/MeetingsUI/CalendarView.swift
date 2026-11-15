@@ -426,17 +426,8 @@ struct EventPopover: View {
                 if let reason { Text(reason).font(.tag).foregroundStyle(.secondary) }
             }
 
-            if !event.guests.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Invités · \(event.guests.count)").font(.tag.weight(.semibold)).foregroundStyle(.secondary)
-                    ForEach(event.guests.prefix(8), id: \.email) { guest in
-                        GuestRow(guest: guest, agenda: agenda, router: router, close: close)
-                    }
-                    if event.guests.count > 8 {
-                        Text("et \(event.guests.count - 8) autres").font(.tag).foregroundStyle(.secondary)
-                    }
-                }
-            }
+            // Who is a contact, who is in the event's project, and a click to change it, here (15/11).
+            EventGuests(event: event, agenda: agenda, router: router, close: close)
             if let link = event.htmlLink.flatMap(URL.init(string:)) {
                 Link("Ouvrir dans Google Agenda", destination: link).font(.tag)
             }
@@ -463,37 +454,5 @@ struct EventPopover: View {
         case .titre?: "D'après le titre."
         case nil: event.projectID == nil ? "Pas de projet trouvé : choisis-le, les invités suivront." : nil
         }
-    }
-}
-
-/// A guest: initials, name, company; a click opens the contact.
-struct GuestRow: View {
-    let guest: Attendee
-    @ObservedObject var agenda: AgendaLibrary
-    @ObservedObject var router: WindowRouter
-    let close: () -> Void
-
-    var body: some View {
-        let contact = agenda.contact(email: guest.email)
-        Button {
-            guard let contact else { return }
-            close()
-            router.openContact(contact.id)
-        } label: {
-            HStack(spacing: 8) {
-                Avatar(contact?.initials ?? String(Linker.name(for: guest).prefix(1)), size: 24)
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(contact?.name ?? Linker.name(for: guest)).font(.callout).foregroundStyle(.primary)
-                    if let company = contact?.company ?? Linker.company(forEmail: guest.email) {
-                        Text(company).font(.tag).foregroundStyle(.secondary)
-                    }
-                }
-                Spacer(minLength: 0)
-                if guest.response == "declined" { Image(systemName: "xmark.circle").foregroundStyle(.secondary).help("A refusé") }
-                if guest.response == "accepted" { Image(systemName: "checkmark.circle").foregroundStyle(.green).help("A accepté") }
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
     }
 }

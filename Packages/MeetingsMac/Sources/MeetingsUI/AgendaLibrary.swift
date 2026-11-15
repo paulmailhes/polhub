@@ -20,7 +20,22 @@ public final class AgendaLibrary: ObservableObject {
     @Published public private(set) var shown: [CalendarEventRow] = []
     /// Address → `#RRGGBB`.
     @Published public private(set) var colors: [String: String] = [:]
-    @Published public private(set) var contacts: [ContactRow] = []
+    @Published public private(set) var contacts: [ContactRow] = [] {
+        didSet { contactsByEmail = Dictionary(contacts.compactMap { contact in contact.email.map { ($0, contact) } }, uniquingKeysWith: { first, _ in first }) }
+    }
+    /// Every link between a contact and a project, removed ones included (15/11).
+    @Published public private(set) var links: [ContactProjectRow] = [] {
+        didSet {
+            var index: [UUID: [UUID: Bool]] = [:]
+            for link in links { index[link.contactID, default: [:]][link.projectID] = link.excluded }
+            linkIndex = index
+        }
+    }
+    /// Contact → project → removed by Paul.
+    private(set) var linkIndex: [UUID: [UUID: Bool]] = [:]
+    private var contactsByEmail: [String: ContactRow] = [:]
+    /// The mails, when Paul has some: the calendar writes to a guest and suggests whom to invite with them.
+    weak var mails: MailLibrary?
     @Published public private(set) var projects: [ProjectRow] = []
     @Published public private(set) var syncing = false
     @Published public private(set) var importing = false
@@ -49,6 +64,7 @@ public final class AgendaLibrary: ObservableObject {
             CalendarStore(database).observeEvents { [weak self] in self?.events = $0 },
             CalendarStore(database).observeAccounts { [weak self] in self?.accounts = $0 },
             ContactStore(database).observeContacts { [weak self] in self?.contacts = $0 },
+            ContactStore(database).observeLinks { [weak self] in self?.links = $0 },
             ProjectStore(database).observeProjects { [weak self] in self?.projects = $0 },
         ]
     }
@@ -276,7 +292,7 @@ public final class AgendaLibrary: ObservableObject {
     }
 
     public func contact(email: String) -> ContactRow? {
-        contacts.first { $0.email == email.lowercased() }
+        contactsByEmail[email.lowercased()]
     }
 
     // MARK: - The vault's history

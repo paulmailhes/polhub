@@ -19,6 +19,11 @@ struct EventEditor: View {
     @State private var draft: EventDraft
     @State private var account: String
     @State private var guestQuery = ""
+    /// The suggestion lit, as in the mails' fields (15/11).
+    @State private var highlighted = 0
+    @State private var moved = false
+    @State private var dismissed = false
+    @FocusState private var guestFocused: Bool
     @State private var saving = false
     @State private var failure: GoogleError?
     @State private var otherFailure: String?
@@ -110,31 +115,28 @@ struct EventEditor: View {
                     ForEach(draft.guests, id: \.self) { email in
                         HStack(spacing: Space.s) {
                             let contact = agenda.contact(email: email)
-                            Avatar(contact?.initials ?? String(email.prefix(1)).uppercased(), size: 24)
+                            PersonAvatar(initials: contact?.initials.nonEmpty ?? String(email.prefix(1)).uppercased(), tint: MailText.tint(for: email),
+                                         badge: contact == nil ? .none : .contact, size: 28)
                             VStack(alignment: .leading, spacing: 0) {
                                 Text(contact?.name ?? email)
-                                if contact != nil { Text(email).font(.tag).foregroundStyle(.secondary) }
+                                if contact != nil { Text(email).font(.meta).foregroundStyle(.secondary) }
                             }
                             Spacer()
-                            Button { draft.guests.removeAll { $0 == email } } label: { Image(systemName: "xmark.circle.fill") }
-                                .buttonStyle(.borderless).foregroundStyle(.secondary).help("Retirer")
+                            IconButton("xmark.circle.fill", help: "Retirer") { draft.guests.removeAll { $0 == email } }
                         }
                     }
+                    let matches = suggestions
                     TextField("Ajouter un invité", text: $guestQuery, prompt: Text("Nom ou adresse"))
+                        .focused($guestFocused)
                         .onSubmit(addTypedGuest)
-                    ForEach(suggestions) { contact in
-                        Button {
-                            add(contact.email ?? "")
-                        } label: {
-                            HStack(spacing: Space.s) {
-                                Avatar(contact.initials, size: 22)
-                                Text(contact.name)
-                                Text(contact.email ?? "").foregroundStyle(.secondary)
-                                Spacer()
-                            }
-                            .contentShape(Rectangle())
+                        .suggestionKeys(count: matches.count, highlighted: $highlighted, moved: $moved, dismissed: $dismissed, accept: addTypedGuest)
+                        .onChange(of: guestQuery) { _, _ in
+                            highlighted = 0
+                            moved = false
+                            dismissed = false
                         }
-                        .buttonStyle(.plain)
+                    if !matches.isEmpty {
+                        PersonSuggestionList(matches: matches, highlighted: $highlighted, project: project(of:), glass: false) { add($0.address.email) }
                     }
                 }
                 Section("Notes") {
@@ -196,22 +198,27 @@ struct EventEditor: View {
         .padding(Space.l)
     }
 
-    private var suggestions: [ContactRow] {
-        let query = guestQuery.trimmingCharacters(in: .whitespaces)
-        guard query.count >= 2 else { return [] }
-        return agenda.contacts.filter { contact in
-            guard let email = contact.email, !draft.guests.contains(email) else { return false }
-            return [contact.name, email, contact.company ?? ""].contains { $0.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
-        }
-        .prefix(5).map { $0 }
+    /// The people of the mails' suggestions (15/11): contacts, people Paul wrote to, people who wrote to him;
+    /// without the mails, the contacts.
+    private var suggestions: [PersonSuggestion] {
+        guard guestFocused, !dismissed else { return [] }
+        let index = agenda.mails?.people.current
+            ?? PeopleIndex(contacts: agenda.contacts, projects: agenda.projectsByEmail, mine: Set(agenda.accounts.map(\.email)))
+        return index.search(guestQuery, excluding: Set(draft.guests))
     }
 
+    private func project(of person: PersonSuggestion) -> ProjectRow? {
+        agenda.projects.filter { person.projectIDs.contains($0.id) && $0.status != .termine }
+            .min { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    /// ↩ or ⇥: the suggestion lit, else the address typed in full.
     private func addTypedGuest() {
         let query = guestQuery.trimmingCharacters(in: .whitespaces)
-        if query.contains("@"), query.contains(".") {
+        if let chosen = SuggestionChoice.accepted(typed: query, matches: suggestions, highlighted: highlighted, moved: moved) {
+            add(chosen.email)
+        } else if query.contains("@"), query.contains(".") {
             add(query)
-        } else if suggestions.count == 1, let email = suggestions.first?.email {
-            add(email)
         }
     }
 
