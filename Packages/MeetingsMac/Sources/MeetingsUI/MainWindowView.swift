@@ -22,6 +22,19 @@ public enum SidebarItem: String, Hashable, Sendable {
         }
     }
 
+    /// Its icon in the sidebar, from Phosphor (Paul, 15/11: « des icônes beaucoup mieux »).
+    var appIcon: AppIcon {
+        switch self {
+        case .home: .home
+        case .projects: .projects
+        case .meetings: .meetings
+        case .calendar: .calendar
+        case .mails: .mails
+        case .contacts: .contacts
+        case .settings: .settings
+        }
+    }
+
     var icon: String {
         switch self {
         case .home: "house.fill"

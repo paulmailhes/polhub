@@ -67,8 +67,8 @@ public enum CardSize: String, CaseIterable, Identifiable, Sendable {
     /// The narrowest a column gets; wider windows share their width between the four columns (Paul, 15/11).
     public var columnWidth: CGFloat {
         switch self {
-        case .medium: 290
-        case .small: 250
+        case .medium: 260
+        case .small: 230
         }
     }
 

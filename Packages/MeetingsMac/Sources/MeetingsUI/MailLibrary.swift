@@ -46,6 +46,21 @@ public enum MailFolder: String, Hashable, Sendable, CaseIterable {
         }
     }
 
+    /// Its icon in the sidebar, from Phosphor (Paul, 15/11: nicer icons).
+    var appIcon: AppIcon {
+        switch self {
+        case .inbox: .inbox
+        case .sent: .sent
+        case .drafts: .drafts
+        case .scheduled: .scheduled
+        case .notifications: .notifications
+        case .subscriptions: .subscriptions
+        case .spam: .spam
+        case .trash: .trash
+        case .all: .allMail
+        }
+    }
+
     /// Gmail's spam or trash: threads put aside, which only come back.
     var aside: MailAside? {
         switch self {

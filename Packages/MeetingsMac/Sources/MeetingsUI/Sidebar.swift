@@ -117,7 +117,7 @@ struct Sidebar: View {
         DisclosureGroup(isExpanded: $mailsOpen) {
             // « Programmés » only while a mail waits there, as Gmail's (wave B).
             ForEach(MailFolder.allCases.filter { $0 != .scheduled || mails.showsScheduled }, id: \.self) { folder in
-                Label(folder.title, systemImage: folder.icon)
+                AppLabel(folder.title, icon: folder.appIcon)
                     .listItemTint(.monochrome)
                     .badge(count(folder, in: mails))
                     .tag(SidebarRow.mail(folder))
@@ -198,7 +198,7 @@ struct SidebarLabel: View {
     }
 
     private var label: some View {
-        Label(item.title, systemImage: item.icon).symbolRenderingMode(.hierarchical)
+        AppLabel(item.title, icon: item.appIcon)
     }
 }
 

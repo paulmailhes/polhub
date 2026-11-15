@@ -57,7 +57,7 @@ struct MailListView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button { mails.writeNewMail(router: router) } label: {
-                    Label("Nouveau mail", systemImage: "square.and.pencil").labelStyle(.titleAndIcon)
+                    Label { Text("Nouveau mail") } icon: { AppIconImage(.newMail, size: 16) }.labelStyle(.titleAndIcon)
                 }
                 .buttonStyle(.glassProminent)
                 .help("Écrire un nouveau mail (⌘N)")
