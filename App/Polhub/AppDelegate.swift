@@ -157,6 +157,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             store = MeetingStore(database)
             // A session wrote through `polhub mcp`: the views fetch again (13/11).
             externalChanges = ExternalChangeSignal.listen(queue: .main) { try? database.notifyExternalChanges() }
+        } catch AppDatabaseError.newerBase {
+            // Not a crash: a plain exit, which the relaunch agent leaves alone, instead of the same alert every
+            // ten seconds (correctifs, 15/11).
+            Self.alertThenExit(AppDatabaseError.newerBase.localizedDescription, code: 0)
         } catch {
             Self.alertThenExit("La base des réunions ne s'ouvre pas : \(error.localizedDescription)")
         }
@@ -585,7 +589,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         }
     }
 
-    static func alertThenExit(_ text: String) -> Never {
+    /// `code` 0 for a stop the relaunch agent must not undo (it relaunches only after a failure).
+    static func alertThenExit(_ text: String, code: Int32 = 2) -> Never {
         FileHandle.standardError.write(Data("Polhub : \(text)\n".utf8))
         // In a script there is nobody to click: the alert is only shown in a real session.
         if ProcessInfo.processInfo.environment["POLHUB_NO_ALERT"] == nil {
@@ -595,7 +600,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             NSApp.activate()
             alert.runModal()
         }
-        exit(2)
+        exit(code)
     }
 
     func showProbeWindow() {

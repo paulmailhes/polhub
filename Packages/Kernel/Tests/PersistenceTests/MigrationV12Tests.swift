@@ -102,6 +102,32 @@ import Testing
         #expect(try FileManager.default.contentsOfDirectory(atPath: backups.path(percentEncoded: false)).filter { $0.hasSuffix(".sqlite") }.count == 1)
     }
 
+    /// Correctifs du 15/11 : une copie qui échoue en route (disque plein, Polhub arrêté) ne laisse rien sous le nom
+    /// de la copie, et l'ouverture suivante en fait une vraie avant de migrer.
+    @Test func aFailedCopyLeavesNothingAndTheNextOpeningCopiesAgain() throws {
+        let folder = try temporaryFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let path = folder.appending(path: "Polhub.sqlite").path(percentEncoded: false)
+        let queue = try DatabaseQueue(path: path)
+        try AppDatabase.migrator.migrate(queue, upTo: "v11")
+        try queue.write { db in try insert([("Ancien", "idée", 0, false)], into: db) }
+        let backups = folder.appending(path: "Sauvegardes", directoryHint: .isDirectory)
+        struct DiskFull: Error {}
+        #expect(throws: DiskFull.self) {
+            try AppDatabase.protect(queue, backups: backups, now: Date()) { _, target in
+                // As SQLite does: the file is made, then the copy fails.
+                FileManager.default.createFile(atPath: target, contents: Data())
+                throw DiskFull()
+            }
+        }
+        #expect(try FileManager.default.contentsOfDirectory(atPath: backups.path(percentEncoded: false)).isEmpty)
+        try AppDatabase.protect(queue, backups: backups, now: Date())
+        let copies = try FileManager.default.contentsOfDirectory(atPath: backups.path(percentEncoded: false))
+        #expect(copies.count == 1 && copies[0].hasPrefix("Polhub-avant-v12-") && copies[0].hasSuffix(".sqlite"))
+        let copy = try DatabaseQueue(path: backups.appending(path: copies[0]).path(percentEncoded: false))
+        #expect(try copy.read { try String.fetchOne($0, sql: "SELECT status FROM project") } == "idée")
+    }
+
     @Test func aNewBaseHasNoCopy() throws {
         let folder = try temporaryFolder()
         defer { try? FileManager.default.removeItem(at: folder) }

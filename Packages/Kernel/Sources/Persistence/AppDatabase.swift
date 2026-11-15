@@ -34,7 +34,8 @@ public final class AppDatabase: Sendable {
     /// Before any migration of a base that already holds Paul's data (review of 15/11): a base left by a newer
     /// Polhub is refused, never read with the wrong meanings; a base about to change gets a copy first, named
     /// after the first migration it is about to get.
-    static func protect(_ writer: any DatabaseWriter, backups: URL, now: Date) throws {
+    static func protect(_ writer: any DatabaseWriter, backups: URL, now: Date,
+                        copy: (any DatabaseWriter, String) throws -> Void = { writer, path in try writer.backup(to: DatabaseQueue(path: path)) }) throws {
         let migrator = Self.migrator
         let (superseded, applied) = try writer.read { db in
             (try migrator.hasBeenSuperseded(db), try migrator.appliedIdentifiers(db))
@@ -45,7 +46,23 @@ public final class AppDatabase: Sendable {
         let target = backups.appending(path: backupName(before: pending, on: now))
         // A copy of the same day is already the base before this migration: it stays.
         guard !FileManager.default.fileExists(atPath: target.path(percentEncoded: false)) else { return }
-        try writer.backup(to: DatabaseQueue(path: target.path(percentEncoded: false)))
+        // Written under another name, then renamed: a copy that failed on the way (a full disk, Polhub stopped)
+        // never passes for the copy at the next opening (correctifs, 15/11).
+        let partial = backups.appending(path: target.lastPathComponent + ".partiel")
+        let manager = FileManager.default
+        func removePartial() {
+            for suffix in ["", "-journal", "-wal", "-shm"] {
+                try? manager.removeItem(atPath: partial.path(percentEncoded: false) + suffix)
+            }
+        }
+        removePartial()
+        do {
+            try copy(writer, partial.path(percentEncoded: false))
+            try manager.moveItem(at: partial, to: target)
+        } catch {
+            removePartial()
+            throw error
+        }
     }
 
     /// `Polhub-avant-v12-20261115.sqlite`.
