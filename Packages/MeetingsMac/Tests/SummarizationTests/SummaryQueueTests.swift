@@ -19,6 +19,12 @@ final class FakeEngine: SummaryEngine, @unchecked Sendable {
     var afterNotes: (() -> Void)?
     /// The parts the model refuses (its guardrails), even asked again.
     var refusedParts: Set<Int> = []
+    /// The parts whose notes come only once the guardrails are relaxed.
+    var relaxedParts: Set<Int> = []
+    /// Says whether the model refuses the summary of these notes.
+    var refusesSummary: (([String]) -> Bool)?
+    /// The notes of every summary asked.
+    private(set) var summaries: [[String]] = []
     /// A text longer than this overflows the model's window.
     var window: Int?
     /// What `characterBudget()` answers.
@@ -50,12 +56,19 @@ final class FakeEngine: SummaryEngine, @unchecked Sendable {
         return notesLength > 0 ? String(repeating: "n", count: notesLength) : "notes \(part)/\(count)"
     }
 
+    func partNotes(for chunk: String, part: Int, of count: Int) async throws -> SummaryNote {
+        let text = try await notes(for: chunk, part: part, of: count)
+        return relaxedParts.contains(part) ? SummaryNote(text: "relâchées \(part)/\(count)", relaxed: true) : SummaryNote(text: text)
+    }
+
     func merge(_ notes: String, part: Int, of count: Int) async throws -> String {
         merges += 1
         return notesLength > 0 ? String(repeating: "m", count: notesLength) : "fusion \(part)/\(count)"
     }
 
     func summary(of notes: [String], title: String) async throws -> MeetingSummary {
+        summaries.append(notes)
+        if refusesSummary?(notes) == true { throw SummaryError.refused }
         mergedLength = notes.joined(separator: "\n\n").count
         return MeetingSummary(overview: "\(title) : \(notes.count) parties.", points: ["La maquette avance."], decisions: ["Garder la maquette."],
                               actions: [SummaryAction(text: "envoyer le devis", owner: "Moi", due: "vendredi")])

@@ -61,18 +61,23 @@ public struct AppleSummaryEngine: SummaryEngine {
     }
 
     public func notes(for chunk: String, part: Int, of count: Int) async throws -> String {
+        try await partNotes(for: chunk, part: part, of: count).text
+    }
+
+    public func partNotes(for chunk: String, part: Int, of count: Int) async throws -> SummaryNote {
         let prompt = "Extrait \(part) sur \(count) de la transcription :\n\n" + chunk
         do {
             let session = LanguageModelSession(instructions: Self.notesInstructions)
             let notes = try await respond { try await session.respond(to: prompt, generating: PartNotes.self).content }
-            return notes.text(part: part)
+            return SummaryNote(text: notes.text(part: part))
         } catch SummaryError.refused {
             // Asked again as plain text, with the guardrails Apple gives to the transformations of a text: they only
             // relax answers in text (not measured on French meetings, 15/11). Refused again, the part is left out.
+            // The summary, asked with the usual guardrails, can do without these notes if it is refused.
             let model = SystemLanguageModel(guardrails: .permissiveContentTransformations)
             let session = LanguageModelSession(model: model, instructions: Self.notesInstructions)
             let text = try await respond { try await session.respond(to: prompt + "\n\n" + Self.plainNotesRequest).content }
-            return "Partie \(part)\n" + text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return SummaryNote(text: "Partie \(part)\n" + text.trimmingCharacters(in: .whitespacesAndNewlines), relaxed: true)
         }
     }
 

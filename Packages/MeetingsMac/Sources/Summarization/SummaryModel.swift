@@ -91,14 +91,32 @@ public protocol SummaryEngine: Sendable {
     func characterBudget() async -> Int
     /// The notes of one part of the transcript.
     func notes(for chunk: String, part: Int, of count: Int) async throws -> String
+    /// The same notes, saying whether the model gave them only once its guardrails were relaxed: the summary can
+    /// do without them when the model refuses it (15/11).
+    func partNotes(for chunk: String, part: Int, of count: Int) async throws -> SummaryNote
     /// Notes of several parts merged into shorter ones: the extra rounds of a long meeting.
     func merge(_ notes: String, part: Int, of count: Int) async throws -> String
     /// The summary, from the notes of every part.
     func summary(of notes: [String], title: String) async throws -> MeetingSummary
 }
 
+/// One part's notes, and whether they came only with relaxed guardrails (the second request of a refused part).
+public struct SummaryNote: Equatable, Sendable {
+    public var text: String
+    public var relaxed: Bool
+
+    public init(text: String, relaxed: Bool = false) {
+        self.text = text
+        self.relaxed = relaxed
+    }
+}
+
 extension SummaryEngine {
     public func characterBudget() async -> Int { SummaryPlan.maxCharacters }
+
+    public func partNotes(for chunk: String, part: Int, of count: Int) async throws -> SummaryNote {
+        SummaryNote(text: try await notes(for: chunk, part: part, of: count))
+    }
 
     public func merge(_ notes: String, part: Int, of count: Int) async throws -> String {
         try await self.notes(for: notes, part: part, of: count)
@@ -158,6 +176,39 @@ public enum SummaryPlan {
         }
         if !current.isEmpty { chunks.append(current) }
         return chunks
+    }
+
+    /// Notes cut in groups as `chunks` cuts lines; each group knows the parts it comes from and whether one of its
+    /// notes came with relaxed guardrails.
+    static func groups(_ notes: [Summarizer.Note], maxCharacters: Int = maxCharacters) -> [Summarizer.Note] {
+        var groups: [Summarizer.Note] = []
+        var current = Summarizer.Note(text: "", parts: [])
+        func add(_ text: Substring, of note: Summarizer.Note) {
+            current.text += text
+            current.parts += note.parts.filter { !current.parts.contains($0) }
+            current.relaxed = current.relaxed || note.relaxed
+        }
+        func close() {
+            groups.append(current)
+            current = Summarizer.Note(text: "", parts: [])
+        }
+        for note in notes {
+            var rest = Substring(note.text + "\n")
+            while !rest.isEmpty {
+                if current.text.count + rest.count <= maxCharacters {
+                    add(rest, of: note)
+                    rest = ""
+                } else if current.text.isEmpty {
+                    add(rest.prefix(maxCharacters), of: note)
+                    rest = rest.dropFirst(maxCharacters)
+                    close()
+                } else {
+                    close()
+                }
+            }
+        }
+        if !current.text.isEmpty { groups.append(current) }
+        return groups
     }
 
     /// A part cut in two, between two lines near the middle; a single line is cut at a space near its middle.
@@ -287,7 +338,8 @@ public enum SummaryChecks {
 }
 
 /// From the transcript to the checked summary: notes part by part, then one summary. A part the model refuses,
-/// or notes that had to be shortened, leave the summary « Partiel » instead of sinking it (15/11).
+/// or notes that had to be shortened, leave the summary « Partiel » instead of sinking it (15/11). A summary the
+/// model refuses is asked once more without the notes it most likely refused.
 public enum Summarizer {
     /// Under this, there is nothing to summarize.
     public static let minimumCharacters = 300
@@ -296,6 +348,14 @@ public enum Summarizer {
     static let reductionRounds = 3
     /// A part too long for the window is cut in two, this many times at most.
     static let splits = 4
+
+    /// Notes on their way to the summary: the parts they come from, and whether the model gave them only with
+    /// relaxed guardrails.
+    struct Note: Equatable {
+        var text: String
+        var parts: [Int]
+        var relaxed = false
+    }
 
     public static func make(lines: [UtteranceRow], title: String, participants: [String], engine: any SummaryEngine,
                             maxCharacters: Int? = nil,
@@ -312,11 +372,11 @@ public enum Summarizer {
         if let maxCharacters { budget = maxCharacters } else { budget = await engine.characterBudget() }
         let chunks = SummaryPlan.chunks(text, maxCharacters: budget)
         await onProgress(SummaryProgress(done: 0, total: chunks.count))
-        var notes: [String] = []
+        var notes: [Note] = []
         var dropped: [Int] = []
         for (index, chunk) in chunks.enumerated() {
             let part = try await self.notes(of: chunk, part: index + 1, of: chunks.count, engine: engine, check: check)
-            notes += part.notes
+            notes += part.notes.map { Note(text: $0.text, parts: [index + 1], relaxed: $0.relaxed) }
             if part.lost { dropped.append(index + 1) }
             await onProgress(SummaryProgress(done: index + 1, total: chunks.count))
         }
@@ -325,13 +385,15 @@ public enum Summarizer {
         // A long meeting's notes do not fit the model's window: they are merged, in groups (review of 14/11,
         // Important 6), a few rounds at most.
         var round = 0
-        while notes.joined(separator: "\n\n").count > budget, notes.count > 1, round < reductionRounds {
-            let groups = SummaryPlan.chunks(notes, maxCharacters: budget)
-            var merged: [String] = []
+        while notes.map(\.text).joined(separator: "\n\n").count > budget, notes.count > 1, round < reductionRounds {
+            let groups = SummaryPlan.groups(notes, maxCharacters: budget)
+            var merged: [Note] = []
             for (index, group) in groups.enumerated() {
                 try await check()
                 do {
-                    merged.append(try await merge(group, part: index + 1, of: groups.count, engine: engine))
+                    var note = group
+                    note.text = try await merge(group.text, part: index + 1, of: groups.count, engine: engine)
+                    merged.append(note)
                 } catch SummaryError.refused, SummaryError.tooLong {
                     // A group the model will not merge keeps its notes as they are.
                     merged.append(group)
@@ -340,18 +402,19 @@ public enum Summarizer {
             notes = merged
             round += 1
         }
-        var (fitted, shortened) = SummaryNotes.fit(notes, budget: budget)
         await onProgress(SummaryProgress(done: chunks.count, total: chunks.count, finishing: true))
-        try await check()
         var summary: MeetingSummary
+        var shortened: Bool
         do {
-            summary = try await engine.summary(of: fitted, title: title)
-        } catch SummaryError.tooLong {
-            // The window was smaller than said: once more with half the notes.
-            fitted = SummaryNotes.fit(fitted, budget: budget / 2).notes
-            shortened = true
-            try await check()
-            summary = try await engine.summary(of: fitted, title: title)
+            (summary, shortened) = try await write(notes, title: title, budget: budget, engine: engine, check: check)
+        } catch SummaryError.refused {
+            // The model refused the summary: once more without the notes it most likely refused. The parts that
+            // only they came from are said missing (« Partiel »).
+            let kept = withoutRefused(notes)
+            guard !kept.isEmpty, kept.count < notes.count else { throw SummaryError.refused }
+            let left = Set(kept.flatMap(\.parts))
+            dropped = Array(Set(dropped + notes.flatMap(\.parts).filter { !left.contains($0) })).sorted()
+            (summary, shortened) = try await write(kept, title: title, budget: budget, engine: engine, check: check)
         }
         try Task.checkCancellation()
         summary = SummaryChecks.clean(summary, transcript: transcript, participants: participants)
@@ -359,13 +422,35 @@ public enum Summarizer {
         return summary
     }
 
+    /// The summary of notes fitted to the window; if the window was smaller than said, once more with half the notes.
+    static func write(_ notes: [Note], title: String, budget: Int, engine: any SummaryEngine,
+                      check: () async throws -> Void) async throws -> (MeetingSummary, Bool) {
+        var (fitted, shortened) = SummaryNotes.fit(notes.map(\.text), budget: budget)
+        try await check()
+        do {
+            return (try await engine.summary(of: fitted, title: title), shortened)
+        } catch SummaryError.tooLong {
+            fitted = SummaryNotes.fit(fitted, budget: budget / 2).notes
+            shortened = true
+            try await check()
+            return (try await engine.summary(of: fitted, title: title), shortened)
+        }
+    }
+
+    /// The notes a refused summary is asked again with: without those the model gave only with relaxed
+    /// guardrails, which carry what it refused once; when there are none, without the notes of the last parts.
+    static func withoutRefused(_ notes: [Note]) -> [Note] {
+        if notes.contains(where: \.relaxed) { return notes.filter { !$0.relaxed } }
+        return Array(notes.prefix(notes.count / 2))
+    }
+
     /// One part's notes. A part too long for the window is cut in two and each half is read; what the model
     /// refuses is left out (`lost`).
     static func notes(of chunk: String, part: Int, of count: Int, engine: any SummaryEngine, check: () async throws -> Void,
-                      depth: Int = 0) async throws -> (notes: [String], lost: Bool) {
+                      depth: Int = 0) async throws -> (notes: [SummaryNote], lost: Bool) {
         try await check()
         do {
-            return ([try await engine.notes(for: chunk, part: part, of: count)], false)
+            return ([try await engine.partNotes(for: chunk, part: part, of: count)], false)
         } catch SummaryError.refused {
             return ([], true)
         } catch SummaryError.tooLong {

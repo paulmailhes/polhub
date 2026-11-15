@@ -46,6 +46,48 @@ import Testing
         }
     }
 
+    /// Correctifs du 15/11 : le compte rendu refusé ne fait plus tout perdre. Il est redemandé sans les notes que
+    /// le modèle n'a données qu'avec des garde-fous relâchés, et la partie qu'elles portaient est dite manquante.
+    @Test func aRefusedSummaryIsAskedAgainWithoutTheRelaxedNotes() async throws {
+        let engine = FakeEngine()
+        engine.relaxedParts = [2]
+        engine.refusesSummary = { notes in notes.contains { $0.hasPrefix("relâchées") } }
+        let summary = try #require(try await Summarizer.make(lines: lines(30), title: "Atelier", participants: [], engine: engine, maxCharacters: 4_000))
+        let count = SummaryPlan.chunks(SummaryPlan.lines(lines(30)), maxCharacters: 4_000).count
+        #expect(engine.summaries.count == 2)
+        #expect(summary.overview == "Atelier : \(count - 1) parties.")
+        #expect(summary.missing == "la partie 2 sur \(count) n'a pas pu être résumée (refusée par le modèle d'Apple)")
+    }
+
+    /// Sans notes relâchées, le compte rendu refusé est redemandé avec les premières parties seulement.
+    @Test func aRefusedSummaryWithoutRelaxedNotesKeepsTheFirstParts() async throws {
+        let engine = FakeEngine()
+        let count = SummaryPlan.chunks(SummaryPlan.lines(lines(30)), maxCharacters: 4_000).count
+        engine.refusesSummary = { notes in notes.count == count }
+        let summary = try #require(try await Summarizer.make(lines: lines(30), title: "Atelier", participants: [], engine: engine, maxCharacters: 4_000))
+        #expect(summary.overview == "Atelier : \(count / 2) parties.")
+        #expect(summary.missing == SummaryText.missing(dropped: Array((count / 2 + 1)...count), of: count, shortened: false))
+    }
+
+    /// Refusé deux fois, le compte rendu échoue comme avant : une seule nouvelle demande.
+    @Test func aSummaryRefusedTwiceFails() async throws {
+        let engine = FakeEngine()
+        engine.refusesSummary = { _ in true }
+        await #expect(throws: SummaryError.refused) {
+            try await Summarizer.make(lines: lines(30), title: "Atelier", participants: [], engine: engine, maxCharacters: 4_000)
+        }
+        #expect(engine.summaries.count == 2)
+    }
+
+    /// Les groupes de notes à fusionner se coupent comme les parties, et savent d'où ils viennent.
+    @Test func groupsOfNotesAreCutLikeChunksAndKnowTheirParts() {
+        let notes = (1...6).map { Summarizer.Note(text: String(repeating: "n", count: 1_500), parts: [$0], relaxed: $0 == 3) }
+        let groups = SummaryPlan.groups(notes, maxCharacters: 4_000)
+        #expect(groups.map(\.text) == SummaryPlan.chunks(notes.map(\.text), maxCharacters: 4_000))
+        #expect(groups.map(\.parts) == [[1, 2], [3, 4], [5, 6]])
+        #expect(groups.map(\.relaxed) == [false, true, false])
+    }
+
     @Test func aPartTooLongForTheWindowIsCutInTwoAndNothingIsLost() async throws {
         let engine = FakeEngine()
         engine.window = 2_500
