@@ -49,7 +49,8 @@ struct HomeView: View {
         agenda.shown.filter { calendar.isDateInToday($0.startAt) || ($0.allDay && $0.startAt <= .now && $0.endAt > .now) }
             .sorted { ($0.allDay ? 0 : 1, $0.startAt) < ($1.allDay ? 0 : 1, $1.startAt) }
     }
-    private var urgent: [ProjectRow] { agenda.projects.filter { $0.status == .priorite1 } }
+    /// The most urgent projects: Priorité 2, in Paul's scale (15/11).
+    private var urgent: [ProjectRow] { agenda.projects.filter { $0.status == .priorite2 } }
     /// Recent events with a recording but no project: one choice files the meeting and its guests.
     private var unfiled: [CalendarEventRow] {
         agenda.shown.filter { $0.projectID == nil && $0.meetingID != nil && $0.startAt > Date().addingTimeInterval(-14 * 86_400) }
@@ -139,8 +140,8 @@ struct HomeView: View {
 
     /// Six projects in the board's order, then « Voir les N autres » (15/11: fifteen after the four statuses).
     private var urgentCard: some View {
-        HomeCard(title: "Priorité 1", systemImage: "flag") {
-            if urgent.isEmpty { EmptyLine("Aucun projet en priorité 1.") }
+        HomeCard(title: "Priorité 2", systemImage: "flag") {
+            if urgent.isEmpty { EmptyLine("Aucun projet en priorité 2.") }
             ShowMoreList(urgent, limit: 6) { project in
                 RowButton(action: { router.openProject(project.id) }) {
                     HStack(alignment: .center, spacing: Space.m) {

@@ -15,11 +15,29 @@ import Testing
         try store.projects().filter { $0.status == status }.sorted { $0.kanbanOrder < $1.kanbanOrder }.map(\.name)
     }
 
-    /// 15/11 (Paul): four statuses; their raw values stay lowercase for `polhub mcp`, their titles are the board's.
+    /// 15/11 (Paul): four statuses, the most urgent first (« priorité 2 c'est le plus priorité »); their raw values
+    /// stay lowercase for `polhub mcp`, their titles are the board's.
     @Test func fourStatusesInTheBoardsOrder() {
-        #expect(ProjectStatus.boardOrder == [.priorite1, .priorite2, .enPause, .termine])
-        #expect(ProjectStatus.allCases.map(\.label) == ["priorité 1", "priorité 2", "en pause", "terminé"])
-        #expect(ProjectStatus.allCases.map(\.title) == ["Priorité 1", "Priorité 2", "En pause", "Terminé"])
+        #expect(ProjectStatus.boardOrder == [.priorite2, .priorite1, .enPause, .termine])
+        #expect(ProjectStatus.allCases.map(\.label) == ["priorité 2", "priorité 1", "en pause", "terminé"])
+        #expect(ProjectStatus.allCases.map(\.title) == ["Priorité 2", "Priorité 1", "En pause", "Terminé"])
+    }
+
+    /// « Supprimer le projet » (15/11): it leaves every list, its mails stop going there, and it comes back whole.
+    @Test func aDeletedProjectLeavesTheBoardAndTheMailRules() throws {
+        let database = try AppDatabase.inMemory()
+        let store = ProjectStore(database)
+        let project = try store.addProject(name: "Site vitrine", status: .priorite2, at: now)
+        let contact = try ContactStore(database).upsert(email: "camille@exemple-studio.fr", name: "Camille", company: nil, at: now)
+        try ContactStore(database).link(contactID: contact.id, projectID: project.id, origin: .paul, at: now)
+        #expect(try MailStore(database).filingRules().contactProjects["camille@exemple-studio.fr"] == [project.id])
+        try store.moveToTrash(projectID: project.id, at: now)
+        #expect(try store.projects().isEmpty)
+        let rules = try MailStore(database).filingRules()
+        #expect(rules.contactProjects["camille@exemple-studio.fr"] == nil && rules.projects.isEmpty)
+        #expect(!rules.exists(.project(project.id)) && rules.exists(.perso))
+        try store.restore(projectID: project.id, at: now)
+        #expect(try store.projects().map(\.name) == ["Site vitrine"])
     }
 
     /// Review of 15/11: an old or unknown value never fails; « priorité 2 » keeps its meaning (only the

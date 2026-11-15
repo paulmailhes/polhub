@@ -192,9 +192,9 @@ struct PersonMenuItems: View {
         Section(person.email) {
             if let project {
                 if link == .member {
-                    Button("Retirer de « \(project.name) »", systemImage: "minus.circle", action: remove)
+                    Button("Retirer du projet « \(project.name) »", systemImage: "minus.circle", action: remove)
                 } else {
-                    Button("Ajouter à « \(project.name) »", systemImage: "plus.circle", action: add)
+                    Button("Ajouter au projet « \(project.name) »", systemImage: "plus.circle", action: add)
                 }
             } else if link == .stranger {
                 Button("Ajouter aux contacts", systemImage: "person.crop.circle.badge.plus", action: add)

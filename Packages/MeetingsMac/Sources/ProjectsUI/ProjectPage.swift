@@ -31,6 +31,8 @@ struct ProjectPage: View {
     /// The journal entries unfolded to their full text.
     @State private var openEntries: Set<UUID> = []
     @State private var editingNotes = false
+    @FocusState private var notesFocused: Bool
+    @State private var confirmingDelete = false
     @State private var showingDone = false
     /// The actions Paul added or ticked on this page: they stay in sight past the first five.
     @State private var touchedActions: Set<UUID> = []
@@ -70,7 +72,16 @@ struct ProjectPage: View {
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { wide = $0 >= 760 }
         }
         .overlay(alignment: .topTrailing) {
-            if let close { PanelCloseButton(action: close).padding(Space.l) }
+            HStack(spacing: Space.s) {
+                projectMenu
+                if let close { PanelCloseButton(action: close) }
+            }
+            .padding(Space.l)
+        }
+        .confirmationDialog("Supprimer « \(draft.name) » ?", isPresented: $confirmingDelete) {
+            Button("Supprimer le projet", role: .destructive) { library.trash(draft.id); close?() }
+        } message: {
+            Text("Le projet quitte le Kanban et les listes. Ses réunions, ses mails et ses contacts restent.")
         }
         .toolbar {
             if close == nil {
@@ -118,44 +129,100 @@ struct ProjectPage: View {
                     .fixedSize()
                     .help("Changer le statut")
                     if let label = ProjectViews.dueLabel(draft.dueDate, today: Date()) {
-                        Chip(label, systemImage: "calendar", tint: label.hasPrefix("En retard") ? .red : label == "Aujourd'hui" ? .orange : nil)
+                        Chip(label, systemImage: "calendar", tint: ProjectViews.dueTint(label))
                     }
                     if let client = draft.client, !client.isEmpty { Chip(client, systemImage: "building.2") }
                 }
             }
         }
-        .padding(.trailing, close == nil ? 0 : 44)
+        .padding(.trailing, close == nil ? 44 : 88)
     }
 
+    /// « … » at the top right (Paul, 15/11): what is done to the project itself.
+    private var projectMenu: some View {
+        Menu {
+            Menu("Statut") {
+                ForEach(ProjectStatus.allCases, id: \.self) { status in
+                    Button { draft.status = status } label: {
+                        if draft.status == status { Label(status.title, systemImage: "checkmark") } else { Text(status.title) }
+                    }
+                }
+            }
+            if let folder = draft.codeFolder, !folder.isEmpty {
+                Button("Ouvrir le dossier de code") { NSWorkspace.shared.open(URL(fileURLWithPath: folder, isDirectory: true)) }
+            }
+            Button(draft.codeFolder?.isEmpty == false ? "Changer de dossier de code…" : "Choisir un dossier de code…") { choosingFolder = true }
+            Button("Copier le nom") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(draft.name, forType: .string)
+            }
+            Divider()
+            Button("Supprimer le projet…", role: .destructive) { confirmingDelete = true }
+        } label: {
+            Image(systemName: "ellipsis").font(.body.weight(.semibold)).frame(width: 28, height: 28)
+        }
+        .menuStyle(.button)
+        .buttonStyle(.glass)
+        .buttonBorderShape(.circle)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Statut, dossier, supprimer le projet")
+        .accessibilityLabel("Plus d'options du projet")
+    }
+
+    /// The next thing to do, the page's first line, in neutral colors: a red or green project must not look like
+    /// a problem or a success here (Paul, 15/11).
     private var nextStep: some View {
         HStack(spacing: Space.m) {
-            Image(systemName: "arrow.forward.circle.fill").font(.title2).foregroundStyle(ProjectViews.tint(draft))
+            Image(systemName: "arrow.forward.circle.fill").font(.title2).foregroundStyle(.secondary)
             TextField("La prochaine chose à faire", text: optional(\.todo), axis: .vertical)
-                .font(.title3)
+                .font(.title3.weight(.medium))
                 .textFieldStyle(.plain)
         }
         .padding(Space.l)
-        .cardSurface(fill: ProjectViews.tint(draft).opacity(0.08))
+        .cardSurface(fill: Surface.raised)
     }
 
     // MARK: - Main column
 
     private var main: some View {
         VStack(alignment: .leading, spacing: Space.xl) {
+            notesCard
             actionsCard
             journalCard
-            Card {
-                SectionTitle("Notes", systemImage: "note.text") {
-                    TextButton(editingNotes ? "Terminé" : "Modifier") { editingNotes.toggle() }
+        }
+    }
+
+    /// Paul's own notes, first (15/11: « ce qui va m'intéresser le plus »). A click writes in them, as in Obsidian;
+    /// no « Modifier »: they are saved as he types and read again once he clicks elsewhere.
+    private var notesCard: some View {
+        Card {
+            SectionTitle("Notes", systemImage: "note.text")
+            if editingNotes {
+                TextEditor(text: $draft.notes)
+                    .font(.system(size: TextSize.reading))
+                    .lineSpacing(3)
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight: 180)
+                    .focused($notesFocused)
+                    .onChange(of: notesFocused) { _, focused in if !focused { editingNotes = false } }
+                    .onExitCommand { notesFocused = false }
+            } else {
+                Group {
+                    if draft.notes.isEmpty {
+                        Text("Écris tes notes ici…").font(.rowBody).foregroundStyle(.tertiary)
+                    } else {
+                        MarkdownView(text: draft.notes)
+                    }
                 }
-                if editingNotes {
-                    TextEditor(text: $draft.notes).font(.body).frame(minHeight: 200)
-                        .overlay(RoundedRectangle(cornerRadius: Radius.small, style: .continuous).stroke(Surface.stroke))
-                } else if draft.notes.isEmpty {
-                    EmptyLine("Aucune note.")
-                } else {
-                    MarkdownView(text: draft.notes)
+                .frame(maxWidth: .infinity, minHeight: 48, alignment: .topLeading)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    editingNotes = true
+                    DispatchQueue.main.async { notesFocused = true }
                 }
+                .pointerStyle(.horizontalText)
+                .help("Cliquer pour écrire")
             }
         }
     }

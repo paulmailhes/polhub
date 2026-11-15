@@ -167,6 +167,12 @@ public struct MailFilingRules: Sendable {
     public var contactProjects: [String: Set<UUID>]
     public var contacts: Set<String>
     public var projects: [(id: UUID, name: String)]
+
+    /// A case that still names something: a project of the list, or any other case.
+    func exists(_ filing: MailFiling) -> Bool {
+        guard let id = filing.projectID else { return true }
+        return projects.contains { $0.id == id }
+    }
     public var mine: Set<String>
     public var correspondents: Set<String>
     /// The people Paul wrote to, how often and when last (15/11): what ranks the suggestions.
@@ -213,8 +219,9 @@ public struct MailFilingRules: Sendable {
     }
 
     public func filing(of thread: MailThreadRow) -> (filing: MailFiling, origin: MailFilingOrigin)? {
-        if let choice = choices[thread.id] { return (choice, .paul) }
-        if let last = thread.lastSender?.lowercased(), let memory = senders[last]?.filing.flatMap(MailFiling.init(rawValue:)) {
+        // A project deleted since (15/11) is no case any more: its threads follow the rules again.
+        if let choice = choices[thread.id], exists(choice) { return (choice, .paul) }
+        if let last = thread.lastSender?.lowercased(), let memory = senders[last]?.filing.flatMap(MailFiling.init(rawValue:)), exists(memory) {
             return (memory, .sender)
         }
         let others = thread.senders.map { $0.email.lowercased() }.filter { !mine.contains($0) }

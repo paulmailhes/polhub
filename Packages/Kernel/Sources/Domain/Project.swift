@@ -3,12 +3,14 @@ import Foundation
 /// A project's column on the board: four statuses since 15/11 (Paul). The raw values stay lowercase, as the
 /// `projets` tool of `polhub mcp` writes them.
 public enum ProjectStatus: String, Codable, Sendable, CaseIterable {
-    case priorite1 = "priorité 1"
+    // In Paul's scale the higher number is the more urgent (15/11: « priorité 2 c'est le plus priorité ») :
+    // Priorité 2 first, at the left of the board and on top of every list.
     case priorite2 = "priorité 2"
+    case priorite1 = "priorité 1"
     case enPause = "en pause"
     case termine = "terminé"
 
-    /// The order of the board's columns, Terminé on the right.
+    /// The order of the board's columns: the most urgent at the left, Terminé on the right.
     public static let boardOrder: [ProjectStatus] = allCases
 
     /// A value read from the base, never refused: an old status (before the migration `v12`, or written by

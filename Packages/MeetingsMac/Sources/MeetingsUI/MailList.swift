@@ -24,7 +24,7 @@ struct MailListView: View {
 
     private var subtitle: String {
         if mails.found != nil { return "Résultats" }
-        return mails.folder == .inbox ? mails.tab.title : mails.folder.title
+        return mails.folder.title
     }
 
     var body: some View {
@@ -40,8 +40,6 @@ struct MailListView: View {
                 MailListBar(mails: mails)
                 if let summary = mails.searchSummary {
                     MailSearchLine(text: summary, searching: mails.searching)
-                } else if mails.folder == .inbox {
-                    MailTabBar(mails: mails)
                 } else if let aside = mails.folder.aside {
                     // As Gmail's line over its trash and its spam; a wheel while Gmail's list comes.
                     MailSearchLine(text: aside.notice, searching: mails.readingAside, icon: aside == .spam ? "exclamationmark.octagon" : "clock")
@@ -55,7 +53,16 @@ struct MailListView: View {
             }
         }
         .background(MailSurface.unread)
-        // « Nouveau mail » is at the top of « Mails », in the sidebar, as Gmail's (15/11); ⌘N is in MailSectionView.
+        // « Nouveau mail » in the toolbar of every folder (Paul, 15/11: « dans toute ma partie mail, dans la barre »).
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button { mails.writeNewMail(router: router) } label: {
+                    Label("Nouveau mail", systemImage: "square.and.pencil").labelStyle(.titleAndIcon)
+                }
+                .buttonStyle(.glassProminent)
+                .help("Écrire un nouveau mail (⌘N)")
+            }
+        }
         // One bar (15/11): the copy is filtered as Paul types; Enter also asks Gmail, which reads the bodies.
         .searchable(text: $mails.query, placement: .toolbar, prompt: "Chercher dans tes mails")
         .onSubmit(of: .search) { Task { await mails.search(mails.query) } }
@@ -78,7 +85,7 @@ struct MailListView: View {
             }
             if threads.isEmpty {
                 ContentUnavailableView(emptyTitle, systemImage: mails.found != nil ? "magnifyingglass" : mails.folder.icon,
-                                       description: Text(mails.found != nil || mails.folder != .inbox ? "" : mails.tab.explanation))
+                                       description: Text(mails.found != nil || (mails.folder != .inbox && mails.folder != .notifications) ? "" : mails.tab.explanation))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 list(threads, mine: mine)
@@ -221,7 +228,7 @@ struct MailListBar: View {
                 Button { count == 0 ? mails.selectAll() : mails.endSelection() } label: {
                     Image(systemName: count == 0 ? "square" : (count == shown.count ? "checkmark.square.fill" : "minus.square.fill"))
                         .font(.system(size: 16))
-                        .foregroundStyle(count == 0 ? Color.secondary : MailSurface.blue)
+                        .foregroundStyle(count == 0 ? Color.secondary : MailSurface.accent)
                         .frame(width: 30, height: 32)
                 }
                 .buttonStyle(.hover(.circle))
@@ -268,7 +275,7 @@ struct MailListBar: View {
             } else {
                 IconButton("arrow.clockwise", help: "Relever les mails maintenant") { mails.refresh() }
                 IconMenu("ellipsis", help: "Tout marquer comme lu, tout archiver, réglages") {
-                    if mails.folder == .inbox, mails.found == nil {
+                    if mails.folder == .inbox || mails.folder == .notifications, mails.found == nil {
                         Button("Tout marquer comme lu dans « \(mails.tab.title) »") { mails.markAllRead() }
                             .disabled(mails.unread(in: mails.tab) == 0)
                         if mails.tab != .personnes {
@@ -292,70 +299,6 @@ struct MailListBar: View {
             }
         }
         .frame(height: 48)
-    }
-}
-
-/// Gmail's tabs, under the bar: a color each, the unread ones counted, the open one underlined (Paul, 15/11:
-/// « une nav particulière pour la partie mail »).
-struct MailTabBar: View {
-    @ObservedObject var mails: MailLibrary
-
-    var body: some View {
-        HStack(spacing: 0) {
-            ForEach(MailTab.allCases, id: \.self) { tab in
-                MailTabButton(tab: tab, selected: mails.tab == tab, unread: mails.unread(in: tab)) { mails.tab = tab }
-            }
-            Spacer(minLength: 0)
-        }
-        .overlay(alignment: .bottom) { MailLine() }
-    }
-}
-
-struct MailTabButton: View {
-    let tab: MailTab
-    let selected: Bool
-    let unread: Int
-    let action: () -> Void
-
-    static func tint(_ tab: MailTab) -> Color {
-        switch tab {
-        case .personnes: MailSurface.blue
-        case .notifications: Color(hex: Palette.orange)
-        }
-    }
-
-    static func icon(_ tab: MailTab) -> String {
-        switch tab {
-        case .personnes: "person.2"
-        case .notifications: "info.circle"
-        }
-    }
-
-    var body: some View {
-        let tint = Self.tint(tab)
-        Button(action: action) {
-            HStack(spacing: Space.m) {
-                Image(systemName: Self.icon(tab)).symbolVariant(selected ? .fill : .none).font(.system(size: 16))
-                Text(tab.title).font(.rowBody.weight(selected ? .semibold : .medium))
-                if unread > 0, !selected {
-                    Text("\(unread) non lu\(unread > 1 ? "s" : "")")
-                        .font(.tag.weight(.semibold)).foregroundStyle(.white)
-                        .padding(.horizontal, 7).padding(.vertical, 2)
-                        .background(tint, in: Capsule())
-                }
-            }
-            .foregroundStyle(selected ? tint : Color.secondary)
-            .padding(.horizontal, Space.l)
-            .frame(minWidth: 180, maxWidth: 250, minHeight: 50, alignment: .leading)
-            .overlay(alignment: .bottom) {
-                if selected {
-                    UnevenRoundedRectangle(topLeadingRadius: 3, topTrailingRadius: 3, style: .continuous)
-                        .fill(tint).frame(height: 3).padding(.horizontal, Space.s)
-                }
-            }
-        }
-        .buttonStyle(HoverButtonStyle(.rounded, fill: Surface.fill))
-        .help(tab.explanation)
     }
 }
 
@@ -401,7 +344,7 @@ struct MailRow: View {
                 Button { mails.select(thread.id, extend: NSEvent.modifierFlags.contains(.shift)) } label: {
                     Image(systemName: ticked ? "checkmark.square.fill" : "square")
                         .font(.system(size: 16))
-                        .foregroundStyle(ticked ? MailSurface.blue : Color.secondary.opacity(0.75))
+                        .foregroundStyle(ticked ? MailSurface.accent : Color.secondary.opacity(0.75))
                         .frame(width: 44, height: 26)
                         .contentShape(Rectangle())
                 }
@@ -440,7 +383,7 @@ struct MailRow: View {
         .padding(.trailing, Space.l)
         .background {
             Rectangle().fill(ground)
-                .overlay { if mails.focused == thread.id, !ticked { MailSurface.blue.opacity(0.07) } }
+                .overlay { if mails.focused == thread.id, !ticked { MailSurface.accent.opacity(0.07) } }
                 .shadow(color: .black.opacity(hovering ? 0.2 : 0), radius: hovering ? 3 : 0, y: hovering ? 1 : 0)
         }
         .overlay(alignment: .bottom) { MailLine() }

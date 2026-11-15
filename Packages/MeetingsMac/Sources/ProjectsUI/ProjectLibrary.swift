@@ -9,6 +9,8 @@ public final class ProjectLibrary: ObservableObject {
     @Published public private(set) var projects: [ProjectRow] = []
     /// The newest meeting filed in each project, in the app.
     @Published public private(set) var lastAppMeetings: [UUID: Date] = [:]
+    /// The next event of each project, from the calendar (15/11).
+    @Published public private(set) var nextEvents: [UUID: Date] = [:]
     /// False until the base has been read once: no « Aucun projet » flash at opening.
     @Published public private(set) var loaded = false
     /// The project whose page is open.
@@ -36,12 +38,19 @@ public final class ProjectLibrary: ObservableObject {
         })
         // Filing a meeting changes « À surveiller » at once (review, minor 9).
         observations.append(store.observeLastMeetings { [weak self] last in self?.lastAppMeetings = last })
+        observations.append(store.observeNextEvents { [weak self] next in self?.nextEvents = next })
     }
 
     /// The vault the history import reads (read-only), chosen once by Paul: no path is written in the code.
     public var vaultPath: String? {
         get { defaults.string(forKey: Self.vaultKey) }
         set { defaults.set(newValue, forKey: Self.vaultKey) }
+    }
+
+    /// « Supprimer le projet » (15/11): off the board and every list; its page closes.
+    public func trash(_ id: UUID) {
+        try? store.moveToTrash(projectID: id, at: Date())
+        if selected == id { selected = nil }
     }
 
     public func move(_ id: UUID, to status: ProjectStatus, before: UUID?) {

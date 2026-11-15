@@ -14,7 +14,9 @@ import UniformTypeIdentifiers
 /// senders he can leave, then Gmail's spam and trash; in the sidebar, under « Mails », in Gmail's order (Paul,
 /// 15/11). « Programmés » shows only while a mail waits there (wave B).
 public enum MailFolder: String, Hashable, Sendable, CaseIterable {
-    case inbox, sent, drafts, scheduled, all, subscriptions, spam, trash
+    // Paul, 15/11: Notifications is a folder like the others, next to Abonnements; « Tous les messages » at the
+    // bottom, after the trash: he seldom goes there.
+    case inbox, sent, drafts, scheduled, notifications, subscriptions, spam, trash, all
 
     var title: String {
         switch self {
@@ -22,6 +24,7 @@ public enum MailFolder: String, Hashable, Sendable, CaseIterable {
         case .sent: "Envoyés"
         case .drafts: "Brouillons"
         case .scheduled: "Programmés"
+        case .notifications: "Notifications"
         case .all: "Tous les messages"
         case .subscriptions: "Abonnements"
         case .spam: "Spam"
@@ -35,6 +38,7 @@ public enum MailFolder: String, Hashable, Sendable, CaseIterable {
         case .sent: "paperplane"
         case .drafts: "doc"
         case .scheduled: "clock"
+        case .notifications: "bell"
         case .all: "tray.full"
         case .subscriptions: "newspaper"
         case .spam: "xmark.bin"
@@ -183,7 +187,12 @@ public final class MailLibrary: ObservableObject {
     @Published public private(set) var inbox: [MailThreadRow] = []
     @Published public private(set) var cursors: [String: MailCursorRow] = [:]
     @Published public private(set) var senders: [String: MailSenderRow] = [:]
-    @Published public var tab: MailTab = .personnes { didSet { selected = [] } }
+    /// The inbox shows the people's mails; the folder « Notifications » the rest (Paul, 15/11: one list each, no
+    /// tabs).
+    public var tab: MailTab {
+        get { folder == .notifications ? .notifications : .personnes }
+        set { folder = newValue == .notifications ? .notifications : .inbox }
+    }
     /// The mailboxes Paul hid from the list.
     @Published public var hidden: Set<String> {
         didSet {
@@ -586,7 +595,7 @@ public final class MailLibrary: ObservableObject {
         if let found { return found }
         let threads: [MailThreadRow]
         switch folder {
-        case .inbox: threads = visible(inbox).filter { tab(of: $0) == tab }
+        case .inbox, .notifications: threads = visible(inbox).filter { tab(of: $0) == tab }
         case .sent: threads = sent
         case .all: threads = all
         // A thread put aside is never unread: nothing to filter.
@@ -1033,7 +1042,7 @@ public final class MailLibrary: ObservableObject {
         case .subscriptions: subscriptions = (try? store.subscriptions(since: Date().addingTimeInterval(-90 * 86_400), accounts: shownAccounts)) ?? []
         // The copy only, at each tick: Gmail's list is asked when the folder opens (readAside).
         case .spam, .trash: aside = (try? store.asideThreads(label: folder.aside?.label ?? "", accounts: shownAccounts)) ?? []
-        case .inbox, .drafts, .scheduled: break
+        case .inbox, .notifications, .drafts, .scheduled: break
         }
         refreshFiles()
     }

@@ -62,6 +62,20 @@ public struct ProjectStore: Sendable {
 
 
     /// The notes, written by a session (`polhub mcp`): not a change of Paul's, so `lastEditedAt` stays.
+    /// « Supprimer le projet » (15/11): it leaves the board and every list, its meetings, mails and contacts stay;
+    /// `restore` brings it back as it was.
+    public func moveToTrash(projectID: UUID, at date: Date) throws {
+        try writer.write { db in
+            try db.execute(sql: "UPDATE project SET deletedAt = ?, updatedAt = ? WHERE id = ?", arguments: [date, date, Self.key(projectID)])
+        }
+    }
+
+    public func restore(projectID: UUID, at date: Date) throws {
+        try writer.write { db in
+            try db.execute(sql: "UPDATE project SET deletedAt = NULL, updatedAt = ? WHERE id = ?", arguments: [date, Self.key(projectID)])
+        }
+    }
+
     public func saveNotes(_ project: ProjectRow) throws {
         try writer.write { db in
             try db.execute(sql: "UPDATE project SET notes = ?, updatedAt = ? WHERE id = ?",
@@ -201,6 +215,26 @@ public struct ProjectStore: Sendable {
             .start(in: writer, scheduling: .async(onQueue: .main), onError: { _ in }, onChange: { pairs in
                 let last = Dictionary(pairs, uniquingKeysWith: { a, _ in a })
                 MainActor.assumeIsolated { onChange(last) }
+            })
+    }
+
+    /// The next event of each project in the calendar (one not over yet): the meeting a card announces first
+    /// (Paul, 15/11: « savoir quand c'est que j'ai la réunion, c'est très important »).
+    public func observeNextEvents(onChange: @escaping @MainActor @Sendable ([UUID: Date]) -> Void) -> AnyDatabaseCancellable {
+        ValueObservation
+            .tracking { db in
+                try Row.fetchAll(db, sql: """
+                    SELECT projectID, MIN(startAt) AS next FROM calendar_event
+                    WHERE projectID IS NOT NULL AND allDay = 0 AND endAt >= ? GROUP BY projectID
+                    """, arguments: [Date()])
+                    .compactMap { row -> (UUID, Date)? in
+                        guard let text: String = row["projectID"], let id = UUID(uuidString: text), let next: Date = row["next"] else { return nil }
+                        return (id, next)
+                    }
+            }
+            .start(in: writer, scheduling: .async(onQueue: .main), onError: { _ in }, onChange: { pairs in
+                let next = Dictionary(pairs, uniquingKeysWith: { a, _ in a })
+                MainActor.assumeIsolated { onChange(next) }
             })
     }
 

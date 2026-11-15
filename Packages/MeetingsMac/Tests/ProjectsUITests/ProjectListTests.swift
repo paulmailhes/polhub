@@ -34,7 +34,7 @@ import Testing
         let rows = ProjectListRow.rows(projects, lastMeetings: [:], status: nil)
         #expect(Set(rows.map(\.project.name)) == ["A", "B", "C", "D"])
         #expect(ProjectListRow.rows(projects, lastMeetings: [:], status: .priorite1).map(\.project.name) == ["A"])
-        #expect(rows.sorted(using: KeyPathComparator(\ProjectListRow.statusRank)).map(\.project.name) == ["A", "B", "D", "C"])
+        #expect(rows.sorted(using: KeyPathComparator(\ProjectListRow.statusRank)).map(\.project.name) == ["B", "A", "D", "C"])
         #expect(rows.sorted(using: KeyPathComparator(\ProjectListRow.dueSort)).map(\.project.name).prefix(2) == ["A", "B"])
         #expect(rows.sorted(using: KeyPathComparator(\ProjectListRow.clientSort)).map(\.project.name) == ["C", "D", "B", "A"])
         #expect(rows.sorted(using: KeyPathComparator(\ProjectListRow.activitySort, order: .reverse)).map(\.project.name).first == "B")

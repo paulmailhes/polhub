@@ -200,7 +200,8 @@ final class SilentGmail: @unchecked Sendable {
 
     /// « Programmés » sits between Brouillons and Tous les messages, as Gmail's, with its clock.
     @Test func programmesHasItsPlaceUnderMails() {
-        #expect(MailFolder.allCases == [.inbox, .sent, .drafts, .scheduled, .all, .subscriptions, .spam, .trash])
+        // Notifications is a folder next to Abonnements, « Tous les messages » the last one (Paul, 15/11).
+        #expect(MailFolder.allCases == [.inbox, .sent, .drafts, .scheduled, .notifications, .subscriptions, .spam, .trash, .all])
         #expect(MailFolder.scheduled.title == "Programmés" && MailFolder.scheduled.icon == "clock" && MailFolder.scheduled.aside == nil)
     }
 

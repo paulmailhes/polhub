@@ -144,8 +144,8 @@ final class AsideGmail: @unchecked Sendable {
         #expect(MailFolder.inbox.selectionGestures == [.archive, .trash, .markRead, .markUnread])
         #expect(MailGestureKind.untrash.title() == "Restaurer" && MailGestureKind.notSpam.title() == "Pas un spam")
         #expect(MailGestureKind.untrash.undoableAlone && MailGestureKind.notSpam.undoableAlone && !MailGestureKind.markRead.undoableAlone)
-        // In the sidebar, in Gmail's order, after « Abonnements ».
-        #expect(MailFolder.allCases.suffix(3) == [.subscriptions, .spam, .trash])
+        // In the sidebar after « Abonnements », then « Tous les messages » last (Paul, 15/11).
+        #expect(MailFolder.allCases.suffix(4) == [.subscriptions, .spam, .trash, .all])
         #expect(MailFolder.spam.title == "Spam" && MailFolder.trash.title == "Corbeille" && MailFolder.spam.icon == "xmark.bin" && MailFolder.trash.icon == "trash")
         #expect(MailFolder.allCases.filter { $0.aside != nil } == [.spam, .trash])
     }

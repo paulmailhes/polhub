@@ -48,6 +48,12 @@ public enum ProjectViews {
         status == .termine ? .small : chosen
     }
 
+    /// One width for every column: the room shared out, never under `minimum` (the board then scrolls).
+    public static func columnWidth(available: CGFloat, count: Int, spacing: CGFloat, minimum: CGFloat) -> CGFloat {
+        guard count > 0 else { return minimum }
+        return max(minimum, ((available - spacing * CGFloat(count - 1)) / CGFloat(count)).rounded(.down))
+    }
+
     /// The four columns, in their order, Terminé always at the right (15/11).
     public static func columns(_ projects: [ProjectRow]) -> [BoardColumn] {
         ProjectStatus.boardOrder.map { status in
@@ -60,12 +66,36 @@ public enum ProjectViews {
         calendar.dateComponents([.day], from: calendar.startOfDay(for: start), to: calendar.startOfDay(for: end)).day ?? 0
     }
 
-    /// « En retard N j », « Aujourd'hui », « J-N », or nothing.
+    /// « En retard de N j », « Échéance aujourd'hui », « Échéance demain », « Échéance dans N j », or nothing:
+    /// in words, not « J-2 », which read as a meeting (Paul, 15/11).
     public static func dueLabel(_ due: Date?, today: Date, calendar: Calendar = .current) -> String? {
         guard let due else { return nil }
         let left = days(from: today, to: due, calendar: calendar)
-        if left < 0 { return "En retard \(-left) j" }
-        return left == 0 ? "Aujourd'hui" : "J-\(left)"
+        if left < 0 { return "En retard de \(-left) j" }
+        switch left {
+        case 0: return "Échéance aujourd'hui"
+        case 1: return "Échéance demain"
+        default: return "Échéance dans \(left) j"
+        }
+    }
+
+    /// Late in red, today in orange, else neutral.
+    public static func dueTint(_ label: String) -> Color? {
+        label.hasPrefix("En retard") ? .red : label == "Échéance aujourd'hui" ? .orange : nil
+    }
+
+    /// « RDV aujourd'hui à 14:00 », « RDV demain à 9:30 », « RDV jeudi à 14:00 », « RDV le 2 déc. »: the next
+    /// event of a project, the first thing a card says (Paul, 15/11).
+    public static func nextEventLabel(_ date: Date, now: Date, calendar: Calendar = .current) -> String {
+        let locale = Locale(identifier: "fr_FR")
+        let hour = date.formatted(.dateTime.hour().minute().locale(locale))
+        let ahead = days(from: now, to: date, calendar: calendar)
+        switch ahead {
+        case ...0: return "RDV aujourd'hui à \(hour)"
+        case 1: return "RDV demain à \(hour)"
+        case 2...6: return "RDV \(date.formatted(.dateTime.weekday(.wide).locale(locale))) à \(hour)"
+        default: return "RDV le \(date.formatted(.dateTime.day().month(.abbreviated).locale(locale)))"
+        }
     }
 
     /// « Réunion il y a 3 semaines »: the last meeting, in words (15/11).

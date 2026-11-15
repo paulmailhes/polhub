@@ -61,15 +61,16 @@ struct EventGuests: View {
     }
 }
 
-/// A guest: the avatar and its badge, the name, the company, the answer. A click opens their small menu; under
-/// the pointer, the answer gives way to « + » or « − » for the project.
+/// A guest: the avatar, the name, the company, the answer, and on the right, in words, where they stand
+/// (Paul, 15/11: the marks alone were a riddle, and a « − » read as « remove from the meeting »): « Dans « P » »,
+/// or a button « Ajouter au projet » / « Ajouter aux contacts ». Taking someone out of a project is in their menu,
+/// on a click, never under the pointer.
 struct GuestRow: View {
     let guest: Attendee
     let project: ProjectRow?
     @ObservedObject var agenda: AgendaLibrary
     @ObservedObject var router: WindowRouter
     let close: () -> Void
-    @State private var hovering = false
 
     /// A guest as the mails know people: the contact's name, else Google's, else one read in the address.
     static func person(_ agenda: AgendaLibrary) -> (Attendee) -> MailAddress {
@@ -91,7 +92,6 @@ struct GuestRow: View {
         let contact = agenda.contact(email: guest.email)
         let person = Self.person(agenda)(guest)
         let link = agenda.link(of: guest.email, project: project?.id)
-        let badge = agenda.badge(of: guest.email, project: project?.id)
         let write: (() -> Void)? = agenda.mails.map { mails in { [router] in
             close()
             mails.write(to: person, router: router)
@@ -101,9 +101,12 @@ struct GuestRow: View {
             Menu { items } label: {
                 HStack(spacing: Space.s) {
                     PersonAvatar(initials: contact?.initials.nonEmpty ?? PeopleIndex.initials(name: person.name, email: guest.email),
-                                 tint: MailText.tint(for: guest.email), badge: badge, size: 28)
+                                 tint: MailText.tint(for: guest.email), badge: .none, size: 28)
                     VStack(alignment: .leading, spacing: 0) {
-                        Text(person.display).font(.rowBody).foregroundStyle(.primary).lineLimit(1)
+                        HStack(spacing: Space.xs) {
+                            Text(person.display).font(.rowBody).foregroundStyle(.primary).lineLimit(1)
+                            answer
+                        }
                         if let company = contact?.company ?? Linker.company(forEmail: guest.email) {
                             Text(company).font(.meta).foregroundStyle(.secondary).lineLimit(1)
                         }
@@ -116,44 +119,44 @@ struct GuestRow: View {
             .buttonStyle(.plain)
             .menuIndicator(.hidden)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .help("\(guest.email) · \(badge.help(project: project?.name))")
-            ZStack {
-                answer.opacity(hovering && quick(link) != nil ? 0 : 1)
-                if let quick = quick(link) {
-                    Button { quick.remove ? remove(person) : add(person) } label: {
-                        Image(systemName: quick.remove ? "minus.circle" : "plus.circle").font(.system(size: 15)).frame(width: 24, height: 24)
-                    }
-                    .buttonStyle(.hover(.circle))
-                    .foregroundStyle(.secondary)
-                    .help(quick.title)
-                    .accessibilityLabel(quick.title)
-                    .opacity(hovering ? 1 : 0)
-                    .allowsHitTesting(hovering)
-                }
-            }
-            .frame(width: 24, height: 24)
+            .help("\(guest.email) — cliquer pour ses gestes")
+            standing(link, person: person)
         }
         .padding(.vertical, 2)
         .hoverRow(radius: Radius.small, inset: Space.xs)
-        .onHover { hovering = $0 }
-        .animation(Motion.quick, value: hovering)
         .contextMenu { items }
     }
 
-    /// The gesture under the pointer: out of the project, into it, or among the contacts.
-    private func quick(_ link: PersonLink) -> (title: String, remove: Bool)? {
+    /// Where the guest stands, said in words.
+    @ViewBuilder
+    private func standing(_ link: PersonLink, person: MailAddress) -> some View {
         if let project {
-            return link == .member ? ("Retirer de « \(project.name) »", true) : ("Ajouter à « \(project.name) »", false)
+            if link == .member {
+                Chip("Dans « \(project.name) »", systemImage: "checkmark", tint: PeopleStyle.color(of: project))
+                    .help("Contact lié au projet « \(project.name) »")
+            } else {
+                Button { add(person) } label: { Label("Ajouter au projet", systemImage: "plus") }
+                    .buttonStyle(.hover(.capsule))
+                    .font(.meta.weight(.medium))
+                    .foregroundStyle(Color.accentColor)
+                    .help(link == .stranger ? "En faire un contact du projet « \(project.name) »" : "Lier ce contact au projet « \(project.name) »")
+            }
+        } else if link == .stranger {
+            Button { add(person) } label: { Label("Ajouter aux contacts", systemImage: "plus") }
+                .buttonStyle(.hover(.capsule))
+                .font(.meta.weight(.medium))
+                .foregroundStyle(Color.accentColor)
+        } else {
+            Chip("Contact", systemImage: "person.crop.circle.badge.checkmark")
         }
-        return link == .stranger ? ("Ajouter aux contacts", false) : nil
     }
 
     @ViewBuilder
     private var answer: some View {
         switch guest.response {
-        case "declined": Image(systemName: "xmark.circle").foregroundStyle(.secondary).help("A refusé")
-        case "accepted": Image(systemName: "hand.thumbsup").foregroundStyle(.green).help("A accepté")
-        case "tentative": Image(systemName: "questionmark.circle").foregroundStyle(.secondary).help("Peut-être")
+        case "declined": Image(systemName: "xmark.circle").font(.meta).foregroundStyle(.secondary).help("A refusé")
+        case "accepted": Image(systemName: "hand.thumbsup.fill").font(.meta).foregroundStyle(.green).help("A accepté l'invitation")
+        case "tentative": Image(systemName: "questionmark.circle").font(.meta).foregroundStyle(.secondary).help("Peut-être")
         default: EmptyView()
         }
     }

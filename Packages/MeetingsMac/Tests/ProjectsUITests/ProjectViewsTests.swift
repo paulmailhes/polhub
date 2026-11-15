@@ -24,13 +24,17 @@ import Testing
                    kanbanOrder: order, createdAt: date(1, 9))
     }
 
-    /// 15/11 (Paul): four columns, Terminé always at the right, each status its color of the palette.
+    /// 15/11 (Paul): four columns, the most urgent (Priorité 2) at the left, Terminé always at the right, each
+    /// status its color of the palette; one width shared out, never under the minimum.
     @Test func fourColumnsTerminéAtTheRight() {
         let columns = ProjectViews.columns([project("A", .enPause), project("B", .priorite2), project("D", .termine)])
-        #expect(columns.map(\.title) == ["Priorité 1", "Priorité 2", "En pause", "Terminé"])
+        #expect(columns.map(\.title) == ["Priorité 2", "Priorité 1", "En pause", "Terminé"])
         #expect(columns.map(\.status) == ProjectStatus.allCases)
-        #expect(columns[0].projects.isEmpty && columns[2].projects.map(\.name) == ["A"] && columns[3].projects.map(\.name) == ["D"])
-        #expect(ProjectStatus.allCases.map(ProjectViews.statusHex) == [Palette.yellow, Palette.orange, Palette.teal, Palette.green])
+        #expect(columns[0].projects.map(\.name) == ["B"] && columns[1].projects.isEmpty && columns[2].projects.map(\.name) == ["A"]
+                && columns[3].projects.map(\.name) == ["D"])
+        #expect(ProjectStatus.allCases.map(ProjectViews.statusHex) == [Palette.orange, Palette.yellow, Palette.teal, Palette.green])
+        #expect(ProjectViews.columnWidth(available: 1_448, count: 4, spacing: 16, minimum: 290) == 350)
+        #expect(ProjectViews.columnWidth(available: 900, count: 4, spacing: 16, minimum: 290) == 290)
     }
 
     @Test func terminéShowsCompactCards() {
@@ -80,10 +84,18 @@ import Testing
     }
 
     @Test func dueLabelsSayLateTodayOrJMinus() {
-        #expect(ProjectViews.dueLabel(date(16, hour: 0), today: today, calendar: paris) == "J-3")
-        #expect(ProjectViews.dueLabel(date(13, hour: 0), today: today, calendar: paris) == "Aujourd'hui")
-        #expect(ProjectViews.dueLabel(date(12, hour: 0), today: today, calendar: paris) == "En retard 1 j")
+        // In words since 15/11: « J-3 » read as a meeting.
+        #expect(ProjectViews.dueLabel(date(16, hour: 0), today: today, calendar: paris) == "Échéance dans 3 j")
+        #expect(ProjectViews.dueLabel(date(14, hour: 0), today: today, calendar: paris) == "Échéance demain")
+        #expect(ProjectViews.dueLabel(date(13, hour: 0), today: today, calendar: paris) == "Échéance aujourd'hui")
+        #expect(ProjectViews.dueLabel(date(12, hour: 0), today: today, calendar: paris) == "En retard de 1 j")
         #expect(ProjectViews.dueLabel(nil, today: today, calendar: paris) == nil)
+        #expect(ProjectViews.dueTint("En retard de 1 j") == .red && ProjectViews.dueTint("Échéance aujourd'hui") == .orange
+                && ProjectViews.dueTint("Échéance dans 3 j") == nil)
+        // The next meeting, the first thing a card says.
+        #expect(ProjectViews.nextEventLabel(date(13, hour: 14), now: today, calendar: paris) == "RDV aujourd'hui à 14:00")
+        #expect(ProjectViews.nextEventLabel(date(14, hour: 9), now: today, calendar: paris) == "RDV demain à 09:00")
+        #expect(ProjectViews.nextEventLabel(date(30, hour: 9), now: today, calendar: paris) == "RDV le 30 nov.")
     }
 
     @Test func theTableShowsTheMostRecentActivityFirst() {

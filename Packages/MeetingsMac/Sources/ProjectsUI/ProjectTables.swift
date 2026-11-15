@@ -37,7 +37,7 @@ struct ProjectListView: View {
                 .width(min: 90, ideal: 150)
             TableColumn("Échéance", value: \.dueSort) { row in
                 if let label = ProjectViews.dueLabel(row.project.dueDate, today: Date()) {
-                    Text(label).foregroundStyle(label.hasPrefix("En retard") ? .red : label == "Aujourd'hui" ? .orange : .secondary)
+                    Text(label).foregroundStyle(ProjectViews.dueTint(label) ?? .secondary)
                 }
             }
             .width(min: 80, ideal: 100)

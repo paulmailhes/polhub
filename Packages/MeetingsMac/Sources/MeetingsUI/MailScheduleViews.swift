@@ -174,7 +174,7 @@ struct ScheduledBanner: View {
     var body: some View {
         let held = entry.state == .held
         // Gmail's blue while it waits, whatever the system's accent; orange once it waits for Paul (to check).
-        let tint = held ? Color.orange : MailSurface.blue
+        let tint = held ? Color.orange : MailSurface.accent
         VStack(alignment: .leading, spacing: Space.m) {
             HStack(alignment: .center, spacing: Space.m) {
                 Image(systemName: held ? "exclamationmark.circle.fill" : "clock.fill")

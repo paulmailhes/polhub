@@ -70,7 +70,8 @@ import Testing
         let all = try queue.read { try ProjectRow.fetchAll($0) }
         #expect(all.count == Self.cards.count)
         let rules = try queue.read(MailStore.rules)
-        #expect(rules.projects.count == Self.cards.count)
+        // Every live project; the one in the bin is no case for mails (15/11).
+        #expect(rules.projects.count == Self.cards.count - 1)
     }
 
     // MARK: - Before a migration, on a real file

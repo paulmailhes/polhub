@@ -68,23 +68,26 @@ public enum Surface {
 /// The mails' list, as Gmail's (Paul, 15/11: « quand le mail n'est pas ouvert il est bien blanc, ouvert un peu
 /// plus bleu-gris »): an unread thread on the brightest ground, a read one a step down.
 public enum MailSurface {
-    public static let unread = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.isDark ? NSColor(srgbRed: 0.165, green: 0.169, blue: 0.180, alpha: 1) : .white
-    })
+    /// The window's own ground, as on every page (Paul, 15/11: « la même couleur que dans tout le reste »).
+    public static let unread = Color(nsColor: .windowBackgroundColor)
+    /// A step down, as the app's cards (`Surface.fill` over the window), but opaque: the gestures cover the line.
     public static let read = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.isDark ? NSColor(srgbRed: 0.106, green: 0.110, blue: 0.118, alpha: 1) : NSColor(srgbRed: 0.949, green: 0.965, blue: 0.988, alpha: 1)
+        appearance.isDark ? NSColor(white: 0.158, alpha: 1) : NSColor(white: 0.955, alpha: 1)
     })
-    /// A thread ticked, as Gmail's light blue.
+    /// A thread ticked: the selection's accent, as everywhere in the app.
     public static let ticked = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.isDark ? NSColor(srgbRed: 0.17, green: 0.25, blue: 0.38, alpha: 1) : NSColor(srgbRed: 0.761, green: 0.859, blue: 1, alpha: 1)
+        var color = NSColor.white
+        appearance.performAsCurrentDrawingAppearance {
+            let ground = NSColor.windowBackgroundColor.usingColorSpace(.sRGB) ?? .white
+            color = ground.blended(withFraction: appearance.isDark ? 0.24 : 0.16, of: NSColor.controlAccentColor.usingColorSpace(.sRGB) ?? .systemBlue) ?? ground
+        }
+        return color
     })
-    /// Gmail's blue, for the boxes ticked and the people's tab, whatever the system's accent.
-    public static let blue = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.isDark ? NSColor(srgbRed: 0.54, green: 0.71, blue: 0.97, alpha: 1) : NSColor(srgbRed: 0.04, green: 0.34, blue: 0.82, alpha: 1)
-    })
+    /// The boxes ticked and the line the keys are on: the app's accent.
+    public static let accent = Color.accentColor
     /// The thin line between two threads.
     public static let line = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.isDark ? NSColor(white: 1, alpha: 0.07) : NSColor(srgbRed: 0.39, green: 0.47, blue: 0.56, alpha: 0.14)
+        appearance.isDark ? NSColor(white: 1, alpha: 0.07) : NSColor(white: 0, alpha: 0.08)
     })
 }
 

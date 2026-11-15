@@ -64,10 +64,11 @@ public enum CardSize: String, CaseIterable, Identifiable, Sendable {
     /// A compact card shows its logo, its name and its client, nothing else.
     public var isCompact: Bool { self == .small }
 
+    /// The narrowest a column gets; wider windows share their width between the four columns (Paul, 15/11).
     public var columnWidth: CGFloat {
         switch self {
-        case .medium: 272
-        case .small: 230
+        case .medium: 290
+        case .small: 250
         }
     }
 
@@ -78,12 +79,8 @@ public enum CardSize: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    public var logoSize: CGFloat {
-        switch self {
-        case .medium: 30
-        case .small: 24
-        }
-    }
+    /// The same in every column, Terminé included (Paul, 15/11).
+    public var logoSize: CGFloat { 36 }
 }
 
 /// Every setting of Polhub, its key and its default: the views read them through `@AppStorage(Preferences.Key…)`,

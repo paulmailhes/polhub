@@ -358,13 +358,14 @@ struct LiveProjectLogo: View {
         Group {
             if let image = logos.image(for: project, online: online) {
                 let shape = RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
+                // The icon fills its square, without a margin (Paul, 15/11: « tu perds de la place »).
                 Image(nsImage: image)
                     .resizable()
                     .interpolation(.high)
                     .aspectRatio(contentMode: .fit)
-                    .padding(size * 0.1)
                     .frame(width: size, height: size)
-                    .background(Color.white, in: shape)
+                    .background(Color.white)
+                    .clipShape(shape)
                     .overlay(shape.strokeBorder(Surface.stroke))
             } else {
                 ProjectMonogram(project: project, size: size)
@@ -386,7 +387,8 @@ struct ProjectMonogram: View {
     var body: some View {
         let initials = ProjectViews.initials(project.name)
         Text(initials.isEmpty ? "·" : initials)
-            .font(.system(size: size * (initials.count > 1 ? 0.38 : 0.46), weight: .semibold, design: .rounded))
+            .font(.system(size: size * (initials.count > 1 ? 0.42 : 0.5), weight: .bold, design: .rounded))
+            .shadow(color: .black.opacity(0.18), radius: 0.5, y: 0.5)
             .foregroundStyle(.white)
             .frame(width: size, height: size)
             .background(ProjectViews.tint(project).gradient, in: RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))

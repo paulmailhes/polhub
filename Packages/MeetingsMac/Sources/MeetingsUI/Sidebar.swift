@@ -64,7 +64,7 @@ struct Sidebar: View {
         // them: the « Mails » group moves the rows above to the right (correctifs, 15/11). A bar, not an inset: when the
         // rows run longer than the window (« Spam » and « Corbeille », wave B), they scroll under it behind the
         // system's edge effect instead of showing through.
-        .safeAreaBar(edge: .bottom, spacing: 0) { SidebarFooter(router: router, indent: mails != nil ? SidebarFooter.outlineIndent : 0) }
+        .safeAreaBar(edge: .bottom, spacing: 0) { SidebarFooter(router: router, indent: mails != nil ? SidebarFooterMetrics.outlineIndent : 0) }
         .environment(\.sidebarRowSize, .large)
     }
 
@@ -111,10 +111,10 @@ struct Sidebar: View {
     }
 
     /// « Mails » open on Gmail's folders (Paul, 15/11: « quand on clique dessus on a des sous-menus : boîte de
-    /// réception, envoyés… »), « Nouveau mail » first, then the mailboxes to show or hide.
+    /// réception, envoyés… »), then the mailboxes to show or hide. « Nouveau mail » is in the toolbar of Mails
+    /// (Paul, 15/11: not in the sidebar).
     private func mailsGroup(_ mails: MailLibrary) -> some View {
         DisclosureGroup(isExpanded: $mailsOpen) {
-            MailComposeButton { mails.writeNewMail(router: router) }
             // « Programmés » only while a mail waits there, as Gmail's (wave B).
             ForEach(MailFolder.allCases.filter { $0 != .scheduled || mails.showsScheduled }, id: \.self) { folder in
                 Label(folder.title, systemImage: folder.icon)
@@ -144,6 +144,7 @@ struct Sidebar: View {
     private func count(_ folder: MailFolder, in mails: MailLibrary) -> Int {
         switch folder {
         case .inbox: mails.unreadCount
+        case .notifications: mails.unread(in: .notifications)
         case .drafts: mails.draftCount
         case .scheduled: mails.scheduledDrafts.count
         default: 0
@@ -217,51 +218,51 @@ struct CalendarSidebarLabel: View {
     }
 }
 
-/// « Nouveau mail », as Gmail's « Nouveau message »: light blue, it rises under the pointer.
-struct MailComposeButton: View {
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Label("Nouveau mail", systemImage: "square.and.pencil")
-                .font(.rowBody.weight(.semibold))
-                .foregroundStyle(.primary)
-                .padding(.horizontal, Space.m)
-                .padding(.vertical, Space.s)
-                .background(MailSurface.ticked, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
-                .cardHover(radius: Radius.control)
-        }
-        .buttonStyle(.hover(.rounded))
-        .help("Écrire un nouveau mail (⌘N dans Mails)")
-        .padding(.vertical, Space.xs)
-    }
-}
-
 /// Réglages, at the bottom: a list of its own, so its row looks and answers as the rows of the work above.
 /// Clicking it again goes back to the families.
-struct SidebarFooter: View {
+struct SidebarFooter<Accessory: View>: View {
     @ObservedObject var router: WindowRouter
     /// How far the rows of the work move right once the list holds a group that opens (« Mails »): the room of
     /// its disclosure arrow, which this list has not (measured on 15/11, macOS 27: 9 points).
     var indent: CGFloat = 0
-    /// A large row (40 points) and the list's margins, 10 above and below (measured on 15/11).
-    static let height: CGFloat = 60
-    static let outlineIndent: CGFloat = 9
+    /// What sits beside Réglages, on the right (the notifications, 0.17.1).
+    let accessory: Accessory
+    /// A large row (40 points) and room above and below for its highlight (Paul, 15/11: the bar was too low and
+    /// cut the hover).
+    static var height: CGFloat { 64 }
+
+    init(router: WindowRouter, indent: CGFloat = 0, @ViewBuilder accessory: () -> Accessory = { EmptyView() }) {
+        self.router = router
+        self.indent = indent
+        self.accessory = accessory()
+    }
 
     var body: some View {
-        List(selection: Binding { router.section == .settings ? SidebarItem.settings : nil } set: { item in
-            if item == .settings { router.openSettings(nil) }
-        }) {
-            SidebarLabel(item: .settings)
-                .padding(.leading, indent)
-                .tag(SidebarItem.settings)
-                .simultaneousGesture(TapGesture().onEnded { router.openSettings(nil) })
+        VStack(spacing: 0) {
+            // A line across the whole sidebar sets Réglages (and what will join it) apart from the work.
+            Rectangle().fill(Color.primary.opacity(0.1)).frame(height: 1)
+            HStack(spacing: 0) {
+                List(selection: Binding { router.section == .settings ? SidebarItem.settings : nil } set: { item in
+                    if item == .settings { router.openSettings(nil) }
+                }) {
+                    SidebarLabel(item: .settings)
+                        .padding(.leading, indent)
+                        .tag(SidebarItem.settings)
+                        .simultaneousGesture(TapGesture().onEnded { router.openSettings(nil) })
+                }
+                .listStyle(.sidebar)
+                .scrollDisabled(true)
+                .scrollContentBackground(.hidden)
+                .contentMargins(.vertical, 12, for: .scrollContent)
+                accessory.padding(.trailing, Space.m)
+            }
+            .frame(height: Self.height)
         }
-        .listStyle(.sidebar)
-        .scrollDisabled(true)
-        .scrollContentBackground(.hidden)
-        .frame(height: Self.height)
     }
+}
+
+enum SidebarFooterMetrics {
+    static let outlineIndent: CGFloat = 9
 }
 
 /// Draws `content` again whenever `object` changes: a view can follow an object it may not have.

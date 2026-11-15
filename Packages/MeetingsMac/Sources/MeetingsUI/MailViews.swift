@@ -573,7 +573,7 @@ struct MailThreadView: View {
         .onExitCommand(perform: back)
         // Suppr is no gesture in the trash or the spam: only « Restaurer », « Pas un spam ».
         .onDeleteCommand(perform: aside == nil ? { gesture(.trash) } : nil)
-        .windowTitle("Mails", subtitle: close == nil ? (thread?.subject ?? "") : (mails.folder == .inbox ? mails.tab.title : mails.folder.title))
+        .windowTitle("Mails", subtitle: close == nil ? (thread?.subject ?? "") : mails.folder.title)
         .task(id: key) {
             thread = try? mails.store.thread(key)
             if let thread { mails.markRead(thread) }

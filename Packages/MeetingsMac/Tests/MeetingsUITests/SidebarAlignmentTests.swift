@@ -24,7 +24,7 @@ import Testing
         }
     }
 
-    /// The rows of the work start `SidebarFooter.outlineIndent` further right than Réglages' list once « Mails » is
+    /// The rows of the work start `SidebarFooterMetrics.outlineIndent` further right than Réglages' list once « Mails » is
     /// there (its disclosure arrow), level otherwise: the footer's row is moved by as much.
     @Test func reglagesLinesUpWithTheRowsAbove() async throws {
         let database = try AppDatabase.inMemory()
@@ -52,7 +52,7 @@ import Testing
             print("MESURE mails=\(withMails) : \(starts)")
             let work = try #require(starts.first?.first), footer = try #require(starts.last?.first)
             #expect(starts.count == 2)
-            #expect(work - footer == (withMails ? SidebarFooter.outlineIndent : 0))
+            #expect(work - footer == (withMails ? SidebarFooterMetrics.outlineIndent : 0))
         }
     }
 }

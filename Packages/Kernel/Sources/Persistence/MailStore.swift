@@ -405,14 +405,15 @@ public struct MailStore: Sendable {
         for row in try Row.fetchAll(db, sql: """
             SELECT contact.email AS email, contact_project.projectID AS projectID FROM contact_project
             JOIN contact ON contact.id = contact_project.contactID
-            WHERE contact_project.excluded = 0 AND contact.email IS NOT NULL
+            JOIN project ON project.id = contact_project.projectID
+            WHERE contact_project.excluded = 0 AND contact.email IS NOT NULL AND project.deletedAt IS NULL
             """) {
             guard let email: String = row["email"], let id = (row["projectID"] as String?).flatMap(UUID.init(uuidString:)) else { continue }
             contactProjects[email.lowercased(), default: []].insert(id)
         }
         let contacts = Set(try String.fetchAll(db, sql: "SELECT lower(email) FROM contact WHERE email IS NOT NULL"))
         // Raw rows, never ProjectRow: the mails' rules must not depend on the statuses (review of 15/11).
-        let projects = try Row.fetchAll(db, sql: "SELECT id, name FROM project").compactMap { row -> (id: UUID, name: String)? in
+        let projects = try Row.fetchAll(db, sql: "SELECT id, name FROM project WHERE deletedAt IS NULL").compactMap { row -> (id: UUID, name: String)? in
             guard let id = (row["id"] as String?).flatMap(UUID.init(uuidString:)), let name: String = row["name"] else { return nil }
             return (id: id, name: name)
         }

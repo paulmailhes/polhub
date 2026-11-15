@@ -228,7 +228,8 @@ import Testing
             }
         }
         let rules = try MailStore(database).filingRules()
-        #expect(Set(rules.projects.map(\.id)) == [old, odd])
+        // The one in the bin is no case for mails (a deleted project, 15/11); the odd status still reads.
+        #expect(Set(rules.projects.map(\.id)) == [odd])
         let all = try database.writer.read { try ProjectRow.fetchAll($0) }
         #expect(Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0.status) }) == [old: .priorite1, odd: .enPause])
     }
