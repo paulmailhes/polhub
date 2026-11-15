@@ -116,12 +116,19 @@ public enum SummaryText {
         return text
     }
 
-    /// The first lines of a summary, for the list of meetings: its « Résumé », or the first paragraph of
-    /// another shape; cut at `limit` characters.
+    /// The first lines of a summary, for the list of meetings: its « Résumé »; in another shape, the first lines under
+    /// a « Résumé » title, else the first ones of the text, in its order (correctifs, 15/11); cut at `limit` characters.
     public static func overview(_ markdown: String, limit: Int = 200) -> String? {
         var text = sections(markdown)?.overview
         if text?.isEmpty != false {
-            text = blocks(markdown).first { $0.kind == .paragraph }?.text ?? blocks(markdown).first { $0.kind == .item }?.text
+            let blocks = blocks(markdown)
+            func first(_ blocks: ArraySlice<Block>) -> String? { blocks.first { $0.kind != .heading }?.text }
+            if let title = blocks.firstIndex(where: { $0.kind == .heading && fold($0.text).hasPrefix("resume") }) {
+                text = first(blocks[(title + 1)...].prefix { $0.kind != .heading })
+            } else {
+                text = nil
+            }
+            text = text ?? first(blocks[...])
         }
         guard var text = text?.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespaces), !text.isEmpty else { return nil }
         text = plain(text)
@@ -192,16 +199,28 @@ public enum SummaryText {
                 flush()
                 blocks.append(Block(kind: .item, text: plain(String(item.output.1))))
             } else {
-                paragraph.append(line.hasPrefix(">") ? String(line.drop { $0 == ">" || $0 == " " }) : line)
+                var text = line.hasPrefix(">") ? String(line.drop { $0 == ">" || $0 == " " }) : line
+                // A callout of the vault (`> [!note] Titre`): its title only.
+                if let callout = text.firstMatch(of: #/^\[![A-Za-z-]+\][+-]?\s*(.*)$/#) { text = String(callout.output.1) }
+                if !text.isEmpty { paragraph.append(text) }
             }
         }
         flush()
         return blocks
     }
 
-    /// Without the bold and italic marks.
-    static func plain(_ text: String) -> String {
-        text.replacingOccurrences(of: "**", with: "").replacingOccurrences(of: "__", with: "")
+    /// Without its inline Markdown (bold, italic, code, links) and the vault's wiki links (`[[Nom|texte]]` → texte);
+    /// the line breaks stay (correctifs, 15/11: also what the projects' excerpts use).
+    public static func plain(_ text: String) -> String {
+        let unlinked = text.replacing(#/\[\[([^\]|#]+)(#[^\]|]*)?(\|([^\]]+))?\]\]/#) { match in
+            String(match.output.4 ?? match.output.1)
+        }
+        let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        return (try? AttributedString(markdown: unlinked, options: options)).map { String($0.characters) } ?? unlinked
+    }
+
+    static func fold(_ text: String) -> String {
+        text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "fr_FR"))
     }
 
     static func escaped(_ text: String) -> String {

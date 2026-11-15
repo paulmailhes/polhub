@@ -2,6 +2,7 @@ import Domain
 import Foundation
 import Persistence
 import PolhubDesign
+import Summarization
 import SwiftUI
 
 public struct BoardColumn: Equatable, Identifiable, Sendable {
@@ -156,12 +157,7 @@ public enum ProjectViews {
 
     /// Inline Markdown and wiki links taken away, the spaces put back to one.
     static func plain(_ text: String) -> String {
-        let unlinked = text.replacing(#/\[\[([^\]|#]+)(#[^\]|]*)?(\|([^\]]+))?\]\]/#) { match in
-            String(match.output.4 ?? match.output.1)
-        }
-        let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        let read = (try? AttributedString(markdown: unlinked, options: options)).map { String($0.characters) } ?? unlinked
-        return read.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        SummaryText.plain(text).split(whereSeparator: \.isWhitespace).joined(separator: " ")
     }
 
     static func cut(_ text: String, limit: Int) -> String {

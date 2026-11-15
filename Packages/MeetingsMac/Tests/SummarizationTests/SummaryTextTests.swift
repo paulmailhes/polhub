@@ -28,9 +28,23 @@ import Testing
         #expect(SummaryText.sections("## Résumé\n\nA.\n\n## Questions\n\n- B") == nil)
     }
 
+    /// Correctifs du 15/11 : la ligne de la liste, de l'Accueil et de la page d'un projet n'a ni Markdown ni lien du
+    /// coffre ; elle vient du « Résumé » s'il y en a un, sinon du début du texte, dans son ordre.
+    @Test func theFirstLineHasNoMarksNorLinks() {
+        #expect(SummaryText.overview("## Résumé\n\nLe client *valide* la refonte.\nDeuxième ligne.\n\n## Décisions\n\n- Garder WordPress.")
+                == "Le client valide la refonte. Deuxième ligne.")
+        #expect(SummaryText.overview("## Résumé\n\n") == nil)
+        #expect(SummaryText.overview("Avec [[Atelier Nord|l'atelier]] et [[Camille]], voir [le devis](https://exemple.fr/devis) `v2`.")
+                == "Avec l'atelier et Camille, voir le devis v2.")
+        #expect(SummaryText.overview("> [!note] Notes de Paul\n> À relancer **vite**.") == "Notes de Paul À relancer vite.")
+        // The « Résumé » of the vault's shape wins over a paragraph further down.
+        #expect(SummaryText.overview("### Résumé\n\n- Le client valide la refonte.\n- Le blog attendra.\n\n### Notes de Paul\n\nPenser aux photos.")
+                == "Le client valide la refonte.")
+    }
+
     @Test func theListShowsTheFirstLines() {
         #expect(SummaryText.overview(written) == "Le client valide la refonte. La maquette part vendredi.")
-        #expect(SummaryText.overview(vault) == "Le client hésite encore sur le planning.")
+        #expect(SummaryText.overview(vault) == "Budget à revoir")
         #expect(SummaryText.overview("### Notes\n\n- **Budget** à revoir") == "Budget à revoir")
         #expect(SummaryText.overview("") == nil)
         let long = SummaryText.overview("## Résumé\n\n" + String(repeating: "Une phrase du résumé. ", count: 20), limit: 50)
