@@ -56,18 +56,16 @@ struct Sidebar: View {
     @AppStorage(Preferences.Key.mailSidebarOpen) private var mailsOpen = true
 
     var body: some View {
-        Group {
-            if let mails {
-                Observing(mails) { list(mails: $0) }
-            } else {
-                list(mails: nil)
+        // Réglages and the bell at the bottom, apart from the work (Paul, 14/11 and 15/11), BELOW the list rather than
+        // over it: no row can run under them, seen through or blurred (Paul, 15/11: « pas bien aligné »).
+        VStack(spacing: 0) {
+            Group {
+                if let mails {
+                    Observing(mails) { list(mails: $0) }
+                } else {
+                    list(mails: nil)
+                }
             }
-        }
-        // Réglages at the bottom, apart from the work (Paul, 14/11), drawn as the rows above (15/11), and lined up with
-        // them: the « Mails » group moves the rows above to the right (correctifs, 15/11). A bar, not an inset: when the
-        // rows run longer than the window (« Spam » and « Corbeille », wave B), they scroll under it behind the
-        // system's edge effect instead of showing through.
-        .safeAreaBar(edge: .bottom, spacing: 0) {
             SidebarFooter(router: router, indent: mails != nil ? SidebarFooterMetrics.outlineIndent : 0) {
                 if let inbox {
                     NotificationBell(inbox: inbox) { router.perform($0, agenda: agenda, mails: mails) }
@@ -232,13 +230,10 @@ struct CalendarSidebarLabel: View {
 struct SidebarFooter<Accessory: View>: View {
     @ObservedObject var router: WindowRouter
     /// How far the rows of the work move right once the list holds a group that opens (« Mails »): the room of
-    /// its disclosure arrow, which this list has not (measured on 15/11, macOS 27: 9 points).
+    /// its disclosure arrow (measured on 15/11, macOS 27: 9 points).
     var indent: CGFloat = 0
-    /// What sits beside Réglages, on the right (the notifications, 0.17.1).
+    /// What sits beside Réglages, on the right: the notifications' bell.
     let accessory: Accessory
-    /// A large row (40 points) and room above and below for its highlight (Paul, 15/11: the bar was too low and
-    /// cut the hover).
-    static var height: CGFloat { 64 }
 
     init(router: WindowRouter, indent: CGFloat = 0, @ViewBuilder accessory: () -> Accessory = { EmptyView() }) {
         self.router = router
@@ -248,30 +243,59 @@ struct SidebarFooter<Accessory: View>: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // A line across the whole sidebar sets Réglages (and what will join it) apart from the work.
+            // A line across the whole sidebar, with room above and below: Réglages and the bell sit apart from the work
+            // (Paul, 15/11: « la barre un peu plus haut, un bel alignement »).
             Rectangle().fill(Color.primary.opacity(0.1)).frame(height: 1)
-            HStack(spacing: 0) {
-                List(selection: Binding { router.section == .settings ? SidebarItem.settings : nil } set: { item in
-                    if item == .settings { router.openSettings(nil) }
-                }) {
-                    SidebarLabel(item: .settings)
-                        .padding(.leading, indent)
-                        .tag(SidebarItem.settings)
-                        .simultaneousGesture(TapGesture().onEnded { router.openSettings(nil) })
+            HStack(alignment: .center, spacing: Space.xs) {
+                Button { router.openSettings(nil) } label: {
+                    HStack(spacing: SidebarFooterMetrics.iconGap) {
+                        AppIconImage(.settings, size: AppLabel.sidebarSize)
+                            .foregroundStyle(Color(hex: SidebarItem.settings.tint))
+                        Text(SidebarItem.settings.title).font(SidebarFooterMetrics.font)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.leading, SidebarFooterMetrics.rowPadding + indent)
+                    .frame(height: SidebarFooterMetrics.rowHeight)
+                    .contentShape(Rectangle())
                 }
-                .listStyle(.sidebar)
-                .scrollDisabled(true)
-                .scrollContentBackground(.hidden)
-                .contentMargins(.vertical, 12, for: .scrollContent)
-                accessory.padding(.trailing, Space.m)
+                .buttonStyle(SidebarRowButtonStyle(selected: router.section == .settings))
+                .help("Réglages")
+                // Room on the right for the bell's count, inside the sidebar.
+                accessory.padding(.trailing, Space.xs)
             }
-            .frame(height: Self.height)
+            .padding(.horizontal, SidebarFooterMetrics.listInset)
+            .padding(.top, Space.l)
+            .padding(.bottom, Space.m + 2)
         }
+    }
+}
+
+/// A row of the sidebar drawn by hand, as the native ones: a soft grey under the pointer, a stronger one when it is
+/// the page shown.
+struct SidebarRowButtonStyle: ButtonStyle {
+    let selected: Bool
+    @State private var hovering = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(.primary)
+            .background(Color.primary.opacity(configuration.isPressed ? 0.12 : selected ? 0.09 : hovering ? 0.05 : 0),
+                        in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
+            .onHover { hovering = $0 }
+            .animation(Motion.quick, value: hovering)
+            .animation(Motion.quick, value: configuration.isPressed)
     }
 }
 
 enum SidebarFooterMetrics {
     static let outlineIndent: CGFloat = 9
+    /// The list's own margin on each side, then a row's padding before its icon (measured on 15/11, macOS 27).
+    static let listInset: CGFloat = 10
+    static let rowPadding: CGFloat = 10
+    static let iconGap: CGFloat = 6
+    /// A large row of the sidebar and its text.
+    static let rowHeight: CGFloat = 36
+    static let font = Font.system(size: 15)
 }
 
 /// Draws `content` again whenever `object` changes: a view can follow an object it may not have.

@@ -3,6 +3,15 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.17.2 — 15 novembre 2026
+
+**Le bas de la barre latérale, plus propre.**
+
+- Réglages et la cloche des notifications sont sur une même ligne, bien alignés, la cloche avec la même icône
+  que le reste de la barre ; son nombre reste dans la barre.
+- Le trait qui les sépare du reste est remonté, avec de l'air au-dessus et en dessous ; les lignes de la liste
+  ne passent plus dessous en transparence.
+
 ## 0.17.1 — 15 novembre 2026
 
 **Tes retours sur la 0.17.0.**

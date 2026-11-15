@@ -11,6 +11,7 @@ import WebKit
 @testable import MeetingsUI
 import ProjectsUI
 import MailFormat
+import Notifications
 
 /// A local server that answers any request with a tiny image and remembers the paths asked.
 final class CountingServer: @unchecked Sendable {
@@ -297,9 +298,16 @@ struct MailScreenTests {
         router.section = .mails
         try await Task.sleep(for: .milliseconds(500))
         var shownMails = mails
+        // The bell beside Réglages, with two notifications not seen yet (15/11).
+        let inbox = NotificationInbox(file: nil)
+        for (id, title) in [("n1", "Compte rendu prêt"), ("n2", "Camille Martin")] {
+            inbox.record(PlannedNotice(id: id, fireDate: Date(), title: title, body: "Exemple", eventID: nil, meetCode: nil, account: nil, kind: .newEvent),
+                         at: Date())
+        }
+        let hub = NotificationHub(agenda: agenda, client: SilentNotifications(), inbox: inbox)
         func capture(_ name: String, dark: Bool = false, wait: Duration = .milliseconds(1_500)) async throws {
-            try await LiveWindow.capture(MainWindowView(library: library, projects: projects, agenda: agenda, mails: shownMails, router: router,
-                                                        paths: AppPaths(root: root, logs: root)) { EmptyView() },
+            try await LiveWindow.capture(MainWindowView(library: library, projects: projects, agenda: agenda, mails: shownMails, notifications: hub,
+                                                        router: router, paths: AppPaths(root: root, logs: root)) { EmptyView() },
                                          to: output.appending(path: "\(name).png"), size: NSSize(width: 1_180, height: 780), dark: dark, wait: wait)
         }
         UserDefaults.standard.set(true, forKey: Preferences.Key.floatingPages)
@@ -529,4 +537,12 @@ struct RealMailRenderingTests {
             }
         }
     }
+}
+
+/// macOS's notification center, silent: the captures show the bell, nothing reaches the screen's corner.
+struct SilentNotifications: NotificationCenterClient {
+    func pendingIdentifiers() async -> [String] { [] }
+    func schedule(_ notice: PlannedNotice, sound: Bool) async {}
+    func removePending(_ ids: [String]) async {}
+    func deliverNow(_ notice: PlannedNotice, sound: Bool) async {}
 }

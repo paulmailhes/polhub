@@ -101,9 +101,9 @@ public struct NotificationBell: View {
         Button {
             open.toggle()
         } label: {
-            Image(systemName: "bell")
-                .font(.system(size: 16))
-                .frame(width: 32, height: 32)
+            // The same drawing as the sidebar's other icons (Phosphor), at the size of a row (15/11).
+            AppIconImage(.bell, size: 20)
+                .frame(width: SidebarFooterMetrics.rowHeight, height: SidebarFooterMetrics.rowHeight)
                 .overlay(alignment: .topTrailing) {
                     if let text = Self.badgeText(count) {
                         Text(text)

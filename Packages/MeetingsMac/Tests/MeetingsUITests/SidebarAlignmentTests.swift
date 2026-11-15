@@ -24,8 +24,9 @@ import Testing
         }
     }
 
-    /// The rows of the work start `SidebarFooterMetrics.outlineIndent` further right than Réglages' list once « Mails » is
-    /// there (its disclosure arrow), level otherwise: the footer's row is moved by as much.
+    /// Réglages, drawn under the list since 15/11 (Paul: « pas bien aligné »), starts where the rows above draw their
+    /// icon: their cell, plus the 4 points the cell keeps before its label (measured on 15/11, macOS 27), with or
+    /// without the disclosure arrow of « Mails ».
     @Test func reglagesLinesUpWithTheRowsAbove() async throws {
         let database = try AppDatabase.inMemory()
         let calendar = CalendarStore(database)
@@ -50,9 +51,10 @@ import Testing
             window.layoutIfNeeded()
             let starts = Self.rowStarts(in: host)
             print("MESURE mails=\(withMails) : \(starts)")
-            let work = try #require(starts.first?.first), footer = try #require(starts.last?.first)
-            #expect(starts.count == 2)
-            #expect(work - footer == (withMails ? SidebarFooterMetrics.outlineIndent : 0))
+            let work = try #require(starts.first?.first)
+            #expect(starts.count == 1)
+            let footer = SidebarFooterMetrics.listInset + SidebarFooterMetrics.rowPadding + (withMails ? SidebarFooterMetrics.outlineIndent : 0)
+            #expect(footer - work == 4)
         }
     }
 }
