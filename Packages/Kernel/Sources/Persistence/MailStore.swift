@@ -179,9 +179,70 @@ public struct MailStore: Sendable {
         }
     }
 
-    /// The messages of a thread, the oldest first; those in the trash or the spam are left out.
-    public func messages(threadKey: String) throws -> [MailMessageRow] {
-        try writer.read { try MailMessageRow.filter(Column("threadKey") == threadKey).order(Column("date")).fetchAll($0) }.filter { !$0.isAside }
+    /// What a search typed in « Corbeille » or « Spam » reads: that folder's threads only (wave B, 15/11).
+    public func searchEntries(aside label: String) throws -> [MailSearchEntry] {
+        guard Self.asideLabels.contains(label) else { return [] }
+        return try writer.read { db in
+            let threads = try asideRequest(label: label, accounts: nil).fetchAll(db)
+            var messages: [String: [MailMessageRow]] = [:]
+            for message in try MailMessageRow.filter(threads.map(\.id).contains(Column("threadKey"))).fetchAll(db) where Self.shows(message, aside: true) {
+                messages[message.threadKey, default: []].append(message)
+            }
+            return threads.map { MailSearchEntry(thread: $0, words: MailSearch.words(of: $0, messages: messages[$0.id] ?? [])) }
+        }
+    }
+
+    /// The messages of a thread, the oldest first; those in the trash or the spam are left out. Opened from the
+    /// trash or the spam (`aside`), they show, never a draft.
+    public func messages(threadKey: String, aside: Bool = false) throws -> [MailMessageRow] {
+        try writer.read { try MailMessageRow.filter(Column("threadKey") == threadKey).order(Column("date")).fetchAll($0) }.filter { Self.shows($0, aside: aside) }
+    }
+
+    static func shows(_ message: MailMessageRow, aside: Bool) -> Bool {
+        aside ? !message.labels.contains("DRAFT") : !message.isAside
+    }
+
+    // MARK: - The trash and the spam (wave B, 15/11)
+
+    /// Gmail's labels of the two folders put aside.
+    public static let asideLabels: Set<String> = ["TRASH", "SPAM"]
+
+    /// « Corbeille » or « Spam »: the threads put aside whole (shown nowhere else) that hold a message with this
+    /// label, the most recent first. Never read by the agents, never counted: they read and count `hidden == false`.
+    public func asideThreads(label: String, accounts: Set<String>? = nil, limit: Int = 1_000) throws -> [MailThreadRow] {
+        guard Self.asideLabels.contains(label) else { return [] }
+        return try writer.read { db in try asideRequest(label: label, accounts: accounts).limit(limit).fetchAll(db) }
+    }
+
+    private func asideRequest(label: String, accounts: Set<String>?) -> QueryInterfaceRequest<MailThreadRow> {
+        var request = MailThreadRow.filter(Column("hidden") == true)
+            .filter(sql: "id IN (SELECT threadKey FROM mail_message WHERE labels LIKE ?)", arguments: ["%\"\(label)\"%"])
+        if let accounts { request = request.filter(accounts.map { $0.lowercased() }.contains(Column("account"))) }
+        return request.order(Column("lastMessageAt").desc)
+    }
+
+    /// The spam whose body or files the Mac still holds: mails known before they went to the spam.
+    public func spamOnDisk(account: String) throws -> [MailMessageRow] {
+        try writer.read { db in
+            try MailMessageRow.filter(Column("account") == account.lowercased())
+                .filter(sql: #"labels LIKE '%"SPAM"%' AND (hasBody = 1 OR attachments <> '[]')"#).fetchAll(db)
+        }
+    }
+
+    /// Their files are gone from the Mac: the rows keep the headers only, as a spam listed from Gmail.
+    public func forgetSpamFiles(messageKeys: [String]) throws {
+        guard !messageKeys.isEmpty else { return }
+        try writer.write { db in
+            var touched: Set<String> = []
+            for var message in try MailMessageRow.filter(keys: messageKeys).fetchAll(db) where message.labels.contains("SPAM") {
+                message.hasBody = false
+                message.bodyIsHTML = false
+                message.attachments = []
+                try message.update(db)
+                touched.insert(message.threadKey)
+            }
+            try refresh(db, threads: touched)
+        }
     }
 
     public func message(_ key: String) throws -> MailMessageRow? {
@@ -561,12 +622,14 @@ public struct MailStore: Sendable {
             })
     }
 
-    /// Calls `onChange` when the messages of this thread change (a new reply, a body just loaded).
-    public func observeMessages(threadKey: String, onChange: @escaping @MainActor @Sendable ([MailMessageRow]) -> Void) -> AnyDatabaseCancellable {
+    /// Calls `onChange` when the messages of this thread change (a new reply, a body just loaded). `aside`: the
+    /// thread is opened from the trash or the spam.
+    public func observeMessages(threadKey: String, aside: Bool = false,
+                                onChange: @escaping @MainActor @Sendable ([MailMessageRow]) -> Void) -> AnyDatabaseCancellable {
         ValueObservation
             .tracking { try MailMessageRow.filter(Column("threadKey") == threadKey).order(Column("date")).fetchAll($0) }
             .start(in: writer, scheduling: .async(onQueue: .main), onError: { _ in }, onChange: { rows in
-                MainActor.assumeIsolated { onChange(rows.filter { !$0.isAside }) }
+                MainActor.assumeIsolated { onChange(rows.filter { Self.shows($0, aside: aside) }) }
             })
     }
 }

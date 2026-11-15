@@ -361,10 +361,11 @@ public struct MailTrashEssay: Codable, Sendable, Equatable {
 
 /// The address that opens a thread in Gmail's own page, under the right account.
 public enum GmailLink {
-    public static func thread(_ threadID: String, account: String) -> URL {
+    /// `folder`: Gmail's own, `all`, `trash` or `spam`.
+    public static func thread(_ threadID: String, account: String, folder: String = "all") -> URL {
         var components = URLComponents(string: "https://mail.google.com/mail/")!
         components.queryItems = [URLQueryItem(name: "authuser", value: account)]
-        components.fragment = "all/\(threadID)"
+        components.fragment = "\(folder)/\(threadID)"
         return components.url!
     }
 }

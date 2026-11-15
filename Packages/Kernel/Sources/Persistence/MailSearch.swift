@@ -38,6 +38,20 @@ public enum MailSearch {
         return .local(words)
     }
 
+    /// The words of a search typed in « Corbeille » or « Spam », which never reaches Gmail (wave B, 15/11): an
+    /// operator of Gmail's keeps only its value (« from:camille » looks for « camille »). `nil` under two letters.
+    public static func localWords(_ text: String) -> [String]? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= minimumLength else { return nil }
+        let parts = trimmed.split(whereSeparator: \.isWhitespace).map { part -> Substring in
+            guard let colon = part.firstIndex(of: ":"),
+                  operators.contains(part[..<colon].lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "-+("))) else { return part }
+            return part[part.index(after: colon)...]
+        }
+        let words = fold(parts.joined(separator: " "))
+        return words.isEmpty ? nil : words
+    }
+
     /// Lower case, without accents, cut into words.
     static func fold(_ text: String) -> [String] {
         ProjectNames.tokens(text)

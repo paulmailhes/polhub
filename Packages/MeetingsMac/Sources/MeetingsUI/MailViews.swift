@@ -310,6 +310,8 @@ struct MailFilingChip: View {
 final class MailThreadModel: ObservableObject {
     @Published var messages: [MailMessageRow] = []
     @Published var bodies: [String: String] = [:]
+    /// Whether each body read is HTML: a mail listed by its headers only (trash, spam) learns it here.
+    @Published var html: [String: Bool] = [:]
     @Published var expanded: Set<String> = []
     /// The messages whose remote images Paul asked to see.
     @Published var allowed: Set<String> = []
@@ -321,13 +323,17 @@ final class MailThreadModel: ObservableObject {
 
     let key: String
     let library: MailLibrary
+    /// The thread is put aside whole, in the trash or the spam (wave B): its messages show, and only the way back.
+    let aside: MailAside?
     private var observation: AnyDatabaseCancellable?
     private var opened = false
 
     init(key: String, library: MailLibrary) {
         self.key = key
         self.library = library
-        observation = library.store.observeMessages(threadKey: key) { [weak self] rows in self?.update(rows) }
+        let hidden = (try? library.store.thread(key))?.hidden == true
+        aside = hidden ? MailAside.of((try? library.store.messages(threadKey: key, aside: true)) ?? []) : nil
+        observation = library.store.observeMessages(threadKey: key, aside: aside != nil) { [weak self] rows in self?.update(rows) }
     }
 
     private func update(_ rows: [MailMessageRow]) {
@@ -371,13 +377,19 @@ final class MailThreadModel: ObservableObject {
     private func load(_ message: MailMessageRow) {
         guard bodies[message.id] == nil else { return }
         Task {
-            do { bodies[message.id] = try await library.engine.body(of: message) } catch { failed[message.id] = "\(error)" }
+            do {
+                let page = try await library.engine.read(message)
+                html[message.id] = page.isHTML
+                bodies[message.id] = page.text
+            } catch {
+                failed[message.id] = "\(error)"
+            }
         }
     }
 
-    /// An image the mail carries, by its content id.
+    /// An image the mail carries, by its content id; never a spam's.
     func inline(_ contentID: String, of message: MailMessageRow) async -> (Data, String)? {
-        guard let attachment = message.attachments.first(where: { $0.contentID?.caseInsensitiveCompare(contentID) == .orderedSame }),
+        guard !message.labels.contains("SPAM"), let attachment = message.attachments.first(where: { $0.contentID?.caseInsensitiveCompare(contentID) == .orderedSame }),
               let url = try? await library.engine.file(attachment, of: message), let data = try? Data(contentsOf: url) else { return nil }
         return (data, attachment.mimeType)
     }
@@ -485,6 +497,9 @@ struct MailThreadView: View {
         }
     }
 
+    /// In the trash or the spam: a banner says so, and only the way back is offered (wave B).
+    private var aside: MailAside? { model.aside }
+
     var body: some View {
         let mine = Set(mails.agenda.accounts.map(\.email))
         VStack(spacing: 0) {
@@ -493,11 +508,15 @@ struct MailThreadView: View {
             ScrollViewReader { scroll in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
+                    if let aside {
+                        MailAsideBanner(aside: aside) { gesture(aside.gesture) }
+                            .padding(.top, Space.l)
+                    }
                     ForEach(model.items) { item in
                         switch item {
                         case .message(let message):
                             MailMessageView(message: message, thread: thread, model: model, mails: mails, mine: mine,
-                                            collapseQuote: message.id != model.messages.first?.id, reply: { mode in reply(mode, to: message) })
+                                            collapseQuote: message.id != model.messages.first?.id, aside: aside, reply: { mode in reply(mode, to: message) })
                         case .more(let count):
                             Button { model.showAll = true } label: {
                                 Text("\(count) messages plus anciens").font(.meta.weight(.medium))
@@ -510,12 +529,13 @@ struct MailThreadView: View {
                         }
                         Divider()
                     }
-                    ForEach(mails.drafts.filter { $0.threadKey == key }) { draft in
+                    // Nothing is written from the trash or the spam.
+                    ForEach(aside == nil ? mails.drafts.filter { $0.threadKey == key } : []) { draft in
                         ComposeView(draftID: draft.id, mails: mails)
                             .padding(.top, Space.l)
                             .id(draft.id)
                     }
-                    if thread != nil, last != nil {
+                    if thread != nil, last != nil, aside == nil {
                         HStack(spacing: Space.s) {
                             Button { reply(.reply) } label: { Label("Répondre", systemImage: "arrowshape.turn.up.left") }
                                 .keyboardShortcut("r", modifiers: .command)
@@ -550,8 +570,9 @@ struct MailThreadView: View {
             }
         }
         .onExitCommand(perform: back)
-        .onDeleteCommand { gesture(.trash) }
-        .windowTitle("Mails", subtitle: close == nil ? (thread?.subject ?? "") : mails.tab.title)
+        // Suppr is no gesture in the trash or the spam: only « Restaurer », « Pas un spam ».
+        .onDeleteCommand(perform: aside == nil ? { gesture(.trash) } : nil)
+        .windowTitle("Mails", subtitle: close == nil ? (thread?.subject ?? "") : (mails.folder == .inbox ? mails.tab.title : mails.folder.title))
         .task(id: key) {
             thread = try? mails.store.thread(key)
             if let thread { mails.markRead(thread) }
@@ -572,12 +593,19 @@ struct MailThreadView: View {
                         Text("·")
                         Text(model.messages.count > 1 ? "\(model.messages.count) messages" : "1 message")
                         Text("·")
-                        MailFilingChip(thread: thread, mails: mails, always: true)
+                        if let aside {
+                            // Put aside: where it is, never a case to change.
+                            Label(aside.folder.title, systemImage: aside.folder.icon)
+                        } else {
+                            MailFilingChip(thread: thread, mails: mails, always: true)
+                        }
                     }
                     .font(.rowBody).foregroundStyle(.secondary)
-                    // Its people, and who of them is in its project (15/11).
-                    ThreadPeopleRow(thread: thread, messages: model.messages, mails: mails, router: router)
-                        .padding(.top, Space.xs)
+                    // Its people, and who of them is in its project (15/11); none taken from the trash or the spam.
+                    if aside == nil {
+                        ThreadPeopleRow(thread: thread, messages: model.messages, mails: mails, router: router)
+                            .padding(.top, Space.xs)
+                    }
                 }
             }
             Spacer(minLength: Space.m)
@@ -591,34 +619,73 @@ struct MailThreadView: View {
                     .disabled(mails.neighbor(of: key, offset: 1) == nil)
                     .keyboardShortcut(writing == true ? nil : KeyboardShortcut(.downArrow, modifiers: []))
                 Divider().frame(height: 18)
-                IconButton("archivebox", help: "Archiver") { gesture(.archive) }
-                IconButton("trash", help: "Supprimer") { gesture(.trash) }
-                IconButton("envelope.badge", help: "Marquer comme non lu") { gesture(.markUnread) }
-                IconMenu("ellipsis", help: "Plus") {
-                    if let thread {
-                        Button("Répondre") { reply(.reply) }
-                        Button("Répondre à tous") { reply(.replyAll) }
-                        Button("Transférer") { reply(.forward) }
-                        Divider()
-                        Menu("Ranger dans") { MailFilingMenu(thread: thread, mails: mails) }
-                        if let message = model.messages.last(where: { $0.listUnsubscribe != nil }), let sender = message.sender,
-                           let method = mails.unsubscribeMethod(listUnsubscribe: message.listUnsubscribe, post: message.listUnsubscribePost,
-                                                                authenticated: message.authenticated) {
-                            Button("Se désabonner de \(sender.display)…") { mails.askUnsubscribe(sender: sender, method: method) }
-                        }
-                        Button("Signaler comme spam") {
-                            mails.reportSpam(thread)
-                            back()
-                        }
-                        Divider()
-                        Button("Ouvrir dans Gmail") { NSWorkspace.shared.open(mails.gmailURL(thread)) }
+                if let aside {
+                    IconButton(aside.gesture.icon, help: aside.gesture.title()) { gesture(aside.gesture) }
+                    IconMenu("ellipsis", help: "Plus") {
+                        if let thread { Button("Ouvrir dans Gmail") { NSWorkspace.shared.open(mails.gmailURL(thread, in: aside)) } }
                     }
+                } else {
+                    gestures
                 }
             }
             .padding(.horizontal, Space.s).padding(.vertical, Space.xs)
             .glassEffect(.regular, in: Capsule())
         }
         .padding(.horizontal, Space.xl).padding(.vertical, Space.l)
+    }
+
+    /// The gestures of a thread in the inbox, the sent or every thread.
+    @ViewBuilder
+    private var gestures: some View {
+        IconButton("archivebox", help: "Archiver") { gesture(.archive) }
+        IconButton("trash", help: "Supprimer") { gesture(.trash) }
+        IconButton("envelope.badge", help: "Marquer comme non lu") { gesture(.markUnread) }
+        IconMenu("ellipsis", help: "Plus") {
+            if let thread {
+                Button("Répondre") { reply(.reply) }
+                Button("Répondre à tous") { reply(.replyAll) }
+                Button("Transférer") { reply(.forward) }
+                Divider()
+                Menu("Ranger dans") { MailFilingMenu(thread: thread, mails: mails) }
+                if let message = model.messages.last(where: { $0.listUnsubscribe != nil }), let sender = message.sender,
+                   let method = mails.unsubscribeMethod(listUnsubscribe: message.listUnsubscribe, post: message.listUnsubscribePost,
+                                                        authenticated: message.authenticated) {
+                    Button("Se désabonner de \(sender.display)…") { mails.askUnsubscribe(sender: sender, method: method) }
+                }
+                Button("Signaler comme spam") {
+                    mails.reportSpam(thread)
+                    back()
+                }
+                Divider()
+                Button("Ouvrir dans Gmail") { NSWorkspace.shared.open(mails.gmailURL(thread)) }
+            }
+        }
+    }
+}
+
+/// At the top of a thread put aside (wave B, 15/11): where it is, what Gmail does with it, and the way back. On the
+/// page's ground, never glass: the prominent button is the page's action.
+struct MailAsideBanner: View {
+    let aside: MailAside
+    let bringBack: () -> Void
+
+    var body: some View {
+        HStack(spacing: Space.m) {
+            Image(systemName: aside == .spam ? "exclamationmark.octagon.fill" : "trash.fill")
+                .font(.system(size: 18))
+                // Orange is « to check », as the design system says: a spam is; the trash is only grey.
+                .foregroundStyle(aside == .spam ? Color(hex: Palette.orange) : Color.secondary)
+            Text(aside.banner).font(.rowBody).fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: Space.m)
+            Button(action: bringBack) {
+                Label(aside.gesture.title(), systemImage: aside.gesture.icon)
+            }
+            .buttonStyle(.glassProminent)
+            .help(aside == .spam ? "Remettre ce fil en boîte de réception : Gmail apprend que ce n'est pas un spam" : "Remettre ce fil en boîte de réception")
+        }
+        .padding(.horizontal, Space.l).padding(.vertical, Space.m)
+        .background((aside == .spam ? Color(hex: Palette.orange).opacity(0.1) : Surface.fill),
+                    in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
     }
 }
 
@@ -631,8 +698,11 @@ struct MailMessageView: View {
     @ObservedObject var mails: MailLibrary
     let mine: Set<String>
     let collapseQuote: Bool
+    /// In the trash or the spam: no reply, no person taken in; a spam shows neither images nor files (wave B).
+    var aside: MailAside? = nil
     /// Reply, reply to all, forward: to this message.
     var reply: (MailDraftRow.Mode) -> Void = { _ in }
+    private var isSpam: Bool { message.labels.contains("SPAM") }
     @Environment(\.colorScheme) private var scheme
     @State private var height: CGFloat = 60
     @State private var details = false
@@ -685,7 +755,7 @@ struct MailMessageView: View {
                 HStack(alignment: .firstTextBaseline, spacing: Space.s) {
                     Text(sender).font(.rowTitle.weight(.semibold))
                     if let email = message.sender?.email, !isMine { Text(email).font(.meta).foregroundStyle(.secondary).textSelection(.enabled) }
-                    if let person = message.sender, !isMine {
+                    if let person = message.sender, !isMine, aside == nil {
                         MessageAddButton(person: person, project: projectID, mails: mails, visible: hoveringHeader)
                     }
                 }
@@ -707,13 +777,17 @@ struct MailMessageView: View {
             Spacer(minLength: Space.m)
             Text(MailText.longDate(message.date)).font(.meta).foregroundStyle(.secondary)
             HStack(spacing: 2) {
-                IconButton("arrowshape.turn.up.left", help: "Répondre à ce message") { reply(.reply) }
+                if aside == nil {
+                    IconButton("arrowshape.turn.up.left", help: "Répondre à ce message") { reply(.reply) }
+                }
                 IconMenu("ellipsis", help: "Plus") {
-                    Button("Répondre") { reply(.reply) }
-                    Button("Répondre à tous") { reply(.replyAll) }
-                    Button("Transférer") { reply(.forward) }
-                    Divider()
-                    if let thread { Button("Ouvrir dans Gmail") { NSWorkspace.shared.open(mails.gmailURL(thread)) } }
+                    if aside == nil {
+                        Button("Répondre") { reply(.reply) }
+                        Button("Répondre à tous") { reply(.replyAll) }
+                        Button("Transférer") { reply(.forward) }
+                        Divider()
+                    }
+                    if let thread { Button("Ouvrir dans Gmail") { NSWorkspace.shared.open(mails.gmailURL(thread, in: aside)) } }
                     Button("Afficher l'original") { mails.showOriginal(message) }
                     if let email = message.sender?.email {
                         Button("Copier l'adresse de l'expéditeur") {
@@ -750,7 +824,7 @@ struct MailMessageView: View {
                 GridRow {
                     Text(title).foregroundStyle(.secondary).gridColumnAlignment(.trailing)
                     // Who is a contact, and a click for the small menu of each (15/11).
-                    if title == "À" || title == "Cc" {
+                    if (title == "À" || title == "Cc") && aside == nil {
                         MessagePeople(people: title == "À" ? message.to : message.cc, mine: mine, project: projectID, mails: mails)
                     } else {
                         Text(value).textSelection(.enabled)
@@ -767,10 +841,14 @@ struct MailMessageView: View {
     private var content: some View {
         if let body = model.bodies[message.id] {
             let known = thread.map { mails.showsImages(of: message, in: $0) } ?? false
-            let images = known || model.allowed.contains(message.id)
+            // A spam's images never show, even asked for once (wave B).
+            let images = !isSpam && (known || model.allowed.contains(message.id))
             let onLight = scheme == .dark && (model.light.contains(message.id) || imagesMail)
+            // A mail listed by its headers (the trash, the spam) learns what its body is when it is read.
+            let isHTML = model.html[message.id] ?? message.bodyIsHTML
             VStack(alignment: .leading, spacing: Space.m) {
-                if !images, message.bodyIsHTML, MailHTML.hasRemoteImages(body) {
+                // The thread's banner says a spam's images never show: nothing here offers them.
+                if !images, !isSpam, isHTML, MailHTML.hasRemoteImages(body) {
                     HStack(spacing: Space.s) {
                         Image(systemName: "photo").foregroundStyle(.secondary)
                         Text("Images masquées : leur expéditeur verrait que tu as ouvert le mail.").font(.meta).foregroundStyle(.secondary)
@@ -786,7 +864,7 @@ struct MailMessageView: View {
                     .padding(.horizontal, Space.m).padding(.vertical, Space.s)
                     .background(Surface.fill, in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
                 }
-                MailBodyView(document: MailHTML.document(body: body, isHTML: message.bodyIsHTML, images: images, collapseQuote: collapseQuote,
+                MailBodyView(document: MailHTML.document(body: body, isHTML: isHTML, images: images, collapseQuote: collapseQuote,
                                                          dark: scheme == .dark && !onLight),
                              images: images, dark: scheme == .dark && !onLight, prefersLight: $imagesMail,
                              inline: { id in await model.inline(id, of: message) },
@@ -794,7 +872,8 @@ struct MailMessageView: View {
                     .frame(height: height)
                     .padding(onLight ? Space.m : 0)
                     .background(onLight ? Color.white : .clear, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
-                if !message.files.isEmpty { files }
+                // A spam's files never open in Polhub: Gmail shows them, with its warnings.
+                if !message.files.isEmpty, !isSpam { files }
             }
         } else if let failure = model.failed[message.id] {
             Label("Ce message n'a pas pu être lu : \(failure)", systemImage: "exclamationmark.triangle").font(.rowBody).foregroundStyle(.orange)

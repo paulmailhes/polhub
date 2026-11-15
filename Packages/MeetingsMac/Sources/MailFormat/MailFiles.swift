@@ -100,6 +100,18 @@ public struct MailFiles: Sendable {
             .appending(path: AttachmentSafety.cleanName(attachment.filename))
     }
 
+    /// Everything the Mac holds of these messages of a mailbox: their body (HTML or text) and every file of theirs,
+    /// shown or downloaded, removed (a mail gone to the spam keeps only its headers, wave B).
+    public func forget(messageIDs: Set<String>, account: String) {
+        guard !messageIDs.isEmpty else { return }
+        let folder = folder(account: account)
+        for name in (try? FileManager.default.contentsOfDirectory(atPath: folder.path(percentEncoded: false))) ?? [] {
+            let id = name.hasSuffix(".html") || name.hasSuffix(".txt") ? (name as NSString).deletingPathExtension
+                : name.range(of: "-", options: .backwards).map { String(name[..<$0.lowerBound]) } ?? ""
+            if messageIDs.contains(id) { try? FileManager.default.removeItem(at: folder.appending(path: name)) }
+        }
+    }
+
     public func write(_ data: Data, to url: URL, quarantine: Bool = false) throws {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try data.write(to: url, options: .atomic)

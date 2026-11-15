@@ -122,6 +122,8 @@ public actor MailEngine {
     @discardableResult
     public func step(_ account: String) async -> Bool {
         let account = account.lowercased()
+        // Whatever went to the spam meanwhile (Paul's gesture, the phone) keeps nothing on the Mac but its headers.
+        defer { purgeSpam(account) }
         do {
             try await sendGestures(account)
             var cursor = try store.cursor(account: account) ?? MailCursorRow(account: account)
@@ -184,18 +186,20 @@ public actor MailEngine {
         return ids
     }
 
-    /// Reads these messages whole, four at a time. A message Gmail no longer has is simply left out.
-    private func fetch(_ ids: [String], account: String) async throws -> [ParsedMail] {
+    /// Reads these messages whole, four at a time; or their `headers` only (`format=metadata`: the trash and the
+    /// spam). A message Gmail no longer has is simply left out.
+    private func fetch(_ ids: [String], account: String, headers: [String]? = nil) async throws -> [ParsedMail] {
         let pacer = pacer(account), send = sendFor(account)
+        let format: GmailAPI.Format = headers == nil ? .full : .metadata
         return try await withThrowingTaskGroup(of: ParsedMail?.self) { group in
             var remaining = ids[...]
             var mails: [ParsedMail] = []
             func add() {
                 guard let id = remaining.popFirst() else { return }
                 group.addTask {
-                    await pacer.take(GmailAPI.Cost.full)
+                    await pacer.take(headers == nil ? GmailAPI.Cost.full : GmailAPI.Cost.metadata)
                     do {
-                        let data = try await send { GmailAPI.messageRequest(accessToken: $0, id: id, format: .full) }
+                        let data = try await send { GmailAPI.messageRequest(accessToken: $0, id: id, format: format, headers: headers ?? []) }
                         return MailParser.parse(try GmailAPI.decode(GmailAPI.Message.self, from: data), account: account)
                     } catch GoogleError.notFound {
                         return nil
@@ -263,7 +267,12 @@ public actor MailEngine {
                 deleted.insert(id)
             }
         }
+        // A mail listed from the trash or the spam by its headers, brought back on the phone: read whole now.
+        let back = try labels.filter { id, fresh in
+            try !fresh.contains { MailStore.asideLabels.contains($0) } && store.message(MailMessageRow.key(account: account, messageID: id))?.hasBody == false
+        }.map(\.key)
         if !labels.isEmpty || !deleted.isEmpty { try store.apply(account: account, labels: labels, removed: Array(deleted)) }
+        if !back.isEmpty { try keep(try await fetch(back, account: account), account: account) }
         // The first reading may have saved the cursor meanwhile: only the point to resume from changes here.
         cursor = try store.cursor(account: account) ?? cursor
         cursor.historyID = newest ?? start
@@ -333,6 +342,7 @@ public actor MailEngine {
                 let ids = gesture.messageIDs, add = gesture.kind.add, remove = gesture.kind == .untrash ? [] : gesture.kind.remove
                 _ = try await send { GmailAPI.batchModifyRequest(accessToken: $0, ids: ids, add: add, remove: remove) }
                 try store.finish(gestureID: id)
+                if gesture.kind == .untrash || gesture.kind == .notSpam { await readWhole(gesture) }
             } catch let error as GoogleError {
                 switch error {
                 case .notFound, .http(400..<500):
@@ -347,16 +357,30 @@ public actor MailEngine {
 
     // MARK: - Reading a message
 
-    /// The body of a message: from its file, or read from Gmail when it is not there yet.
+    /// The body of a message: from its file, or read from Gmail when it is not there yet. A spam's is read from
+    /// Gmail each time it opens and never written anywhere (wave B).
     public func body(of message: MailMessageRow) async throws -> String {
-        if message.hasBody, let data = try? Data(contentsOf: files.body(of: message)) { return String(decoding: data, as: UTF8.self) }
+        try await read(message).text
+    }
+
+    /// The body and whether it is HTML: a mail listed by its headers only (the trash, the spam) does not say
+    /// until it is read.
+    public func read(_ message: MailMessageRow) async throws -> (text: String, isHTML: Bool) {
+        if message.labels.contains("SPAM") {
+            files.forget(messageIDs: [message.messageID], account: message.account)
+            let mail = try await fetch([message.messageID], account: message.account).first
+            return (mail?.body ?? "", mail?.row.bodyIsHTML ?? false)
+        }
+        if message.hasBody, let data = try? Data(contentsOf: files.body(of: message)) { return (String(decoding: data, as: UTF8.self), message.bodyIsHTML) }
         let mails = try await fetch([message.messageID], account: message.account)
         try keep(mails, account: message.account)
-        return mails.first?.body ?? ""
+        return (mails.first?.body ?? "", mails.first?.row.bodyIsHTML ?? message.bodyIsHTML)
     }
 
     /// A file of a message, downloaded once. macOS marks it as coming from a mail.
     public func file(_ attachment: MailAttachment, of message: MailMessageRow) async throws -> URL {
+        // A spam's files are never written on the Mac, nor opened (wave B).
+        guard !message.labels.contains("SPAM") else { throw GoogleError.refused("Polhub n'ouvre pas les pièces jointes d'un spam : ouvre-le dans Gmail") }
         let url = files.attachment(attachment, of: message)
         if FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) { return url }
         func bytes(_ attachmentID: String) async throws -> Data {
@@ -400,6 +424,58 @@ public actor MailEngine {
             }
         }
         return keys
+    }
+
+    // MARK: - The trash and the spam (wave B, 15/11)
+
+    /// What a mail put aside is listed by: its headers, never its body nor its files.
+    static let asideHeaders = ["From", "To", "Cc", "Subject", "Message-ID", "Authentication-Results", "List-Unsubscribe", "List-Unsubscribe-Post"]
+
+    /// « Corbeille » or « Spam » of these mailboxes, as Gmail holds them now: the `limit` most recent mails of each,
+    /// read as headers only (`format=metadata`), so nothing of a spam but its headers ever reaches the Mac. Their
+    /// rows join the copy put aside (`hidden`): no other list, no count and no agent reads them. A mail already
+    /// known with that label is not read again. Returns the threads listed. A reading: the development build may.
+    @discardableResult
+    public func aside(_ label: String, accounts: [String], limit: Int = 50) async throws -> [String] {
+        guard MailStore.asideLabels.contains(label) else { return [] }
+        var keys: [String] = []
+        for account in accounts.map({ $0.lowercased() }) {
+            let page = try await get(GmailAPI.IDPage.self, account, cost: GmailAPI.Cost.messageList) {
+                GmailAPI.messagesRequest(accessToken: $0, labelIDs: [label], maxResults: limit, includeSpamTrash: true)
+            }
+            var threads: [String: String] = [:], missing: [String] = []
+            for id in page.ids {
+                if let row = try store.message(MailMessageRow.key(account: account, messageID: id)), row.labels.contains(label) {
+                    threads[id] = row.threadKey
+                } else {
+                    missing.append(id)
+                }
+            }
+            // A draft put in the trash is no draft to take up: it stays out of Brouillons.
+            let rows = try await fetch(missing, account: account, headers: Self.asideHeaders).map(\.row).filter { !$0.labels.contains("DRAFT") }
+            if !rows.isEmpty { try store.apply(account: account, upserts: rows) }
+            purgeSpam(account)
+            for row in rows { threads[row.messageID] = row.threadKey }
+            for id in page.ids { if let key = threads[id], !keys.contains(key) { keys.append(key) } }
+        }
+        return keys
+    }
+
+    /// A spam keeps nothing on the Mac but its headers: the body and the files kept from before it went there go.
+    func purgeSpam(_ account: String) {
+        guard let kept = try? store.spamOnDisk(account: account), !kept.isEmpty else { return }
+        files.forget(messageIDs: Set(kept.map(\.messageID)), account: account)
+        try? store.forgetSpamFiles(messageKeys: kept.map(\.id))
+    }
+
+    /// A mail brought back from the trash or the spam was often listed by its headers only: once Gmail took the
+    /// gesture, it is read whole and kept like any other, body and files. Offline, its body comes when it opens.
+    private func readWhole(_ gesture: MailGestureRow) async {
+        let ids = gesture.messageIDs.filter { id in
+            (try? store.message(MailMessageRow.key(account: gesture.account, messageID: id)))?.hasBody == false
+        }
+        guard !ids.isEmpty, let mails = try? await fetch(ids, account: gesture.account) else { return }
+        try? keep(mails, account: gesture.account)
     }
 
     // MARK: - Writing (step « Écrire », 14/11)

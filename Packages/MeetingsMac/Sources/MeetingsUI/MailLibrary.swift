@@ -10,10 +10,10 @@ import PolhubDesign
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Where the list looks: the inbox, what Paul sent, the drafts, every thread, the senders he can leave; in the
-/// sidebar, under « Mails », in Gmail's order (Paul, 15/11).
+/// Where the list looks: the inbox, what Paul sent, the drafts, every thread, the senders he can leave, then
+/// Gmail's spam and trash; in the sidebar, under « Mails », in Gmail's order (Paul, 15/11).
 public enum MailFolder: String, Hashable, Sendable, CaseIterable {
-    case inbox, sent, drafts, all, subscriptions
+    case inbox, sent, drafts, all, subscriptions, spam, trash
 
     var title: String {
         switch self {
@@ -22,6 +22,8 @@ public enum MailFolder: String, Hashable, Sendable, CaseIterable {
         case .drafts: "Brouillons"
         case .all: "Tous les messages"
         case .subscriptions: "Abonnements"
+        case .spam: "Spam"
+        case .trash: "Corbeille"
         }
     }
 
@@ -32,11 +34,101 @@ public enum MailFolder: String, Hashable, Sendable, CaseIterable {
         case .drafts: "doc"
         case .all: "tray.full"
         case .subscriptions: "newspaper"
+        case .spam: "xmark.bin"
+        case .trash: "trash"
         }
     }
 
-    /// A list of threads, with its checkboxes and its gestures.
-    var listsThreads: Bool { self == .inbox || self == .sent || self == .all }
+    /// Gmail's spam or trash: threads put aside, which only come back.
+    var aside: MailAside? {
+        switch self {
+        case .spam: .spam
+        case .trash: .trash
+        default: nil
+        }
+    }
+
+    /// The gestures on a thread's line (on hover, in its menu): in the trash or the spam, only the way back
+    /// (wave B, 15/11).
+    func gestures(for thread: MailThreadRow) -> [MailGestureKind] {
+        if let aside { return [aside.gesture] }
+        return [thread.inInbox ? .archive : .unarchive, .trash, thread.unread ? .markRead : .markUnread]
+    }
+
+    /// The gestures on the ticked threads.
+    var selectionGestures: [MailGestureKind] {
+        aside.map { [$0.gesture] } ?? [.archive, .trash, .markRead, .markUnread]
+    }
+}
+
+/// A thread put aside whole: in Gmail's trash or in its spam (wave B, Paul's yes of 15/11). Gmail empties both
+/// after 30 days; Polhub only brings a thread back, never deletes it for good (that needs a wider Google
+/// permission): no reply, no forward, no case from there.
+public enum MailAside: String, Hashable, Sendable, CaseIterable {
+    case trash, spam
+
+    /// Gmail's label.
+    var label: String { self == .trash ? "TRASH" : "SPAM" }
+    var folder: MailFolder { self == .trash ? .trash : .spam }
+    /// The one gesture there: « Restaurer », « Pas un spam ».
+    var gesture: MailGestureKind { self == .trash ? .untrash : .notSpam }
+    /// « dans la corbeille »: a search's count, an empty folder.
+    var place: String { self == .trash ? "dans la corbeille" : "dans le spam" }
+    /// What an open thread says, in its banner.
+    var banner: String {
+        switch self {
+        case .trash: "Ce fil est dans la corbeille. Gmail le supprime au bout de 30 jours."
+        case .spam: "Ce fil est dans le spam. Ses images ne s'affichent jamais."
+        }
+    }
+    /// The line above the list.
+    var notice: String {
+        switch self {
+        case .trash: "Gmail supprime les mails de la corbeille au bout de 30 jours."
+        case .spam: "Gmail supprime les mails du spam au bout de 30 jours. Leurs images ne s'affichent jamais."
+        }
+    }
+    /// The folder of Gmail's own page.
+    var gmailFolder: String { self == .trash ? "trash" : "spam" }
+
+    /// Where messages put aside whole sit: the spam wins, as in Gmail.
+    static func of(_ messages: [MailMessageRow]) -> MailAside? {
+        if messages.contains(where: { $0.labels.contains("SPAM") }) { return .spam }
+        if messages.contains(where: { $0.labels.contains("TRASH") }) { return .trash }
+        return nil
+    }
+}
+
+extension MailGestureKind {
+    /// Its name on a button, in a menu: for the ticked threads, `plural`.
+    func title(plural: Bool = false) -> String {
+        switch self {
+        case .archive: "Archiver"
+        case .unarchive: "Remettre en boîte de réception"
+        case .markRead: plural ? "Marquer comme lus" : "Marquer comme lu"
+        case .markUnread: plural ? "Marquer comme non lus" : "Marquer comme non lu"
+        case .trash: "Supprimer"
+        case .untrash: "Restaurer"
+        case .spam: "Signaler comme spam"
+        case .notSpam: "Pas un spam"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .archive: "archivebox"
+        case .unarchive: "tray.and.arrow.down"
+        case .markRead: "envelope.open"
+        case .markUnread: "envelope.badge"
+        case .trash: "trash"
+        case .untrash: "arrow.uturn.backward"
+        case .spam: "xmark.octagon"
+        case .notSpam: "checkmark.shield"
+        }
+    }
+
+    /// Read or unread is no move: it has no « Annuler » for one thread.
+    var undoableAlone: Bool { self != .markRead && self != .markUnread }
 }
 
 /// When remote images load (Paul, 14/11): for the senders he knows, when he asks, or always.
@@ -93,7 +185,18 @@ public final class MailLibrary: ObservableObject {
     public var onSendFailed: ((String, String?) -> Void)?
 
     // Writing (step « Écrire »)
-    @Published public var folder: MailFolder = .inbox { didSet { selected = []; refreshFolders() } }
+    @Published public var folder: MailFolder = .inbox {
+        didSet {
+            selected = []
+            refreshFolders()
+            if folder.aside != nil { readAside() }
+        }
+    }
+    /// « Spam » or « Corbeille » (wave B, 15/11): what the copy holds at once, then what Gmail lists.
+    @Published public private(set) var aside: [MailThreadRow] = []
+    /// Gmail's list of the spam or the trash is on its way.
+    @Published public private(set) var readingAside = false
+    private var asideToken = 0
     @Published public private(set) var drafts: [MailDraftRow] = []
     /// The drafts Gmail holds that Polhub did not make.
     @Published public private(set) var gmailDrafts: [MailMessageRow] = []
@@ -159,7 +262,8 @@ public final class MailLibrary: ObservableObject {
     /// Who Paul may write to, ranked (15/11, People.swift).
     lazy var people = PeopleDirectory(mails: self)
 
-    public init(agenda: AgendaLibrary, root: URL, defaults: UserDefaults = .standard, flavor: AppFlavor = .current) {
+    /// `send` stands in for Google in the tests (a fake Gmail); the app speaks to Google through the agenda's session.
+    public init(agenda: AgendaLibrary, root: URL, defaults: UserDefaults = .standard, flavor: AppFlavor = .current, send: MailEngine.SendFor? = nil) {
         self.agenda = agenda
         self.defaults = defaults
         self.store = MailStore(agenda.database)
@@ -167,7 +271,7 @@ public final class MailLibrary: ObservableObject {
         self.unsubscribed = (defaults.dictionary(forKey: Preferences.Key.mailUnsubscribed) as? [String: Date]) ?? [:]
         self.unconfirmed = Set(defaults.stringArray(forKey: Preferences.Key.mailUnconfirmed) ?? [])
         let relay = MailArrivalRelay()
-        self.engine = MailEngine(database: agenda.database, root: root, sendFor: { [agenda] account in
+        self.engine = MailEngine(database: agenda.database, root: root, sendFor: send ?? { [agenda] account in
             { build in try await agenda.mailSend(for: account)(build) }
         }, flavor: flavor, onNew: { rows in Task { @MainActor in relay.handler?(rows) } })
         relay.handler = { [weak self] rows in self?.arrived(rows) }
@@ -228,6 +332,7 @@ public final class MailLibrary: ObservableObject {
     /// Asks Gmail what is new, now.
     public func refresh() {
         for account in accounts { Task { await engine.kick(account.email) } }
+        if folder.aside != nil { readAside() }
         pushPending()
         // An agent's reply left waiting (offline) is taken up again.
         Task { await engine.adoptAgentDrafts() }
@@ -428,6 +533,8 @@ public final class MailLibrary: ObservableObject {
         case .inbox: threads = visible(inbox).filter { tab(of: $0) == tab }
         case .sent: threads = sent
         case .all: threads = all
+        // A thread put aside is never unread: nothing to filter.
+        case .spam, .trash: return aside
         case .drafts, .subscriptions: return []
         }
         return unreadOnly ? threads.filter(\.unread) : threads
@@ -553,7 +660,7 @@ public final class MailLibrary: ObservableObject {
     /// The ticked threads; the selection ends.
     public func performOnSelection(_ kind: MailGestureKind) {
         let threads = selectedThreads
-        perform(kind, on: threads, undoable: kind == .archive || kind == .trash || threads.count > 1)
+        perform(kind, on: threads, undoable: kind.undoableAlone || threads.count > 1)
         endSelection()
     }
 
@@ -577,9 +684,9 @@ public final class MailLibrary: ObservableObject {
         perform(.markRead, on: thread, undoable: false)
     }
 
-    /// The thread in Gmail's own page, under its account.
-    public func gmailURL(_ thread: MailThreadRow) -> URL {
-        GmailLink.thread(thread.threadID, account: thread.account)
+    /// The thread in Gmail's own page, under its account; in its spam or its trash when it is put aside there.
+    public func gmailURL(_ thread: MailThreadRow, in aside: MailAside? = nil) -> URL {
+        GmailLink.thread(thread.threadID, account: thread.account, folder: aside?.gmailFolder ?? "all")
     }
 
     // MARK: - Search (one bar, 15/11)
@@ -596,6 +703,7 @@ public final class MailLibrary: ObservableObject {
             gmailFound = nil
             foundInGmail = 0
         }
+        if folder.aside != nil { return filterCopy() }
         switch MailSearch.mode(text) {
         case .none: found = nil
         case .tooShort, .gmailOnly: if gmailFound == nil { found = nil }
@@ -612,12 +720,44 @@ public final class MailLibrary: ObservableObject {
     /// The threads of the copy that answer the text, every folder and tab of the mailboxes shown, plus those
     /// Gmail found on Enter. The copy is read again, away from the screen, when it changed.
     private func filterCopy() {
+        if let aside = folder.aside { return filterAside(aside) }
         guard case .local(let words) = MailSearch.mode(query) else { return }
         if indexedVersion != copyVersion { readCopy() }
         // The first reading takes a moment: the folder stays until it is there.
         guard let index = searchIndex else { return }
         found = merged(MailSearch.filter(index, words: words, accounts: shownAccounts))
         refreshFiles(keepingKnown: true)
+    }
+
+    /// In « Spam » or « Corbeille », a search filters that folder's list only: never the rest of the copy, never
+    /// Gmail (wave B, 15/11). Its words are those of the threads listed there.
+    private func filterAside(_ aside: MailAside) {
+        guard let words = MailSearch.localWords(query) else {
+            found = nil
+            return
+        }
+        let entries = (try? store.searchEntries(aside: aside.label)) ?? []
+        found = MailSearch.filter(entries, words: words, accounts: shownAccounts)
+    }
+
+    /// The trash or the spam opened, or « Relever » there: the copy's threads show at once; Gmail's own list,
+    /// read as headers only, joins them.
+    private func readAside() {
+        guard let aside = folder.aside else { return }
+        asideToken += 1
+        let token = asideToken, accounts = shownAccounts.sorted(), engine = self.engine
+        readingAside = true
+        Task {
+            do {
+                try await engine.aside(aside.label, accounts: accounts)
+            } catch {
+                if token == asideToken { message = "Gmail n'a pas pu donner \(aside == .trash ? "sa corbeille" : "son spam") : \(error). Voici ce que Polhub en a déjà." }
+            }
+            guard token == asideToken else { return }
+            readingAside = false
+            refreshFolders()
+            if found != nil { filterCopy() }
+        }
     }
 
     private func readCopy() {
@@ -653,6 +793,8 @@ public final class MailLibrary: ObservableObject {
             found = nil
             return
         }
+        // Gmail is never asked from the trash or the spam.
+        guard folder.aside == nil else { return filterCopy() }
         let token = searchToken
         searching = true
         defer { searching = false }
@@ -679,6 +821,10 @@ public final class MailLibrary: ObservableObject {
 
     /// The line under the bar during a search: how many threads, and what Enter does.
     public var searchSummary: String? {
+        if let aside = folder.aside {
+            guard let found else { return nil }
+            return (found.isEmpty ? "Aucun fil" : (found.count == 1 ? "1 fil" : "\(found.count) fils")) + " \(aside.place)"
+        }
         if searching { return "Recherche dans Gmail…" }
         let mode = MailSearch.mode(query)
         guard mode != .none else { return nil }
@@ -701,6 +847,8 @@ public final class MailLibrary: ObservableObject {
     /// Whether this message's remote images load without asking: its sender is known and Gmail confirmed the
     /// mail comes from him. Known: a contact, someone Paul wrote to in this thread, or « Toujours ».
     public func showsImages(of message: MailMessageRow, in thread: MailThreadRow) -> Bool {
+        // Never in the spam, whatever the setting (wave B).
+        guard !message.labels.contains("SPAM") else { return false }
         switch imagesMode {
         case .afficher: return true
         case .demander: return false
@@ -805,6 +953,8 @@ public final class MailLibrary: ObservableObject {
             sentTo = (try? store.sentRecipients(threadKeys: sent.map(\.id))) ?? [:]
         case .all: all = (try? store.allThreads(accounts: shownAccounts)) ?? []
         case .subscriptions: subscriptions = (try? store.subscriptions(since: Date().addingTimeInterval(-90 * 86_400), accounts: shownAccounts)) ?? []
+        // The copy only, at each tick: Gmail's list is asked when the folder opens (readAside).
+        case .spam, .trash: aside = (try? store.asideThreads(label: folder.aside?.label ?? "", accounts: shownAccounts)) ?? []
         case .inbox, .drafts: break
         }
         refreshFiles()

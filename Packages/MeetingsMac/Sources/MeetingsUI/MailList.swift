@@ -40,6 +40,9 @@ struct MailListView: View {
                     MailSearchLine(text: summary, searching: mails.searching)
                 } else if mails.folder == .inbox {
                     MailTabBar(mails: mails)
+                } else if let aside = mails.folder.aside {
+                    // As Gmail's line over its trash and its spam; a wheel while Gmail's list comes.
+                    MailSearchLine(text: aside.notice, searching: mails.readingAside, icon: aside == .spam ? "exclamationmark.octagon" : "clock")
                 }
                 content(mails.shown, mine: mine)
             }
@@ -83,6 +86,10 @@ struct MailListView: View {
 
     private var emptyTitle: String {
         if mails.found != nil { return "Aucun mail trouvé" }
+        if let aside = mails.folder.aside {
+            if mails.readingAside { return "Lecture de Gmail…" }
+            return aside == .spam ? "Aucun spam" : "Rien dans la corbeille"
+        }
         if mails.progress != nil { return "Lecture de tes boîtes…" }
         return mails.unreadOnly ? "Aucun non lu" : "Rien ici"
     }
@@ -128,7 +135,10 @@ struct MailListView: View {
                 return .handled
             }
             .onKeyPress(keys: [.delete, .deleteForward]) { _ in
-                if !mails.selected.isEmpty {
+                // In the trash or the spam, Suppr does nothing: only « Restaurer », « Pas un spam » (wave B).
+                if mails.folder.aside != nil {
+                    return .ignored
+                } else if !mails.selected.isEmpty {
                     mails.performOnSelection(.trash)
                 } else if let thread = threads.first(where: { $0.id == mails.focused }) {
                     mails.focused = mails.neighbor(of: thread.id, offset: 1) ?? mails.neighbor(of: thread.id, offset: -1)
@@ -177,13 +187,14 @@ struct MailLine: View {
 struct MailSearchLine: View {
     let text: String
     let searching: Bool
+    var icon = "magnifyingglass"
 
     var body: some View {
         HStack(spacing: Space.s) {
             if searching {
                 ProgressView().controlSize(.small)
             } else {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                Image(systemName: icon).foregroundStyle(.secondary)
             }
             Text(text).foregroundStyle(.secondary).lineLimit(1)
             Spacer(minLength: 0)
@@ -216,8 +227,11 @@ struct MailListBar: View {
                 Menu {
                     Button("Tous") { mails.selectAll() }
                     Button("Aucun") { mails.endSelection() }
-                    Button("Lus") { mails.select(where: { !$0.unread }) }
-                    Button("Non lus") { mails.select(where: { $0.unread }) }
+                    // A thread put aside is never unread.
+                    if mails.folder.aside == nil {
+                        Button("Lus") { mails.select(where: { !$0.unread }) }
+                        Button("Non lus") { mails.select(where: { $0.unread }) }
+                    }
                 } label: {
                     Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
                         .frame(width: 18, height: 32)
@@ -227,13 +241,26 @@ struct MailListBar: View {
             }
             .padding(.leading, MailRow.boxStart + 7)
             if count > 0 {
-                IconButton("archivebox", help: "Archiver") { mails.performOnSelection(.archive) }
-                IconButton("trash", help: "Supprimer") { mails.performOnSelection(.trash) }
-                IconButton("envelope.open", help: "Marquer comme lus") { mails.performOnSelection(.markRead) }
-                IconButton("envelope.badge", help: "Marquer comme non lus") { mails.performOnSelection(.markUnread) }
-                // 15/11: the ticked threads in one case, one « Annuler » for all.
-                IconMenu("folder", help: "Ranger dans un projet ou une case") {
-                    MailFilingMenu(selection: mails.selectedThreads, mails: mails)
+                if let aside = mails.folder.aside {
+                    // The one gesture of the trash or the spam, in words as Gmail's « Non spam »: an arrow alone
+                    // would read as « Annuler ».
+                    let kind = aside.gesture
+                    Button { mails.performOnSelection(kind) } label: {
+                        Label(kind.title(), systemImage: kind.icon).font(.rowBody.weight(.medium))
+                            .padding(.horizontal, Space.m).frame(height: 32)
+                    }
+                    .buttonStyle(.hover(.capsule))
+                    .help(aside == .spam ? "Remettre en boîte de réception : Gmail apprend que ce n'est pas un spam" : "Remettre en boîte de réception")
+                } else {
+                    ForEach(mails.folder.selectionGestures, id: \.self) { kind in
+                        IconButton(kind.icon, help: kind.title(plural: true)) { mails.performOnSelection(kind) }
+                    }
+                }
+                // 15/11: the ticked threads in one case, one « Annuler » for all; never from the trash or the spam.
+                if mails.folder.aside == nil {
+                    IconMenu("folder", help: "Ranger dans un projet ou une case") {
+                        MailFilingMenu(selection: mails.selectedThreads, mails: mails)
+                    }
                 }
                 Text("\(count) sélectionné\(count > 1 ? "s" : "")").font(.meta).foregroundStyle(.secondary).padding(.leading, Space.s)
             } else {
@@ -253,12 +280,14 @@ struct MailListBar: View {
                 }
             }
             Spacer(minLength: Space.m)
-            Toggle(isOn: $mails.unreadOnly) {
-                Label("Non lus", systemImage: "line.3.horizontal.decrease")
+            if mails.folder.aside == nil {
+                Toggle(isOn: $mails.unreadOnly) {
+                    Label("Non lus", systemImage: "line.3.horizontal.decrease")
+                }
+                .toggleStyle(.button)
+                .help(mails.unreadOnly ? "Afficher tous les mails" : "N'afficher que les non lus")
+                .padding(.trailing, Space.l)
             }
-            .toggleStyle(.button)
-            .help(mails.unreadOnly ? "Afficher tous les mails" : "N'afficher que les non lus")
-            .padding(.trailing, Space.l)
         }
         .frame(height: 48)
     }
@@ -369,7 +398,8 @@ struct MailRow: View {
                     .frame(width: Self.sendersWidth, alignment: .leading)
                     .padding(.trailing, Space.l)
                 HStack(spacing: Space.s) {
-                    MailFilingChip(thread: thread, mails: mails)
+                    // No case from the trash or the spam (wave B).
+                    if mails.folder.aside == nil { MailFilingChip(thread: thread, mails: mails) }
                     (Text(thread.subject.isEmpty ? "(sans objet)" : thread.subject).font(.rowTitle.weight(thread.unread ? .bold : .regular))
                         + Text(thread.snippet.isEmpty ? "" : " — \(thread.snippet)").font(.rowBody).foregroundStyle(.secondary))
                         .lineLimit(1)
@@ -412,22 +442,21 @@ struct MailRow: View {
         }
         .onHover { hovering = $0 }
         .contextMenu {
-            if thread.inInbox {
-                Button("Archiver") { mails.perform(.archive, on: thread) }
-            } else {
-                Button("Remettre en boîte de réception") { mails.perform(.unarchive, on: thread) }
+            ForEach(mails.folder.gestures(for: thread), id: \.self) { kind in
+                Button(kind.title()) { mails.perform(kind, on: thread, undoable: kind.undoableAlone) }
             }
-            Button("Supprimer") { mails.perform(.trash, on: thread) }
-            Button(thread.unread ? "Marquer comme lu" : "Marquer comme non lu") { mails.perform(thread.unread ? .markRead : .markUnread, on: thread, undoable: false) }
             Button(ticked ? "Désélectionner" : "Sélectionner") { mails.select(thread.id, extend: false) }
             Divider()
-            Menu("Ranger dans") { MailFilingMenu(thread: thread, mails: mails) }
-            if let sender = thread.lastSender {
-                Button("Tous les mails de cet expéditeur") { mails.showAll(from: sender) }
+            // From the trash or the spam, only the way back and Gmail's own page (wave B).
+            if mails.folder.aside == nil {
+                Menu("Ranger dans") { MailFilingMenu(thread: thread, mails: mails) }
+                if let sender = thread.lastSender {
+                    Button("Tous les mails de cet expéditeur") { mails.showAll(from: sender) }
+                }
+                Button("Signaler comme spam") { mails.reportSpam(thread) }
+                Divider()
             }
-            Button("Signaler comme spam") { mails.reportSpam(thread) }
-            Divider()
-            Button("Ouvrir dans Gmail") { NSWorkspace.shared.open(mails.gmailURL(thread)) }
+            Button("Ouvrir dans Gmail") { NSWorkspace.shared.open(mails.gmailURL(thread, in: mails.folder.aside)) }
         }
     }
 
@@ -449,16 +478,13 @@ struct MailRow: View {
     /// Gmail's gestures on hover, over the end of the line, on its own ground.
     private func actions(over ground: Color) -> some View {
         HStack(spacing: 2) {
-            if thread.inInbox {
-                IconButton("archivebox", help: "Archiver") { mails.perform(.archive, on: thread) }
-            } else {
-                IconButton("tray.and.arrow.down", help: "Remettre en boîte de réception") { mails.perform(.unarchive, on: thread) }
+            // Archive or bring back, delete, read; in the trash or the spam, only the way back (wave B).
+            ForEach(mails.folder.gestures(for: thread), id: \.self) { kind in
+                IconButton(kind.icon, help: kind.title()) { mails.perform(kind, on: thread, undoable: kind.undoableAlone) }
             }
-            IconButton("trash", help: "Supprimer") { mails.perform(.trash, on: thread) }
-            IconButton(thread.unread ? "envelope.open" : "envelope.badge", help: thread.unread ? "Marquer comme lu" : "Marquer comme non lu") {
-                mails.perform(thread.unread ? .markRead : .markUnread, on: thread, undoable: false)
+            if mails.folder.aside == nil {
+                IconMenu("folder", help: "Ranger dans un projet ou une case") { MailFilingMenu(thread: thread, mails: mails) }
             }
-            IconMenu("folder", help: "Ranger dans un projet ou une case") { MailFilingMenu(thread: thread, mails: mails) }
         }
         .padding(.leading, Space.xxl)
         .background(LinearGradient(stops: [.init(color: ground.opacity(0), location: 0), .init(color: ground, location: 0.3)],

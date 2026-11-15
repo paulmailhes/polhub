@@ -40,22 +40,26 @@ public enum GmailAPI {
         request("/labels/\(id)", accessToken: accessToken)
     }
 
-    private static func listItems(query: String?, labelIDs: [String], pageToken: String?, maxResults: Int) -> [URLQueryItem] {
+    private static func listItems(query: String?, labelIDs: [String], pageToken: String?, maxResults: Int, includeSpamTrash: Bool) -> [URLQueryItem] {
         [URLQueryItem(name: "maxResults", value: String(maxResults))]
             + (query.map { [URLQueryItem(name: "q", value: $0)] } ?? [])
             + labelIDs.map { URLQueryItem(name: "labelIds", value: $0) }
             + (pageToken.map { [URLQueryItem(name: "pageToken", value: $0)] } ?? [])
+            + (includeSpamTrash ? [URLQueryItem(name: "includeSpamTrash", value: "true")] : [])
     }
 
-    /// Message ids, the most recent first; spam and trash are left out by Gmail.
+    /// Message ids, the most recent first; spam and trash are left out by Gmail, unless `includeSpamTrash` (the
+    /// folders « Spam » and « Corbeille », wave B).
     public static func messagesRequest(accessToken: String, query: String? = nil, labelIDs: [String] = [], pageToken: String? = nil,
-                                       maxResults: Int = 500) -> URLRequest {
-        request("/messages", listItems(query: query, labelIDs: labelIDs, pageToken: pageToken, maxResults: maxResults), accessToken: accessToken)
+                                       maxResults: Int = 500, includeSpamTrash: Bool = false) -> URLRequest {
+        request("/messages", listItems(query: query, labelIDs: labelIDs, pageToken: pageToken, maxResults: maxResults, includeSpamTrash: includeSpamTrash),
+                accessToken: accessToken)
     }
 
     public static func threadsRequest(accessToken: String, query: String? = nil, labelIDs: [String] = [], pageToken: String? = nil,
-                                      maxResults: Int = 500) -> URLRequest {
-        request("/threads", listItems(query: query, labelIDs: labelIDs, pageToken: pageToken, maxResults: maxResults), accessToken: accessToken)
+                                      maxResults: Int = 500, includeSpamTrash: Bool = false) -> URLRequest {
+        request("/threads", listItems(query: query, labelIDs: labelIDs, pageToken: pageToken, maxResults: maxResults, includeSpamTrash: includeSpamTrash),
+                accessToken: accessToken)
     }
 
     /// One message; in `metadata`, only the named headers come back.

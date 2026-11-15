@@ -32,6 +32,8 @@ final class FakeGmail: @unchecked Sendable {
     private var records: [String] = []
     private var cursor = 100
     private var log: [String] = []
+    /// Each request with its query, as `GET /messages?labelIds=SPAM&…`.
+    private var asked: [String] = []
     /// Gmail forgot every cursor older than now.
     private var forgot = false
     /// Status to answer the next label changes with (429, 404…), once.
@@ -58,6 +60,7 @@ final class FakeGmail: @unchecked Sendable {
     }
 
     var calls: [String] { lock.withLock { log } }
+    var queries: [String] { lock.withLock { asked } }
     func labels(_ id: String) -> [String]? { lock.withLock { mails[id]?.labels } }
     func forgetCursors() { lock.withLock { forgot = true } }
     func failNextModify(_ status: Int) { lock.withLock { nextModifyStatus = status } }
@@ -87,10 +90,20 @@ final class FakeGmail: @unchecked Sendable {
 
     static func json(_ strings: [String]) -> String { "[" + strings.map { "\"\($0)\"" }.joined(separator: ",") + "]" }
 
-    private func message(_ id: String, full: Bool) -> String? {
+    private func message(_ id: String, full: Bool, metadataHeaders: [String]? = nil) -> String? {
         guard let mail = mails[id] else { return nil }
         let date = Int((1_794_562_920 + mail.minutes * 60) * 1_000)
         var text = #"{"id":"\#(id)","threadId":"\#(mail.thread)","labelIds":\#(Self.json(mail.labels)),"snippet":"extrait \#(id)","internalDate":"\#(date)""#
+        if !full, let names = metadataHeaders {
+            // `format=metadata` with the headers asked for, and those only.
+            var all = [("From", mail.from), ("To", mail.to), ("Subject", mail.subject), ("Message-ID", "<\(id)@exemple.fr>"),
+                       ("Authentication-Results", "mx.google.com; dmarc=pass")]
+            if let replyTo = mail.replyTo { all.append(("Reply-To", replyTo)) }
+            if let references = mail.references { all.append(("References", references)) }
+            let headers = all.filter { header in names.contains { $0.caseInsensitiveCompare(header.0) == .orderedSame } }
+                .map { #"{"name":"\#($0.0)","value":"\#($0.1)"}"# }
+            return text + #","payload":{"headers":[\#(headers.joined(separator: ","))]}}"#
+        }
         if !full {
             var headers = [#"{"name":"Message-ID","value":"<\#(id)@exemple.fr>"}"#]
             if let replyTo = mail.replyTo { headers.append(#"{"name":"Reply-To","value":"\#(replyTo)"}"#) }
@@ -113,6 +126,7 @@ final class FakeGmail: @unchecked Sendable {
             let isUpload = path.hasPrefix("/upload/gmail/v1/users/me/drafts")
             let answer = try lock.withLock {
                 log.append("\(request.httpMethod ?? "GET") \(path.replacingOccurrences(of: "/gmail/v1/users/me", with: ""))" + (value("format").map { " \($0)" } ?? ""))
+                asked.append("\(request.httpMethod ?? "GET") \(path.replacingOccurrences(of: "/gmail/v1/users/me", with: ""))" + (url.query.map { "?\($0)" } ?? ""))
                 if path.hasPrefix("/upload/gmail/v1/users/me/drafts") {
                     let body = String(decoding: request.httpBody ?? Data(), as: UTF8.self)
                     let json = body.components(separatedBy: "\r\n\r\n")[1].components(separatedBy: "\r\n--")[0]
@@ -180,10 +194,13 @@ final class FakeGmail: @unchecked Sendable {
                 }
                 if path.hasSuffix("/messages") {
                     let labels = items.filter { $0.name == "labelIds" }.compactMap(\.value)
+                    // As Gmail: the spam and the trash only when asked for (`includeSpamTrash`).
+                    let aside = value("includeSpamTrash") == "true"
                     let ids = order.filter { id in
                         let mail = mails[id]!
-                        return !mail.labels.contains("TRASH") && !mail.labels.contains("SPAM") && labels.allSatisfy(mail.labels.contains)
+                        return (aside || (!mail.labels.contains("TRASH") && !mail.labels.contains("SPAM"))) && labels.allSatisfy(mail.labels.contains)
                     }
+                    .prefix(value("maxResults").flatMap(Int.init) ?? 500)
                     return Data(#"{"messages":[\#(ids.map { #"{"id":"\#($0)"}"# }.joined(separator: ","))]}"#.utf8)
                 }
                 if path.hasSuffix("/history") {
@@ -206,7 +223,9 @@ final class FakeGmail: @unchecked Sendable {
                     return Data(#"{"id":"\#(thread)","messages":[\#(messages.joined(separator: ","))]}"#.utf8)
                 }
                 if path.contains("/messages/") {
-                    guard let text = message(url.lastPathComponent, full: value("format") == "full") else { throw GmailAPI.error(status: 404, data: Data()) }
+                    let headers = items.filter { $0.name == "metadataHeaders" }.compactMap(\.value)
+                    guard let text = message(url.lastPathComponent, full: value("format") == "full",
+                                             metadataHeaders: value("format") == "metadata" ? headers : nil) else { throw GmailAPI.error(status: 404, data: Data()) }
                     return Data(text.utf8)
                 }
                 throw GoogleError.http(599)

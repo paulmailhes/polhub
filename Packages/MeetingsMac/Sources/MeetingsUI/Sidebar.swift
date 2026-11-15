@@ -61,8 +61,10 @@ struct Sidebar: View {
             }
         }
         // Réglages at the bottom, apart from the work (Paul, 14/11), drawn as the rows above (15/11), and lined up with
-        // them: the « Mails » group moves the rows above to the right (correctifs, 15/11).
-        .safeAreaInset(edge: .bottom, spacing: 0) { SidebarFooter(router: router, indent: mails != nil ? SidebarFooter.outlineIndent : 0) }
+        // them: the « Mails » group moves the rows above to the right (correctifs, 15/11). A bar, not an inset: when the
+        // rows run longer than the window (« Spam » and « Corbeille », wave B), they scroll under it behind the
+        // system's edge effect instead of showing through.
+        .safeAreaBar(edge: .bottom, spacing: 0) { SidebarFooter(router: router, indent: mails != nil ? SidebarFooter.outlineIndent : 0) }
         .environment(\.sidebarRowSize, .large)
     }
 

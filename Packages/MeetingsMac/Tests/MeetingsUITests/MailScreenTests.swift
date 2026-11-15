@@ -263,8 +263,31 @@ struct MailScreenTests {
         try ProjectStore(database).save(site, at: Date())
         let contactCamille = try ContactStore(database).upsert(email: camille.email, name: "Camille Martin", company: nil, at: Date())
         try ContactStore(database).link(contactID: contactCamille.id, projectID: site.id, origin: .paul, at: Date())
+        // Wave B: one trashed thread in the copy; Gmail's trash and spam, made up, read live when their folder opens.
+        try store.apply(account: "moi@exemple.fr", upserts: [
+            try mail("t1", "moi@exemple.fr", thread: "corbeille-copie", from: camille, subject: "Ancien devis du site", snippet: "Voici le devis de septembre, remplacé depuis.",
+                     hours: 72, labels: ["TRASH", "CATEGORY_PERSONAL"], html: "<p>Voici le devis de septembre, remplacé depuis par la version d'octobre.</p><p>Camille</p>"),
+        ])
+        let gmail = AsideGmail([
+            ("g1", .init(thread: "corbeille-gmail", labels: ["TRASH"], from: "Jules Durand <jules@atelier-nord.fr>", subject: "Planning de février",
+                         snippet: "L'ancien planning, avant le report du chantier.", hours: 30, html: "<p>L'ancien planning, avant le report du chantier.</p>",
+                         account: "paul@atelier-nord.fr")),
+            ("g2", .init(thread: "corbeille-lettre", labels: ["TRASH", "CATEGORY_PROMOTIONS"], from: "La Lettre du design <lettre@lettre-du-design.exemple>",
+                         subject: "Le numéro d'automne", snippet: "Rétrospective de la saison…", hours: 24 * 12, html: letter)),
+            ("s1", .init(thread: "spam-colis", labels: ["SPAM", "UNREAD"], from: "Service Livraison <suivi@colis-express.exemple>",
+                         subject: "Votre colis est bloqué", snippet: "Des frais de 1,99 € sont à régler avant la livraison.", hours: 2,
+                         html: """
+                         <table width="600" style="font-family:Arial"><tr><td style="background:#d4001a;color:#fff;padding:20px;font-size:20px">Colis Express</td></tr>
+                         <tr><td style="padding:20px"><img src="https://pixel.colis-express.exemple/ouvert.gif" width="1" height="1">
+                         <p>Votre colis n° 4471 est bloqué : des frais de <b>1,99 €</b> sont à régler avant la livraison.</p>
+                         <p><a href="https://pirate.exemple/paiement">https://www.suivi-colis.exemple/4471</a></p></td></tr></table>
+                         """)),
+            ("s2", .init(thread: "spam-loterie", labels: ["SPAM"], from: "Grand Tirage <gagnant@loterie.exemple>", subject: "Vous avez gagné un téléphone",
+                         snippet: "Félicitations ! Réclamez votre lot avant ce soir.", hours: 20, html: "<p>Félicitations ! Réclamez votre lot avant ce soir.</p>",
+                         account: "perso@gmail.com")),
+        ])
         let agenda = AgendaLibrary(database: database)
-        let mails = MailLibrary(agenda: agenda, root: root, defaults: UserDefaults(suiteName: "mails-\(UUID().uuidString)")!)
+        let mails = MailLibrary(agenda: agenda, root: root, defaults: UserDefaults(suiteName: "mails-\(UUID().uuidString)")!, send: { gmail.send(for: $0) })
         let projects = ProjectLibrary(store: ProjectStore(database), meetings: MeetingStore(database))
         let library = MeetingLibrary(store: MeetingStore(database))
         let router = WindowRouter()
@@ -326,6 +349,29 @@ struct MailScreenTests {
         // 15/11: « À : » in « Envoyés »; one search bar, the whole copy filtered as Paul types.
         mails.folder = .sent
         try await capture("mails-envoyes")
+        // Wave B, 15/11: « Corbeille » and « Spam », the copy then Gmail's; only the way back; a spam without images.
+        mails.folder = .trash
+        for _ in 0..<100 where mails.readingAside { try await Task.sleep(for: .milliseconds(20)) }
+        try await capture("mails-corbeille")
+        mails.selecting = true
+        mails.selected = [MailThreadRow.key(account: "moi@exemple.fr", threadID: "corbeille-copie")]
+        try await capture("mails-corbeille-selection")
+        mails.endSelection()
+        router.mailSelection = MailThreadRow.key(account: "moi@exemple.fr", threadID: "corbeille-copie")
+        try await capture("mails-corbeille-fil")
+        try await capture("mails-corbeille-fil-sombre", dark: true)
+        router.mailSelection = nil
+        mails.folder = .spam
+        for _ in 0..<100 where mails.readingAside { try await Task.sleep(for: .milliseconds(20)) }
+        try await capture("mails-spam")
+        try await capture("mails-spam-sombre", dark: true)
+        router.mailSelection = MailThreadRow.key(account: "moi@exemple.fr", threadID: "spam-colis")
+        try await capture("mails-spam-fil", wait: .milliseconds(2_500))
+        try await capture("mails-spam-fil-sombre", dark: true, wait: .milliseconds(2_500))
+        router.mailSelection = nil
+        mails.query = "colis"
+        try await capture("mails-spam-recherche")
+        mails.query = ""
         mails.folder = .inbox
         mails.query = "maquette"
         try await capture("mails-recherche")
