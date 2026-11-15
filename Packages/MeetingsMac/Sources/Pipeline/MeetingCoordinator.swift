@@ -17,6 +17,23 @@ public enum AppAlert: Equatable, Sendable {
     case selfTestFailed
     case diskLow(freeGB: Int)
     case trackFailed(String)
+
+    /// What puts the recordings at risk, without its details: one alert of each kind at a time, and the order is
+    /// the risk's, the highest first (« Coup d'œil », 15/11).
+    public enum Kind: Int, CaseIterable, Comparable, Sendable {
+        case tabsUnreadable, selfTestFailed, diskLow, trackFailed
+
+        public static func < (lhs: Kind, rhs: Kind) -> Bool { lhs.rawValue < rhs.rawValue }
+    }
+
+    public var kind: Kind {
+        switch self {
+        case .tabsUnreadable: .tabsUnreadable
+        case .selfTestFailed: .selfTestFailed
+        case .diskLow: .diskLow
+        case .trackFailed: .trackFailed
+        }
+    }
 }
 
 /// What the menu bar shows.
@@ -38,6 +55,17 @@ public protocol MeetingPresenter: AnyObject {
     func update(_ status: RecorderStatus)
     /// The meeting's title changed (the tab's real title arrives after the first reading).
     func retitle(_ title: String)
+    /// The cause of an alert is gone (the tabs read again, a self-test passed, a recording started): the menu bar's
+    /// badge goes with it (« Coup d'œil », 15/11).
+    func resolve(_ alert: AppAlert.Kind)
+    /// The meeting under way changed: its Meet code, nil for a meeting without one or for no meeting. « Jamais pour
+    /// ce lien » needs a code.
+    func meetingLink(_ meetCode: String?)
+}
+
+extension MeetingPresenter {
+    public func resolve(_ alert: AppAlert.Kind) {}
+    public func meetingLink(_ meetCode: String?) {}
 }
 
 public protocol RecorderFactory: Sendable {
@@ -91,7 +119,13 @@ public final class MeetingCoordinator {
     /// The calendar's name for a Meet code at that time, if an event has it (14/11).
     private let eventTitle: (String?, Date) -> String?
 
-    private var current: Current?
+    private var current: Current? {
+        // Only a change of code is told (a meeting with one starts or ends): the row is saved often.
+        didSet {
+            guard current?.row.meetCode != oldValue?.row.meetCode else { return }
+            presenter?.meetingLink(current?.row.meetCode)
+        }
+    }
     /// Dia's tabs became unreadable during a meeting: said at its end, if they still are (13/11).
     private var tabsAlertPending = false
     private var recovering: [MeetingRow] = []
@@ -279,6 +313,7 @@ public final class MeetingCoordinator {
 
         case .alert(.tabsReadableAgain):
             tabsAlertPending = false
+            presenter?.resolve(.tabsUnreadable)
             journal(.info, "Les onglets de Dia se lisent de nouveau.")
 
         case .rememberNever(let code):
@@ -328,6 +363,9 @@ public final class MeetingCoordinator {
             }
         }
         current = meeting
+        // A new recorder: a track that failed before, or a recorder that did not start, no longer threatens anything.
+        // Told before it starts, so that a failure while it starts raises the alert again.
+        presenter?.resolve(.trackFailed)
         await recorder.start()
         checkDisk(at: time)
     }
@@ -390,7 +428,9 @@ public final class MeetingCoordinator {
         guard var meeting = current else { return }
         switch event {
         case .selfTest(let passed):
-            if !passed {
+            if passed {
+                presenter?.resolve(.selfTestFailed)
+            } else {
                 presenter?.show(.selfTestFailed)
                 journal(.alert, "Le son des autres n'est pas capté au début de « \(meeting.row.title) » : vérifie l'autorisation d'enregistrement de l'audio du système.")
             }

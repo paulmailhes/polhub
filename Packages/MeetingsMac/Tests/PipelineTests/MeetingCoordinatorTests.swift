@@ -42,7 +42,10 @@ final class FakeFactory: RecorderFactory, @unchecked Sendable {
 
 @MainActor final class FakePresenter: MeetingPresenter {
     var prompts: [String] = [], hides = 0, toasts: [Toast] = [], alerts: [AppAlert] = [], statuses: [RecorderStatus] = [], retitles: [String] = []
+    var resolved: [AppAlert.Kind] = [], links: [String?] = []
     func retitle(_ title: String) { retitles.append(title) }
+    func resolve(_ alert: AppAlert.Kind) { resolved.append(alert) }
+    func meetingLink(_ meetCode: String?) { links.append(meetCode) }
     func showPrompt(title: String, deadline: Date) { prompts.append(title) }
     func hidePrompt() { hides += 1 }
     func show(_ toast: Toast) { toasts.append(toast) }
@@ -197,6 +200,42 @@ final class FakeFactory: RecorderFactory, @unchecked Sendable {
         #expect(presenter.alerts == [.trackFailed("Le micro a lâché")])
         #expect(try store.journal(limit: 10).contains { $0.kind == .alert })
         #expect(recorder.stops == 0)
+    }
+
+    // « Coup d'œil » (15/11): « Jamais pour ce lien » needs the meeting's code, told as the meeting starts and ends.
+    @Test func theMeetingsLinkIsToldThenForgotten() async throws {
+        let c = coordinator()
+        await at(100, c, .tabs([tab()], complete: true))
+        #expect(presenter.links == ["abc-defg-hij"])
+        clock.t = 102
+        await c.user(.decline)
+        #expect(presenter.links == ["abc-defg-hij", nil])
+        // A meeting started by hand has no code.
+        clock.t = 110
+        await c.user(.recordNow)
+        #expect(presenter.links.count == 2)
+    }
+
+    // « Coup d'œil » (15/11): the badge of the menu bar goes once the cause of the alert is gone.
+    @Test func theCausesOfTheAlertsAreToldWhenTheyAreGone() async throws {
+        let c = coordinator()
+        for t in [100.0, 108, 116] { await at(t, c, .tabsUnavailable("-1712 Dia n'a pas répondu en 3.0 s")) }
+        #expect(presenter.alerts == [.tabsUnreadable])
+        #expect(presenter.resolved.isEmpty)
+        await at(120, c, .tabs([], complete: true))
+        #expect(presenter.resolved == [.tabsUnreadable])
+
+        await at(130, c, holding)
+        await at(131, c, .tabs([tab()], complete: true))
+        // A new recorder: a track failure of before no longer threatens.
+        #expect(presenter.resolved == [.tabsUnreadable, .trackFailed])
+        let recorder = try #require(factory.made.first?.recorder)
+        recorder.continuation.yield(.selfTest(passed: true))
+        await settle()
+        #expect(presenter.resolved == [.tabsUnreadable, .trackFailed, .selfTestFailed])
+        recorder.continuation.yield(.selfTest(passed: false))
+        await settle()
+        #expect(presenter.alerts == [.tabsUnreadable, .selfTestFailed])
     }
 
     // Review Focus 3

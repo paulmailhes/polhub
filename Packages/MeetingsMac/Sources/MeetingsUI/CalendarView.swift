@@ -83,6 +83,17 @@ struct CalendarView: View {
         .onAppear(perform: openAsked)
         .sheet(item: $editor) { request in EventEditor(agenda: agenda, request: request) }
         .onChange(of: router.eventSelection) { _, _ in openAsked() }
+        // « Nouveau rendez-vous », from the toolbar or from « Coup d'œil » (15/11): once the page is on screen.
+        .task(id: router.newEventRequest) { openNewEvent() }
+    }
+
+    /// A new event asked through the router: its editor, if a calendar can take it. The request is used either way:
+    /// it never opens an editor later, when an account is connected.
+    private func openNewEvent() {
+        guard router.newEventRequest != nil else { return }
+        router.newEventRequest = nil
+        guard !agenda.accounts.isEmpty, editor == nil else { return }
+        editor = EditorRequest()
     }
 
     // MARK: - Toolbar
@@ -98,7 +109,7 @@ struct CalendarView: View {
             SyncStatus(agenda: agenda)
         }
         ToolbarItem(placement: .primaryAction) {
-            Button { editor = EditorRequest() } label: { Label("Nouveau rendez-vous", systemImage: "plus") }
+            Button { router.newEvent() } label: { Label("Nouveau rendez-vous", systemImage: "plus") }
                 .help("Nouveau rendez-vous (ou double-clic dans la grille)")
                 .disabled(agenda.accounts.isEmpty)
         }

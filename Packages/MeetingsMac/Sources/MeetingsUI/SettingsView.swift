@@ -128,6 +128,7 @@ struct SettingsRow: View {
 struct GeneralSettingsPane: View {
     let startup: StartupControl?
     @AppStorage(Preferences.Key.floatingPages) private var floating = true
+    @AppStorage(Preferences.Key.menuBarMeetMinutes) private var meetMinutes = true
 
     var body: some View {
         Form {
@@ -147,6 +148,11 @@ struct GeneralSettingsPane: View {
                 }
             } footer: {
                 Text("En fenêtre flottante, la liste reste visible derrière ; Échap ou un clic à côté la referme.")
+            }
+            Section {
+                Toggle("Minutes avant un Meet dans la barre des menus", isOn: $meetMinutes)
+            } footer: {
+                Text("Dans le quart d'heure qui précède un rendez-vous avec un lien Meet, « 8 min » s'affiche à côté du logo.")
             }
         }
         .formStyle(.grouped)

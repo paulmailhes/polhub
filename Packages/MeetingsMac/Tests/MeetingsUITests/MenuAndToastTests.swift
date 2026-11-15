@@ -16,12 +16,65 @@ import Testing
 
     @Test func theMenuBarShowsARedClockWhileRecording() {
         let now = Date(timeIntervalSince1970: 10_000)
-        #expect(MenuBarLabel.make(status: .recording(title: "Point", since: now.addingTimeInterval(-754)), attention: false, now: now)
-            == MenuBarLabel(symbol: "record.circle.fill", text: "12:34"))
-        // 14/11: at rest, the app's own columns, in outline.
-        #expect(MenuBarLabel.make(status: .idle, attention: false, now: now) == MenuBarLabel(symbol: MenuBarLabel.appGlyph, text: nil))
-        #expect(MenuBarLabel.make(status: .idle, attention: true, now: now) == MenuBarLabel(symbol: "exclamationmark.triangle", text: nil))
-        #expect(MenuBarLabel.make(status: .paused(until: now), attention: false, now: now) == MenuBarLabel(symbol: "pause.circle", text: nil))
+        let recording = RecorderStatus.recording(title: "Point", since: now.addingTimeInterval(-754))
+        #expect(MenuBarLabel.make(status: recording, now: now) == MenuBarLabel(icon: .recording, text: "12:34"))
+        // Nothing else shows over a recording: neither the badge nor the minutes before a Meet.
+        #expect(MenuBarLabel.make(status: recording, now: now, minutesToMeet: 8, danger: true) == MenuBarLabel(icon: .recording, text: "12:34"))
+    }
+
+    // « Coup d'œil » (15/11): filled, Polhub watches for meetings; in outline, it does not.
+    @Test func atRestTheColumnsAreFilled() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        #expect(MenuBarLabel.make(status: .idle, now: now) == MenuBarLabel(icon: .columns(.filled, badge: false), text: nil))
+        #expect(MenuBarLabel.make(status: .idle, now: now, minutesToMeet: 8) == MenuBarLabel(icon: .columns(.filled, badge: false), text: "8 min"))
+    }
+
+    @Test func detectionPausedOrTheDevelopmentBuildShowTheColumnsInOutline() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        let outline = MenuBarLabel(icon: .columns(.outline, badge: false), text: nil)
+        #expect(MenuBarLabel.make(status: .paused(until: now.addingTimeInterval(600)), now: now, minutesToMeet: 8) == outline)
+        #expect(MenuBarLabel.make(status: .idle, now: now, minutesToMeet: 8, isDevelopment: true) == outline)
+        // Before launch ends, detection is not on yet.
+        #expect(MenuBarLabel.make(status: .idle, now: now, watching: false) == outline)
+    }
+
+    @Test func aDetectedMeetingCountsDownAsThePopUpDoes() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        let prompting = RecorderStatus.prompting(title: "Point")
+        #expect(MenuBarLabel.make(status: prompting, now: now, promptDeadline: now.addingTimeInterval(6.2))
+            == MenuBarLabel(icon: .listening, text: "7 s"))
+        #expect(MenuBarLabel.make(status: prompting, now: now, promptDeadline: now.addingTimeInterval(-1)) == MenuBarLabel(icon: .listening, text: "0 s"))
+        #expect(MenuBarLabel.make(status: prompting, now: now) == MenuBarLabel(icon: .listening, text: nil))
+        // The same number as the HUD: rounded up.
+        #expect(HUDText.remaining(until: now.addingTimeInterval(6.2), now: now) == 7)
+        // Over the minutes before a Meet and over the badge.
+        #expect(MenuBarLabel.make(status: prompting, now: now, promptDeadline: now.addingTimeInterval(9), minutesToMeet: 3, danger: true)
+            == MenuBarLabel(icon: .listening, text: "9 s"))
+        #expect(MenuBarLabel.make(status: .presumedEnded(title: "Point"), now: now, minutesToMeet: 3) == MenuBarLabel(icon: .listening, text: "fin ?"))
+    }
+
+    @Test func aRecordingAtRiskAddsTheBadgeToTheColumns() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        #expect(MenuBarLabel.make(status: .idle, now: now, minutesToMeet: 8, danger: true) == MenuBarLabel(icon: .columns(.filled, badge: true), text: "8 min"))
+        #expect(MenuBarLabel.make(status: .paused(until: now), now: now, danger: true) == MenuBarLabel(icon: .columns(.outline, badge: true), text: nil))
+        #expect(MenuBarLabel.make(status: .idle, now: now, danger: true, isDevelopment: true) == MenuBarLabel(icon: .columns(.outline, badge: true), text: nil))
+    }
+
+    @Test func theMinutesShowInTheQuarterOfAnHourBeforeAMeet() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        #expect(MenuBarLabel.minutes(before: now.addingTimeInterval(7 * 60 + 10), now: now) == 8)
+        #expect(MenuBarLabel.minutes(before: now.addingTimeInterval(15 * 60), now: now) == 15)
+        #expect(MenuBarLabel.minutes(before: now.addingTimeInterval(15 * 60 + 1), now: now) == nil)
+        #expect(MenuBarLabel.minutes(before: now.addingTimeInterval(20), now: now) == 1)
+        #expect(MenuBarLabel.minutes(before: now, now: now) == nil)
+        #expect(MenuBarLabel.minutes(before: nil, now: now) == nil)
+    }
+
+    @Test func theImagesAreTemplatesExceptTheRecordingsRed() {
+        _ = NSApplication.shared
+        #expect(MenuBarLabel(icon: .recording, text: nil).image.isTemplate == false)
+        #expect(MenuBarLabel(icon: .listening, text: nil).image.isTemplate)
+        #expect(MenuBarLabel(icon: .columns(.filled, badge: true), text: nil).image.isTemplate)
     }
 
     @Test func aToastWaitsForThePromptToClose() {
@@ -62,17 +115,61 @@ import Testing
     }
 }
 
-/// The menu bar's own icon: the three columns of Polhub's icon, in outline (Paul, 14/11).
+/// The menu bar's own icon: the three columns of Polhub's icon (Paul, 14/11), filled at rest, in outline when Polhub
+/// does not watch, with a cut-out badge when a recording is at risk (« Coup d'œil », 15/11).
 @MainActor @Suite struct MenuBarGlyphTests {
     @Test func theColumnsAreATemplateImageOfTheMenuBarsHeight() throws {
-        let image = MenuBarGlyph.image()
-        #expect(image.isTemplate)
-        #expect(image.size.height == 16 && image.size.width == 18)
+        for style in [MenuBarGlyph.Style.filled, .outline] {
+            for badge in [false, true] {
+                let image = MenuBarGlyph.image(style: style, badge: badge)
+                #expect(image.isTemplate)
+                #expect(image.size.height == 16 && image.size.width == 18)
+            }
+        }
         let rects = MenuBarGlyph.columns(in: NSRect(x: 0, y: 0, width: 18, height: 16))
         #expect(rects.count == 3)
         // The icon's proportions: the first the tallest, the middle one the shortest.
         #expect(rects[0].height > rects[2].height)
         #expect(rects[2].height > rects[1].height)
         #expect(rects.allSatisfy { $0.minX >= 0 && $0.maxX <= 18 && $0.minY >= 0 && $0.maxY <= 16 })
+    }
+
+    /// The image drawn at 1 point per pixel: the ink at a point, from 0 to 1.
+    private func ink(style: MenuBarGlyph.Style, badge: Bool) throws -> (CGFloat, CGFloat) -> CGFloat {
+        let scale: CGFloat = 4
+        let rep = try #require(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 72, pixelsHigh: 64, bitsPerSample: 8, samplesPerPixel: 4,
+                                                hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        MenuBarGlyph.image(style: style, badge: badge).draw(in: NSRect(x: 0, y: 0, width: 72, height: 64))
+        NSGraphicsContext.restoreGraphicsState()
+        // AppKit's points count from the bottom, the bitmap's rows from the top.
+        return { x, y in rep.colorAt(x: Int(x * scale), y: Int((16 - y) * scale))?.alphaComponent ?? 0 }
+    }
+
+    @Test func filledTheColumnsAreInkedThrough() throws {
+        let column = MenuBarGlyph.columns(in: NSRect(x: 0, y: 0, width: 18, height: 16))[0]
+        let filled = try ink(style: .filled, badge: false)
+        let outline = try ink(style: .outline, badge: false)
+        #expect(filled(column.midX, column.midY) > 0.9)
+        // In outline, the middle of a column is empty and its edge inked.
+        #expect(outline(column.midX, column.midY) < 0.1)
+        #expect(outline(column.minX + 0.6, column.midY) > 0.5)
+        // Rounded at 0.3 of the width: the very corner stays empty.
+        #expect(filled(column.minX + 0.1, column.maxY - 0.1) < 0.5)
+    }
+
+    @Test func theBadgeIsCutOutOfTheColumns() throws {
+        let plain = try ink(style: .filled, badge: false)
+        let badged = try ink(style: .filled, badge: true)
+        let center = MenuBarGlyph.badgeCenter
+        #expect(badged(center.x, center.y) > 0.9)
+        // A ring cut around it, where the third column was inked.
+        let ring = NSPoint(x: center.x, y: center.y - MenuBarGlyph.badgeRadius - MenuBarGlyph.badgeGap / 2)
+        #expect(plain(ring.x, ring.y) > 0.9)
+        #expect(badged(ring.x, ring.y) < 0.2)
+        // The first column is untouched.
+        let first = MenuBarGlyph.columns(in: NSRect(x: 0, y: 0, width: 18, height: 16))[0]
+        #expect(badged(first.midX, first.maxY - 1) > 0.9)
     }
 }

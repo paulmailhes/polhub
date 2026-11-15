@@ -18,7 +18,19 @@ import Notifications
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNotificationCenterDelegate {
-    let model = AppModel()
+    let model = AppModel(isDevelopment: AppFlavor.current == .dev)
+    let router = WindowRouter()
+    /// What « Coup d'œil », the menu bar's panel, reads and does (15/11): the libraries join it once ready.
+    private(set) lazy var coupDoeil = CoupDoeilContext(app: model, router: router, actions: CoupDoeilActions(
+        user: { [weak self] in self?.user($0) },
+        pauseDetection: { [weak self] in self?.pauseDetection() },
+        resumeDetection: { [weak self] in self?.resumeDetection() },
+        setDetection: { [weak self] in self?.setDetection($0) },
+        showMainWindow: { [weak self] in self?.showMainWindow() },
+        showDiagnostic: { [weak self] in self?.showDiagnostic() },
+        perform: { [weak self] in self?.perform($0) },
+        quit: { NSApp.terminate(nil) }
+    ))
     let runner = ProbeRunner()
     private var probeWindow: NSWindow?
     private var mainWindow: NSWindow?
@@ -43,7 +55,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     /// Updates from GitHub, installed on their own when all is quiet.
     private var updates: UpdateService?
     private var updateTimer: Timer?
-    let router = WindowRouter()
+    /// Once a minute while the disk alert is up: enough free space again, it goes (« Coup d'œil », 15/11).
+    private var alertTimer: Timer?
+    private var nextMeetObserver: AnyCancellable?
     private var diagnostic: DiagnosticModel?
     private var externalChanges: ExternalChangeSignal.Listener?
     private var checklistObserver: AnyCancellable?
@@ -206,12 +220,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         tickTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
-                self.model.now = Date()
+                let now = Date()
+                self.model.tick(now: now)
+                // The Meet of « 8 min » started: the next one.
+                if self.model.nextMeetPassed, let agenda = self.agenda { self.model.updateNextMeet(agenda.shown, now: now) }
                 self.presenter?.tick()
                 Task { await self.coordinator?.tick() }
             }
         }
-        refreshRecent()
+        followAlertCauses()
+        // « Coup d'œil » reads what these already hold in memory, from now on.
+        coupDoeil.attach(library: library, agenda: agenda, mails: mails, projects: projects, projectLogos: projectLogos,
+                         notifications: notifications, updates: updates)
+    }
+
+    /// What the menu bar needs besides the coordinator (« Coup d'œil », 15/11): the next Meet, from the events as they
+    /// change; the free space while the disk alert is up (a statfs a minute, never during a quiet disk).
+    private func followAlertCauses() {
+        if let agenda {
+            nextMeetObserver = agenda.$shown.sink { [weak self] events in
+                MainActor.assumeIsolated { self?.model.updateNextMeet(events, now: Date()) }
+            }
+        }
+        let root = paths.root
+        alertTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.model.alerts.contains(where: { $0.kind == .diskLow }) else { return }
+                self.model.checkDisk(availableBytes: DiskGuard.availableBytes(at: root))
+            }
+        }
     }
 
     /// The queue starts what a stop or a crash left, then looks for new meetings every minute and at the end of
@@ -322,14 +359,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         notificationTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
-                let recording: Bool, paused: Bool
-                switch self.model.status {
-                case .prompting, .recording, .presumedEnded: (recording, paused) = (true, false)
-                case .idle: (recording, paused) = (false, false)
-                case .paused: (recording, paused) = (false, true)
-                }
-                // Detection off (the development version, a pause): nothing is « non enregistrée ».
-                Task { await hub.tick(recording: recording, paused: paused || !self.model.detectionOn) }
+                let recording = self.model.meetingUnderWay
+                // Detection off (the development version, a pause): nothing is « non enregistrée ». The coordinator
+                // never says « paused »: the pause is the model's (« Coup d'œil », 15/11).
+                let paused = self.model.isPaused || !self.model.detectionOn
+                Task { await hub.tick(recording: recording, paused: paused) }
             }
         }
     }
@@ -444,21 +478,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         library?.meetingActive = busy
         Task { await transcription?.meetingActivity(busy) }
         Task { await summaries?.meetingActivity(busy) }
-        switch status {
-        case .prompting, .recording:
-            model.tabMeeting = true
-        case .idle, .presumedEnded, .paused:
-            model.tabMeeting = false
-        }
         if status == .idle {
-            refreshRecent()
             // The meeting that ended gets its event's project, title and guests now, not at the next sync.
             Task { await agenda?.runLinks() }
         }
-    }
-
-    func refreshRecent() {
-        model.recent = (try? store?.recent(limit: 3)) ?? []
     }
 
     // MARK: - Windows
@@ -527,9 +550,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         )
         diagnostic = model
         let defaults = UserDefaults.standard
-        checklistObserver = model.$states.sink { [weak model] _ in
+        checklistObserver = model.$states.sink { [weak model, weak self] states in
             Task { @MainActor in
                 if model?.allGood == true { defaults.set(true, forKey: Self.checklistDoneKey) }
+                // The others' sound is captured again (Paul ran the check): the self-test's alert goes.
+                if states[.systemAudio] == .ok { self?.model.resolve(.selfTestFailed) }
             }
         }
 

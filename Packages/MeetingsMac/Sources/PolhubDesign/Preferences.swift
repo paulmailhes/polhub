@@ -125,6 +125,8 @@ public struct Preferences: @unchecked Sendable {
         public static let mailSidebarOpen = "mails.barreOuverte"
         /// Réglages › Général (14/11): a mail or a project opens over its list, or in place of it.
         public static let floatingPages = "general.fenetreFlottante"
+        /// Réglages › Général (15/11): « 8 min » beside the logo in the quarter of an hour before a Meet.
+        public static let menuBarMeetMinutes = "general.minutesAvantUnMeet"
     }
 
     public enum Default {
@@ -173,6 +175,8 @@ public struct Preferences: @unchecked Sendable {
         return Default.mailUndoChoices.contains(value) ? value : 10
     }
     public var mailAfterGesture: MailAfterGesture { MailAfterGesture(rawValue: defaults.string(forKey: Key.mailAfterGesture) ?? "") ?? .suivant }
+    /// The minutes before a Meet in the menu bar (Paul, 15/11: on by default).
+    public var menuBarMeetMinutes: Bool { flag(Key.menuBarMeetMinutes) }
 
     private func flag(_ key: String) -> Bool { (defaults.object(forKey: key) as? Bool) ?? true }
 

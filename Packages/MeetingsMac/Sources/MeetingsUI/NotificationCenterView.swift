@@ -71,16 +71,21 @@ public struct NotificationBell: View {
     let perform: (NoticeAction) -> Void
     /// The panel opens on its own once the bell is on screen (the captures).
     let opensAlone: Bool
+    /// Asked from outside (`WindowRouter.openNotifications()`): the panel opens once the bell is on screen, and the
+    /// request is cleared.
+    let request: Binding<Bool>?
     @State private var open = false
 
     public init(inbox: NotificationInbox, arrowEdge: Edge = .top, perform: @escaping (NoticeAction) -> Void) {
         self.init(inbox: inbox, arrowEdge: arrowEdge, opensAlone: false, perform: perform)
     }
 
-    init(inbox: NotificationInbox, arrowEdge: Edge, opensAlone: Bool, perform: @escaping (NoticeAction) -> Void) {
+    init(inbox: NotificationInbox, arrowEdge: Edge, opensAlone: Bool = false, request: Binding<Bool>? = nil,
+         perform: @escaping (NoticeAction) -> Void) {
         self.inbox = inbox
         self.arrowEdge = arrowEdge
         self.opensAlone = opensAlone
+        self.request = request
         self.perform = perform
     }
 
@@ -129,10 +134,13 @@ public struct NotificationBell: View {
                 perform(action)
             }
         }
-        .task {
-            guard opensAlone else { return }
+        .task(id: request?.wrappedValue ?? false) {
+            let asked = request?.wrappedValue == true
+            guard opensAlone || asked else { return }
+            // A popover needs its window on screen: the window may be opening.
             try? await Task.sleep(for: .milliseconds(400))
             open = true
+            if asked { request?.wrappedValue = false }
         }
     }
 }

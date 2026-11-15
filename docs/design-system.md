@@ -162,6 +162,24 @@ rien** : il change un fond, une ombre, une échelle, jamais une marge ni la plac
   soutenu au survol, un peu plus petit à l'appui.
 - Le mouvement respecte « Réduire les animations » : sans échelle, les fondus restent.
 
+## Le logo de la barre des menus
+
+Une image monochrome de 18 × 16 que la barre colore seule (`MenuBarGlyph`, `MenuBarLabel`, module `MeetingsUI`).
+Une seule règle : **plein**, Polhub guette les réunions ; **en contour**, il ne les guette pas ; **rouge**, il
+enregistre des voix. Rien n'y bouge : l'image change seulement avec l'état.
+
+| État, du plus au moins prioritaire | Logo |
+|---|---|
+| Enregistrement | rond rouge plein et l'horloge « 12:47 » |
+| Réunion détectée (les 10 s) | rond en contour et « 7 s », le même décompte que le HUD (`AppModel.promptDeadline`) |
+| Fin présumée | rond en contour et « fin ? » |
+| Détection suspendue, version de développement | les trois colonnes en contour |
+| Repos | les trois colonnes pleines ; « 8 min » à côté dans le quart d'heure avant un Meet (Réglages › Général) |
+
+Une pastille découpée en haut à droite s'ajoute aux colonnes quand un enregistrement est menacé (onglets de Dia
+illisibles, autotest raté, disque presque plein, piste en échec) ; elle disparaît seule quand la cause n'existe
+plus. Les mails, les notifications, les comptes et les mises à jour ne touchent jamais le logo.
+
 ## Les réglages
 
 - Chaque fonction range ses réglages dans **Réglages**, dans sa famille (Calendrier, Projets, Réunions…),

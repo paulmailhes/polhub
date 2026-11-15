@@ -120,7 +120,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
 
     var subtitle: String {
         switch self {
-        case .general: "Ouverture à la session"
+        case .general: "Ouverture à la session, barre des menus"
         case .notifications: "Rappels de rendez-vous, nouveaux rendez-vous, comptes rendus"
         case .accounts: "Comptes, couleurs, accès à l'agenda et aux mails"
         case .calendar: "Nouveaux rendez-vous, affichage"
@@ -158,15 +158,58 @@ public final class WindowRouter: ObservableObject {
     @Published public var projectSelection: UUID?
     /// The thread open in Mails (`account|threadID`); `nil` for the list (14/11).
     @Published public var mailSelection: String?
+    /// A new event asked for (« Coup d'œil », Calendrier's « + »): Calendrier opens its editor, then clears it. A new
+    /// value per request, so that two requests in a row open two editors.
+    @Published public var newEventRequest: UUID?
+    /// The notifications' panel asked for: the sidebar's bell opens it once on screen, then clears it.
+    @Published public var notificationsRequested = false
 
     public init() {}
+
+    /// A place of the window, for what opens it from outside (« Coup d'œil », the notifications).
+    public enum Place: Equatable, Sendable {
+        case section(SidebarItem)
+        case meeting(UUID)
+        case event(String)
+        /// A thread (`account|threadID`), or nil for the inbox's list.
+        case mail(String?)
+        /// A family of Réglages, or nil for the list of families.
+        case settings(SettingsPane?)
+        /// The notifications' panel, under the sidebar's bell.
+        case notifications
+        /// Calendrier, with the editor of a new event open.
+        case newEvent
+    }
+
+    /// Goes there; the app then shows the window.
+    public func go(to place: Place) {
+        switch place {
+        case .section(let item): section = item
+        case .meeting(let id): open(meetingID: id, at: nil)
+        case .event(let id): openEvent(id)
+        case .mail(let key): openMail(key)
+        case .settings(let pane): openSettings(pane)
+        case .notifications: openNotifications()
+        case .newEvent: newEvent()
+        }
+    }
+
+    /// Calendrier, its editor open on a new event.
+    public func newEvent() {
+        section = .calendar
+        newEventRequest = UUID()
+    }
+
+    /// The notifications' panel, under the sidebar's bell (the page shown stays).
+    public func openNotifications() {
+        notificationsRequested = true
+    }
 
     public func openContact(_ id: UUID) {
         section = .contacts
         contactSelection = id
     }
 
-    /// The menu's « Diagnostic… », the first launch and the alerts.
     public func openProject(_ id: UUID) {
         section = .projects
         projectSelection = id
@@ -182,6 +225,7 @@ public final class WindowRouter: ObservableObject {
         mailSelection = threadKey
     }
 
+    /// The menu's « Diagnostic… », the first launch and the alerts.
     public func openDiagnostic() {
         openSettings(.diagnostic)
     }

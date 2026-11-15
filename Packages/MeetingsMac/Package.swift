@@ -99,6 +99,7 @@ let package = Package(
         .target(name: "MeetingDetection", dependencies: ["AudioCapture", .product(name: "Domain", package: "Kernel"), .product(name: "Observability", package: "Kernel")]),
         .target(name: "MeetingsUI", dependencies: [
             "Recording",
+            "MeetingDetection",
             "Pipeline",
             "Transcription",
             "ProjectsUI",

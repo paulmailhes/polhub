@@ -75,6 +75,11 @@ public struct ToastCoalescer: Sendable {
 public enum HUDText {
     public static func promptTitle(_ title: String) -> String { "Google Meet · \(title)" }
     public static func countdown(_ seconds: Int) -> String { "Enregistrement dans \(max(0, seconds)) s" }
+    /// The seconds left before the detected meeting records by itself, rounded up as the pop-up counts them: the
+    /// pop-up, the menu bar and « Coup d'œil » show the same number.
+    public static func remaining(until deadline: Date, now: Date) -> Int {
+        max(0, Int(deadline.timeIntervalSince(now).rounded(.up)))
+    }
 
     public static func toast(_ toast: Toast) -> (title: String, subtitle: String) {
         switch toast {

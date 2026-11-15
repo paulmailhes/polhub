@@ -68,7 +68,9 @@ struct Sidebar: View {
             }
             SidebarFooter(router: router, indent: mails != nil ? SidebarFooterMetrics.outlineIndent : 0) {
                 if let inbox {
-                    NotificationBell(inbox: inbox) { router.perform($0, agenda: agenda, mails: mails) }
+                    NotificationBell(inbox: inbox, arrowEdge: .top, request: $router.notificationsRequested) {
+                        router.perform($0, agenda: agenda, mails: mails)
+                    }
                 }
             }
         }

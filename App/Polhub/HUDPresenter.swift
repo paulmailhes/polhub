@@ -40,9 +40,18 @@ final class HUDPresenter: MeetingPresenter {
     }
 
     func show(_ alert: AppAlert) {
-        model.attention = true
+        // Kept until its cause is gone (`resolve`), not until its pop-up is closed (« Coup d'œil », 15/11).
+        model.raise(alert)
         let text = HUDText.alert(alert)
         display(queue.enqueue(.alert(title: text.title, message: text.message, action: text.action)))
+    }
+
+    func resolve(_ alert: AppAlert.Kind) {
+        model.resolve(alert)
+    }
+
+    func meetingLink(_ meetCode: String?) {
+        model.setMeetCode(meetCode)
     }
 
     func retitle(_ title: String) {
@@ -64,6 +73,7 @@ final class HUDPresenter: MeetingPresenter {
     }
 
     private func display(_ content: HUDContent?) {
+        defer { showsPrompt() }
         guard let content else { return }
         switch content {
         case .prompt(let title, let deadline):
@@ -78,11 +88,19 @@ final class HUDPresenter: MeetingPresenter {
             panel.showAlert(
                 title: title, message: message, action: action,
                 onAction: { [weak self] in self?.app?.showDiagnostic() },
-                onClose: { [weak self] in
-                    self?.model.attention = false
-                    self?.closed()
-                }
+                onClose: { [weak self] in self?.closed() }
             )
+        }
+    }
+
+    /// The deadline of the prompt the HUD shows, the one source of the countdown for the menu bar and « Coup d'œil »:
+    /// set while the prompt is on screen, cleared as it closes, however it closes (a click on the HUD or in the panel,
+    /// the deadline, the tab closed).
+    private func showsPrompt() {
+        if case .prompt(_, let deadline) = queue.showing {
+            model.setPromptDeadline(deadline)
+        } else {
+            model.setPromptDeadline(nil)
         }
     }
 
