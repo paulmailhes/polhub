@@ -3,7 +3,7 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
-## 0.17.0 — 16 novembre 2026
+## 0.17.0 — 15 novembre 2026
 
 **Projets, mails, contacts, réunions : une grande passe d'interface.**
 
