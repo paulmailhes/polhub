@@ -20,6 +20,8 @@ public struct ProjectsSettingsPane: View {
             }
             Section {
                 Toggle("Logos des sites des clients", isOn: $logosOnline)
+                    // Off: the sites still waiting are not asked (correctifs, 15/11).
+                    .onChange(of: logosOnline) { _, on in if !on { logos?.cancelPending() } }
                 if let logos {
                     Button("Rafraîchir les logos") { logos.refreshAll() }
                         .disabled(!logosOnline)

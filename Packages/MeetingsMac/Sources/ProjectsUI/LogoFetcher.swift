@@ -146,6 +146,21 @@ public enum LogoImage {
         png(from: data, minimumSide: 1)
     }
 
+    /// The largest image file Paul may drop.
+    public static let maxFileBytes = 20 * 1_048_576
+
+    /// An image file Paul dropped or chose: read only when it is a file, an image, of 20 MB at most (correctifs,
+    /// 15/11). Slow for a large file: never on the main thread.
+    public static func png(fromFileAt url: URL) -> Data? {
+        guard url.isFileURL else { return nil }
+        let readable = url.startAccessingSecurityScopedResource()
+        defer { if readable { url.stopAccessingSecurityScopedResource() } }
+        guard let values = try? url.resourceValues(forKeys: [.fileSizeKey, .contentTypeKey]),
+              let size = values.fileSize, size <= maxFileBytes, values.contentType?.conforms(to: .image) == true,
+              let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return nil }
+        return png(fromFile: data)
+    }
+
     static func png(from data: Data, minimumSide: Int, maxSide: Int = 256) -> Data? {
         guard let source = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary) else { return nil }
         let count = CGImageSourceGetCount(source)

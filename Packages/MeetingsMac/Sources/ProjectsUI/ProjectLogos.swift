@@ -55,6 +55,8 @@ public final class ProjectLogos: ObservableObject {
     @Published public private(set) var guesses: [UUID: String] = [:]
     /// Bumped when a logo is written or removed: the views draw again.
     @Published public private(set) var revision = 0
+    /// Bumped by « Rafraîchir les logos »: the logos on display ask their site again.
+    @Published public private(set) var refreshes = 0
 
     public let folder: URL
     private let fetcher: any LogoFetching
@@ -136,11 +138,15 @@ public final class ProjectLogos: ObservableObject {
     /// Paul's image, else the site's icon when the logos are on.
     public func image(for project: ProjectRow, online: Bool) -> NSImage? {
         if hasOwnImage(project.id), let own = loaded(Self.fileName(project: project.id)) { return own }
-        guard online, let site = site(for: project.id) else { return nil }
-        return loaded(Self.fileName(domain: site.domain))
+        guard online, let site = site(for: project.id), let name = Self.fileName(domain: site.domain) else { return nil }
+        return loaded(name)
     }
 
-    static func fileName(domain: String) -> String { "\(domain).png" }
+    /// `exemple.fr.png`; nothing for a typed site that is not a site's name, which never becomes a path
+    /// (correctifs, 15/11).
+    static func fileName(domain: String) -> String? {
+        ProjectSites.isFetchable(domain) ? "\(domain).png" : nil
+    }
     static func fileName(project: UUID) -> String { "\(project.uuidString.lowercased()).png" }
 
     private func loaded(_ name: String) -> NSImage? {
@@ -156,15 +162,28 @@ public final class ProjectLogos: ObservableObject {
     /// A logo shows: its site is asked, if it may be (logos on, not Terminé, not asked lately).
     public func request(_ project: ProjectRow) {
         guard Preferences(defaults: defaults).projectLogos, project.status != .termine, !hasOwnImage(project.id),
-              let site = site(for: project.id), LogoAttempt.allowsAnother(after: attempts[site.domain], now: now()),
+              let site = site(for: project.id), ProjectSites.isFetchable(site.domain),
+              LogoAttempt.allowsAnother(after: attempts[site.domain], now: now()),
               !waiting.contains(site.domain) else { return }
         waiting.append(site.domain)
         pump()
     }
 
-    /// One site at a time.
+    /// « Logos des sites des clients » turned off: the sites still waiting are not asked (correctifs, 15/11).
+    public func cancelPending() {
+        // The site being asked stays first: its answer takes it off.
+        let asked = fetching ? waiting.first : nil
+        waiting = asked.map { [$0] } ?? []
+    }
+
+    /// One site at a time; none once the logos are off.
     private func pump() {
-        guard !fetching, let domain = waiting.first else { return }
+        guard !fetching else { return }
+        guard Preferences(defaults: defaults).projectLogos else {
+            waiting = []
+            return
+        }
+        guard let domain = waiting.first else { return }
         fetching = true
         let fetcher = fetcher
         Task {
@@ -173,8 +192,9 @@ public final class ProjectLogos: ObservableObject {
         }
     }
 
+    /// A failure leaves the icon already there: it stays until a new one is written.
     private func received(_ png: Data?, for domain: String) {
-        let ok = png.flatMap { try? write($0, name: Self.fileName(domain: domain)) } != nil
+        let ok = png.flatMap { png in Self.fileName(domain: domain).flatMap { try? write(png, name: $0) } } != nil
         attempts[domain] = LogoAttempt(at: now(), ok: ok)
         Self.write(attempts, to: folder.appending(path: Self.attemptsFile))
         waiting.removeAll { $0 == domain }
@@ -199,10 +219,12 @@ public final class ProjectLogos: ObservableObject {
 
     // MARK: - Paul's choices
 
-    /// The site Paul typed; empty, the project has none.
+    /// The site Paul typed; empty, the project has none. The site shown, saved as it is (« Changer », then Entrée),
+    /// changes nothing: a guess stays a guess (correctifs, 15/11).
     public func setSite(_ text: String, for id: UUID) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let domain = trimmed.isEmpty ? nil : ProjectSites.domain(trimmed) ?? trimmed.lowercased()
+        guard domain != site(for: id)?.domain else { return }
         entries[id] = SiteEntry(site: domain, source: hasOwnImage(id) ? .image : .chosen)
         saveEntries()
         revision += 1
@@ -219,18 +241,24 @@ public final class ProjectLogos: ObservableObject {
         revision += 1
     }
 
-    /// An image Paul chose, copied into `Logos/`: it wins over the site's icon.
+    /// An image file Paul chose, copied into `Logos/`: it wins over the site's icon. Read away from the main thread,
+    /// and only an image file of 20 MB at most: a web address dragged from a browser is refused (correctifs, 15/11).
     @discardableResult
-    public func setImage(from url: URL, for id: UUID) -> Bool {
-        let readable = url.startAccessingSecurityScopedResource()
-        defer { if readable { url.stopAccessingSecurityScopedResource() } }
-        guard let data = try? Data(contentsOf: url), data.count <= 20 * 1_048_576 else { return false }
-        return setImage(data: data, for: id)
+    public func setImage(from url: URL, for id: UUID) async -> Bool {
+        guard url.isFileURL else { return false }
+        let png = await Task.detached(priority: .userInitiated) { LogoImage.png(fromFileAt: url) }.value
+        guard let png else { return false }
+        return keep(png, for: id)
     }
 
     @discardableResult
     public func setImage(data: Data, for id: UUID) -> Bool {
-        guard let png = LogoImage.png(fromFile: data), (try? write(png, name: Self.fileName(project: id))) != nil else { return false }
+        guard let png = LogoImage.png(fromFile: data) else { return false }
+        return keep(png, for: id)
+    }
+
+    private func keep(_ png: Data, for id: UUID) -> Bool {
+        guard (try? write(png, name: Self.fileName(project: id))) != nil else { return false }
         let typed = entries[id].flatMap { $0.source == .guessed ? nil : $0.site }
         entries[id] = SiteEntry(site: typed, source: .image)
         saveEntries()
@@ -250,26 +278,22 @@ public final class ProjectLogos: ObservableObject {
         revision += 1
     }
 
-    /// « Rafraîchir les logos »: the sites' icons go, and are asked again as they show. Paul's images stay.
+    /// « Rafraîchir les logos »: the sites are asked again, those on display at once, the others as they show. The
+    /// icons stay until new ones are written: offline, or a site down, nothing goes back to initials (correctifs,
+    /// 15/11). Paul's images stay.
     public func refreshAll() {
-        let manager = FileManager.default
-        for domain in attempts.keys {
-            try? manager.removeItem(at: folder.appending(path: Self.fileName(domain: domain)))
-        }
         attempts = [:]
-        try? manager.removeItem(at: folder.appending(path: Self.attemptsFile))
+        try? FileManager.default.removeItem(at: folder.appending(path: Self.attemptsFile))
         images = [:]
+        refreshes += 1
         revision += 1
     }
 
-    /// « Rafraîchir le logo » of one project.
+    /// « Rafraîchir le logo » of one project: its site is asked again; its icon stays until a new one comes.
     public func refresh(_ project: ProjectRow) {
-        guard let site = site(for: project.id) else { return }
-        try? FileManager.default.removeItem(at: folder.appending(path: Self.fileName(domain: site.domain)))
-        images[Self.fileName(domain: site.domain)] = nil
+        guard let site = site(for: project.id), ProjectSites.isFetchable(site.domain) else { return }
         attempts[site.domain] = nil
         Self.write(attempts, to: folder.appending(path: Self.attemptsFile))
-        revision += 1
         request(project)
     }
 
@@ -347,7 +371,10 @@ struct LiveProjectLogo: View {
             }
         }
         .onAppear { logos.request(project) }
-        .onChange(of: online) { _, on in if on { logos.request(project) } }
+        .onChange(of: logos.refreshes) { logos.request(project) }
+        .onChange(of: online) { _, on in
+            if on { logos.request(project) } else { logos.cancelPending() }
+        }
     }
 }
 

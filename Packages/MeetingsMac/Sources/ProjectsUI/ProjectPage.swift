@@ -452,12 +452,14 @@ struct ProjectLogoEditor: View {
             shape.strokeBorder(Color.accentColor, lineWidth: 2).opacity(targeted ? 1 : 0)
         }
         .animation(Motion.quick, value: targeted)
+        // A file only, read away from the main thread: a web address from a browser is refused (correctifs, 15/11).
         .dropDestination(for: URL.self) { urls, _ in
-            guard let url = urls.first else { return false }
-            return logos.setImage(from: url, for: project.id)
+            guard let url = urls.first, url.isFileURL else { return false }
+            Task { await logos.setImage(from: url, for: project.id) }
+            return true
         } isTargeted: { targeted = $0 }
         .fileImporter(isPresented: $choosing, allowedContentTypes: [.image]) { result in
-            if case .success(let url) = result { logos.setImage(from: url, for: project.id) }
+            if case .success(let url) = result { Task { await logos.setImage(from: url, for: project.id) } }
         }
         .help("Le logo du projet : glisse une image dessus, ou clique pour en choisir une")
     }
@@ -492,7 +494,8 @@ struct SiteField: View {
                         Text("—").foregroundStyle(.secondary)
                     }
                     TextButton(site == nil ? "Ajouter" : "Changer") {
-                        text = site?.guessed == false ? site?.domain ?? "" : ""
+                        // The site shown, guessed or not: Entrée keeps it, erasing it says « no site » (correctifs, 15/11).
+                        text = site?.domain ?? ""
                         editing = true
                         focused = true
                     }

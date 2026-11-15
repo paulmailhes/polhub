@@ -127,14 +127,25 @@ func imageBytes(_ type: UTType, side: Int) throws -> Data {
 /// A site that answers what it is told, and counts the questions.
 actor FakeSites: LogoFetching {
     private(set) var asked: [String] = []
-    let answers: [String: Data]
+    private(set) var answers: [String: Data]
+    /// Called at each question, before the answer.
+    var onAsk: (@Sendable (String) -> Void)?
 
     init(_ answers: [String: Data]) {
         self.answers = answers
     }
 
+    func answer(_ domain: String, with data: Data?) {
+        answers[domain] = data
+    }
+
+    func whenAsked(_ action: @escaping @Sendable (String) -> Void) {
+        onAsk = action
+    }
+
     func logo(for domain: String) async -> Data? {
         asked.append(domain)
+        onAsk?(domain)
         return answers[domain]
     }
 }
@@ -258,7 +269,7 @@ final class TestClock: @unchecked Sendable {
         #expect(again.site(for: id) == ProjectSite(domain: "exemple.fr", guessed: false))
     }
 
-    /// « Rafraîchir les logos »: the sites' icons go and are asked again; Paul's images stay.
+    /// « Rafraîchir les logos »: the sites are asked again; Paul's images stay.
     @Test func refreshingAsksTheSitesAgain() async throws {
         defer { try? FileManager.default.removeItem(at: folder) }
         let icon = try #require(LogoImage.png(fromWeb: try imageBytes(.png, side: 64)))
@@ -271,9 +282,120 @@ final class TestClock: @unchecked Sendable {
         logos.request(shown)
         await logos.settle()
         logos.refreshAll()
-        #expect(logos.image(for: shown, online: true) == nil && logos.image(for: own, online: true) != nil)
+        #expect(logos.image(for: own, online: true) != nil)
         logos.request(shown)
         await logos.settle()
         #expect(await sites.asked.count == 2 && logos.image(for: shown, online: true) != nil)
+    }
+
+    /// Correctifs du 15/11 : rafraîchir hors ligne, ou quand le site du client est en panne, garde l'ancien logo
+    /// au lieu de laisser les initiales un jour entier.
+    @Test func refreshingKeepsTheOldIconUntilANewOneComes() async throws {
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let icon = try #require(LogoImage.png(fromWeb: try imageBytes(.png, side: 64)))
+        let sites = FakeSites(["exemple.fr": icon])
+        let logos = try logos(sites)
+        let project = project()
+        logos.setSite("exemple.fr", for: project.id)
+        logos.request(project)
+        await logos.settle()
+        await sites.answer("exemple.fr", with: nil)
+        logos.refresh(project)
+        await logos.settle()
+        #expect(await sites.asked.count == 2)
+        #expect(logos.image(for: project, online: true) != nil)
+        logos.refreshAll()
+        logos.request(project)
+        await logos.settle()
+        #expect(await sites.asked.count == 3)
+        #expect(logos.image(for: project, online: true) != nil)
+    }
+
+    /// Correctifs du 15/11 : couper « Logos des sites des clients » arrête aussi les sites déjà en attente.
+    @Test func turningTheLogosOffStopsTheSitesAlreadyQueued() async throws {
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let sites = FakeSites([:])
+        let defaults = try #require(UserDefaults(suiteName: "logos-coupes-en-route-\(UUID().uuidString)"))
+        nonisolated(unsafe) let shared = defaults
+        await sites.whenAsked { _ in shared.set(false, forKey: Preferences.Key.projectLogos) }
+        let logos = try logos(sites, defaults: defaults)
+        let first = project(), second = project()
+        logos.setSite("exemple.fr", for: first.id)
+        logos.setSite("exemple-studio.fr", for: second.id)
+        logos.request(first)
+        logos.request(second)
+        await logos.settle()
+        #expect(await sites.asked == ["exemple.fr"])
+    }
+
+    /// Correctifs du 15/11 : un site tapé qui n'est pas un nom de site ne devient jamais un nom de fichier, ni une
+    /// question à un site ; « Rafraîchir » n'efface rien hors de `Logos/`.
+    @Test func aTypedSiteThatIsNotADomainIsNeverAFile() async throws {
+        let base = FileManager.default.temporaryDirectory.appending(path: "logos-chemin \(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: base) }
+        let neighbour = base.appending(path: "maquettes", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: neighbour, withIntermediateDirectories: true)
+        let victim = neighbour.appending(path: "logo.png")
+        try imageBytes(.png, side: 64).write(to: victim)
+        let sites = FakeSites([:])
+        let defaults = try #require(UserDefaults(suiteName: "logos-chemin-\(UUID().uuidString)"))
+        let logos = ProjectLogos(folder: base.appending(path: "Logos", directoryHint: .isDirectory), database: nil, fetcher: sites,
+                                 defaults: defaults, now: { [clock] in clock.now })
+        let project = project()
+        logos.setSite("../maquettes/logo", for: project.id)
+        #expect(logos.image(for: project, online: true) == nil)
+        logos.request(project)
+        await logos.settle()
+        logos.refresh(project)
+        await logos.settle()
+        logos.refreshAll()
+        #expect(await sites.asked.isEmpty)
+        #expect(FileManager.default.fileExists(atPath: victim.path(percentEncoded: false)))
+    }
+
+    /// Correctifs du 15/11 : « Changer » sur un site deviné, puis Entrée sans rien changer, garde le site deviné ;
+    /// l'effacer est le seul moyen de dire « pas de site ».
+    @Test func savingTheGuessUnchangedKeepsItAGuess() throws {
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let logos = try logos(FakeSites([:]))
+        let id = UUID()
+        logos.apply(guesses: [id: "atelier-exemple.fr"])
+        logos.setSite(" atelier-exemple.fr ", for: id)
+        #expect(logos.site(for: id) == ProjectSite(domain: "atelier-exemple.fr", guessed: true))
+        #expect(logos.entries[id]?.source == .guessed)
+        // Nothing there and nothing typed: nothing changes either.
+        let other = UUID()
+        logos.setSite("", for: other)
+        #expect(logos.entries[other] == nil)
+        logos.setSite("", for: id)
+        #expect(logos.site(for: id) == nil)
+    }
+
+    /// Correctifs du 15/11 : seul un fichier image, et de 20 Mo au plus, devient le logo ; une adresse web glissée
+    /// depuis un navigateur ou un énorme fichier sont refusés sans être lus.
+    @Test func onlyAnImageFileOfTwentyMegabytesAtMostIsTaken() async throws {
+        let files = FileManager.default.temporaryDirectory.appending(path: "logos-fichiers \(UUID().uuidString)", directoryHint: .isDirectory)
+        defer {
+            try? FileManager.default.removeItem(at: files)
+            try? FileManager.default.removeItem(at: folder)
+        }
+        try FileManager.default.createDirectory(at: files, withIntermediateDirectories: true)
+        let logos = try logos(FakeSites([:]))
+        let id = UUID()
+        #expect(await !logos.setImage(from: try #require(URL(string: "https://exemple.fr/logo.png")), for: id))
+        let text = files.appending(path: "notes.txt")
+        try Data("pas une image".utf8).write(to: text)
+        #expect(await !logos.setImage(from: text, for: id))
+        let huge = files.appending(path: "enorme.png")
+        #expect(FileManager.default.createFile(atPath: huge.path(percentEncoded: false), contents: nil))
+        let handle = try FileHandle(forWritingTo: huge)
+        try handle.truncate(atOffset: UInt64(LogoImage.maxFileBytes + 1))
+        try handle.close()
+        #expect(await !logos.setImage(from: huge, for: id))
+        #expect(!logos.hasOwnImage(id))
+        let image = files.appending(path: "logo.png")
+        try imageBytes(.png, side: 80).write(to: image)
+        #expect(await logos.setImage(from: image, for: id))
+        #expect(logos.hasOwnImage(id))
     }
 }
