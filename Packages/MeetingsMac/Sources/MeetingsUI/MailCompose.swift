@@ -7,18 +7,25 @@ import PolhubDesign
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// « À », « Cc », « Cci »: the people as chips, a field to type more, the contacts that match below it.
+/// « À », « Cc », « Cci »: the people as chips, a field to type more, the people that match below it (15/11:
+/// ranked, ↑ ↓ to move, ↩ or ⇥ to take, Échap to close, as Gmail).
 struct RecipientField: View {
     let label: String
     @Binding var addresses: [MailAddress]
     /// What is typed and not yet a chip: the composer takes it before sending (review of 14/11).
     @Binding var text: String
-    let suggest: (String) -> [MailAddress]
+    /// The people matching what is typed, those already chosen left out.
+    let suggest: (String, Set<String>) -> [PersonSuggestion]
     /// A contact or someone Paul wrote to; any other address shows in full.
     let isKnown: (String) -> Bool
+    /// The project shown on a suggestion's line.
+    var project: (PersonSuggestion) -> ProjectRow? = { _ in nil }
     var trailing: AnyView? = nil
     var onFocus: (Bool) -> Void = { _ in }
     @FocusState private var focused: Bool
+    @State private var highlighted = 0
+    @State private var moved = false
+    @State private var dismissed = false
 
     /// « Camille Martin <camille@exemple.fr> », « camille@exemple.fr », several separated by commas.
     static func parse(_ text: String) -> [MailAddress] {
@@ -39,8 +46,12 @@ struct RecipientField: View {
         text = ""
     }
 
+    private func accept(_ matches: [PersonSuggestion]) {
+        commit(SuggestionChoice.accepted(typed: text, matches: matches, highlighted: highlighted, moved: moved))
+    }
+
     var body: some View {
-        let matches = focused ? suggest(text).filter { match in !addresses.contains { $0.email == match.email } } : []
+        let matches = focused && !dismissed ? suggest(text, Set(addresses.map(\.email))) : []
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: Space.s) {
                 Text(label).foregroundStyle(.secondary).frame(width: 48, alignment: .leading)
@@ -53,11 +64,13 @@ struct RecipientField: View {
                             // A stranger's name never hides its address: « camille@client.exemple » could be anyone's.
                             Text(known ? (address.name ?? address.email) : [address.name, address.email].compactMap { $0 }.joined(separator: " · "))
                                 .lineLimit(1)
-                            Button { addresses.removeAll { $0.email == address.email } } label: { Image(systemName: "xmark").font(.caption2.bold()) }
-                                .buttonStyle(.plain)
-                                .help("Retirer \(address.email)")
+                            Button { addresses.removeAll { $0.email == address.email } } label: {
+                                Image(systemName: "xmark").font(.caption2.bold()).frame(width: 16, height: 16)
+                            }
+                            .buttonStyle(.hover(.circle))
+                            .help("Retirer \(address.email)")
                         }
-                        .padding(.horizontal, Space.s + 2).padding(.vertical, 3)
+                        .padding(.leading, Space.s + 2).padding(.trailing, 4).padding(.vertical, 2)
                         .background(!valid ? Color.red.opacity(0.18) : (known ? Surface.raised : Color.orange.opacity(0.16)), in: Capsule())
                         .foregroundStyle(!valid ? Color.red : (known ? Color.primary : Color.orange))
                         .help(!valid ? "« \(address.email) » n'est pas une adresse valide"
@@ -67,8 +80,14 @@ struct RecipientField: View {
                         .textFieldStyle(.plain)
                         .focused($focused)
                         .frame(minWidth: 160)
-                        .onSubmit { commit(matches.first.flatMap { text.contains("@") ? nil : $0 }) }
-                        .onChange(of: text) { _, typed in if typed.contains(",") || typed.contains(";") { commit() } }
+                        .onSubmit { accept(matches) }
+                        .suggestionKeys(count: matches.count, highlighted: $highlighted, moved: $moved, dismissed: $dismissed) { accept(matches) }
+                        .onChange(of: text) { _, typed in
+                            highlighted = 0
+                            moved = false
+                            dismissed = false
+                            if typed.contains(",") || typed.contains(";") { commit() }
+                        }
                         .onChange(of: focused) { _, on in
                             if !on, !text.isEmpty { commit() }
                             onFocus(on)
@@ -82,26 +101,12 @@ struct RecipientField: View {
                 if let trailing { trailing }
             }
             if !matches.isEmpty {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(matches, id: \.email) { match in
-                        Button { commit(match) } label: {
-                            HStack(spacing: Space.s) {
-                                Avatar(String((match.name ?? match.email).prefix(1)).uppercased(), size: 24, tint: MailText.tint(for: match.email))
-                                Text(match.name ?? match.email)
-                                if match.name != nil { Text(match.email).foregroundStyle(.secondary) }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, Space.s).padding(.vertical, 5)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.vertical, 4)
-                .background(Surface.raised, in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
-                .padding(.leading, 48 + Space.s)
+                PersonSuggestionList(matches: matches, highlighted: $highlighted, project: project) { commit($0.address) }
+                    .padding(.leading, 48 + Space.s)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
+        .animation(Motion.quick, value: matches.isEmpty)
     }
 }
 
@@ -124,6 +129,8 @@ struct ComposeView: View {
     @State private var pendingCc = ""
     @State private var pendingBcc = ""
     @State private var recipientsFocused = false
+    /// The project of the thread a reply answers: its people come first among the suggestions (15/11).
+    @State private var threadProject: UUID?
     @FocusState private var focus: Field?
 
     enum Field { case body, subject }
@@ -211,6 +218,9 @@ struct ComposeView: View {
                 showCc = !draft.cc.isEmpty
                 showBcc = !draft.bcc.isEmpty
                 if draft.mode != .new { focus = .body }
+                if let key = draft.threadKey, let thread = try? mails.store.thread(key) {
+                    threadProject = mails.filing(of: thread)?.filing.projectID
+                }
             }
             .confirmationDialog("Supprimer ce brouillon ?", isPresented: $confirmingDiscard) {
                 Button("Supprimer", role: .destructive) { mails.discard(draftID) }
@@ -243,8 +253,8 @@ struct ComposeView: View {
                 }
                 Spacer()
             }
-            RecipientField(label: "À", addresses: binding(\.to, default: []), text: $pendingTo, suggest: mails.suggestions(for:), isKnown: mails.isKnown,
-                           trailing: AnyView(
+            RecipientField(label: "À", addresses: binding(\.to, default: []), text: $pendingTo, suggest: suggest, isKnown: mails.isKnown,
+                           project: suggestedProject, trailing: AnyView(
                 HStack(spacing: Space.s) {
                     if !showCc { Button("Cc") { showCc = true }.buttonStyle(.borderless) }
                     if !showBcc { Button("Cci") { showBcc = true }.buttonStyle(.borderless) }
@@ -252,12 +262,12 @@ struct ComposeView: View {
                 .font(.meta)
             ), onFocus: { recipientsFocused = $0 })
             if showCc {
-                RecipientField(label: "Cc", addresses: binding(\.cc, default: []), text: $pendingCc, suggest: mails.suggestions(for:), isKnown: mails.isKnown,
-                               onFocus: { recipientsFocused = $0 })
+                RecipientField(label: "Cc", addresses: binding(\.cc, default: []), text: $pendingCc, suggest: suggest, isKnown: mails.isKnown,
+                               project: suggestedProject, onFocus: { recipientsFocused = $0 })
             }
             if showBcc {
-                RecipientField(label: "Cci", addresses: binding(\.bcc, default: []), text: $pendingBcc, suggest: mails.suggestions(for:), isKnown: mails.isKnown,
-                               onFocus: { recipientsFocused = $0 })
+                RecipientField(label: "Cci", addresses: binding(\.bcc, default: []), text: $pendingBcc, suggest: suggest, isKnown: mails.isKnown,
+                               project: suggestedProject, onFocus: { recipientsFocused = $0 })
             }
             HStack(spacing: Space.s) {
                 Text("Objet").foregroundStyle(.secondary).frame(width: 48, alignment: .leading)
@@ -267,6 +277,17 @@ struct ComposeView: View {
             }
         }
         .font(.rowBody)
+    }
+
+    private func suggest(_ text: String, _ chosen: Set<String>) -> [PersonSuggestion] {
+        mails.suggestions(for: text, excluding: chosen, project: threadProject)
+    }
+
+    /// The project shown on a suggestion: the thread's when the person is in it, else their first under way.
+    private func suggestedProject(_ person: PersonSuggestion) -> ProjectRow? {
+        if let id = threadProject, person.projectIDs.contains(id) { return mails.project(id) }
+        return mails.agenda.projects.filter { person.projectIDs.contains($0.id) && $0.status != .termine }
+            .min { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
     private func fromLabel(_ draft: MailDraftRow, choose: Bool) -> some View {

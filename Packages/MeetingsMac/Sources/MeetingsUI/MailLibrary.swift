@@ -136,6 +136,8 @@ public final class MailLibrary: ObservableObject {
     private var undoRestore: (() -> Void)?
     /// The anchor of a ⇧-click.
     private var anchor: String?
+    /// Who Paul may write to, ranked (15/11, People.swift).
+    lazy var people = PeopleDirectory(mails: self)
 
     public init(agenda: AgendaLibrary, root: URL, defaults: UserDefaults = .standard, flavor: AppFlavor = .current) {
         self.agenda = agenda
@@ -180,6 +182,7 @@ public final class MailLibrary: ObservableObject {
                 self?.correspondents = rules.correspondents
             },
         ]
+        agenda.mails = self
     }
 
     /// Starts following the mailboxes that granted the mails, and keeps following as accounts come and go.
@@ -312,7 +315,7 @@ public final class MailLibrary: ObservableObject {
     }
 
     /// An address no one answers: never made a contact.
-    static func isRobot(_ address: String) -> Bool {
+    nonisolated static func isRobot(_ address: String) -> Bool {
         let local = address.split(separator: "@").first.map { $0.lowercased() } ?? ""
         // Anywhere in the name (« compta-noreply », « bounce-123 »), as Gmail's own guess does.
         if ["noreply", "no-reply", "no_reply", "donotreply", "do-not-reply", "do_not_reply", "nepasrepondre", "ne-pas-repondre", "ne_pas_repondre",
@@ -320,7 +323,7 @@ public final class MailLibrary: ObservableObject {
         return ["notification", "notifications", "newsletter", "news"].contains { local == $0 || local.hasPrefix($0 + "+") || local.hasPrefix($0 + ".") }
     }
 
-    private func offerUndo(_ text: String, restore: @escaping () -> Void) {
+    func offerUndo(_ text: String, restore: @escaping () -> Void) {
         undoToken += 1
         let token = undoToken
         undoRestore = restore
@@ -606,23 +609,6 @@ public final class MailLibrary: ObservableObject {
         let keys = Set((found ?? []).map(\.id) + visible(inbox).map(\.id) + (folder == .sent ? sent.map(\.id) : []) + (folder == .all ? all.map(\.id) : []))
         let withFiles = (found ?? []) + inbox + sent + all
         files = (try? store.attachments(threadKeys: withFiles.filter { $0.hasAttachment && keys.contains($0.id) }.map(\.id))) ?? [:]
-    }
-
-    /// Who Paul writes to: his contacts and his correspondents, matching what he types.
-    public func suggestions(for text: String) -> [MailAddress] {
-        let query = text.trimmingCharacters(in: .whitespaces).folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
-        guard query.count >= 2 else { return [] }
-        var seen: Set<String> = [], result: [MailAddress] = []
-        let people = agenda.contacts.compactMap { contact in contact.email.map { MailAddress(name: contact.name, email: $0) } }
-            + inbox.flatMap(\.senders)
-        for person in people where !mine.contains(person.email) && !seen.contains(person.email) {
-            let haystack = "\(person.name ?? "") \(person.email)".folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
-            guard haystack.contains(query) else { continue }
-            seen.insert(person.email)
-            result.append(person)
-            if result.count == 6 { break }
-        }
-        return result
     }
 
     /// A new mail, from the mailbox shown if only one is; otherwise Paul chooses it before it can leave.
