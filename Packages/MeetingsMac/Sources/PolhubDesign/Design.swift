@@ -221,6 +221,7 @@ public struct Chip: View {
     let text: String
     let systemImage: String?
     let tint: Color?
+    @Environment(\.self) private var environment
 
     public init(_ text: String, systemImage: String? = nil, tint: Color? = nil) {
         self.text = text
@@ -236,7 +237,8 @@ public struct Chip: View {
         .font(.tag.weight(.semibold))
         .padding(.horizontal, Space.s)
         .padding(.vertical, 3)
-        .foregroundStyle(tint ?? .secondary)
+        // Its text in a shade of its color that reads (correctifs, 15/11), its fill in the color itself.
+        .foregroundStyle(tint.map { $0.readable(in: environment) } ?? .secondary)
         .background((tint ?? .secondary).opacity(0.14), in: Capsule())
     }
 }

@@ -208,13 +208,15 @@ struct NextEventCard: View {
     let now: Date
     @ObservedObject var agenda: AgendaLibrary
     @ObservedObject var router: WindowRouter
+    @Environment(\.self) private var environment
 
     var body: some View {
         let color = agenda.color(for: event.account)
         HStack(alignment: .center, spacing: Space.l) {
             RoundedRectangle(cornerRadius: 3, style: .continuous).fill(color).frame(width: 6, height: 54)
             VStack(alignment: .leading, spacing: Space.xs) {
-                Text(HomeModel.when(event, now: now).uppercased()).font(.meta.weight(.semibold)).foregroundStyle(color)
+                // In a shade of the account's color that reads (correctifs, 15/11).
+                Text(HomeModel.when(event, now: now).uppercased()).font(.meta.weight(.semibold)).foregroundStyle(color.readable(in: environment))
                 Text(event.title).font(.title2.weight(.semibold)).lineLimit(2)
                 Text([event.startAt.formatted(date: .omitted, time: .shortened) + " – " + event.endAt.formatted(date: .omitted, time: .shortened),
                       AccountStyle.label(for: event.account),
