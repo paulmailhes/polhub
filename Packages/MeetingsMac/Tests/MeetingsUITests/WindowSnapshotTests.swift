@@ -266,6 +266,114 @@ struct WindowSnapshotTests {
                                          to: output.appending(path: "reglages-\(pane.rawValue).png"), size: NSSize(width: 1_000, height: 860))
         }
     }
+    /// Contacts (15/11): the list by last exchange, and a contact's page with its projects, mails, events and
+    /// meetings, in light and dark, narrow and wide. Every person here is made up.
+    @Test func theContactsSection() async throws {
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let root = FileManager.default.temporaryDirectory.appending(path: "contacts \(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let database = try AppDatabase.inMemory()
+        let account = "paul@atelier-nord.exemple"
+        let calendar = CalendarStore(database)
+        try calendar.addAccount(email: account, at: Date())
+        try calendar.setGrantedScopes(email: account, scopes: "openid https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.modify")
+        let projectStore = ProjectStore(database)
+        var projects: [String: ProjectRow] = [:]
+        for (name, color) in [("Site vitrine", "blue"), ("Identité", "purple"), ("Catalogue", "orange"), ("Atelier Nord", "green")] {
+            var project = try projectStore.addProject(name: name, status: .priorite1, at: Date())
+            project.color = color
+            try projectStore.save(project, at: Date())
+            projects[name] = project
+        }
+        let contacts = ContactStore(database)
+        func person(_ name: String, _ email: String, _ company: String?, in names: [String] = []) throws -> ContactRow {
+            let contact = try contacts.upsert(email: email, name: name, company: company, at: Date())
+            for name in names { try contacts.include(contactID: contact.id, projectID: try #require(projects[name]).id, at: Date()) }
+            return contact
+        }
+        var camille = try person("Camille Martin", "camille.martin@exemple-studio.fr", "Exemple Studio", in: ["Site vitrine", "Identité", "Catalogue"])
+        camille.phone = "06 12 34 56 78"
+        camille.notes = "Préfère un appel le matin. Valide les maquettes avec son associé le jeudi."
+        try contacts.save(camille, at: Date())
+        let jules = try person("Jules Durand", "jules@atelier-nord.fr", "Atelier Nord", in: ["Atelier Nord"])
+        let nina = try person("Nina Roche", "nina.roche@exemple-studio.fr", "Exemple Studio", in: ["Site vitrine"])
+        let lou = try person("Lou Bernard", "lou@studio-sud.exemple", "Studio Sud")
+        try person("Marc Petit", "marc.petit@exemple.fr", nil)
+        let sarah = try person("Sarah Lambert", "sarah@maison-lumiere.exemple", "Maison Lumière", in: ["Catalogue"])
+        let hugo = try person("Hugo Moreau", "hugo.moreau@agence-orbe.exemple", "Agence Orbe", in: ["Identité"])
+        try person("Inès Garnier", "ines@garnier-conseil.exemple", nil)
+
+        // The mails: seven threads with Camille (five shown, then « Voir les 2 autres »), one each with Nina and Sarah.
+        let me = MailAddress(name: "Paul", email: account)
+        func mail(_ id: String, days: Double, from: MailAddress, to: [MailAddress], subject: String, snippet: String, unread: Bool = false) -> MailMessageRow {
+            let sent = from.email == account
+            return MailMessageRow(account: account, messageID: id, threadID: "t-\(id)", date: Date().addingTimeInterval(-days * 86_400), sender: from, to: to,
+                                  subject: subject, snippet: snippet,
+                                  labels: sent ? ["SENT"] : ["INBOX", "CATEGORY_PERSONAL"] + (unread ? ["UNREAD"] : []))
+        }
+        let camilleMail = MailAddress(name: "Camille Martin", email: camille.email!)
+        try MailStore(database).apply(account: account, upserts: [
+            mail("1", days: 0.1, from: camilleMail, to: [me], subject: "Maquette v2 du site", snippet: "Voici la deuxième version, avec la page Contact revue.", unread: true),
+            mail("2", days: 1.2, from: me, to: [camilleMail], subject: "Devis signé", snippet: "Merci, je lance la production lundi."),
+            mail("3", days: 4, from: camilleMail, to: [me], subject: "Photos de l'équipe", snippet: "Les photos arrivent jeudi, en haute définition."),
+            mail("4", days: 9, from: camilleMail, to: [me], subject: "Retours sur la typographie", snippet: "On garde la deuxième proposition, un peu plus serrée."),
+            mail("5", days: 15, from: me, to: [camilleMail], subject: "Planning de novembre", snippet: "Je te propose trois créneaux pour la revue."),
+            mail("6", days: 26, from: camilleMail, to: [me], subject: "Accès au serveur", snippet: "Les identifiants sont dans le coffre partagé."),
+            mail("7", days: 40, from: camilleMail, to: [me], subject: "Premier échange", snippet: "Ravie de travailler avec toi sur ce projet."),
+            mail("8", days: 10, from: MailAddress(name: "Nina Roche", email: nina.email!), to: [me], subject: "Textes de l'accueil", snippet: "Voici les textes relus."),
+            mail("9", days: 95, from: me, to: [MailAddress(name: "Sarah Lambert", email: sarah.email!)], subject: "Catalogue 2027", snippet: "Le chemin de fer en pièce jointe."),
+        ])
+
+        // The meetings, each with the first sentence of its summary.
+        let meetingStore = MeetingStore(database)
+        for (index, (title, days, people)) in [("Revue des maquettes", 2.0, [camille.id, jules.id]), ("Cadrage du catalogue", 12, [camille.id]),
+                                                ("Atelier identité", 0.05, [hugo.id]), ("Premier rendez-vous", 38, [camille.id])].enumerated() {
+            let start = Date().addingTimeInterval(-days * 86_400)
+            let meeting = MeetingRow(createdAt: start, status: .ended, source: .dia, candidateKey: "t/\(index)", title: title, startedAt: start,
+                                     endedAt: start.addingTimeInterval(2_700))
+            try meetingStore.save(meeting)
+            try contacts.setParticipants(meetingID: meeting.id, contactIDs: people)
+            if index < 2 {
+                try meetingStore.setSummary(meetingID: meeting.id, summary: "## Résumé\n\nLe client valide la maquette de l'accueil ; la page Contact reste à revoir avant vendredi.")
+            }
+        }
+
+        // The events: one tomorrow, the others past.
+        let guests = { (emails: [String]) in [Attendee(email: account, response: "accepted", isSelf: true)] + emails.map { Attendee(email: $0, response: "accepted") } }
+        let today = Calendar.current.startOfDay(for: Date())
+        func at(_ day: Double, _ hour: Double) -> Date { today.addingTimeInterval(day * 86_400 + hour * 3_600) }
+        try calendar.applyGoogle(account: account, changed: [
+            CalendarEventRow(account: account, eventID: "e1", title: "Atelier maquette", startAt: at(1, 14), endAt: at(1, 15), meetCode: "abc-defg-hij",
+                             attendees: guests([camille.email!, nina.email!]), updatedAt: Date()),
+            CalendarEventRow(account: account, eventID: "e2", title: "Revue des maquettes", startAt: at(-2, 10), endAt: at(-2, 11),
+                             attendees: guests([camille.email!, jules.email!]), updatedAt: Date()),
+            CalendarEventRow(account: account, eventID: "e3", title: "Point hebdo", startAt: at(-7, 9.5), endAt: at(-7, 10), attendees: guests([camille.email!]), updatedAt: Date()),
+            CalendarEventRow(account: account, eventID: "e4", title: "Cadrage du catalogue", startAt: at(-12, 15), endAt: at(-12, 16), attendees: guests([camille.email!]), updatedAt: Date()),
+            CalendarEventRow(account: account, eventID: "e5", title: "Déjeuner Studio Sud", startAt: at(-20, 12.5), endAt: at(-20, 14), attendees: guests([lou.email!]), updatedAt: Date()),
+        ], cancelled: [], at: Date())
+
+        let agenda = AgendaLibrary(database: database)
+        let mails = MailLibrary(agenda: agenda, root: root, defaults: UserDefaults(suiteName: "contacts-\(UUID().uuidString)")!)
+        let library = MeetingLibrary(store: meetingStore)
+        let projectLibrary = ProjectLibrary(store: projectStore, meetings: meetingStore, defaults: UserDefaults(suiteName: "contacts-p-\(UUID().uuidString)")!)
+        let router = WindowRouter()
+        router.section = .contacts
+        router.contactSelection = camille.id
+        try await Task.sleep(for: .milliseconds(600))
+        func window() -> some View {
+            MainWindowView(library: library, projects: projectLibrary, agenda: agenda, mails: mails, router: router, paths: AppPaths(root: root, logs: root)) { EmptyView() }
+        }
+        for dark in [false, true] {
+            try await LiveWindow.capture(window(), to: output.appending(path: dark ? "contacts-page-sombre.png" : "contacts-page.png"),
+                                         size: NSSize(width: 1_280, height: 860), dark: dark, wait: .milliseconds(2_000))
+        }
+        try await LiveWindow.capture(window(), to: output.appending(path: "contacts-large.png"), size: NSSize(width: 1_680, height: 980), wait: .milliseconds(2_000))
+        router.contactSelection = jules.id
+        try await LiveWindow.capture(window(), to: output.appending(path: "contacts-jules.png"),
+                                     size: NSSize(width: MainWindowView<EmptyView>.minimumWidth, height: 780), wait: .milliseconds(2_000))
+    }
+
     /// The event editor (14/11).
     @Test func theEventEditor() async throws {
         let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)

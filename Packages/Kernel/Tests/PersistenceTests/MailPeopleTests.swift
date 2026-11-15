@@ -30,6 +30,33 @@ import Testing
         #expect(rules.correspondents == ["camille@studio.exemple", "jules@exemple.fr"] && rules.correspondentStats == stats)
     }
 
+    /// A contact's page lists the threads the address took part in, and the list says when last: neither the trash,
+    /// nor the spam, nor a draft counts.
+    @Test func aContactsThreadsAndTheLastMailOfEachAddress() throws {
+        let database = try AppDatabase.inMemory()
+        try CalendarStore(database).addAccount(email: account, at: now)
+        let mails = MailStore(database)
+        let camille = MailAddress(name: "Camille Martin", email: "camille_martin@studio.exemple")
+        func received(_ id: String, days: Double, from: MailAddress, labels: [String] = ["INBOX"]) -> MailMessageRow {
+            MailMessageRow(account: account, messageID: id, threadID: "t\(id)", date: now.addingTimeInterval(days * 86_400), sender: from,
+                           to: [MailAddress(name: "Moi", email: account)], subject: "Maquette", snippet: "", labels: labels)
+        }
+        try mails.apply(account: account, upserts: [
+            received("1", days: -5, from: camille),
+            sent("2", days: -2, to: [MailAddress(email: "jules@exemple.fr")], cc: [camille]),
+            received("3", days: -1, from: MailAddress(email: "lou@studio.exemple"), labels: ["TRASH"]),
+            sent("4", days: 0, to: [camille]).with(labels: ["DRAFT"]),
+            // « _ » is a letter of the address, never a wildcard.
+            received("5", days: -3, from: MailAddress(email: "camilleXmartin@studio.exemple")),
+        ])
+        #expect(try mails.threads(with: "Camille_Martin@Studio.exemple").map(\.threadID) == ["t2", "t1"])
+        #expect(try mails.threads(with: "personne@exemple.fr").isEmpty)
+        let last = try mails.lastExchanges()
+        #expect(last["camille_martin@studio.exemple"] == now.addingTimeInterval(-2 * 86_400))
+        #expect(last["jules@exemple.fr"] == now.addingTimeInterval(-2 * 86_400) && last["lou@studio.exemple"] == nil)
+        #expect(try mails.lastExchanges(with: ["Camille_Martin@studio.exemple", "personne@exemple.fr"]) == ["camille_martin@studio.exemple": now.addingTimeInterval(-2 * 86_400)])
+    }
+
     @Test func theRulesKnowWhomPaulTookOutOfAProject() throws {
         let database = try AppDatabase.inMemory()
         try CalendarStore(database).addAccount(email: account, at: now)
@@ -65,5 +92,13 @@ import Testing
         for _ in 0..<100 where box.rows.isEmpty { try await Task.sleep(for: .milliseconds(20)) }
         #expect(box.rows.map(\.contactID) == [lou.id] && box.rows.first?.excluded == false)
         observation.cancel()
+    }
+}
+
+extension MailMessageRow {
+    func with(labels: [String]) -> MailMessageRow {
+        var copy = self
+        copy.labels = labels
+        return copy
     }
 }

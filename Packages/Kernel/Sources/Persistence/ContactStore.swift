@@ -148,6 +148,24 @@ public struct ContactStore: Sendable {
         }
     }
 
+    /// The start of each contact's latest meeting, by contact: the list of the contacts says when Paul last saw
+    /// them (15/11). One reading for all.
+    public func lastMeetings() throws -> [UUID: Date] {
+        let rows = try writer.read { db in
+            try Row.fetchAll(db, sql: """
+                SELECT meeting_participant.contactID AS contactID, MAX(meeting.startedAt) AS last
+                FROM meeting_participant JOIN meeting ON meeting.id = meeting_participant.meetingID
+                WHERE meeting.deletedAt IS NULL GROUP BY meeting_participant.contactID
+                """)
+        }
+        var result: [UUID: Date] = [:]
+        for row in rows {
+            guard let id = (row["contactID"] as String?).flatMap(UUID.init(uuidString:)), let date: Date = row["last"] else { continue }
+            result[id] = date
+        }
+        return result
+    }
+
     /// Calls `onChange` on the main queue with every link, removed ones included, now and after every change
     /// (15/11: who is in an event's or a thread's project shows at once).
     public func observeLinks(onChange: @escaping @MainActor @Sendable ([ContactProjectRow]) -> Void) -> AnyDatabaseCancellable {

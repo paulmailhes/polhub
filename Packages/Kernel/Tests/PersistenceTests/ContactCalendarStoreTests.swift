@@ -45,6 +45,22 @@ import Testing
         #expect(try contacts.participants(meetingID: meeting.id).map(\.name) == ["Camille"])
         #expect(try contacts.meetings(contactID: camille.id).map(\.id) == [meeting.id])
     }
+
+    /// The list of the contacts says when Paul last saw each one: a meeting in the trash does not count.
+    @Test func theLastMeetingOfEachContact() throws {
+        let (contacts, _, meetings) = try stores()
+        let camille = try contacts.upsert(email: "camille@exemple.fr", name: "Camille", company: nil, at: now)
+        let jules = try contacts.upsert(email: "jules@exemple.fr", name: "Jules", company: nil, at: now)
+        try contacts.upsert(email: "lou@exemple.fr", name: "Lou", company: nil, at: now)
+        for (index, days) in [-9.0, -3, -1].enumerated() {
+            var meeting = MeetingRow(createdAt: now, status: .ended, source: .dia, candidateKey: "t/\(index)", title: "Point",
+                                     startedAt: now.addingTimeInterval(days * 86_400))
+            if days == -1 { meeting.deletedAt = now }
+            try meetings.save(meeting)
+            try contacts.setParticipants(meetingID: meeting.id, contactIDs: days == -9 ? [camille.id, jules.id] : [camille.id])
+        }
+        #expect(try contacts.lastMeetings() == [camille.id: now.addingTimeInterval(-3 * 86_400), jules.id: now.addingTimeInterval(-9 * 86_400)])
+    }
 }
 
 @Suite struct CalendarStoreTests {
