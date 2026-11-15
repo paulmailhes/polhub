@@ -1,11 +1,13 @@
+import AppKit
 import Domain
 import Persistence
 import PolhubDesign
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// The page of one project (14/11): who and what, the next step, the actions, the journal and the notes; on
 /// the side its details, contacts, meetings and coming events. Most of it fills itself (meetings, Claude
-/// Code); every field stays editable.
+/// Code); every field stays editable. Every list shows a few rows, then « Voir les N autres » (15/11).
 struct ProjectPage: View {
     let project: ProjectRow
     @ObservedObject var library: ProjectLibrary
@@ -16,17 +18,23 @@ struct ProjectPage: View {
     @State private var actions: [ActionRow] = []
     @State private var journal: [ProjectJournalRow] = []
     @State private var meetings: [MeetingRow] = []
+    /// The first sentence of each meeting's summary.
+    @State private var summaries: [UUID: String] = [:]
     @State private var contacts: [ContactRow] = []
     @State private var events: [CalendarEventRow] = []
     @State private var mails: [MailThreadRow] = []
     @State private var newAction = ""
     @State private var newEntryTitle = ""
     @State private var newEntryBody = ""
+    @State private var addingEntry = false
+    /// The journal entries unfolded to their full text.
+    @State private var openEntries: Set<UUID> = []
     @State private var editingNotes = false
     @State private var showingDone = false
     @State private var choosingFolder = false
     /// Two columns when the page is wide enough: decided from its width, not from its texts' (review of 14/11).
     @State private var wide = true
+    @Environment(\.projectLogos) private var logos
 
     init(project: ProjectRow, library: ProjectLibrary, close: (() -> Void)? = nil) {
         self.project = project
@@ -35,7 +43,9 @@ struct ProjectPage: View {
         _draft = State(initialValue: project)
     }
 
-    private static let locale = Locale(identifier: "fr_FR")
+    static let locale = Locale(identifier: "fr_FR")
+    /// The rows of a side card before « Voir les N autres ».
+    static let sideRows = 5
 
     var body: some View {
         Page {
@@ -79,97 +89,90 @@ struct ProjectPage: View {
 
     // MARK: - Header
 
+    /// The logo (an image dropped on it wins), the name, the status, the due date, the client (15/11).
     private var header: some View {
-        VStack(alignment: .leading, spacing: Space.m) {
-            HStack(alignment: .center, spacing: Space.m) {
-                TextField("", text: optional(\.icon), prompt: Text("◌").foregroundStyle(.tertiary))
-                    .font(.system(size: 34))
-                    .frame(width: 52)
-                    .multilineTextAlignment(.center)
-                    .textFieldStyle(.plain)
-                    .help("L'icône du projet : un emoji")
+        HStack(alignment: .center, spacing: Space.l) {
+            if let logos {
+                ProjectLogoEditor(project: draft, logos: logos)
+            } else {
+                ProjectLogo(draft, size: 48)
+            }
+            VStack(alignment: .leading, spacing: Space.s) {
                 TextField("Nom", text: $draft.name)
                     .font(.largeTitle.weight(.bold))
                     .textFieldStyle(.plain)
-            }
-            HStack(spacing: Space.s) {
-                Menu {
-                    ForEach(ProjectStatus.allCases, id: \.self) { status in
-                        Button(status.title) { draft.status = status }
+                HStack(spacing: Space.s) {
+                    Menu {
+                        ForEach(ProjectStatus.allCases, id: \.self) { status in
+                            Button(status.title) { draft.status = status }
+                        }
+                    } label: {
+                        Chip(draft.status.title, systemImage: "circle.fill", tint: ProjectViews.statusColor(draft.status))
                     }
-                } label: {
-                    Chip(draft.status.title, systemImage: "circle.fill", tint: ProjectViews.statusColor(draft.status))
+                    .menuStyle(.button)
+                    .buttonStyle(.hover(.capsule))
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .help("Changer le statut")
+                    if let label = ProjectViews.dueLabel(draft.dueDate, today: Date()) {
+                        Chip(label, systemImage: "calendar", tint: label.hasPrefix("En retard") ? .red : label == "Aujourd'hui" ? .orange : nil)
+                    }
+                    if let client = draft.client, !client.isEmpty { Chip(client, systemImage: "building.2") }
                 }
-                .menuStyle(.button)
-                .buttonStyle(.plain)
-                .fixedSize()
-                if let label = ProjectViews.dueLabel(draft.dueDate, today: Date()) {
-                    Chip(label, systemImage: "calendar", tint: label.hasPrefix("En retard") ? .red : label == "Aujourd'hui" ? .orange : nil)
-                }
-                if let client = draft.client, !client.isEmpty { Chip(client, systemImage: "building.2") }
             }
         }
+        .padding(.trailing, close == nil ? 0 : 44)
     }
 
     private var nextStep: some View {
         HStack(spacing: Space.m) {
-            Image(systemName: "arrow.forward.circle.fill").font(.title2).foregroundStyle(ProjectViews.statusColor(draft.status))
+            Image(systemName: "arrow.forward.circle.fill").font(.title2).foregroundStyle(ProjectViews.tint(draft))
             TextField("La prochaine chose à faire", text: optional(\.todo), axis: .vertical)
                 .font(.title3)
                 .textFieldStyle(.plain)
         }
         .padding(Space.l)
-        .cardSurface(fill: ProjectViews.statusColor(draft.status).opacity(0.08))
+        .cardSurface(fill: ProjectViews.tint(draft).opacity(0.08))
     }
 
     // MARK: - Main column
 
     private var main: some View {
         VStack(alignment: .leading, spacing: Space.xl) {
-            Card {
-                SectionTitle("Actions", systemImage: "checklist", count: actions.filter { !$0.done }.count) {
-                    if actions.contains(where: \.done) {
-                        Button(showingDone ? "Masquer les faites" : "Voir les faites") { showingDone.toggle() }
-                            .buttonStyle(.borderless).font(.callout)
-                    }
-                }
-                ForEach(actions.filter { showingDone || !$0.done }) { action in actionRow(action) }
-                TextField("Nouvelle action", text: $newAction)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit(addAction)
-            }
-            Card {
-                SectionTitle("Journal", systemImage: "book.closed", count: journal.count)
-                TextField("Ce qui a été fait aujourd'hui", text: $newEntryTitle).textFieldStyle(.roundedBorder)
-                if !newEntryTitle.isEmpty {
-                    TextEditor(text: $newEntryBody).font(.body).frame(minHeight: 70)
-                        .overlay(RoundedRectangle(cornerRadius: Radius.small, style: .continuous).stroke(Surface.stroke))
-                    Button("Ajouter au journal", action: addEntry).buttonStyle(.glass)
-                }
-                ForEach(journal.prefix(12)) { entry in
-                    VStack(alignment: .leading, spacing: Space.xs) {
-                        HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-                            Text(entry.date.formatted(.dateTime.day().month(.abbreviated).locale(Self.locale)))
-                                .font(.callout.monospacedDigit()).foregroundStyle(.secondary).frame(width: 64, alignment: .leading)
-                            Text(entry.title).font(.callout.weight(.semibold))
-                        }
-                        if !entry.body.isEmpty { MarkdownView(text: entry.body).font(.callout).padding(.leading, 72) }
-                    }
-                }
-            }
+            actionsCard
+            journalCard
             Card {
                 SectionTitle("Notes", systemImage: "note.text") {
-                    Button(editingNotes ? "Terminé" : "Modifier") { editingNotes.toggle() }.buttonStyle(.borderless).font(.callout)
+                    TextButton(editingNotes ? "Terminé" : "Modifier") { editingNotes.toggle() }
                 }
                 if editingNotes {
                     TextEditor(text: $draft.notes).font(.body).frame(minHeight: 200)
                         .overlay(RoundedRectangle(cornerRadius: Radius.small, style: .continuous).stroke(Surface.stroke))
                 } else if draft.notes.isEmpty {
-                    Text("Aucune note.").foregroundStyle(.secondary)
+                    EmptyLine("Aucune note.")
                 } else {
                     MarkdownView(text: draft.notes)
                 }
             }
+        }
+    }
+
+    /// The open actions first, five of them, then « Voir les N autres »; the done ones on request.
+    private var actionsCard: some View {
+        Card {
+            SectionTitle("Actions", systemImage: "checklist", count: actions.filter { !$0.done }.count) {
+                if actions.contains(where: \.done) {
+                    TextButton(showingDone ? "Masquer les faites" : "Voir les faites") {
+                        withAnimation(Motion.standard) { showingDone.toggle() }
+                    }
+                }
+            }
+            let shown = actions.filter { !$0.done } + (showingDone ? actions.filter(\.done) : [])
+            if shown.isEmpty { EmptyLine("Aucune action en cours.") }
+            ShowMoreList(shown, limit: 5) { action in actionRow(action) }
+            TextField("Nouvelle action", text: $newAction)
+                .textFieldStyle(.roundedBorder)
+                .onSubmit(addAction)
         }
     }
 
@@ -183,15 +186,17 @@ struct ProjectPage: View {
                 reload()
             })) {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(action.text).strikethrough(action.done).foregroundStyle(action.done ? .secondary : .primary)
+                    Text(action.text).font(.rowBody).strikethrough(action.done).foregroundStyle(action.done ? .secondary : .primary)
                     let detail = [action.owner, action.meetingID != nil ? "d'une réunion" : nil,
                                   action.addedOn?.formatted(.dateTime.day().month(.abbreviated).locale(Self.locale))].compactMap { $0 }
                     if !detail.isEmpty { Text(detail.joined(separator: " · ")).font(.tag).foregroundStyle(.secondary) }
                 }
             }
             .toggleStyle(.checkbox)
-            Spacer()
+            Spacer(minLength: 0)
         }
+        .padding(.vertical, 3)
+        .hoverRow(inset: Space.s)
         .contextMenu {
             if let meetingID = action.meetingID {
                 Button("Ouvrir la réunion") { library.openMeeting?(meetingID) }
@@ -199,6 +204,67 @@ struct ProjectPage: View {
             Button("Supprimer l'action", role: .destructive) {
                 try? library.store.deleteAction(id: action.id)
                 reload()
+            }
+        }
+    }
+
+    /// The three latest entries, each a title and two plain lines; a click unfolds one (15/11).
+    private var journalCard: some View {
+        Card {
+            SectionTitle("Journal", systemImage: "book.closed", count: journal.count) {
+                IconButton(addingEntry ? "xmark" : "plus", help: addingEntry ? "Ne pas ajouter" : "Ajouter au journal", size: 13) {
+                    withAnimation(Motion.standard) { addingEntry.toggle() }
+                }
+            }
+            if addingEntry {
+                VStack(alignment: .leading, spacing: Space.s) {
+                    TextField("Ce qui a été fait aujourd'hui", text: $newEntryTitle).textFieldStyle(.roundedBorder)
+                    TextEditor(text: $newEntryBody).font(.body).frame(minHeight: 70)
+                        .overlay(RoundedRectangle(cornerRadius: Radius.small, style: .continuous).stroke(Surface.stroke))
+                    Button("Ajouter au journal", action: addEntry).buttonStyle(.glass)
+                        .disabled(newEntryTitle.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                .transition(.opacity)
+            }
+            if journal.isEmpty && !addingEntry { EmptyLine("Rien encore : les sessions de Claude Code y écrivent ce qu'elles font.") }
+            ShowMoreList(journal, limit: 3) { entry in journalRow(entry) }
+        }
+    }
+
+    private func journalRow(_ entry: ProjectJournalRow) -> some View {
+        let open = openEntries.contains(entry.id)
+        return VStack(alignment: .leading, spacing: Space.xs) {
+            Button {
+                guard !entry.body.isEmpty else { return }
+                withAnimation(Motion.standard) {
+                    if open { openEntries.remove(entry.id) } else { openEntries.insert(entry.id) }
+                }
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+                        Text(entry.date.formatted(.dateTime.day().month(.abbreviated).locale(Self.locale)))
+                            .font(.meta.monospacedDigit()).foregroundStyle(.secondary).frame(width: 58, alignment: .leading)
+                        Text(entry.title).font(.rowTitle.weight(.semibold)).foregroundStyle(.primary).lineLimit(open ? nil : 1)
+                        Spacer(minLength: 0)
+                        if !entry.body.isEmpty {
+                            Image(systemName: "chevron.down").font(.system(size: 11, weight: .semibold)).foregroundStyle(.tertiary)
+                                .rotationEffect(.degrees(open ? 180 : 0))
+                        }
+                    }
+                    if !open, !entry.body.isEmpty {
+                        Text(ProjectViews.excerpt(entry.body)).font(.rowBody).foregroundStyle(.secondary).lineLimit(2)
+                            .multilineTextAlignment(.leading).padding(.leading, 66)
+                    }
+                }
+                .padding(.vertical, Space.xs)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .hoverRow(inset: Space.s)
+            if open {
+                MarkdownView(text: entry.body).font(.rowBody).padding(.leading, 66).padding(.bottom, Space.xs)
+                    .transition(.opacity)
             }
         }
     }
@@ -213,9 +279,12 @@ struct ProjectPage: View {
     }
 
     private func addEntry() {
-        try? library.store.addJournal(ProjectJournalRow(projectID: project.id, date: Date(), title: newEntryTitle, body: newEntryBody, createdAt: Date()))
+        let title = newEntryTitle.trimmingCharacters(in: .whitespaces)
+        guard !title.isEmpty else { return }
+        try? library.store.addJournal(ProjectJournalRow(projectID: project.id, date: Date(), title: title, body: newEntryBody, createdAt: Date()))
         newEntryTitle = ""
         newEntryBody = ""
+        withAnimation(Motion.standard) { addingEntry = false }
         reload()
     }
 
@@ -233,90 +302,83 @@ struct ProjectPage: View {
                         if draft.dueDate != nil {
                             DatePicker("", selection: Binding(get: { draft.dueDate ?? Date() }, set: { draft.dueDate = $0 }), displayedComponents: .date)
                                 .labelsHidden()
-                            Button { draft.dueDate = nil } label: { Image(systemName: "xmark.circle.fill") }
-                                .buttonStyle(.borderless).foregroundStyle(.secondary).help("Sans échéance")
+                            IconButton("xmark.circle.fill", help: "Sans échéance", size: 13) { draft.dueDate = nil }
                         } else {
-                            Button("Ajouter") { draft.dueDate = Date() }.buttonStyle(.borderless)
+                            TextButton("Ajouter") { draft.dueDate = Date() }
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                 }
+                if let logos { SiteField(projectID: project.id, logos: logos) }
                 VStack(alignment: .leading, spacing: Space.xs) {
                     Text("Couleur").foregroundStyle(.secondary)
                     ColorChoices(selection: optional(\.color))
                 }
                 LabeledContent("Dossier") {
-                    Button(draft.codeFolder.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Choisir…") { choosingFolder = true }
-                        .buttonStyle(.borderless)
+                    TextButton(draft.codeFolder.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Choisir…") { choosingFolder = true }
                         .help(draft.codeFolder ?? "Le dossier de code, pour que Claude Code reconnaisse le projet")
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
                 if let github = draft.github.flatMap(URL.init(string:)) { Link("GitHub", destination: github) }
                 if let notion = draft.notion.flatMap(URL.init(string:)) { Link("Notion", destination: notion) }
             }
             Card {
                 SectionTitle("Contacts", systemImage: "person.2", count: contacts.count)
-                if contacts.isEmpty {
-                    Text("Les invités de ses rendez-vous arrivent ici tout seuls.").font(.callout).foregroundStyle(.secondary)
-                }
-                ForEach(contacts.prefix(10)) { contact in
-                    Button { library.openContact?(contact.id) } label: {
+                if contacts.isEmpty { EmptyLine("Les invités de ses rendez-vous arrivent ici tout seuls.") }
+                ShowMoreList(contacts, limit: Self.sideRows) { contact in
+                    SideRow(action: { library.openContact?(contact.id) }) {
                         HStack(spacing: Space.s) {
-                            Avatar(contact.initials, size: 26)
+                            Avatar(contact.initials, size: 28)
                             VStack(alignment: .leading, spacing: 0) {
-                                Text(contact.name).foregroundStyle(.primary)
-                                if let company = contact.company { Text(company).font(.tag).foregroundStyle(.secondary) }
+                                Text(contact.name).font(.rowBody).foregroundStyle(.primary).lineLimit(1)
+                                if let company = contact.company { Text(company).font(.meta).foregroundStyle(.secondary).lineLimit(1) }
                             }
-                            Spacer(minLength: 0)
                         }
-                        .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
                 }
             }
             Card {
                 SectionTitle("Réunions", systemImage: "waveform", count: meetings.count)
-                if meetings.isEmpty {
-                    Text("Ses réunions enregistrées arrivent ici toutes seules.").font(.callout).foregroundStyle(.secondary)
-                }
-                ForEach(meetings.prefix(8)) { meeting in
-                    Button { library.openMeeting?(meeting.id) } label: {
+                if meetings.isEmpty { EmptyLine("Ses réunions enregistrées arrivent ici toutes seules.") }
+                ShowMoreList(meetings, limit: Self.sideRows) { meeting in
+                    SideRow(action: { library.openMeeting?(meeting.id) }) {
                         VStack(alignment: .leading, spacing: 1) {
-                            Text(meeting.title).lineLimit(1).foregroundStyle(.primary)
+                            Text(meeting.title).font(.rowBody.weight(.medium)).lineLimit(1).foregroundStyle(.primary)
                             Text(meeting.startedAt.formatted(.dateTime.day().month(.abbreviated).hour().minute().locale(Self.locale)))
-                                .font(.tag).foregroundStyle(.secondary)
+                                .font(.meta).foregroundStyle(.secondary)
+                            if let line = summaries[meeting.id] {
+                                Text(line).font(.meta).foregroundStyle(.secondary).lineLimit(2)
+                            }
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
                 }
             }
             if !mails.isEmpty {
                 Card {
                     SectionTitle("Mails", systemImage: "envelope", count: mails.count)
-                    ForEach(mails.prefix(6)) { thread in
-                        Button { library.openMail?(thread.id) } label: {
+                    ShowMoreList(mails, limit: Self.sideRows) { thread in
+                        SideRow(action: { library.openMail?(thread.id) }) {
                             VStack(alignment: .leading, spacing: 1) {
-                                Text(thread.subject).fontWeight(thread.unread ? .semibold : .regular).lineLimit(1)
+                                Text(thread.subject).font(.rowBody).fontWeight(thread.unread ? .semibold : .regular).lineLimit(1)
+                                    .foregroundStyle(.primary)
                                 Text("\(thread.senders.last { $0.email.lowercased() == thread.lastSender }?.display ?? thread.lastSender ?? "Moi") · "
                                      + thread.lastMessageAt.formatted(.dateTime.day().month(.abbreviated).locale(Self.locale)))
-                                    .font(.tag).foregroundStyle(.secondary).lineLimit(1)
+                                    .font(.meta).foregroundStyle(.secondary).lineLimit(1)
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
                     }
                 }
             }
             if !events.isEmpty {
                 Card {
                     SectionTitle("Prochains rendez-vous", systemImage: "calendar", count: events.count)
-                    ForEach(events.prefix(5)) { event in
+                    ShowMoreList(events, limit: Self.sideRows) { event in
                         VStack(alignment: .leading, spacing: 1) {
-                            Text(event.title).lineLimit(1)
+                            Text(event.title).font(.rowBody).lineLimit(1)
                             Text(event.startAt.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).hour().minute().locale(Self.locale)))
-                                .font(.tag).foregroundStyle(.secondary)
+                                .font(.meta).foregroundStyle(.secondary)
                         }
+                        .padding(.vertical, Space.xs)
                     }
                 }
             }
@@ -332,10 +394,150 @@ struct ProjectPage: View {
         actions = (try? library.store.actions(projectID: project.id)) ?? []
         journal = (try? library.store.journal(projectID: project.id)) ?? []
         meetings = (try? library.store.meetings(projectID: project.id)) ?? []
+        summaries = meetings.reduce(into: [:]) { lines, meeting in
+            lines[meeting.id] = ProjectViews.firstLine((try? library.meetings.summary(meetingID: meeting.id)) ?? nil)
+        }
         contacts = (try? ContactStore(library.store.database).contacts(projectID: project.id)) ?? []
         mails = (try? MailStore(library.store.database).threads(filedIn: project.id)) ?? []
         events = ((try? CalendarStore(library.store.database).events(projectID: project.id)) ?? [])
             .filter { $0.endAt > Date() }
             .reduce(into: [CalendarEventRow]()) { seen, event in if !seen.contains(where: { $0.eventID == event.eventID }) { seen.append(event) } }
+    }
+}
+
+/// A word to click in a card (« Modifier », « Changer »): its capsule under the pointer, its text lined up with
+/// the card's, as « Voir les N autres ».
+struct TextButton: View {
+    let title: String
+    let action: () -> Void
+
+    init(_ title: String, action: @escaping () -> Void) {
+        self.title = title
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Text(title).font(.meta.weight(.medium)).padding(.horizontal, Space.s).padding(.vertical, 3)
+        }
+        .buttonStyle(.hover(.capsule))
+        .foregroundStyle(Color.accentColor)
+        .padding(.horizontal, -Space.s)
+    }
+}
+
+/// A clickable row of a side card: its highlight under the pointer, its text lined up with the card's.
+struct SideRow<Content: View>: View {
+    let action: () -> Void
+    @ViewBuilder let label: Content
+
+    var body: some View {
+        Button(action: action) {
+            label
+                .padding(.vertical, Space.xs)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .hoverRow(inset: Space.s)
+    }
+}
+
+/// The logo of the page's header, 48 points: an image dropped on it becomes the project's logo; a click offers
+/// to choose one, to take it back, to ask the site again (15/11).
+struct ProjectLogoEditor: View {
+    let project: ProjectRow
+    @ObservedObject var logos: ProjectLogos
+    @State private var targeted = false
+    @State private var choosing = false
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 48 * 0.22 + 4, style: .continuous)
+        Menu {
+            Button("Choisir une image…") { choosing = true }
+            if logos.hasOwnImage(project.id) {
+                Button("Retirer l'image") { logos.removeImage(for: project.id) }
+            }
+            if let site = logos.site(for: project.id) {
+                Divider()
+                if !logos.hasOwnImage(project.id) {
+                    Button("Rafraîchir le logo") { logos.refresh(project) }
+                }
+                if let url = URL(string: "https://\(site.domain)/") {
+                    Button("Ouvrir \(site.domain)") { NSWorkspace.shared.open(url) }
+                }
+            }
+        } label: {
+            ProjectLogo(project, size: 48).padding(4)
+        }
+        .menuStyle(.button)
+        .buttonStyle(.hover(.rounded))
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .overlay {
+            shape.strokeBorder(Color.accentColor, lineWidth: 2).opacity(targeted ? 1 : 0)
+        }
+        .animation(Motion.quick, value: targeted)
+        .dropDestination(for: URL.self) { urls, _ in
+            guard let url = urls.first else { return false }
+            return logos.setImage(from: url, for: project.id)
+        } isTargeted: { targeted = $0 }
+        .fileImporter(isPresented: $choosing, allowedContentTypes: [.image]) { result in
+            if case .success(let url) = result { logos.setImage(from: url, for: project.id) }
+        }
+        .help("Le logo du projet : glisse une image dessus, ou clique pour en choisir une")
+    }
+}
+
+/// « Site : harlay-exemple.fr (deviné) », « Changer », and the cross that gives it back to the guess (15/11).
+struct SiteField: View {
+    let projectID: UUID
+    @ObservedObject var logos: ProjectLogos
+    @State private var editing = false
+    @State private var text = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        let site = logos.site(for: projectID)
+        let chosen = logos.entries[projectID].map { $0.source != .guessed } ?? false
+        LabeledContent("Site") {
+            if editing {
+                TextField("", text: $text, prompt: Text(site?.domain ?? "exemple.fr"))
+                    .multilineTextAlignment(.trailing)
+                    .textFieldStyle(.plain)
+                    .focused($focused)
+                    .onSubmit(save)
+                    .onExitCommand { editing = false }
+                    .onChange(of: focused) { _, now in if !now { save() } }
+            } else {
+                HStack(spacing: Space.xs) {
+                    if let site {
+                        Text(site.domain).lineLimit(1).truncationMode(.middle)
+                        if site.guessed { Text("(deviné)").foregroundStyle(.secondary) }
+                    } else {
+                        Text("—").foregroundStyle(.secondary)
+                    }
+                    TextButton(site == nil ? "Ajouter" : "Changer") {
+                        text = site?.guessed == false ? site?.domain ?? "" : ""
+                        editing = true
+                        focused = true
+                    }
+                    .padding(.leading, Space.xs)
+                    if chosen, logos.entries[projectID]?.site != nil || logos.entries[projectID]?.source == .chosen {
+                        IconButton("xmark.circle.fill", help: "Revenir au site deviné d'après ses contacts", size: 13) {
+                            logos.clearSite(for: projectID)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+        }
+        .help("Le site du client : Polhub y prend son logo. Deviné d'après l'adresse de ses contacts, tant que tu n'en choisis pas un.")
+    }
+
+    private func save() {
+        guard editing else { return }
+        editing = false
+        logos.setSite(text, for: projectID)
     }
 }
