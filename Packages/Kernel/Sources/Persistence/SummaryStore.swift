@@ -167,6 +167,16 @@ public struct SummaryStore: Sendable {
             })
     }
 
+    /// Every meeting's summary job, for the list (15/11).
+    public func observeJobs(onChange: @escaping @MainActor @Sendable ([UUID: SummaryJobRow]) -> Void) -> AnyDatabaseCancellable {
+        ValueObservation
+            .tracking { db in Dictionary(try SummaryJobRow.fetchAll(db).map { ($0.meetingID, $0) }, uniquingKeysWith: { first, _ in first }) }
+            .removeDuplicates()
+            .start(in: writer, scheduling: .async(onQueue: .main), onError: { _ in }, onChange: { jobs in
+                MainActor.assumeIsolated { onChange(jobs) }
+            })
+    }
+
     private func update(_ db: Database, _ meetingID: UUID, at date: Date, _ change: (inout SummaryJobRow) -> Void) throws {
         var job = try SummaryJobRow.fetchOne(db, key: ["meetingID": Self.key(meetingID)]) ?? SummaryJobRow(meetingID: meetingID, state: .queued, updatedAt: date)
         change(&job)

@@ -25,5 +25,18 @@ import Testing
         let starts = player.segmentStarts()
         #expect(starts["autres"]?.map { ($0 * 100).rounded() / 100 } == [2, 4])
         #expect(starts["moi"]?.map { ($0 * 100).rounded() / 100 } == [2.5])
+
+        // 15/11: −15 s and +15 s never pass the start nor the end; the speed is the player's.
+        player.seek(to: 2)
+        player.skip(by: MeetingPlayer.skipSeconds)
+        #expect(player.currentSeconds == player.durationSeconds)
+        player.skip(by: -MeetingPlayer.skipSeconds)
+        #expect(player.currentSeconds == 0)
+        player.rate = 1.5
+        #expect(player.playbackRate == 1.5)
+    }
+
+    @Test func theSpeedsReadInFrench() {
+        #expect(MeetingPlayer.rates.map(MeetingPlayer.rateLabel) == ["1×", "1,25×", "1,5×", "2×"])
     }
 }

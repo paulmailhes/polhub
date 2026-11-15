@@ -11,7 +11,24 @@ public final class MeetingPlayer: ObservableObject {
     @Published public private(set) var currentSeconds: Double = 0
     @Published public var moiEnabled = true { didSet { applyMix() } }
     @Published public var autresEnabled = true { didSet { applyMix() } }
+    /// The speed, from the player's menu (15/11); it applies at once while playing.
+    @Published public var rate: Float = 1 {
+        didSet {
+            player.defaultRate = rate
+            if isPlaying { player.rate = rate }
+        }
+    }
     public let durationSeconds: Double
+
+    /// The speeds of the menu.
+    public static let rates: [Float] = [1, 1.25, 1.5, 2]
+    /// How long « −15 s » and « +15 s » jump.
+    public static let skipSeconds: Double = 15
+
+    /// « 1× », « 1,25× ».
+    public static func rateLabel(_ rate: Float) -> String {
+        rate.formatted(.number.precision(.fractionLength(0...2)).locale(Locale(identifier: "fr_FR"))) + "×"
+    }
 
     let composition: AVMutableComposition
     private let tracks: [String: AVMutableCompositionTrack]
@@ -69,9 +86,18 @@ public final class MeetingPlayer: ObservableObject {
 
     public func play() {
         if currentSeconds >= durationSeconds - 0.1 { seek(to: 0) }
+        player.defaultRate = rate
         player.play()
         isPlaying = true
     }
+
+    /// « −15 s », « +15 s »: never before the start nor past the end.
+    public func skip(by seconds: Double) {
+        seek(to: min(max(0, currentSeconds + seconds), durationSeconds))
+    }
+
+    /// The speed the player plays at (tests).
+    var playbackRate: Float { player.defaultRate }
 
     public func pause() {
         player.pause()

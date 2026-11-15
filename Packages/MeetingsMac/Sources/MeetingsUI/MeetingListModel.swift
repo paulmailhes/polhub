@@ -1,3 +1,4 @@
+import AppKit
 import Domain
 import Foundation
 import Pipeline
@@ -40,6 +41,46 @@ public enum MeetingListModel {
         guard let end = row.endedAt else { return "—" }
         return DurationText.short(Int(end.timeIntervalSince(row.startedAt)))
     }
+
+    /// « 14:00 · 52 min · Refonte du site »: the second line of a meeting in the list.
+    public static func metaText(_ row: MeetingRow, project: String?, now: Date) -> String {
+        ([row.startedAt.formatted(date: .omitted, time: .shortened), durationText(row, now: now)] + (project.map { [$0] } ?? []))
+            .joined(separator: " · ")
+    }
+
+    /// The meeting to show: the one chosen while the list holds it, else the newest (Paul, 15/11: the newest meeting
+    /// opens by itself). Nothing changes while the list is still empty.
+    public static func meetingToOpen(selection: UUID?, rows: [MeetingRow]) -> UUID? {
+        guard !rows.isEmpty else { return selection }
+        if let selection, rows.contains(where: { $0.id == selection }) { return selection }
+        return rows.first?.id
+    }
+
+    /// The meeting to show once this one goes to the Trash: the one under it, else the one above.
+    public static func neighbor(of id: UUID, in rows: [MeetingRow]) -> UUID? {
+        guard let index = rows.firstIndex(where: { $0.id == id }) else { return rows.first?.id }
+        if index + 1 < rows.count { return rows[index + 1].id }
+        return index > 0 ? rows[index - 1].id : nil
+    }
+
+    /// The line about a meeting's summary in the list (15/11).
+    public struct SummaryLine: Equatable, Sendable {
+        public enum Kind: Sendable { case ready, writing, waiting, failed }
+        public var text: String
+        public var kind: Kind
+    }
+
+    /// Its first lines when it is written; otherwise where it is. Nothing before it is asked, nor when there were
+    /// too few words.
+    public static func summaryLine(overview: String?, job: SummaryJobRow?) -> SummaryLine? {
+        if job?.state == .running { return SummaryLine(text: overview ?? "Compte rendu en cours d'écriture…", kind: .writing) }
+        if let overview { return SummaryLine(text: overview, kind: .ready) }
+        switch job?.state {
+        case .failed?: return SummaryLine(text: "Le compte rendu n'a pas pu se faire", kind: .failed)
+        case .queued?: return SummaryLine(text: "Compte rendu en attente", kind: .waiting)
+        default: return nil
+        }
+    }
 }
 
 /// The meetings and the journal, kept up to date from the base.
@@ -55,11 +96,21 @@ public final class MeetingLibrary: ObservableObject {
     public let transcripts: TranscriptStore
     /// Set by the app: « Réessayer » and « Retranscrire » go through it.
     public var queue: TranscriptionQueue?
-    /// Set by the app: « Refaire le compte rendu » goes through it (14/11).
-    public var summaries: SummaryQueue?
+    /// Set by the app: « Refaire le compte rendu » goes through it (14/11); its progress part by part shows on the
+    /// meeting's page (15/11).
+    public var summaries: SummaryQueue? {
+        didSet { follow(summaries) }
+    }
     /// Why no summary can be made (Apple Intelligence off…), said on the meeting's page.
     @Published public var summaryUnavailable: String?
+    /// The first lines of each meeting's summary, for the list (15/11).
+    @Published public private(set) var overviews: [UUID: String] = [:]
+    /// How each meeting's summary went, for the list (15/11).
+    @Published public private(set) var summaryJobs: [UUID: SummaryJobRow] = [:]
+    /// Where the summary under way is, part by part.
+    @Published public private(set) var summaryProgress: [UUID: SummaryProgress] = [:]
     private var observations: [AnyDatabaseCancellable] = []
+    private var progressTask: Task<Void, Never>?
 
     public init(store: MeetingStore) {
         self.store = store
@@ -67,5 +118,28 @@ public final class MeetingLibrary: ObservableObject {
         observations.append(store.observeRecent(limit: 500) { [weak self] rows in self?.rows = rows })
         observations.append(store.observeJournal(limit: 300) { [weak self] entries in self?.journal = entries })
         observations.append(transcripts.observeLatestJobs { [weak self] jobs in self?.jobs = jobs })
+        observations.append(store.observeSummaries(limit: 500, digest: { SummaryText.overview($0) }) { [weak self] overviews in
+            self?.overviews = overviews
+        })
+        observations.append(SummaryStore(store.database).observeJobs { [weak self] jobs in self?.summaryJobs = jobs })
+    }
+
+    private func follow(_ queue: SummaryQueue?) {
+        progressTask?.cancel()
+        guard let queue else { return }
+        progressTask = Task { [weak self] in
+            for await update in queue.progress {
+                guard let self else { return }
+                self.summaryProgress[update.meetingID] = update.progress
+            }
+        }
+    }
+
+    /// « Supprimer… »: the meeting goes to the Trash with its audio, where it can still be found (14/11).
+    public func moveToTrash(_ row: MeetingRow, folder: URL) {
+        let queue = queue, id = row.id
+        Task { await queue?.forget(meetingID: id) }
+        try? store.softDelete(id: id, at: .now)
+        NSWorkspace.shared.recycle([folder])
     }
 }
