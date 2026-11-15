@@ -69,6 +69,7 @@ struct RecipientField: View {
                             }
                             .buttonStyle(.hover(.circle))
                             .help("Retirer \(address.email)")
+                            .accessibilityLabel("Retirer \(address.email)")
                         }
                         .padding(.leading, Space.s + 2).padding(.trailing, 4).padding(.vertical, 2)
                         .background(!valid ? Color.red.opacity(0.18) : (known ? Surface.raised : Color.orange.opacity(0.16)), in: Capsule())
@@ -257,8 +258,9 @@ struct ComposeView: View {
             RecipientField(label: "À", addresses: binding(\.to, default: []), text: $pendingTo, suggest: suggest, isKnown: mails.isKnown,
                            project: suggestedProject, trailing: AnyView(
                 HStack(spacing: Space.s) {
-                    if !showCc { Button("Cc") { showCc = true }.buttonStyle(.borderless) }
-                    if !showBcc { Button("Cci") { showBcc = true }.buttonStyle(.borderless) }
+                    // Small words that answer under the pointer and when pressed (correctifs, 15/11).
+                    if !showCc { TextButton("Cc") { showCc = true }.help("Ajouter des destinataires en copie") }
+                    if !showBcc { TextButton("Cci") { showBcc = true }.help("Ajouter des destinataires en copie cachée") }
                 }
                 .font(.meta)
             ), onFocus: { recipientsFocused = $0 })
@@ -313,9 +315,12 @@ struct ComposeView: View {
                     Image(nsImage: NSWorkspace.shared.icon(for: type)).resizable().frame(width: 20, height: 20)
                     Text(file.filename).lineLimit(1).truncationMode(.middle)
                     Text(MailText.size(file.size)).foregroundStyle(.secondary)
-                    Button { mails.removeFile(file, from: draftID) } label: { Image(systemName: "xmark").font(.caption2.bold()) }
-                        .buttonStyle(.plain)
-                        .help("Retirer")
+                    Button { mails.removeFile(file, from: draftID) } label: {
+                        Image(systemName: "xmark").font(.caption2.bold()).frame(width: 16, height: 16)
+                    }
+                    .buttonStyle(.hover(.circle))
+                    .help("Retirer")
+                    .accessibilityLabel("Retirer \(file.filename)")
                 }
                 .font(.meta)
                 .padding(.horizontal, Space.s + 2).padding(.vertical, 5)
@@ -342,9 +347,7 @@ struct ComposeView: View {
                 .help("Joindre des fichiers (ou les glisser ici)")
             status(draft, leaving: leaving)
             Spacer()
-            Button(role: .destructive) { confirmingDiscard = true } label: { Image(systemName: "trash").font(.system(size: 15)) }
-                .buttonStyle(.borderless)
-                .help("Supprimer le brouillon")
+            IconButton("trash", help: "Supprimer le brouillon") { confirmingDiscard = true }
         }
         .controlSize(.large)
     }

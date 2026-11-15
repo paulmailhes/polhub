@@ -150,7 +150,8 @@ struct ContactPage: View {
                 if !events.isEmpty {
                     VStack(alignment: .leading, spacing: Space.xs) {
                         SectionTitle("Rendez-vous", count: events.count)
-                        ShowMoreList(Array(events.prefix(20)), limit: 5) { event in
+                        // Every one of them behind « Voir les N autres »: never a list cut in silence (correctifs, 15/11).
+                        ShowMoreList(events, limit: 5) { event in
                             RowButton(action: { router.openEvent(event.id) }) {
                                 dated(event.startAt, event.title)
                             }

@@ -54,7 +54,7 @@ struct AccountSettingsRow: View {
                 Button("Déconnecter…", role: .destructive, action: disconnect).buttonStyle(.glass).controlSize(.small)
             }
             HStack(spacing: Space.xs) {
-                ForEach(AccountStyle.choices, id: \.self) { hex in
+                ForEach(Array(AccountStyle.choices.enumerated()), id: \.element) { index, hex in
                     let chosen = agenda.colors[account.email] == hex
                     Button { agenda.setColor(hex, for: account.email) } label: {
                         Circle().fill(Color(hex: hex)).frame(width: 20, height: 20)
@@ -63,6 +63,8 @@ struct AccountSettingsRow: View {
                     }
                     .buttonStyle(.hover(.circle))
                     .help(chosen ? "La couleur de ce compte" : "Prendre cette couleur")
+                    .accessibilityLabel("Couleur \(index + 1) sur \(AccountStyle.choices.count)")
+                    .accessibilityAddTraits(chosen ? .isSelected : [])
                 }
             }
             if let error = account.lastError {

@@ -462,6 +462,7 @@ struct ProjectLogoEditor: View {
             if case .success(let url) = result { Task { await logos.setImage(from: url, for: project.id) } }
         }
         .help("Le logo du projet : glisse une image dessus, ou clique pour en choisir une")
+        .accessibilityLabel("Logo du projet")
     }
 }
 

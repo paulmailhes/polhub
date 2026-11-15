@@ -362,8 +362,9 @@ struct MailRow: View {
                         .frame(width: 44, height: 26)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.hover(.rounded))
                 .help("Sélectionner")
+                .accessibilityLabel(ticked ? "Désélectionner" : "Sélectionner")
                 senders
                     .frame(width: Self.sendersWidth, alignment: .leading)
                     .padding(.trailing, Space.l)

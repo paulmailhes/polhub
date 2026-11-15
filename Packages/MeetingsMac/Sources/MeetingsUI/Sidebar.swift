@@ -160,7 +160,7 @@ struct Sidebar: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.hover(.rounded))
         .help(shown ? "\(email) — cliquer pour masquer cette boîte" : "\(email) — masquée, cliquer pour l'afficher")
     }
 }

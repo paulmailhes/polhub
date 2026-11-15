@@ -94,14 +94,14 @@ struct MailUndoBar: View {
                         Image(systemName: "paperplane.fill").foregroundStyle(Color.accentColor)
                         Text(left > 0 ? "« \(sending.subject) » part dans \(left) s" : "Envoi de « \(sending.subject) »…").lineLimit(1)
                         if !sending.leaving {
-                            Button("Annuler") { mails.cancelSend() }.buttonStyle(.glass).keyboardShortcut("z", modifiers: .command).disabled(left == 0)
+                            undoButton { mails.cancelSend() }.disabled(left == 0)
                         }
                     }
                 }
             } else if let undo = mails.undoable {
                 HStack(spacing: Space.m) {
                     Text(undo.text)
-                    Button("Annuler") { mails.undo() }.buttonStyle(.glass).keyboardShortcut("z", modifiers: .command)
+                    undoButton { mails.undo() }
                 }
             } else if let message = mails.message {
                 HStack(spacing: Space.m) {
@@ -116,6 +116,17 @@ struct MailUndoBar: View {
         .padding(.bottom, Space.l)
         .opacity(mails.undoable == nil && mails.message == nil && mails.sending == nil ? 0 : 1)
         .animation(.snappy, value: mails.undoable?.text)
+    }
+
+    /// « Annuler » in the accent color, a fill under the pointer: the glass is the capsule's only, never glass on
+    /// glass (correctifs, 15/11).
+    private func undoButton(_ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text("Annuler").fontWeight(.semibold).padding(.horizontal, Space.s).padding(.vertical, Space.xs)
+        }
+        .buttonStyle(.hover(.capsule))
+        .foregroundStyle(Color.accentColor)
+        .keyboardShortcut("z", modifiers: .command)
     }
 }
 
@@ -258,6 +269,7 @@ struct MailFilingChip: View {
     let thread: MailThreadRow
     @ObservedObject var mails: MailLibrary
     var always = false
+    @Environment(\.self) private var environment
 
     var body: some View {
         let found = mails.filing(of: thread)
@@ -265,14 +277,17 @@ struct MailFilingChip: View {
             Menu { MailFilingMenu(thread: thread, mails: mails) } label: {
                 Text(label.text).font(.tag.weight(.medium)).lineLimit(1)
                     .padding(.horizontal, Space.s).padding(.vertical, 3)
-                    .foregroundStyle(label.color)
+                    // A project in yellow or brown still reads (correctifs, 15/11).
+                    .foregroundStyle(label.color.readable(in: environment))
                     .background(label.color.opacity(0.14), in: Capsule())
             }
             .menuStyle(.button)
-            .buttonStyle(.plain)
+            // It answers under the pointer and when pressed, as PersonChip (correctifs, 15/11).
+            .buttonStyle(.hover(.capsule))
             .menuIndicator(.hidden)
             .fixedSize()
             .help(found.map { "\($0.origin.explanation) · cliquer pour changer" } ?? "Ranger ce fil dans un projet ou une case")
+            .accessibilityLabel("Rangé : \(label.text)")
         }
     }
 

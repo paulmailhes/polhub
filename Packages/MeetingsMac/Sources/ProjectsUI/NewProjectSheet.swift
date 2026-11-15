@@ -92,7 +92,8 @@ struct ColorChoices: View {
     @Binding var selection: String
 
     var body: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 22, maximum: 22), spacing: Space.s)], alignment: .leading, spacing: Space.s) {
+        // 22-point circles, 3 points of room around each for the hover: still 8 points between two circles.
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 28, maximum: 28), spacing: Space.s - 6)], alignment: .leading, spacing: Space.s - 6) {
             swatch(nil)
             ForEach(ProjectViews.colorChoices, id: \.self) { swatch($0) }
         }
@@ -110,8 +111,12 @@ struct ColorChoices: View {
                             .foregroundStyle(name == nil ? Color.secondary : .white)
                     }
                 }
+                // The room of the circle that shows under the pointer (correctifs, 15/11).
+                .padding(3)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.hover(.circle))
         .help(name?.capitalizedFirst ?? "Aucune")
+        .accessibilityLabel(name?.capitalizedFirst ?? "Aucune couleur")
+        .accessibilityAddTraits(chosen ? .isSelected : [])
     }
 }

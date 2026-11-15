@@ -36,7 +36,7 @@ struct ColumnView: View {
 
     var body: some View {
         let color = ProjectViews.statusColor(column.status)
-        VStack(alignment: .leading, spacing: Space.m) {
+        VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: Space.s) {
                 ColorDot(color, size: 10)
                 Text(column.title).font(.headline)
@@ -54,16 +54,23 @@ struct ColumnView: View {
                         ProjectCard(project: project, size: size,
                                     lastMeeting: ProjectViews.lastMeeting(project, appMeeting: library.lastAppMeetings[project.id]))
                             .onTapGesture { library.selected = project.id }
+                            // Opened from VoiceOver and the keyboard too (correctifs, 15/11).
+                            .accessibilityAddTraits(.isButton)
+                            .accessibilityAction { library.selected = project.id }
                             .draggable(project.id.uuidString)
                             .dropDestination(for: String.self) { items, _ in
                                 drop(items, before: project.id)
                             }
                     }
                 }
-                // Room for the hovered card's shadow.
-                .padding(.vertical, 2)
+                // Room for the hovered card's shadow and growth, inside the scroll view that clips: above the first
+                // card (the room under the column's title) and on both sides (the column's margins), so the lift is
+                // never cut (correctifs, 15/11).
+                .padding(.horizontal, Space.m)
+                .padding(.top, Space.m + 2)
                 .padding(.bottom, 60)
             }
+            .padding(.horizontal, -Space.m)
             .scrollIndicators(.never)
         }
         .padding(Space.m)

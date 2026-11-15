@@ -376,6 +376,7 @@ struct PlayerView: View {
             .buttonStyle(.hover(.circle))
             .keyboardShortcut(.space, modifiers: [])
             .help(player.isPlaying ? "Pause" : "Lecture")
+            .accessibilityLabel(player.isPlaying ? "Pause" : "Lecture")
             IconButton("goforward.15", help: "Avancer de 15 secondes", size: 16) { player.skip(by: MeetingPlayer.skipSeconds) }
 
             Slider(
