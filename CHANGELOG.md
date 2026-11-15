@@ -3,6 +3,59 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.17.0 — 16 novembre 2026
+
+**Projets, mails, contacts, réunions : une grande passe d'interface.**
+
+Après la mise à jour, redémarre tes sessions Claude Code ouvertes (ou tape `/mcp`) : l'outil polhub d'une
+session déjà ouverte ne connaît pas encore les nouveaux statuts des projets.
+
+- **Projets**
+  - Quatre colonnes : Priorité 1, Priorité 2, En pause, Terminé. Tes projets ont été déplacés une fois :
+    priorité 2 et idée vont en Priorité 1, priorité 3 en Priorité 2, en attente et le projet sans statut en
+    En pause. Une copie de la base est faite juste avant, dans Sauvegardes.
+  - Terminé s'affiche à droite, en petites cartes.
+  - Les cartes sont dans la couleur du projet. Plus d'émojis : un logo automatique, l'icône du site du client
+    (deviné d'après les adresses de ses contacts, ou le champ « Site »), ou une image que tu glisses sur le
+    logo ; sinon ses initiales. Réglages › Projets : « Logos des sites des clients » et la taille des cartes
+    (Normales ou Compactes).
+  - Page d'un projet : actions, journal (en extraits), mails et réunions coupés à quelques lignes, avec
+    « Voir les N autres » ; la première ligne du compte rendu de chaque réunion.
+  - Accueil : la carte Priorité 1 montre six projets, puis « Voir les N autres ».
+- **Mails**
+  - Deux onglets : Personnes et Notifications (les newsletters y sont).
+  - « Nouveau mail » en haut de Mails, dans la barre latérale ; ⌘N dans Mails.
+  - Un clic sur une pièce jointe de la liste l'ouvre en aperçu.
+  - Envoyés montre « À : » et les destinataires.
+  - « Ranger dans » sur plusieurs mails cochés.
+  - Une seule recherche : dès deux lettres, elle filtre toute la copie ; Entrée cherche aussi dans Gmail.
+  - **Spam** et **Corbeille**, lus dans Gmail : seulement « Pas un spam » et « Restaurer ». Le texte d'un spam
+    n'est jamais gardé sur le Mac et ses images ne s'affichent jamais.
+  - **Programmer l'envoi**, à côté d'« Envoyer » : demain matin, demain après-midi, lundi matin ou une date.
+    Un dossier « Programmés » apparaît tant qu'un mail attend. Si le mail change entre-temps (téléphone,
+    Gmail), il ne part pas. Mac en veille à l'heure prévue : il part à ton retour jusqu'à 12 h de retard,
+    au-delà il attend ton accord.
+  - Correction : « Tous les messages » montre toute la copie, hors spam et corbeille (la 0.16.0 disait
+    « six mois » : c'était faux).
+- **Contacts, sans passer par la page Contacts**
+  - Autocomplétion des destinataires classée (les personnes à qui tu écris le plus d'abord), avec ↑ ↓,
+    Entrée ou Tab, Échap.
+  - Dans un mail : les personnes du fil, qui est déjà un contact, et « Ajouter N au projet ».
+  - Dans le calendrier et sur la page d'une réunion : les invités, qui est contact, et un petit menu pour les
+    lier au projet.
+- **Réunions**
+  - La liste montre la première ligne du compte rendu ; clic droit ; la plus récente s'ouvre seule.
+  - Le compte rendu a quatre parties : Résumé, Points clés, Décisions, Actions, avec « Copier le compte rendu »
+    et « Refaire » ; « Partiel » quand une réunion très longue a dû être coupée.
+  - Le lecteur avance ou recule de 15 s et change de vitesse.
+  - Un passage refusé par le modèle d'Apple ne fait plus échouer tout le compte rendu.
+- **Partout**
+  - Un système de design commun : survol et appui sur tout ce qui se clique, animations douces, listes
+    coupées avec « Voir les N autres ».
+  - Barre latérale : icônes en couleur, plus grande et de largeur fixe, compteurs (mails non lus, rendez-vous
+    du jour, point rouge pendant un enregistrement).
+  - Accueil rééquilibré.
+
 ## 0.16.0 — 15 novembre 2026
 
 **Les mails, comme dans Gmail.**
