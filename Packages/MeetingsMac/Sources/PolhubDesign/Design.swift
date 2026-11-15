@@ -65,6 +65,33 @@ public enum Surface {
     public static let selected = Color.accentColor.opacity(0.12)
 }
 
+/// The mails' list, as Gmail's (Paul, 15/11: « quand le mail n'est pas ouvert il est bien blanc, ouvert un peu
+/// plus bleu-gris »): an unread thread on the brightest ground, a read one a step down.
+public enum MailSurface {
+    public static let unread = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.isDark ? NSColor(srgbRed: 0.165, green: 0.169, blue: 0.180, alpha: 1) : .white
+    })
+    public static let read = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.isDark ? NSColor(srgbRed: 0.106, green: 0.110, blue: 0.118, alpha: 1) : NSColor(srgbRed: 0.949, green: 0.965, blue: 0.988, alpha: 1)
+    })
+    /// A thread ticked, as Gmail's light blue.
+    public static let ticked = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.isDark ? NSColor(srgbRed: 0.17, green: 0.25, blue: 0.38, alpha: 1) : NSColor(srgbRed: 0.761, green: 0.859, blue: 1, alpha: 1)
+    })
+    /// Gmail's blue, for the boxes ticked and the people's tab, whatever the system's accent.
+    public static let blue = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.isDark ? NSColor(srgbRed: 0.54, green: 0.71, blue: 0.97, alpha: 1) : NSColor(srgbRed: 0.04, green: 0.34, blue: 0.82, alpha: 1)
+    })
+    /// The thin line between two threads.
+    public static let line = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.isDark ? NSColor(white: 1, alpha: 0.07) : NSColor(srgbRed: 0.39, green: 0.47, blue: 0.56, alpha: 0.14)
+    })
+}
+
+extension NSAppearance {
+    public var isDark: Bool { bestMatch(from: [.darkAqua, .aqua]) == .darkAqua }
+}
+
 /// The one palette of the app: accounts, projects and statuses take their colors here.
 public enum Palette {
     public static let violet = "#8B5CF6"

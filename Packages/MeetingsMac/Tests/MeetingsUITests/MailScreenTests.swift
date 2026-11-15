@@ -321,7 +321,19 @@ struct MailScreenTests {
         mails.folder = .subscriptions
         try await capture("mails-abonnements")
         try await capture("mails-abonnements-sombre", dark: true)
+        // 15/11, « comme Gmail »: every thread, the compact list, Réglages › Mails.
+        mails.folder = .all
+        try await capture("mails-tous")
         mails.folder = .inbox
+        UserDefaults.standard.set(MailDensity.compacte.rawValue, forKey: Preferences.Key.mailDensity)
+        UserDefaults.standard.set(true, forKey: Preferences.Key.mailDays)
+        try await capture("mails-compacte-jours")
+        UserDefaults.standard.removeObject(forKey: Preferences.Key.mailDensity)
+        UserDefaults.standard.removeObject(forKey: Preferences.Key.mailDays)
+        try store.remember(address: "lettre@lettre-du-design.exemple", tab: .some("personnes"), at: Date())
+        router.openSettings(.mails)
+        try await capture("reglages-mails", wait: .milliseconds(2_000))
+        router.section = .mails
         mails.unreadOnly = true
         try await capture("mails-non-lus")
         mails.unreadOnly = false

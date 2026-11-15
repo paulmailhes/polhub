@@ -136,6 +136,32 @@ public struct MailStore: Sendable {
         try writer.read { try MailThreadRow.filter(keys: keys).order(Column("lastMessageAt").desc).fetchAll($0) }
     }
 
+    /// « Tous les messages » (15/11): every thread of the copy, archived ones too, never the trash nor the spam.
+    public func allThreads(accounts: Set<String>? = nil, limit: Int = 2_000) throws -> [MailThreadRow] {
+        try writer.read { db in
+            var request = MailThreadRow.filter(Column("hidden") == false)
+            if let accounts { request = request.filter(accounts.map { $0.lowercased() }.contains(Column("account"))) }
+            return try request.order(Column("lastMessageAt").desc).limit(limit).fetchAll(db)
+        }
+    }
+
+    /// The files of these threads, as the list shows them under each line: once each, without the images the
+    /// HTML shows, nor those of a message in the trash, the spam or a draft.
+    public func attachments(threadKeys: [String]) throws -> [String: [MailAttachment]] {
+        guard !threadKeys.isEmpty else { return [:] }
+        return try writer.read { db in
+            var result: [String: [MailAttachment]] = [:]
+            let messages = try MailMessageRow.filter(threadKeys.contains(Column("threadKey"))).filter(sql: "attachments <> '[]'")
+                .order(Column("date")).fetchAll(db)
+            for message in messages where !message.isAside {
+                for file in message.files where !(result[message.threadKey] ?? []).contains(where: { $0.filename == file.filename && $0.size == file.size }) {
+                    result[message.threadKey, default: []].append(file)
+                }
+            }
+            return result
+        }
+    }
+
     /// The messages of a thread, the oldest first; those in the trash or the spam are left out.
     public func messages(threadKey: String) throws -> [MailMessageRow] {
         try writer.read { try MailMessageRow.filter(Column("threadKey") == threadKey).order(Column("date")).fetchAll($0) }.filter { !$0.isAside }

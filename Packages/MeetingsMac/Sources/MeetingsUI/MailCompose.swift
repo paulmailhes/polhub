@@ -417,7 +417,7 @@ struct NewMailPanel: View {
     }
 }
 
-/// The drafts: Polhub's, then those Gmail holds from elsewhere. A click takes one up.
+/// The drafts: Polhub's, then those Gmail holds from elsewhere, on the list's lines. A click takes one up.
 struct MailDraftListView: View {
     @ObservedObject var mails: MailLibrary
     @ObservedObject var router: WindowRouter
@@ -431,54 +431,72 @@ struct MailDraftListView: View {
             ScrollView {
                 LazyVStack(spacing: 0) {
                     ForEach(mine) { draft in
-                        row(account: draft.account, people: draft.to.map { $0.name ?? $0.email }, subject: draft.subject,
-                            extract: draft.body, date: draft.updatedAt, error: draft.lastError, agent: draft.origin == .agent) { mails.open(draft, router: router) }
+                        MailDraftLine(account: draft.account, color: mails.color(for: draft.account), people: draft.to.map { $0.name ?? $0.email },
+                                      subject: draft.subject, extract: draft.body, date: draft.updatedAt, error: draft.lastError,
+                                      agent: draft.origin == .agent) { mails.open(draft, router: router) }
                             .contextMenu { Button("Supprimer le brouillon", role: .destructive) { mails.discard(draft.id) } }
-                        Divider().padding(.leading, MailRow.textInset)
                     }
                     if !mails.gmailDrafts.isEmpty {
                         Text("Commencés dans Gmail")
                             .font(.meta.weight(.semibold)).foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.leading, MailRow.textInset).padding(.top, Space.l + 4).padding(.bottom, Space.s)
+                            .padding(.leading, MailRow.boxEnd).padding(.top, Space.l + 4).padding(.bottom, Space.s)
+                            .overlay(alignment: .bottom) { MailLine() }
                         ForEach(mails.gmailDrafts) { message in
-                            row(account: message.account, people: message.to.map { $0.name ?? $0.email }, subject: message.subject,
-                                extract: message.snippet, date: message.date, error: nil) { mails.resume(message, router: router) }
+                            MailDraftLine(account: message.account, color: mails.color(for: message.account), people: message.to.map { $0.name ?? $0.email },
+                                          subject: message.subject, extract: message.snippet, date: message.date, error: nil) { mails.resume(message, router: router) }
                                 .help("Reprendre ce brouillon dans Polhub")
-                            Divider().padding(.leading, MailRow.textInset)
                         }
                     }
                 }
             }
         }
     }
+}
 
-    /// Two lines, as in the list of threads: to whom and when; the subject and the start of the text.
-    private func row(account: String, people: [String], subject: String, extract: String, date: Date, error: String?, agent: Bool = false,
-                     open: @escaping () -> Void) -> some View {
+/// A draft on one line, as Gmail's: « Brouillon » in red and to whom; the subject and the start of the text;
+/// the date at the end.
+struct MailDraftLine: View {
+    let account: String
+    let color: Color
+    let people: [String]
+    let subject: String
+    let extract: String
+    let date: Date
+    let error: String?
+    var agent = false
+    let open: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
         HStack(spacing: 0) {
-            RoundedRectangle(cornerRadius: 1.5).fill(mails.color(for: account)).frame(width: 3, height: 36).padding(.leading, Space.l)
-            Color.clear.frame(width: 36, height: 1)
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-                    Text("Brouillon").font(.meta.weight(.semibold)).foregroundStyle(.red).fixedSize()
-                    Text(people.isEmpty ? "(sans destinataire)" : people.joined(separator: ", ")).font(.rowTitle).lineLimit(1)
-                    Spacer(minLength: Space.m)
-                    if agent {
-                        Label("préparé par un agent", systemImage: "sparkles").font(.meta).foregroundStyle(Color.accentColor).fixedSize()
-                    }
-                    if error != nil { Image(systemName: "exclamationmark.triangle").font(.meta).foregroundStyle(.orange).help(error ?? "") }
-                    Text(MailText.date(date)).font(.meta).foregroundStyle(.secondary).fixedSize()
-                }
-                (Text(subject.isEmpty ? "(sans objet)" : subject).fontWeight(.medium)
-                    + Text(extract.isEmpty ? "" : "  —  \(extract.replacingOccurrences(of: "\n", with: " "))").foregroundStyle(.secondary))
-                    .font(.rowBody)
-                    .lineLimit(1)
+            RoundedRectangle(cornerRadius: 1.5).fill(color).frame(width: 3, height: 22).padding(.leading, Space.m).help(account)
+            Color.clear.frame(width: 44, height: 1)
+            (Text("Brouillon").foregroundStyle(.red) + Text(people.isEmpty ? "" : " · \(people.joined(separator: ", "))"))
+                .font(.rowTitle)
+                .lineLimit(1)
+                .frame(width: MailRow.sendersWidth, alignment: .leading)
+                .padding(.trailing, Space.l)
+            (Text(subject.isEmpty ? "(sans objet)" : subject).font(.rowTitle)
+                + Text(extract.isEmpty ? "" : " — \(extract.replacingOccurrences(of: "\n", with: " "))").font(.rowBody).foregroundStyle(.secondary))
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if agent {
+                Label("préparé par un agent", systemImage: "sparkles").font(.meta).foregroundStyle(Color.accentColor).fixedSize().padding(.horizontal, Space.s)
             }
-            .padding(.trailing, Space.xl)
+            if error != nil { Image(systemName: "exclamationmark.triangle").font(.meta).foregroundStyle(.orange).help(error ?? "").padding(.horizontal, Space.s) }
+            Text(MailText.date(date)).font(.meta).foregroundStyle(.secondary).monospacedDigit().lineLimit(1).frame(minWidth: 58, alignment: .trailing)
         }
         .padding(.vertical, Space.m)
+        .padding(.trailing, Space.l)
+        .background {
+            Rectangle().fill(MailSurface.unread)
+                .shadow(color: .black.opacity(hovering ? 0.2 : 0), radius: hovering ? 3 : 0, y: hovering ? 1 : 0)
+        }
+        .overlay(alignment: .bottom) { MailLine() }
+        .zIndex(hovering ? 1 : 0)
         .contentShape(Rectangle())
         .onTapGesture(perform: open)
+        .onHover { hovering = $0 }
     }
 }

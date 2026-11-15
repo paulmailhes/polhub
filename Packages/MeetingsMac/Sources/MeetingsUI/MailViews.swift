@@ -126,12 +126,15 @@ enum MailText {
 
     /// « Camille, moi (3) »; one sender alone keeps the whole name (« La Lettre du design »), as in Gmail.
     static func senders(_ thread: MailThreadRow, mine: Set<String>) -> String {
-        let count = thread.messageCount > 1 ? " (\(thread.messageCount))" : ""
+        names(thread, mine: mine) + (thread.messageCount > 1 ? " (\(thread.messageCount))" : "")
+    }
+
+    /// « Camille, moi », without the count, which the list shows apart, lighter.
+    static func names(_ thread: MailThreadRow, mine: Set<String>) -> String {
         if thread.senders.count == 1, let only = thread.senders.first {
-            return (mine.contains(only.email) ? "moi" : only.display) + count
+            return mine.contains(only.email) ? "moi" : only.display
         }
-        let names = thread.senders.map { mine.contains($0.email) ? "moi" : ($0.name?.components(separatedBy: " ").first ?? $0.email) }
-        return names.joined(separator: ", ") + count
+        return thread.senders.map { mine.contains($0.email) ? "moi" : ($0.name?.components(separatedBy: " ").first ?? $0.email) }.joined(separator: ", ")
     }
 
     static func size(_ bytes: Int) -> String {
@@ -169,354 +172,6 @@ enum MailText {
             if result.last?.title == title { result[result.count - 1].threads.append(thread) } else { result.append((title, [thread])) }
         }
         return result
-    }
-}
-
-/// The list: one line per thread, the mailboxes together, cut by day; ticks for gestures on several threads.
-struct MailListView: View {
-    @ObservedObject var mails: MailLibrary
-    @ObservedObject var router: WindowRouter
-    @FocusState private var listFocused: Bool
-
-    private func open(_ key: String) {
-        mails.focused = key
-        router.mailSelection = key
-    }
-
-    var body: some View {
-        let threads = mails.folder == .sent ? mails.sent : mails.shown
-        let mine = Set(mails.agenda.accounts.map(\.email))
-        VStack(spacing: 0) {
-            if mails.folder == .drafts {
-                MailDraftListView(mails: mails, router: router)
-            } else if mails.folder == .subscriptions {
-                MailSubscriptionsView(mails: mails)
-            } else {
-                content(threads, mine: mine)
-            }
-            if let progress = mails.progress {
-                Divider()
-                Text(progress).font(.meta).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, Space.xl).padding(.vertical, Space.s)
-            }
-        }
-        .toolbar { toolbar }
-        .searchable(text: $mails.query, placement: .toolbar, prompt: "Chercher dans Gmail")
-        .onSubmit(of: .search) { Task { await mails.search(mails.query) } }
-        .onChange(of: mails.query) { _, text in if text.isEmpty { mails.endSearch() } }
-        .windowTitle("Mails", subtitle: mails.searching ? "Recherche…" : (mails.found != nil ? "Résultats de la recherche"
-                                                                          : (mails.folder == .inbox ? mails.tab.title : mails.folder.title)))
-    }
-
-    @ViewBuilder
-    private func content(_ threads: [MailThreadRow], mine: Set<String>) -> some View {
-        VStack(spacing: 0) {
-            if let failure = mails.failure {
-                banner(icon: "exclamationmark.triangle", tint: .orange, text: "\(AccountStyle.label(for: failure.account)) : \(failure.text)") {
-                    Button("Comptes Google") { router.openSettings(.accounts) }
-                }
-            }
-            if mails.found == nil, mails.folder == .inbox, mails.tab != .personnes {
-                banner(icon: "info.circle", tint: .secondary,
-                       text: "\(mails.tab.explanation) Un mail qui n'a rien à faire ici : clic droit › « Ranger dans ».") { EmptyView() }
-            }
-            if threads.isEmpty {
-                ContentUnavailableView(mails.found != nil ? "Aucun mail trouvé"
-                                       : (mails.progress != nil ? "Lecture de tes boîtes…" : (mails.unreadOnly && mails.folder == .inbox ? "Aucun non lu" : "Rien ici")),
-                                       systemImage: mails.found != nil ? "magnifyingglass" : mails.folder.icon,
-                                       description: Text(mails.found != nil || mails.folder != .inbox ? "" : mails.tab.explanation))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                list(threads, mine: mine)
-            }
-        }
-    }
-
-    /// One line above the list. (A text left free to grow in height here kept the whole window from drawing.)
-    private func banner(icon: String, tint: Color, text: String, @ViewBuilder action: () -> some View) -> some View {
-        VStack(spacing: 0) {
-            HStack(spacing: Space.s) {
-                Image(systemName: icon).foregroundStyle(tint)
-                Text(text).foregroundStyle(.secondary).lineLimit(2)
-                Spacer(minLength: Space.m)
-                action()
-            }
-            .font(.meta)
-            .padding(.horizontal, Space.xl).padding(.vertical, Space.m)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            Divider()
-        }
-    }
-
-    private func list(_ threads: [MailThreadRow], mine: Set<String>) -> some View {
-        ScrollViewReader { scroll in
-            ScrollView {
-                LazyVStack(spacing: 0, pinnedViews: .sectionHeaders) {
-                    ForEach(MailText.sections(threads), id: \.title) { section in
-                        Section {
-                            ForEach(section.threads) { thread in
-                                MailRow(thread: thread, mails: mails, mine: mine) { open(thread.id) }
-                                    .id(thread.id)
-                                Divider().padding(.leading, MailRow.textInset)
-                            }
-                        } header: {
-                            Text(section.title)
-                                .font(.meta.weight(.semibold)).foregroundStyle(.secondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.leading, MailRow.textInset).padding(.trailing, Space.l)
-                                .padding(.top, Space.l + 4).padding(.bottom, Space.s)
-                                .background(.bar)
-                        }
-                    }
-                }
-            }
-            .focusable()
-            .focusEffectDisabled()
-            .focused($listFocused)
-            .onAppear { listFocused = true }
-            .onKeyPress(.downArrow) { move(1, in: threads, scroll: scroll) }
-            .onKeyPress(.upArrow) { move(-1, in: threads, scroll: scroll) }
-            .onKeyPress(.return) {
-                guard let key = mails.focused else { return .ignored }
-                open(key)
-                return .handled
-            }
-            .onKeyPress(.space) {
-                guard let key = mails.focused else { return .ignored }
-                mails.select(key, extend: false)
-                return .handled
-            }
-            .onKeyPress(keys: [.delete, .deleteForward]) { _ in
-                if !mails.selected.isEmpty {
-                    mails.performOnSelection(.trash)
-                } else if let thread = threads.first(where: { $0.id == mails.focused }) {
-                    mails.focused = mails.neighbor(of: thread.id, offset: 1) ?? mails.neighbor(of: thread.id, offset: -1)
-                    mails.perform(.trash, on: thread)
-                } else {
-                    return .ignored
-                }
-                return .handled
-            }
-            .onKeyPress(.escape) {
-                guard mails.selecting || !mails.selected.isEmpty else { return .ignored }
-                mails.endSelection()
-                return .handled
-            }
-            .onKeyPress(characters: CharacterSet(charactersIn: "aA")) { press in
-                guard press.modifiers.contains(.command) else { return .ignored }
-                mails.selectAll()
-                return .handled
-            }
-        }
-    }
-
-    private func move(_ step: Int, in threads: [MailThreadRow], scroll: ScrollViewProxy) -> KeyPress.Result {
-        guard !threads.isEmpty else { return .ignored }
-        let index = threads.firstIndex { $0.id == mails.focused }.map { $0 + step } ?? (step > 0 ? 0 : threads.count - 1)
-        let key = threads[min(max(index, 0), threads.count - 1)].id
-        mails.focused = key
-        scroll.scrollTo(key)
-        return .handled
-    }
-
-    @ToolbarContentBuilder
-    private var toolbar: some ToolbarContent {
-        ToolbarItem(placement: .navigation) {
-            Menu {
-                Picker("Dossier", selection: $mails.folder) {
-                    ForEach(MailFolder.allCases, id: \.self) { folder in
-                        let count = folder == .drafts ? mails.drafts.count + mails.gmailDrafts.count : 0
-                        Label(count > 0 ? "\(folder.title) (\(count))" : folder.title, systemImage: folder.icon).tag(folder)
-                    }
-                }
-                .pickerStyle(.inline)
-            } label: {
-                Label(mails.folder.title, systemImage: mails.folder.icon).labelStyle(.titleAndIcon)
-            }
-            .help("Boîte de réception, Brouillons, Envoyés")
-        }
-        if mails.folder == .inbox {
-        ToolbarItem(placement: .principal) {
-            Picker("Onglet", selection: $mails.tab) {
-                ForEach(MailTab.allCases, id: \.self) { tab in
-                    let unread = mails.unread(in: tab)
-                    Text(unread > 0 ? "\(tab.title) · \(unread)" : tab.title).tag(tab)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .disabled(mails.found != nil)
-            .help(MailTab.allCases.map { "\($0.title) : \($0.explanation)" }.joined(separator: "\n"))
-        }
-        }
-        if mails.selecting || !mails.selected.isEmpty {
-            ToolbarItemGroup(placement: .primaryAction) {
-                let count = mails.selected.count
-                Text(count == 0 ? "Coche des mails" : "\(count) sélectionné\(count > 1 ? "s" : "")")
-                    .foregroundStyle(.secondary).fixedSize()
-                Group {
-                    Button { mails.performOnSelection(.archive) } label: { Label("Archiver", systemImage: "archivebox") }.help("Archiver")
-                    Button { mails.performOnSelection(.trash) } label: { Label("Supprimer", systemImage: "trash") }.help("Supprimer")
-                    Button { mails.performOnSelection(.markRead) } label: { Label("Lu", systemImage: "envelope.open") }.help("Marquer comme lus")
-                    Button { mails.performOnSelection(.markUnread) } label: { Label("Non lu", systemImage: "envelope.badge") }.help("Marquer comme non lus")
-                }
-                .disabled(count == 0)
-                Button { count == mails.shown.count ? mails.selected.removeAll() : mails.selectAll() } label: {
-                    Label(count == mails.shown.count ? "Tout désélectionner" : "Tout sélectionner", systemImage: "checklist.checked")
-                }
-                .help(count == mails.shown.count ? "Tout désélectionner" : "Tout sélectionner (⌘A)")
-                Button { mails.endSelection() } label: { Label("Terminer", systemImage: "xmark") }.help("Terminer la sélection (Échap)")
-            }
-        } else {
-            ToolbarItemGroup(placement: .primaryAction) {
-                ForEach(mails.accounts) { account in
-                    let shown = !mails.hidden.contains(account.email)
-                    // A dot per mailbox, in its color: full when shown, empty when hidden; its name on hover.
-                    Button {
-                        if shown { mails.hidden.insert(account.email) } else { mails.hidden.remove(account.email) }
-                    } label: {
-                        Label(AccountStyle.label(for: account.email), systemImage: shown ? "circle.fill" : "circle")
-                            .labelStyle(.iconOnly)
-                            .foregroundStyle(mails.color(for: account.email))
-                    }
-                    .help(shown ? "\(AccountStyle.label(for: account.email)) · \(account.email) — cliquer pour masquer cette boîte"
-                                : "\(AccountStyle.label(for: account.email)) · \(account.email) — masquée, cliquer pour l'afficher")
-                }
-            }
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button { mails.newMail() } label: { Label("Nouveau mail", systemImage: "square.and.pencil") }
-                    .help("Nouveau mail (⌘N)")
-                    .keyboardShortcut("n", modifiers: .command)
-                if mails.folder == .inbox {
-                    Toggle(isOn: $mails.unreadOnly) {
-                        Label("Non lus", systemImage: mails.unreadOnly ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
-                    }
-                    .help(mails.unreadOnly ? "Afficher tous les mails" : "N'afficher que les non lus")
-                }
-                Menu {
-                    Button("Relever les mails maintenant") { mails.refresh() }
-                    if mails.folder == .inbox {
-                        Button("Sélectionner plusieurs mails") { mails.selecting = true }
-                        Button("Tout marquer comme lu dans « \(mails.tab.title) »") { mails.markAllRead() }
-                            .disabled(mails.unread(in: mails.tab) == 0 || mails.found != nil)
-                        if mails.tab != .personnes {
-                            // Never on a search's results: they come from every tab (second review of 14/11).
-                            Button("Tout archiver dans « \(mails.tab.title) »") { mails.archiveTab() }
-                                .disabled(mails.shown.isEmpty || mails.found != nil)
-                        }
-                    }
-                    Divider()
-                    Button("Abonnements") { mails.folder = .subscriptions }
-                } label: {
-                    Label("Plus", systemImage: "ellipsis.circle")
-                }
-                .help("Relever, sélectionner, tout marquer comme lu, abonnements")
-            }
-        }
-    }
-}
-
-/// One thread in the list, on two lines (Paul, 15/11: « trop serré et illisible »): who, its case and the date;
-/// then the subject and an extract. The mailbox's color on the left. Unread: a dot, in bold. On hover, a box to
-/// tick and the gestures, over the date.
-struct MailRow: View {
-    let thread: MailThreadRow
-    @ObservedObject var mails: MailLibrary
-    let mine: Set<String>
-    let open: () -> Void
-    @State private var hovering = false
-
-    /// Where the text of a row starts: the section titles and the separators line up on it.
-    static let textInset: CGFloat = Space.l + 3 + 36
-
-    var body: some View {
-        let ticked = mails.selected.contains(thread.id)
-        let boxes = mails.selecting || !mails.selected.isEmpty || hovering
-        let actions = hovering && (!boxes || mails.selected.isEmpty)
-        HStack(spacing: 0) {
-            RoundedRectangle(cornerRadius: 1.5).fill(mails.color(for: thread.account)).frame(width: 3, height: 36)
-                .padding(.leading, Space.l)
-                .help(thread.account)
-            ZStack {
-                if boxes {
-                    Image(systemName: ticked ? "checkmark.square.fill" : "square")
-                        .font(.system(size: 16))
-                        .foregroundStyle(ticked ? Color.accentColor : .secondary)
-                        .contentShape(Rectangle())
-                        .onTapGesture { mails.select(thread.id, extend: NSEvent.modifierFlags.contains(.shift)) }
-                        .help("Sélectionner")
-                } else if thread.unread {
-                    Circle().fill(Color.accentColor).frame(width: 10, height: 10).help("Non lu")
-                }
-            }
-            .frame(width: 36)
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-                    Text(MailText.senders(thread, mine: mine))
-                        .font(.rowTitle.weight(thread.unread ? .semibold : .regular))
-                        .lineLimit(1)
-                    if mails.drafts.contains(where: { $0.threadKey == thread.id }) {
-                        Text("Brouillon").font(.meta.weight(.medium)).foregroundStyle(.red).fixedSize()
-                    }
-                    MailFilingChip(thread: thread, mails: mails, always: hovering && mails.filing(of: thread) == nil && mails.tab(of: thread) == .personnes)
-                    Spacer(minLength: Space.m)
-                    if thread.hasAttachment { Image(systemName: "paperclip").font(.meta).foregroundStyle(.secondary) }
-                    Text(MailText.date(thread.lastMessageAt))
-                        .font(.meta.weight(thread.unread ? .semibold : .regular))
-                        .foregroundStyle(thread.unread ? .primary : .secondary)
-                        .fixedSize()
-                        .opacity(actions ? 0 : 1)
-                }
-                (Text(thread.subject.isEmpty ? "(sans objet)" : thread.subject).fontWeight(thread.unread ? .semibold : .regular)
-                    + Text(thread.snippet.isEmpty ? "" : "  —  \(thread.snippet)").foregroundStyle(.secondary))
-                    .font(.rowBody)
-                    .lineLimit(1)
-            }
-            .padding(.trailing, Space.xl)
-        }
-        .padding(.vertical, Space.m)
-        .overlay(alignment: .trailing) {
-            if actions {
-                HStack(spacing: Space.s) {
-                    Button { mails.perform(.archive, on: thread) } label: { Image(systemName: "archivebox") }.help("Archiver")
-                    Button { mails.perform(.trash, on: thread) } label: { Image(systemName: "trash") }.help("Supprimer")
-                    Button { mails.perform(thread.unread ? .markRead : .markUnread, on: thread, undoable: false) } label: {
-                        Image(systemName: thread.unread ? "envelope.open" : "envelope.badge")
-                    }
-                    .help(thread.unread ? "Marquer comme lu" : "Marquer comme non lu")
-                }
-                .font(.system(size: 15))
-                .buttonStyle(.borderless)
-                .padding(.horizontal, Space.s).padding(.vertical, 6)
-                .background(.regularMaterial, in: Capsule())
-                .padding(.trailing, Space.l)
-            }
-        }
-        .background(ticked ? Surface.selected : (mails.focused == thread.id ? Surface.raised : (hovering ? Surface.fill : .clear)))
-        .contentShape(Rectangle())
-        .onTapGesture {
-            let flags = NSEvent.modifierFlags
-            if flags.contains(.command) || flags.contains(.shift) || mails.selecting || !mails.selected.isEmpty {
-                mails.select(thread.id, extend: flags.contains(.shift))
-            } else {
-                open()
-            }
-        }
-        .onHover { hovering = $0 }
-        .contextMenu {
-            Button("Archiver") { mails.perform(.archive, on: thread) }
-            Button("Supprimer") { mails.perform(.trash, on: thread) }
-            Button(thread.unread ? "Marquer comme lu" : "Marquer comme non lu") { mails.perform(thread.unread ? .markRead : .markUnread, on: thread, undoable: false) }
-            Button(ticked ? "Désélectionner" : "Sélectionner") { mails.select(thread.id, extend: false) }
-            Divider()
-            Menu("Ranger dans") { MailFilingMenu(thread: thread, mails: mails) }
-            if let sender = thread.lastSender {
-                Button("Tous les mails de cet expéditeur") { mails.showAll(from: sender) }
-            }
-            Button("Signaler comme spam") { mails.reportSpam(thread) }
-            Divider()
-            Button("Ouvrir dans Gmail") { NSWorkspace.shared.open(mails.gmailURL(thread)) }
-        }
     }
 }
 
@@ -768,10 +423,16 @@ struct MailThreadView: View {
         router.mailSelection = next
     }
 
-    /// Archived or deleted: on to the next thread, as Apple Mail does; back to the list after the last one.
+    /// Archived or deleted: what Réglages › Mails says, as Gmail's « Avance automatique » — the next thread by
+    /// default, as Apple Mail; back to the list after the last one.
     private func gesture(_ kind: MailGestureKind) {
         guard let thread else { return }
-        let next = mails.neighbor(of: key, offset: 1) ?? mails.neighbor(of: key, offset: -1)
+        let next: String?
+        switch Preferences().mailAfterGesture {
+        case .suivant: next = mails.neighbor(of: key, offset: 1) ?? mails.neighbor(of: key, offset: -1)
+        case .precedent: next = mails.neighbor(of: key, offset: -1) ?? mails.neighbor(of: key, offset: 1)
+        case .liste: next = nil
+        }
         mails.perform(kind, on: thread)
         if kind == .markUnread || next == nil { back() } else {
             mails.focused = next
@@ -1125,34 +786,6 @@ struct AttachmentTile: View {
         .onHover { hovering = $0 }
         .contextMenu { Button("Enregistrer…", action: save) }
         .help(AttachmentSafety.canOpen(name: file.filename) ? "Aperçu" : "Ce type de fichier ne s'ouvre pas dans Polhub : il s'enregistre.")
-    }
-}
-
-/// Réglages › Mails (14/11): when remote images load.
-struct MailSettingsPane: View {
-    @AppStorage(Preferences.Key.mailImages) private var images = MailImages.connus.rawValue
-    @AppStorage(Preferences.Key.mailAgentsScope) private var agents = "tout"
-
-    var body: some View {
-        Form {
-            Section {
-                Picker("Images distantes", selection: $images) {
-                    ForEach(MailImages.allCases, id: \.self) { Text($0.title).tag($0.rawValue) }
-                }
-            } footer: {
-                Text("Une image distante qui se charge montre à son expéditeur l'adresse IP de ton Mac et l'heure d'ouverture. « Pour les expéditeurs connus » : tes contacts, les personnes à qui tu as écrit, et ceux pour qui tu as dit « Toujours », quand Gmail confirme que le mail vient bien d'eux. Les images jointes au mail s'affichent toujours.")
-            }
-            Section {
-                Picker("Ce que lisent tes agents", selection: $agents) {
-                    Text("Tous les mails").tag("tout")
-                    Text("Les mails de tes projets").tag("projets")
-                }
-            } footer: {
-                Text("Tes agents Claude Code lisent la copie de tes mails par le serveur de Polhub (outils mails, mail et brouillon), hors spam et corbeille. Ce qu'ils lisent part chez Anthropic. Ils ne peuvent rien envoyer : leurs brouillons t'attendent ici, marqués « préparé par un agent ».")
-            }
-        }
-        .formStyle(.grouped)
-        .frame(maxWidth: 640)
     }
 }
 

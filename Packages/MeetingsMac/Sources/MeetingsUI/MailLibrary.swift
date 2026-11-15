@@ -10,15 +10,17 @@ import PolhubDesign
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Where the list looks: the inbox, the drafts, what Paul sent (14/11).
+/// Where the list looks: the inbox, what Paul sent, the drafts, every thread, the senders he can leave; in the
+/// sidebar, under « Mails », in Gmail's order (Paul, 15/11).
 public enum MailFolder: String, Hashable, Sendable, CaseIterable {
-    case inbox, drafts, sent, subscriptions
+    case inbox, sent, drafts, all, subscriptions
 
     var title: String {
         switch self {
         case .inbox: "Boîte de réception"
-        case .drafts: "Brouillons"
         case .sent: "Envoyés"
+        case .drafts: "Brouillons"
+        case .all: "Tous les messages"
         case .subscriptions: "Abonnements"
         }
     }
@@ -26,11 +28,15 @@ public enum MailFolder: String, Hashable, Sendable, CaseIterable {
     var icon: String {
         switch self {
         case .inbox: "tray"
-        case .drafts: "doc"
         case .sent: "paperplane"
+        case .drafts: "doc"
+        case .all: "tray.full"
         case .subscriptions: "newspaper"
         }
     }
+
+    /// A list of threads, with its checkboxes and its gestures.
+    var listsThreads: Bool { self == .inbox || self == .sent || self == .all }
 }
 
 /// When remote images load (Paul, 14/11): for the senders he knows, when he asks, or always.
@@ -60,7 +66,12 @@ public final class MailLibrary: ObservableObject {
     @Published public private(set) var senders: [String: MailSenderRow] = [:]
     @Published public var tab: MailTab = .personnes { didSet { selected = [] } }
     /// The mailboxes Paul hid from the list.
-    @Published public var hidden: Set<String> { didSet { defaults.set(hidden.sorted(), forKey: Preferences.Key.mailHiddenAccounts) } }
+    @Published public var hidden: Set<String> {
+        didSet {
+            defaults.set(hidden.sorted(), forKey: Preferences.Key.mailHiddenAccounts)
+            refreshFolders()
+        }
+    }
     /// What a search found at Gmail's; `nil` out of a search.
     @Published public private(set) var found: [MailThreadRow]?
     @Published public private(set) var searching = false
@@ -84,6 +95,10 @@ public final class MailLibrary: ObservableObject {
     /// The drafts Gmail holds that Polhub did not make.
     @Published public private(set) var gmailDrafts: [MailMessageRow] = []
     @Published public private(set) var sent: [MailThreadRow] = []
+    /// « Tous les messages »: the copy, archived threads too (15/11).
+    @Published public private(set) var all: [MailThreadRow] = []
+    /// The files of the threads listed, shown under their line (Gmail's « Par défaut »).
+    @Published public private(set) var files: [String: [MailAttachment]] = [:]
     /// The draft open over the list: a new mail, a draft taken from the list.
     @Published public var composing: String?
     /// The mail leaving: Paul has ten seconds to call it back; once `leaving`, it is on its way to Gmail.
@@ -334,11 +349,21 @@ public final class MailLibrary: ObservableObject {
         threads.filter { !hidden.contains($0.account) }
     }
 
-    /// The threads of the tab, or of the search under way.
+    /// The threads the list shows: the search's, else the tab's in the inbox, else the folder's.
     public var shown: [MailThreadRow] {
         if let found { return found }
-        return visible(inbox).filter { tab(of: $0) == tab && (!unreadOnly || $0.unread) }
+        let threads: [MailThreadRow]
+        switch folder {
+        case .inbox: threads = visible(inbox).filter { tab(of: $0) == tab }
+        case .sent: threads = sent
+        case .all: threads = all
+        case .drafts, .subscriptions: return []
+        }
+        return unreadOnly ? threads.filter(\.unread) : threads
     }
+
+    /// The drafts waiting: Polhub's and those begun elsewhere.
+    public var draftCount: Int { drafts.count + gmailDrafts.count }
 
     /// The unread threads of the people's tab: what waits for Paul.
     public var unreadCount: Int {
@@ -394,6 +419,12 @@ public final class MailLibrary: ObservableObject {
 
     public func selectAll() {
         selected = Set(shown.map(\.id))
+        selecting = true
+    }
+
+    /// Gmail's « Lus », « Non lus »: the threads shown that answer.
+    public func select(where answers: (MailThreadRow) -> Bool) {
+        selected = Set(shown.filter(answers).map(\.id))
         selecting = true
     }
 
@@ -494,6 +525,7 @@ public final class MailLibrary: ObservableObject {
         do {
             let keys = try await engine.search(query, accounts: accounts.map(\.email).filter { !hidden.contains($0) })
             found = try store.threads(keys: keys).filter { !$0.hidden }
+            refreshFiles()
         } catch {
             message = "Recherche impossible : \(error)"
         }
@@ -527,6 +559,15 @@ public final class MailLibrary: ObservableObject {
         }
     }
 
+    /// Réglages › Mails › « Oublier » (15/11): nothing is kept of this sender any more; its mails follow the rules.
+    public func forget(_ address: String) {
+        do {
+            try store.remember(address: address, tab: .some(nil), images: false, filing: .some(nil), at: Date())
+        } catch {
+            message = "Impossible d'oublier \(address) : \(error)"
+        }
+    }
+
     /// « Toujours pour cet expéditeur ».
     public func alwaysShowImages(from sender: String) {
         try? store.remember(address: sender, images: true, at: Date())
@@ -548,13 +589,23 @@ public final class MailLibrary: ObservableObject {
     public var isSending: Bool { sending != nil }
 
     func refreshFolders() {
-        guard folder != .inbox else { return }
         let shownAccounts = Set(accounts.map(\.email)).subtracting(hidden)
-        sent = (try? store.sentThreads(accounts: shownAccounts)) ?? []
+        // The drafts' count shows in the sidebar, whatever the folder.
         gmailDrafts = ((try? store.gmailOnlyDrafts()) ?? []).filter { !hidden.contains($0.account) }
-        if folder == .subscriptions {
-            subscriptions = (try? store.subscriptions(since: Date().addingTimeInterval(-90 * 86_400), accounts: shownAccounts)) ?? []
+        switch folder {
+        case .sent: sent = (try? store.sentThreads(accounts: shownAccounts)) ?? []
+        case .all: all = (try? store.allThreads(accounts: shownAccounts)) ?? []
+        case .subscriptions: subscriptions = (try? store.subscriptions(since: Date().addingTimeInterval(-90 * 86_400), accounts: shownAccounts)) ?? []
+        case .inbox, .drafts: break
         }
+        refreshFiles()
+    }
+
+    /// The files of the threads listed, read again when the list changes.
+    private func refreshFiles() {
+        let keys = Set((found ?? []).map(\.id) + visible(inbox).map(\.id) + (folder == .sent ? sent.map(\.id) : []) + (folder == .all ? all.map(\.id) : []))
+        let withFiles = (found ?? []) + inbox + sent + all
+        files = (try? store.attachments(threadKeys: withFiles.filter { $0.hasAttachment && keys.contains($0.id) }.map(\.id))) ?? [:]
     }
 
     /// Who Paul writes to: his contacts and his correspondents, matching what he types.
@@ -782,9 +833,11 @@ public final class MailLibrary: ObservableObject {
         pushes[draftID] = nil
         if composing == draftID { composing = nil }
         let subject = draft.subject.isEmpty ? "(sans objet)" : draft.subject
-        sending = (draftID, subject, Date().addingTimeInterval(10), false)
+        // Gmail's delay, chosen in Réglages › Mails (15/11).
+        let delay = Preferences(defaults: defaults).mailUndoSeconds
+        sending = (draftID, subject, Date().addingTimeInterval(Double(delay)), false)
         sendTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(10))
+            try? await Task.sleep(for: .seconds(delay))
             guard !Task.isCancelled, let self, self.sending?.draftID == draftID else { return }
             // From here « Annuler » can no longer call it back (review of 14/11).
             self.sending?.leaving = true

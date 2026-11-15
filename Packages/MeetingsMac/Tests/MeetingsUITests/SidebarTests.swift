@@ -54,6 +54,21 @@ import Testing
         #expect(SettingsPane.families(hasAgenda: true, hasProjects: true).flatMap { $0 }.contains(.notifications))
     }
 
+    /// 15/11, « comme Gmail »: the list's density, the days, the undo delay and what follows a gesture, in
+    /// Réglages › Mails.
+    @Test func mailSettingsHaveGmailsDefaults() throws {
+        let defaults = try #require(UserDefaults(suiteName: "mails-\(UUID().uuidString)"))
+        let settings = Preferences(defaults: defaults)
+        #expect(settings.mailDensity == .defaut && settings.mailDensity.showsFiles && !MailDensity.compacte.showsFiles)
+        #expect(!settings.mailDays && settings.mailUndoSeconds == 10 && settings.mailAfterGesture == .suivant)
+        defaults.set(30, forKey: Preferences.Key.mailUndoSeconds)
+        defaults.set("liste", forKey: Preferences.Key.mailAfterGesture)
+        #expect(settings.mailUndoSeconds == 30 && settings.mailAfterGesture == .liste)
+        defaults.set(3, forKey: Preferences.Key.mailUndoSeconds)
+        #expect(settings.mailUndoSeconds == 10)
+        #expect(MailDensity.compacte.padding < MailDensity.defaut.padding)
+    }
+
     /// Events of a day that overlap share the column's width (13/11).
     @Test func overlappingEventsSitSideBySide() {
         let day = Date(timeIntervalSince1970: 1_794_562_920)

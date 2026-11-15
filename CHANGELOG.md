@@ -3,6 +3,33 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.16.0 — 15 novembre 2026
+
+**Les mails, comme dans Gmail.**
+
+- **La liste** : une ligne par fil, comme Gmail. Les expéditeurs à gauche, séparés par des virgules ; l'objet,
+  puis le début du mail en plus petit et en gris ; la date au bout. Un mail **non lu** est sur fond blanc et en
+  gras, un mail **lu** sur fond bleu-gris. Les **pièces jointes** s'affichent en pastilles sous la ligne.
+- **Le survol ne fait plus bouger la grille** : la ligne prend une ombre, et archiver, supprimer, lu/non lu
+  et « Ranger dans » s'affichent par-dessus la date.
+- **Les cases à cocher** sont toujours là, comme dans Gmail. Au-dessus de la liste, une barre porte la case
+  « tout sélectionner » (avec Tous, Aucun, Lus, Non lus), « Relever », « Plus » et « Non lus » ; avec des fils
+  cochés, elle porte archiver, supprimer, lu, non lu.
+- **Les onglets** Personnes, Notifications et Newsletters quittent la barre du haut : ils sont sous la barre
+  des gestes, comme ceux de Gmail, chacun sa couleur, avec le nombre de non-lus.
+- **La barre latérale** : « Mails » s'ouvre sur Boîte de réception, Envoyés, Brouillons, Tous les messages et
+  Abonnements, avec les non-lus et les brouillons comptés ; dessous, tes boîtes, à cocher pour les afficher
+  ou les masquer. Elle a une largeur fixe : elle ne change plus de taille d'une section à l'autre.
+- **Tous les messages** : nouveau dossier, avec les fils archivés de la copie (six mois), comme dans Gmail.
+  Un fil archivé s'y remet en boîte de réception d'un clic.
+- **Réglages › Mails**, plus complet :
+  - la densité d'affichage de Gmail (Par défaut, Confortable, Compacte) ;
+  - les jours séparés (Aujourd'hui, Hier…), désormais coupés par défaut, comme Gmail ;
+  - ce qui s'affiche après un archivage ou une suppression : le fil suivant, le précédent ou la liste ;
+  - le délai d'annulation de l'envoi : 5, 10, 20 ou 30 secondes ;
+  - le tri des onglets expliqué règle par règle, et ce que Polhub a retenu de chaque expéditeur, à oublier
+    d'un clic.
+
 ## 0.15.3 — 15 novembre 2026
 
 **Une interface plus grande et plus aérée.** Comprend aussi les corrections de la 0.15.2, qui n'a pas été

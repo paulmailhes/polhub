@@ -241,6 +241,25 @@ import Testing
         #expect(try mails.correspondents() == ["camille@exemple.fr", "jules@exemple.fr"])
     }
 
+    /// 15/11, « comme Gmail »: « Tous les messages » holds the archived threads, never the trash; the list shows
+    /// the files of each thread under it, without the images its HTML shows.
+    @Test func everyThreadAndTheFilesOfEachThread() throws {
+        let mails = try store()
+        var withFiles = message("m1")
+        withFiles.attachments = [MailAttachment(partID: "2", filename: "devis.pdf", mimeType: "application/pdf", size: 1_000, attachmentID: "a", contentID: nil, inline: false),
+                                 MailAttachment(partID: "3", filename: "logo.png", mimeType: "image/png", size: 10, attachmentID: "b", contentID: "logo", inline: true)]
+        var again = message("m2", minutes: 3)
+        again.attachments = [withFiles.attachments[0]]
+        try mails.apply(account: account, upserts: [
+            withFiles, again,
+            message("m3", thread: "t2", minutes: 5, labels: ["CATEGORY_PERSONAL"]),
+            message("m4", thread: "t3", minutes: 7, labels: ["TRASH"]),
+        ])
+        #expect(try mails.allThreads().map(\.threadID) == ["t2", "t1"])
+        #expect(try mails.allThreads(accounts: ["autre@exemple.fr"]).isEmpty)
+        #expect(try mails.attachments(threadKeys: [key, MailThreadRow.key(account: account, threadID: "t2")]) == [key: [withFiles.attachments[0]]])
+    }
+
     @Test func theSentThreadsAndTheDraftsWrittenElsewhere() throws {
         let mails = try store()
         try mails.apply(account: account, upserts: [

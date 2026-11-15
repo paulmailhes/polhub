@@ -1,6 +1,47 @@
 import Foundation
 import SwiftUI
 
+/// How tight the mails' list is, as Gmail's « Densité d'affichage » (Paul, 15/11: « calque-toi sur Gmail »):
+/// « Par défaut » shows the files of a thread under its line.
+public enum MailDensity: String, CaseIterable, Identifiable, Sendable {
+    case defaut, confortable, compacte
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .defaut: "Par défaut"
+        case .confortable: "Confortable"
+        case .compacte: "Compacte"
+        }
+    }
+
+    /// Above and below the line's text.
+    public var padding: CGFloat {
+        switch self {
+        case .defaut, .confortable: Space.m
+        case .compacte: Space.s
+        }
+    }
+
+    public var showsFiles: Bool { self == .defaut }
+}
+
+/// What shows once a thread is archived or deleted, as Gmail's « Avance automatique ».
+public enum MailAfterGesture: String, CaseIterable, Identifiable, Sendable {
+    case suivant, precedent, liste
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .suivant: "Le fil suivant (plus ancien)"
+        case .precedent: "Le fil précédent (plus récent)"
+        case .liste: "La liste"
+        }
+    }
+}
+
 /// The size of the Kanban's cards (Paul, 14/11: the large ones were too large; a choice in Réglages › Projets).
 public enum CardSize: String, CaseIterable, Identifiable, Sendable {
     case small, medium, large
@@ -79,6 +120,13 @@ public struct Preferences: @unchecked Sendable {
         /// The new mails whose mailbox Paul has not chosen yet.
         public static let mailUnconfirmed = "mails.boiteAChoisir"
         public static let mailUnsubscribed = "mails.desabonnements"
+        /// Réglages › Mails (15/11): the list's density, the days apart, the undo delay, what follows a gesture;
+        /// the mails' part of the sidebar, open or closed.
+        public static let mailDensity = "mails.densite"
+        public static let mailDays = "mails.jours"
+        public static let mailUndoSeconds = "mails.delaiAnnulation"
+        public static let mailAfterGesture = "mails.apresUnGeste"
+        public static let mailSidebarOpen = "mails.barreOuverte"
         /// Réglages › Général (14/11): a mail or a project opens over its list, or in place of it.
         public static let floatingPages = "general.fenetreFlottante"
     }
@@ -91,6 +139,8 @@ public struct Preferences: @unchecked Sendable {
         /// Ten minutes and one minute before (Paul, 14/11).
         public static let reminderMinutes = "10,1"
         public static let reminderChoices = [30, 15, 10, 5, 1]
+        /// Gmail's choices for calling a mail back.
+        public static let mailUndoChoices = [5, 10, 20, 30]
     }
 
     private let defaults: UserDefaults
@@ -116,6 +166,15 @@ public struct Preferences: @unchecked Sendable {
     public var summaryReady: Bool { flag(Key.summaryReady) }
     public var mailNotices: Bool { flag(Key.mailNotices) }
     public var sound: Bool { flag(Key.sound) }
+    public var mailDensity: MailDensity { MailDensity(rawValue: defaults.string(forKey: Key.mailDensity) ?? "") ?? .defaut }
+    /// The list cut by day (« Aujourd'hui », « Hier »…); Gmail does not.
+    public var mailDays: Bool { (defaults.object(forKey: Key.mailDays) as? Bool) ?? false }
+    /// The seconds a mail can be called back, one of Gmail's choices.
+    public var mailUndoSeconds: Int {
+        let value = (defaults.object(forKey: Key.mailUndoSeconds) as? Int) ?? 10
+        return Default.mailUndoChoices.contains(value) ? value : 10
+    }
+    public var mailAfterGesture: MailAfterGesture { MailAfterGesture(rawValue: defaults.string(forKey: Key.mailAfterGesture) ?? "") ?? .suivant }
 
     private func flag(_ key: String) -> Bool { (defaults.object(forKey: key) as? Bool) ?? true }
 

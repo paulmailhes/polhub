@@ -12,14 +12,15 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
     let updates: UpdateService?
     let projects: ProjectLibrary?
     let agenda: AgendaLibrary?
-    let hasMails: Bool
+    let mails: MailLibrary?
+    private var hasMails: Bool { mails != nil }
     @ObservedObject var library: MeetingLibrary
     let notifications: NotificationHub?
     let startup: StartupControl?
     let diagnostic: Diagnostic
     let journal: Journal
 
-    init(router: WindowRouter, updates: UpdateService?, projects: ProjectLibrary?, agenda: AgendaLibrary? = nil, hasMails: Bool = false, library: MeetingLibrary,
+    init(router: WindowRouter, updates: UpdateService?, projects: ProjectLibrary?, agenda: AgendaLibrary? = nil, mails: MailLibrary? = nil, library: MeetingLibrary,
          notifications: NotificationHub? = nil, startup: StartupControl? = nil,
          @ViewBuilder diagnostic: () -> Diagnostic, @ViewBuilder journal: () -> Journal) {
         self.notifications = notifications
@@ -28,7 +29,7 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
         self.updates = updates
         self.projects = projects
         self.agenda = agenda
-        self.hasMails = hasMails
+        self.mails = mails
         self.library = library
         self.diagnostic = diagnostic()
         self.journal = journal()
@@ -80,7 +81,7 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
         case .calendar:
             if let agenda { CalendarSettingsPane(agenda: agenda) }
         case .mails:
-            MailSettingsPane()
+            MailSettingsPane(mails: mails)
         case .projects:
             ProjectsSettingsPane()
         case .meetings:

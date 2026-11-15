@@ -51,8 +51,23 @@ Référence : [Adopting Liquid Glass](https://developer.apple.com/documentation/
 | Heures, durées | `.monospacedDigit()` |
 
 Rien à lire sous 12 points : `.caption` et `.caption2` (10 points) ne servent qu'aux icônes et à la grille
-du calendrier (Paul, 15/11 : « tout est un peu petit… trop serré et illisible »). Une liste qu'on lit toute
-la journée (les mails) a des lignes de deux lignes de texte, d'environ 64 points de haut.
+du calendrier (Paul, 15/11 : « tout est un peu petit… trop serré et illisible »).
+
+## La liste des mails
+
+Elle copie Gmail, l'outil que Paul connaît le mieux (Paul, 15/11 : « calque-toi le plus possible sur Gmail ») :
+
+- **une ligne par fil** : la case à cocher, les expéditeurs (`.rowTitle`, colonne de 210 points), puis la
+  case du fil, l'objet (`.rowTitle`) et, plus petit et en gris, le début du mail (`.rowBody`) ; la date au bout ;
+- **non lu** : fond le plus clair (`MailSurface.unread`, blanc en clair) et gras ; **lu** : fond bleu-gris
+  (`MailSurface.read`) ; **coché** : bleu clair (`MailSurface.ticked`) ; le bleu des cases et de l'onglet
+  Personnes est celui de Gmail (`MailSurface.blue`), quelle que soit la couleur d'accent du Mac ;
+- **les pièces jointes** en pastilles sous la ligne, en densité « Par défaut » ;
+- **le survol ne déplace rien** : une ombre sous la ligne, et les gestes par-dessus la date, sur le fond de la
+  ligne ; aucun élément n'apparaît ni ne disparaît dans la mise en page ;
+- **les onglets** (Personnes, Notifications, Newsletters) sous la barre des gestes, chacun sa couleur, souligné
+  quand il est ouvert ; **les dossiers et les boîtes** dans la barre latérale, sous « Mails » ;
+- la barre latérale a **une largeur fixe** (230 points) : elle ne change plus d'une section à l'autre.
 
 ## Les couleurs
 
