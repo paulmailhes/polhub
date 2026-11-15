@@ -1,4 +1,5 @@
 import Agenda
+import Notifications
 import Persistence
 import PolhubDesign
 import SwiftUI
@@ -50,6 +51,8 @@ struct Sidebar: View {
     let agenda: AgendaLibrary?
     let mails: MailLibrary?
     let items: [SidebarItem]
+    /// The notifications Polhub sent, behind the bell beside Réglages (15/11); none in the development build.
+    var inbox: NotificationInbox? = nil
     @AppStorage(Preferences.Key.mailSidebarOpen) private var mailsOpen = true
 
     var body: some View {
@@ -64,7 +67,13 @@ struct Sidebar: View {
         // them: the « Mails » group moves the rows above to the right (correctifs, 15/11). A bar, not an inset: when the
         // rows run longer than the window (« Spam » and « Corbeille », wave B), they scroll under it behind the
         // system's edge effect instead of showing through.
-        .safeAreaBar(edge: .bottom, spacing: 0) { SidebarFooter(router: router, indent: mails != nil ? SidebarFooterMetrics.outlineIndent : 0) }
+        .safeAreaBar(edge: .bottom, spacing: 0) {
+            SidebarFooter(router: router, indent: mails != nil ? SidebarFooterMetrics.outlineIndent : 0) {
+                if let inbox {
+                    NotificationBell(inbox: inbox) { router.perform($0, agenda: agenda, mails: mails) }
+                }
+            }
+        }
         .environment(\.sidebarRowSize, .large)
     }
 

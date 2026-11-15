@@ -243,7 +243,8 @@ public struct MainWindowView<Diagnostic: View>: View {
     public var body: some View {
         NavigationSplitView(columnVisibility: $columns) {
             Sidebar(router: router, library: library, agenda: agenda, mails: mails,
-                    items: SidebarItem.visible(hasProjects: projects != nil, hasAgenda: agenda != nil, hasMails: mails != nil))
+                    items: SidebarItem.visible(hasProjects: projects != nil, hasAgenda: agenda != nil, hasMails: mails != nil),
+                    inbox: notifications?.inbox)
                 // One width, always: a sidebar free to resize changed size from one section to the next (Paul, 15/11).
                 .navigationSplitViewColumnWidth(Self.sidebarWidth)
                 // The window is made by hand: SwiftUI does not add this button there. It keeps a toolbar on every

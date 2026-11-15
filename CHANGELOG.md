@@ -3,6 +3,36 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.17.1 — 15 novembre 2026
+
+**Tes retours sur la 0.17.0.**
+
+- **Projets**
+  - Priorité 2, la plus urgente, est à gauche du Kanban, puis Priorité 1, En pause et Terminé. La carte de
+    l'Accueil montre désormais tes projets en Priorité 2.
+  - Les quatre colonnes ont la même largeur et prennent toute la place de la fenêtre.
+  - Les cartes sont plus grandes et plus lisibles : le nom sans le client, la prochaine chose à faire mise en
+    avant, puis en toutes lettres le prochain rendez-vous (« RDV demain à 14:00 »), l'échéance (« Échéance dans
+    3 j », « En retard de 2 j ») et la dernière réunion.
+  - Les logos ont la même taille partout, Terminé compris, et l'icône d'un site remplit son carré.
+  - Page d'un projet : la barre du haut ne prend plus la couleur du projet ; les Notes passent en premier et
+    s'écrivent d'un clic, sans « Modifier » ; un menu « … » en haut à droite (statut, dossier de code, copier le
+    nom, **Supprimer le projet**).
+- **Mails**
+  - Les fonds des mails lus, non lus et cochés reprennent les couleurs du reste de l'app.
+  - Plus d'onglets : **Notifications** devient un dossier de la barre latérale, à côté d'Abonnements ;
+    **Tous les messages** passe en dernier, après la Corbeille.
+  - « Nouveau mail » quitte la barre latérale pour la barre du haut, dans tous les dossiers.
+- **Contacts** : la page est refaite. La liste est rangée par dernier échange, avec les projets en couleur ; la
+  page d'une personne montre ses projets, ses mails, ses rendez-vous, ses réunions, ses coordonnées et tes notes.
+- **Calendrier** : chaque invité dit en toutes lettres où il en est (« Dans « P » », « Ajouter au projet »,
+  « Ajouter aux contacts ») ; plus de « − » qui faisait croire qu'on retirait la personne du rendez-vous.
+- **Notifications** : une cloche à côté de Réglages ouvre la liste des notifications que Polhub t'a envoyées
+  (rappels, comptes rendus, mails…), comme le Centre de notifications d'Apple. Les répétitions se regroupent,
+  la liste garde 30 jours.
+- **Barre latérale** : de nouvelles icônes (Phosphor, libres de droits), et un trait sur toute la largeur
+  au-dessus de Réglages.
+
 ## 0.17.0 — 15 novembre 2026
 
 **Projets, mails, contacts, réunions : une grande passe d'interface.**
