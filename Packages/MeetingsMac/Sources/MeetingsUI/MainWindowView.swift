@@ -187,11 +187,16 @@ public final class WindowRouter: ObservableObject {
 
 /// Polhub's window: the projects, the meetings, and Réglages (updates, diagnostic, journal, vault).
 public struct MainWindowView<Diagnostic: View>: View {
-    /// The sidebar, the 300-point list and a detail of 360 points at least.
-    public static var minimumWidth: CGFloat { 860 }
+    /// The sidebar, the meetings' list, its divider and the smallest meeting page: derived from them, so that the
+    /// narrowest window never squeezes the sidebar nor cuts the page (correctifs, 15/11: 860 had become too narrow).
+    public static var minimumWidth: CGFloat { sidebarWidth + meetingListWidth + 1 + meetingPageMinimumWidth }
     /// Fixed (Paul, 15/11): the smallest width that shows « Boîte de réception » with a two-digit count, and
     /// « Tous les messages », whole at the large row size.
     static var sidebarWidth: CGFloat { 252 }
+    /// The list of the meetings, fixed (13/11).
+    static var meetingListWidth: CGFloat { 300 }
+    /// A meeting's page, at its narrowest.
+    static var meetingPageMinimumWidth: CGFloat { 360 }
 
     @ObservedObject var library: MeetingLibrary
     let projects: ProjectLibrary?
@@ -276,7 +281,7 @@ public struct MainWindowView<Diagnostic: View>: View {
                             MeetingListView(library: library, selection: $router.selection, paths: paths, projects: projects?.projects ?? [])
                         }
                     }
-                    .frame(width: 300)
+                    .frame(width: Self.meetingListWidth)
                     Divider()
                     Group {
                         if let id = router.selection, let row = library.row(id) {
@@ -291,7 +296,7 @@ public struct MainWindowView<Diagnostic: View>: View {
                                                    description: Text("Choisis une réunion dans la liste."))
                         }
                     }
-                    .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(minWidth: Self.meetingPageMinimumWidth, maxWidth: .infinity, maxHeight: .infinity)
                 }
                 .windowTitle("Réunions", subtitle: router.selection.flatMap { library.row($0)?.title } ?? "")
                 .searchable(text: $router.query, placement: .toolbar, prompt: "Chercher dans les transcriptions")

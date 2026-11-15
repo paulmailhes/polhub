@@ -9,6 +9,14 @@ import ProjectsUI
 
 /// 13/11 : « le truc réunion est trop large par rapport à la fenêtre, ça décale la barre latérale ».
 @MainActor @Suite struct WindowLayoutTests {
+    /// Correctifs du 15/11 : à sa largeur la plus étroite, la fenêtre tient la barre latérale fixe, la liste des
+    /// réunions et la page d'une réunion, sans rien serrer.
+    @Test func theMinimumWidthHoldsTheSidebarTheListAndAMeetingsPage() {
+        typealias Window = MainWindowView<EmptyView>
+        #expect(Window.sidebarWidth + Window.meetingListWidth + 1 + Window.meetingPageMinimumWidth <= Window.minimumWidth)
+        #expect(Window.sidebarWidth == 252 && Window.meetingListWidth == 300 && Window.meetingPageMinimumWidth == 360)
+    }
+
     @Test func theWindowFitsItsMinimumWidthWithALongTranscript() async throws {
         let root = FileManager.default.temporaryDirectory.appending(path: "largeur \(UUID().uuidString)", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: root) }

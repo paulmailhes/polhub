@@ -60,8 +60,9 @@ struct Sidebar: View {
                 list(mails: nil)
             }
         }
-        // Réglages at the bottom, apart from the work (Paul, 14/11), drawn as the rows above (15/11).
-        .safeAreaInset(edge: .bottom, spacing: 0) { SidebarFooter(router: router) }
+        // Réglages at the bottom, apart from the work (Paul, 14/11), drawn as the rows above (15/11), and lined up with
+        // them: the « Mails » group moves the rows above to the right (correctifs, 15/11).
+        .safeAreaInset(edge: .bottom, spacing: 0) { SidebarFooter(router: router, indent: mails != nil ? SidebarFooter.outlineIndent : 0) }
         .environment(\.sidebarRowSize, .large)
     }
 
@@ -236,14 +237,19 @@ struct MailComposeButton: View {
 /// Clicking it again goes back to the families.
 struct SidebarFooter: View {
     @ObservedObject var router: WindowRouter
+    /// How far the rows of the work move right once the list holds a group that opens (« Mails »): the room of
+    /// its disclosure arrow, which this list has not (measured on 15/11, macOS 27: 9 points).
+    var indent: CGFloat = 0
     /// A large row (40 points) and the list's margins, 10 above and below (measured on 15/11).
     static let height: CGFloat = 60
+    static let outlineIndent: CGFloat = 9
 
     var body: some View {
         List(selection: Binding { router.section == .settings ? SidebarItem.settings : nil } set: { item in
             if item == .settings { router.openSettings(nil) }
         }) {
             SidebarLabel(item: .settings)
+                .padding(.leading, indent)
                 .tag(SidebarItem.settings)
                 .simultaneousGesture(TapGesture().onEnded { router.openSettings(nil) })
         }
