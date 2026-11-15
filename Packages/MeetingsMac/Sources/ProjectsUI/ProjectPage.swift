@@ -2,6 +2,7 @@ import AppKit
 import Domain
 import Persistence
 import PolhubDesign
+import Summarization
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -395,7 +396,7 @@ struct ProjectPage: View {
         journal = (try? library.store.journal(projectID: project.id)) ?? []
         meetings = (try? library.store.meetings(projectID: project.id)) ?? []
         summaries = meetings.reduce(into: [:]) { lines, meeting in
-            lines[meeting.id] = ProjectViews.firstLine((try? library.meetings.summary(meetingID: meeting.id)) ?? nil)
+            lines[meeting.id] = ((try? library.meetings.summary(meetingID: meeting.id)) ?? nil).flatMap { SummaryText.overview($0) }
         }
         contacts = (try? ContactStore(library.store.database).contacts(projectID: project.id)) ?? []
         mails = (try? MailStore(library.store.database).threads(filedIn: project.id)) ?? []

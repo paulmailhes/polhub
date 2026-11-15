@@ -67,6 +67,7 @@ let package = Package(
         // The projects module: board, views, project page.
         .target(name: "ProjectsUI", dependencies: [
             "PolhubDesign",
+            "Summarization",
             .product(name: "Domain", package: "Kernel"),
             .product(name: "Persistence", package: "Kernel"),
             .product(name: "GRDB", package: "GRDB.swift"),

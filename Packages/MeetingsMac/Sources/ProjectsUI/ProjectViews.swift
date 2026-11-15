@@ -154,22 +154,6 @@ public enum ProjectViews {
         return cut(text, limit: limit)
     }
 
-    /// The first sentence a summary says, under its headings: what a meeting's row shows (15/11).
-    public static func firstLine(_ summary: String?) -> String? {
-        guard let summary else { return nil }
-        for block in MarkdownBlocks.parse(summary) {
-            let text: String? = switch block {
-            case .heading, .code: nil
-            case .bullet(_, let text), .task(_, let text), .numbered(_, _, let text), .quote(let text), .paragraph(let text): text
-            case .callout(_, let title, let body): title.isEmpty ? body : title
-            }
-            guard let line = text?.split(separator: "\n").first.map(String.init) else { continue }
-            let plain = plain(line)
-            if !plain.isEmpty { return cut(plain, limit: 200) }
-        }
-        return nil
-    }
-
     /// Inline Markdown and wiki links taken away, the spaces put back to one.
     static func plain(_ text: String) -> String {
         let unlinked = text.replacing(#/\[\[([^\]|#]+)(#[^\]|]*)?(\|([^\]]+))?\]\]/#) { match in

@@ -71,15 +71,12 @@ import Testing
         #expect(ProjectViews.initials("L'atelier du nord") == "LA" && ProjectViews.initials("") == "")
     }
 
-    /// The journal shows two plain lines of an entry; a meeting's row, the first sentence of its summary.
+    /// The journal shows two plain lines of an entry (a meeting's row reads SummaryText.overview, as the Réunions list).
     @Test func excerptsArePlainText() {
         #expect(ProjectViews.excerpt("## Titre\n- **Deux** pages\n- Retour [attendu](https://exemple.fr) lundi.\n\n```\ncode\n```")
                 == "Deux pages · Retour attendu lundi.")
         #expect(ProjectViews.excerpt("Une phrase. Puis [[Atelier Nord|l'atelier]].\n\nAutre paragraphe") == "Une phrase. Puis l'atelier. Autre paragraphe")
         #expect(ProjectViews.excerpt(String(repeating: "mot ", count: 200), limit: 20) == "mot mot mot mot mot…")
-        #expect(ProjectViews.firstLine("## Résumé\n\nLe client *valide* la refonte.\nDeuxième ligne.\n\n## Décisions\n\n- Garder WordPress.")
-                == "Le client valide la refonte.")
-        #expect(ProjectViews.firstLine("## Résumé\n\n") == nil && ProjectViews.firstLine(nil) == nil)
     }
 
     @Test func dueLabelsSayLateTodayOrJMinus() {
