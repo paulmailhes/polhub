@@ -13,7 +13,7 @@ enum SidebarRow: Hashable {
     static func selected(section: SidebarItem, folder: MailFolder?, mailsOpen: Bool) -> SidebarRow? {
         switch section {
         case .settings: nil
-        case .mails: mailsOpen ? folder.map(SidebarRow.mail) ?? .section(.mails) : .section(.mails)
+        case .mails: (mailsOpen ? folder : nil).map(SidebarRow.mail) ?? .section(.mails)
         default: .section(section)
         }
     }
