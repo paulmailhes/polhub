@@ -33,9 +33,10 @@ import Testing
                          attendees: [Attendee(email: account, response: "accepted", isSelf: true)], updatedAt: now)
     }
 
-    func hub(_ center: Center) -> NotificationHub {
+    func hub(_ center: Center, inbox: NotificationInbox? = nil) -> NotificationHub {
         let defaults = defaults
-        return NotificationHub(agenda: AgendaLibrary(database: database), client: center, settings: { Preferences(defaults: defaults) })
+        return NotificationHub(agenda: AgendaLibrary(database: database), client: center, settings: { Preferences(defaults: defaults) },
+                               inbox: inbox)
     }
 
     @Test func remindersAreScheduledAndFollowTheSettings() async throws {
@@ -121,5 +122,87 @@ import Testing
         defaults.set(false, forKey: Preferences.Key.summaryReady)
         await hub.summaryReady(meetingID: UUID(), title: "Autre")
         #expect(center.delivered.map(\.body) == ["Atelier maquette"])
+    }
+
+    // MARK: - Polhub's own list (15/11)
+
+    /// Every notification shown is kept in the list, with what its click opens.
+    @Test func everyNotificationShownIsKeptInTheList() async throws {
+        let calendar = CalendarStore(database)
+        try calendar.addAccount(email: "paul@exemple.fr", at: now)
+        try calendar.applyGoogle(account: "paul@exemple.fr", changed: [event("en-cours", inMinutes: -8)], cancelled: [], at: now)
+        let center = Center(), inbox = NotificationInbox(file: nil)
+        let hub = hub(center, inbox: inbox)
+        let meeting = UUID()
+        await hub.summaryReady(meetingID: meeting, title: "Atelier maquette")
+        await hub.mailsArrived([(threadKey: "paul@exemple.fr|fil", sender: "Camille Exemple", subject: "Maquette")])
+        await hub.mailNotSent(subject: "Devis", threadKey: nil)
+        await hub.mailScheduleNotice(MailScheduleNotice(title: "Mail programmé parti en retard", body: "« Devis » est parti à 9 h 12.",
+                                                        threadKey: nil, folder: .scheduled))
+        await hub.tick(recording: false, now: now)
+        #expect(center.delivered.count == 5)
+        #expect(Set(inbox.notices.map(\.title)) == Set(center.delivered.map(\.title)))
+        #expect(inbox.unreadCount == 5)
+        #expect(inbox.notices.first { $0.kind == .summary }?.action(now: Date()) == .meeting(meeting))
+        #expect(inbox.notices.first { $0.kind == .unrecorded }?.action(now: now) == .join(meetCode: "abc-defg-hij", account: "paul@exemple.fr"))
+        #expect(inbox.notices.first { $0.title == "Camille Exemple" }?.action(now: now) == .mailThread("paul@exemple.fr|fil"))
+        #expect(inbox.notices.first { $0.title == "Mail non envoyé" }?.action(now: now) == .mailFolder(nil))
+        #expect(inbox.notices.first { $0.title == "Mail programmé parti en retard" }?.action(now: now) == .mailFolder(MailFolder.scheduled.rawValue))
+    }
+
+    /// What Réglages › Notifications turned off is neither shown nor kept.
+    @Test func aKindTurnedOffIsNeitherShownNorKept() async {
+        defaults.set(false, forKey: Preferences.Key.summaryReady)
+        defaults.set(false, forKey: Preferences.Key.mailNotices)
+        let center = Center(), inbox = NotificationInbox(file: nil)
+        let hub = hub(center, inbox: inbox)
+        await hub.summaryReady(meetingID: UUID(), title: "Atelier maquette")
+        await hub.mailsArrived([(threadKey: "paul@exemple.fr|fil", sender: "Camille Exemple", subject: "Maquette")])
+        #expect(center.delivered.isEmpty && inbox.notices.isEmpty)
+    }
+
+    /// macOS shows the reminders on its own: the list keeps each once its time has come, and none turned off.
+    @Test func aReminderIsKeptOnceItsTimeHasCome() async throws {
+        let calendar = CalendarStore(database)
+        try calendar.addAccount(email: "paul@exemple.fr", at: now)
+        try calendar.applyGoogle(account: "paul@exemple.fr", changed: [event("a", inMinutes: 30)], cancelled: [], at: now)
+        let center = Center(), inbox = NotificationInbox(file: nil)
+        let hub = hub(center, inbox: inbox)
+        await hub.refresh(now: now)
+        await hub.tick(recording: false, paused: true, now: now.addingTimeInterval(10 * 60))
+        #expect(inbox.notices.isEmpty)
+        await hub.tick(recording: false, paused: true, now: now.addingTimeInterval(21 * 60))
+        #expect(inbox.notices.map(\.body) == ["Dans 10 min · Google Meet"])
+        #expect(inbox.notices.first?.date == now.addingTimeInterval(20 * 60))
+        // A new plan keeps what came before it; the 1-minute reminder joins the same card.
+        await hub.refresh(now: now.addingTimeInterval(29.5 * 60))
+        #expect(inbox.notices.count == 1 && inbox.notices.first?.body == "Dans 1 min · Google Meet" && inbox.notices.first?.count == 2)
+        // Turned off: the plan empties, nothing more is kept.
+        try calendar.applyGoogle(account: "paul@exemple.fr", changed: [event("b", inMinutes: 60)], cancelled: [], at: now)
+        await hub.refresh(now: now.addingTimeInterval(30 * 60))
+        defaults.set(false, forKey: Preferences.Key.reminders)
+        await hub.refresh(now: now.addingTimeInterval(30 * 60))
+        await hub.tick(recording: false, paused: true, now: now.addingTimeInterval(80 * 60))
+        #expect(inbox.notices.count == 1)
+    }
+
+    /// A click in the list opens the same pages as a click on macOS's notification.
+    @Test func aClickOpensThePageOfTheNotification() {
+        let router = WindowRouter()
+        let meeting = UUID()
+        #expect(router.perform(.meeting(meeting), agenda: nil, mails: nil))
+        #expect(router.section == .meetings && router.selection == meeting)
+        router.perform(.event("paul@exemple.fr|e"), agenda: nil, mails: nil)
+        #expect(router.section == .calendar && router.eventSelection == "paul@exemple.fr|e")
+        router.perform(.mailThread("paul@exemple.fr|fil"), agenda: nil, mails: nil)
+        #expect(router.section == .mails && router.mailSelection == "paul@exemple.fr|fil")
+        router.perform(.mailFolder("programmes"), agenda: nil, mails: nil)
+        #expect(router.section == .mails && router.mailSelection == nil)
+        router.section = .home
+        router.perform(.calendar, agenda: nil, mails: nil)
+        #expect(router.section == .calendar)
+        // The Meet opens in Dia: no window to show.
+        #expect(!router.perform(.join(meetCode: "abc-defg-hij", account: "paul@exemple.fr"), agenda: nil, mails: nil))
+        #expect(router.perform(.window, agenda: nil, mails: nil))
     }
 }

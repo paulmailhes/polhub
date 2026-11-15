@@ -4,8 +4,10 @@ import Persistence
 
 /// One notification Polhub asks macOS to show, now or at a date.
 public struct PlannedNotice: Equatable, Sendable {
-    public enum Kind: String, Sendable {
-        case reminder, newEvent, unrecorded, summary, mail
+    /// `test`: « Envoyer une notification d'essai » (15/11: it has its own kind, so the list does not file it under
+    /// Calendrier).
+    public enum Kind: String, Codable, CaseIterable, Sendable {
+        case reminder, newEvent, unrecorded, summary, mail, test
     }
 
     public var id: String
