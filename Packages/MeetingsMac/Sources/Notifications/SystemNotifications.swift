@@ -8,6 +8,7 @@ public enum NoticeKey {
     public static let account = "compte"
     public static let meeting = "reunion"
     public static let thread = "fil"
+    public static let folder = "dossier"
     public static let kind = "genre"
     /// The « Rejoindre » button.
     public static let joinAction = "rejoindre"
@@ -77,6 +78,7 @@ public struct SystemNotifications: NotificationCenterClient {
         info[NoticeKey.account] = notice.account
         info[NoticeKey.meeting] = notice.meetingID?.uuidString
         info[NoticeKey.thread] = notice.threadKey
+        info[NoticeKey.folder] = notice.folder
         content.userInfo = info
         // One thread per event: its reminders stack together.
         content.threadIdentifier = notice.eventID ?? notice.kind.rawValue

@@ -21,10 +21,12 @@ public struct PlannedNotice: Equatable, Sendable {
     public var meetingID: UUID?
     /// The thread a mail belongs to (`account|threadID`).
     public var threadKey: String?
+    /// The mails' folder a click opens when there is no thread (« Programmés », wave B).
+    public var folder: String?
     public var kind: Kind
 
     public init(id: String, fireDate: Date, title: String, body: String, eventID: String?, meetCode: String?, account: String?,
-                meetingID: UUID? = nil, threadKey: String? = nil, kind: Kind = .reminder) {
+                meetingID: UUID? = nil, threadKey: String? = nil, folder: String? = nil, kind: Kind = .reminder) {
         self.id = id
         self.fireDate = fireDate
         self.title = title
@@ -34,6 +36,7 @@ public struct PlannedNotice: Equatable, Sendable {
         self.account = account
         self.meetingID = meetingID
         self.threadKey = threadKey
+        self.folder = folder
         self.kind = kind
     }
 

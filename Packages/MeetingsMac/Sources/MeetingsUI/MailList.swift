@@ -32,6 +32,8 @@ struct MailListView: View {
         VStack(spacing: 0) {
             if mails.found == nil, mails.folder == .drafts {
                 MailDraftListView(mails: mails, router: router)
+            } else if mails.found == nil, mails.folder == .scheduled {
+                MailScheduledListView(mails: mails, router: router)
             } else if mails.found == nil, mails.folder == .subscriptions {
                 MailSubscriptionsView(mails: mails)
             } else {
@@ -460,10 +462,12 @@ struct MailRow: View {
         }
     }
 
-    /// « Camille, moi 3 », and « Brouillon » in red when Paul has one under way, as Gmail says it. In
-    /// « Envoyés », who Paul wrote to: « À : Camille, Jules » (15/11).
+    /// « Camille, moi 3 », and « Brouillon » in red when Paul has one under way, as Gmail says it; « Programmé »
+    /// in grey when his reply waits for its time (wave B). In « Envoyés », who Paul wrote to: « À : Camille,
+    /// Jules » (15/11).
     private var senders: some View {
-        let draft = mails.drafts.contains { $0.threadKey == thread.id }
+        let drafts = mails.drafts.filter { $0.threadKey == thread.id }
+        let draft = drafts.contains { mails.scheduled[$0.id] == nil }, planned = !draft && !drafts.isEmpty
         let weight: Font.Weight = thread.unread ? .bold : .regular
         let recipients = mails.folder == .sent && mails.found == nil ? (mails.sentTo[thread.id] ?? []) : []
         let names = recipients.isEmpty
@@ -471,7 +475,8 @@ struct MailRow: View {
             : Text("À : ").font(.rowTitle).foregroundStyle(.secondary) + Text(MailText.recipients(recipients, mine: mine)).font(.rowTitle.weight(weight))
         return (names
             + Text(thread.messageCount > 1 ? " \(thread.messageCount)" : "").font(.meta).foregroundStyle(.secondary)
-            + Text(draft ? ", Brouillon" : "").font(.rowTitle).foregroundStyle(.red))
+            + Text(draft ? ", Brouillon" : "").font(.rowTitle).foregroundStyle(.red)
+            + Text(planned ? ", Programmé" : "").font(.rowTitle).foregroundStyle(.secondary))
             .lineLimit(1)
     }
 

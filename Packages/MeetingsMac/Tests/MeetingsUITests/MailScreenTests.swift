@@ -287,14 +287,18 @@ struct MailScreenTests {
                          account: "perso@gmail.com")),
         ])
         let agenda = AgendaLibrary(database: database)
-        let mails = MailLibrary(agenda: agenda, root: root, defaults: UserDefaults(suiteName: "mails-\(UUID().uuidString)")!, send: { gmail.send(for: $0) })
+        // Wave B: the programmed sends in memory, never the Keychain.
+        let vault = MemoryScheduleVault()
+        let mails = MailLibrary(agenda: agenda, root: root, defaults: UserDefaults(suiteName: "mails-\(UUID().uuidString)")!, send: { gmail.send(for: $0) },
+                                vault: vault)
         let projects = ProjectLibrary(store: ProjectStore(database), meetings: MeetingStore(database))
         let library = MeetingLibrary(store: MeetingStore(database))
         let router = WindowRouter()
         router.section = .mails
         try await Task.sleep(for: .milliseconds(500))
+        var shownMails = mails
         func capture(_ name: String, dark: Bool = false, wait: Duration = .milliseconds(1_500)) async throws {
-            try await LiveWindow.capture(MainWindowView(library: library, projects: projects, agenda: agenda, mails: mails, router: router,
+            try await LiveWindow.capture(MainWindowView(library: library, projects: projects, agenda: agenda, mails: shownMails, router: router,
                                                         paths: AppPaths(root: root, logs: root)) { EmptyView() },
                                          to: output.appending(path: "\(name).png"), size: NSSize(width: 1_180, height: 780), dark: dark, wait: wait)
         }
@@ -381,6 +385,60 @@ struct MailScreenTests {
         try await capture("mails-compacte-jours")
         UserDefaults.standard.removeObject(forKey: Preferences.Key.mailDensity)
         UserDefaults.standard.removeObject(forKey: Preferences.Key.mailDays)
+        // Wave B, 15/11: « Programmer l'envoi » next to « Envoyer »; the mail locked, « Programmés », one that waits for Paul.
+        let planning = MailDraftRow(account: "moi@exemple.fr", mode: .new, to: [MailAddress(name: "Jules Durand", email: "jules@atelier-nord.fr")],
+                                    subject: "Planning de mai", body: "Bonjour Jules,\nVoici le planning de mai, avec la livraison le 12.", signature: false,
+                                    createdAt: Date())
+        try store.saveDraft(planning)
+        try await Task.sleep(for: .milliseconds(300))
+        mails.folder = .inbox
+        mails.composing = planning.id
+        try await capture("mails-envoyer-programmer")
+        let tomorrow = try #require(SchedulePresets.options(now: Date()).first?.date)
+        mails.schedule(planning.id, at: tomorrow)
+        for _ in 0..<100 where mails.scheduled[planning.id] == nil { try await Task.sleep(for: .milliseconds(20)) }
+        try await capture("mails-programme-annulable")
+        let reply = try #require(mails.drafts.first { $0.threadKey == MailThreadRow.key(account: "moi@exemple.fr", threadID: "a") })
+        mails.schedule(reply.id, at: try #require(SchedulePresets.options(now: Date()).last?.date))
+        for _ in 0..<100 where mails.scheduled[reply.id] == nil { try await Task.sleep(for: .milliseconds(20)) }
+        try await capture("mails-programme-ligne")
+        mails.folder = .scheduled
+        try await capture("mails-programmes")
+        try await capture("mails-programmes-sombre", dark: true)
+        mails.composing = planning.id
+        try await capture("mails-programme-verrouille")
+        mails.composing = nil
+        router.mailSelection = reply.threadKey
+        try await capture("mails-programme-reponse", wait: .milliseconds(2_000))
+        router.mailSelection = nil
+        // A launch later, thirteen hours late: it waits for Paul.
+        try vault.save(vault.all.map { entry in
+            var late = entry
+            if entry.draftID == planning.id {
+                late.state = .held
+                late.sendAt = Date().addingTimeInterval(-13 * 3_600)
+            }
+            return late
+        })
+        let later = MailLibrary(agenda: agenda, root: root, defaults: UserDefaults(suiteName: "mails-\(UUID().uuidString)")!, send: { gmail.send(for: $0) },
+                                vault: vault)
+        for _ in 0..<100 where later.scheduled.count < 2 { try await Task.sleep(for: .milliseconds(20)) }
+        later.folder = .scheduled
+        shownMails = later
+        try await capture("mails-programmes-en-retard")
+        later.composing = planning.id
+        try await capture("mails-programme-en-retard")
+        try await capture("mails-programme-en-retard-sombre", dark: true)
+        later.composing = nil
+        shownMails = mails
+        agenda.mails = mails
+        try await LiveWindow.capture(SchedulePicker(now: Date()) { _ in }.background(Color(nsColor: .windowBackgroundColor)),
+                                     to: output.appending(path: "mails-programmer-date.png"), size: NSSize(width: 320, height: 560))
+        for id in [planning.id, reply.id] { mails.unschedule(id) }
+        for _ in 0..<100 where !mails.scheduled.isEmpty { try await Task.sleep(for: .milliseconds(20)) }
+        mails.message = nil
+        try store.deleteDraft(planning.id)
+        mails.folder = .inbox
         try store.remember(address: "lettre@lettre-du-design.exemple", tab: .some("personnes"), at: Date())
         router.openSettings(.mails)
         try await capture("reglages-mails", wait: .milliseconds(2_000))

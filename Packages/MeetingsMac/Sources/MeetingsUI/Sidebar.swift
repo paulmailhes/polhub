@@ -115,7 +115,8 @@ struct Sidebar: View {
     private func mailsGroup(_ mails: MailLibrary) -> some View {
         DisclosureGroup(isExpanded: $mailsOpen) {
             MailComposeButton { mails.writeNewMail(router: router) }
-            ForEach(MailFolder.allCases, id: \.self) { folder in
+            // « Programmés » only while a mail waits there, as Gmail's (wave B).
+            ForEach(MailFolder.allCases.filter { $0 != .scheduled || mails.showsScheduled }, id: \.self) { folder in
                 Label(folder.title, systemImage: folder.icon)
                     .listItemTint(.monochrome)
                     .badge(count(folder, in: mails))
@@ -144,6 +145,7 @@ struct Sidebar: View {
         switch folder {
         case .inbox: mails.unreadCount
         case .drafts: mails.draftCount
+        case .scheduled: mails.scheduledDrafts.count
         default: 0
         }
     }

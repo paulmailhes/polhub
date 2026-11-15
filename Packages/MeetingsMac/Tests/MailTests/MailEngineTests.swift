@@ -40,6 +40,16 @@ final class FakeGmail: @unchecked Sendable {
     private var nextModifyStatus: Int?
     private var draftStore: [String: StoredDraft] = [:]
     private var draftCounter = 0
+    /// What each send sent, as Gmail held it then (wave B).
+    private var sentRaws: [String] = []
+    /// Status to answer the next sends with (503…), once each.
+    private var failingSends: [Int] = []
+    var sent: [String] { lock.withLock { sentRaws } }
+    func failNextSends(_ statuses: [Int]) { lock.withLock { failingSends = statuses } }
+    /// Another draft of Gmail's, whose content Paul never saw.
+    func addGmailDraft(id: String, messageID: String, thread: String, raw: String) {
+        lock.withLock { draftStore[id] = StoredDraft(raw: raw, threadID: thread, messageID: messageID) }
+    }
     var signature = "<b>Moi</b> · Studio Exemple"
     /// Gmail takes this long to answer a draft's upload, after it made the draft: a connection cut meanwhile
     /// leaves a draft Polhub never heard of.
@@ -147,8 +157,10 @@ final class FakeGmail: @unchecked Sendable {
                     return Data(#"{"id":"\#(id)","message":{"id":"\#(messageID)","threadId":"\#(thread ?? messageID)"}}"#.utf8)
                 }
                 if path.hasSuffix("/drafts/send") {
+                    if !failingSends.isEmpty { throw GmailAPI.error(status: failingSends.removeFirst(), data: Data()) }
                     let body = try JSONSerialization.jsonObject(with: request.httpBody ?? Data()) as? [String: Any] ?? [:]
                     guard let id = body["id"] as? String, let draft = draftStore.removeValue(forKey: id) else { throw GmailAPI.error(status: 404, data: Data()) }
+                    sentRaws.append(draft.raw)
                     let sent = "sent-\(draft.messageID)"
                     mails[sent] = Mail(thread: draft.threadID ?? sent, labels: ["SENT"], from: "Moi <moi@exemple.fr>", subject: "envoyé")
                     order.insert(sent, at: 0)

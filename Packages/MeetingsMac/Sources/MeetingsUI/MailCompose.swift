@@ -132,6 +132,8 @@ struct ComposeView: View {
     @State private var recipientsFocused = false
     /// The project of the thread a reply answers: its people come first among the suggestions (15/11).
     @State private var threadProject: UUID?
+    /// « Choisir une date et une heure… » is open (wave B).
+    @State private var choosingDate = false
     @FocusState private var focus: Field?
 
     enum Field { case body, subject }
@@ -148,8 +150,15 @@ struct ComposeView: View {
     var body: some View {
         if let draft {
             let leaving = mails.sending?.draftID == draftID
+            // Programmed, it is locked until Paul calls the send off (wave B).
+            let planned = mails.scheduled[draftID]
             VStack(alignment: .leading, spacing: Space.m) {
+                if let planned {
+                    ScheduledBanner(entry: planned, draftID: draftID, mails: mails)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
                 fields(draft)
+                    .disabled(planned != nil)
                 Divider()
                 if let conflict = draft.conflict { conflictBanner(conflict) }
                 if draft.origin == .agent {
@@ -173,13 +182,16 @@ struct ComposeView: View {
                                 .padding(.leading, 5).allowsHitTesting(false)
                         }
                     }
-                if !draft.files.isEmpty { files(draft) }
+                    .disabled(planned != nil)
+                    .opacity(planned != nil ? 0.75 : 1)
+                if !draft.files.isEmpty { files(draft).disabled(planned != nil) }
                 if let signature = mails.signature(of: draft.account) {
                     Toggle(isOn: binding(\.signature, default: true)) {
                         Text(signature).font(.meta).foregroundStyle(.secondary).lineLimit(3)
                     }
                     .toggleStyle(.checkbox)
                     .help("Ta signature Gmail, ajoutée sous ton texte")
+                    .disabled(planned != nil)
                 }
                 if let quote = draft.quoteText {
                     DisclosureGroup(isExpanded: $showQuote) {
@@ -189,8 +201,9 @@ struct ComposeView: View {
                         Text(draft.mode == .forward ? "Message transféré" : "Message cité").font(.meta).foregroundStyle(.secondary)
                     }
                 }
-                footer(draft, leaving: leaving)
+                footer(draft, leaving: leaving, planned: planned)
             }
+            .animation(Motion.standard, value: planned?.state)
             .padding(Space.xl)
             .background(Surface.fill, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
             .focusedValue(\.writingMail, true)
@@ -201,6 +214,7 @@ struct ComposeView: View {
             }
             .disabled(leaving)
             .onDrop(of: [.fileURL], isTargeted: $dropping) { providers in
+                guard planned == nil else { return false }
                 Task {
                     var urls: [URL] = []
                     for provider in providers {
@@ -329,13 +343,30 @@ struct ComposeView: View {
         }
     }
 
-    private func footer(_ draft: MailDraftRow, leaving: Bool) -> some View {
-        HStack(spacing: Space.m) {
-            Button(action: sendNow) { Label("Envoyer", systemImage: "paperplane.fill") }
-                .buttonStyle(.glassProminent)
-                .keyboardShortcut(isActive ? KeyboardShortcut(.return, modifiers: .command) : nil)
-                .disabled(mails.sendProblem(draft) != nil || mails.sending != nil)
-                .help(mails.sendProblem(draft) ?? "Envoyer (⌘↩) : tu as dix secondes pour l'annuler")
+    /// « Envoyer » and, next to it, the arrow of « Programmer l'envoi » (wave B): one prominent glass control.
+    private func footer(_ draft: MailDraftRow, leaving: Bool, planned: ScheduledSend?) -> some View {
+        let problem = mails.sendProblem(draft)
+        let blocked = problem != nil || mails.sending != nil || planned != nil
+        let delay = Preferences(defaults: .standard).mailUndoSeconds
+        return HStack(spacing: Space.m) {
+            GlassEffectContainer(spacing: 2) {
+                HStack(spacing: 2) {
+                    Button(action: sendNow) { Label("Envoyer", systemImage: "paperplane.fill") }
+                        .buttonStyle(.glassProminent)
+                        .keyboardShortcut(isActive && planned == nil ? KeyboardShortcut(.return, modifiers: .command) : nil)
+                        .disabled(blocked)
+                        .help(problem ?? (planned != nil ? "Programmé : annule l'envoi programmé pour le modifier ou l'envoyer"
+                                                         : "Envoyer (⌘↩) : tu as \(delay) secondes pour l'annuler"))
+                    ScheduleMenu(pick: { scheduleNow(at: $0) }) { choosingDate = true }
+                        .disabled(blocked)
+                        .popover(isPresented: $choosingDate, arrowEdge: .top) {
+                            SchedulePicker { date in
+                                choosingDate = false
+                                if let date { scheduleNow(at: date) }
+                            }
+                        }
+                }
+            }
             Button {
                 let panel = NSOpenPanel()
                 panel.allowsMultipleSelection = true
@@ -345,20 +376,22 @@ struct ComposeView: View {
             } label: { Label("Joindre", systemImage: "paperclip") }
                 .buttonStyle(.glass)
                 .help("Joindre des fichiers (ou les glisser ici)")
-            status(draft, leaving: leaving)
+                .disabled(planned != nil)
+            status(draft, leaving: leaving, planned: planned)
             Spacer()
             IconButton("trash", help: "Supprimer le brouillon") { confirmingDiscard = true }
+                .disabled(planned?.state == .leaving)
         }
         .controlSize(.large)
     }
 
     /// The addresses typed and not yet chips go with the mail; an incomplete one stops it.
-    private func sendNow() {
+    private func commitPending() -> Bool {
         let pending = [(RecipientField.parse(pendingTo), \MailDraftRow.to), (RecipientField.parse(pendingCc), \MailDraftRow.cc),
                        (RecipientField.parse(pendingBcc), \MailDraftRow.bcc)]
         if let bad = pending.flatMap(\.0).first(where: { !MIMEBuilder.isValid($0.email) }) {
             mails.message = "L'adresse « \(bad.email) » n'est pas complète : corrige-la avant d'envoyer."
-            return
+            return false
         }
         if pending.contains(where: { !$0.0.isEmpty }) {
             mails.edit(draftID) { draft in
@@ -370,7 +403,17 @@ struct ComposeView: View {
             pendingCc = ""
             pendingBcc = ""
         }
+        return true
+    }
+
+    private func sendNow() {
+        guard commitPending() else { return }
         mails.send(draftID)
+    }
+
+    private func scheduleNow(at date: Date) {
+        guard commitPending() else { return }
+        mails.schedule(draftID, at: date)
     }
 
     /// Gmail's copy went its own way: Paul chooses which version lives on.
@@ -397,9 +440,12 @@ struct ComposeView: View {
     }
 
     @ViewBuilder
-    private func status(_ draft: MailDraftRow, leaving: Bool) -> some View {
+    private func status(_ draft: MailDraftRow, leaving: Bool, planned: ScheduledSend?) -> some View {
         Group {
-            if leaving {
+            if let planned {
+                Label(planned.state == .held ? "En retard" : "Programmé · \(MailText.scheduledShort(planned.sendAt))", systemImage: "clock")
+                    .foregroundStyle(planned.state == .held ? Color.red : Color.secondary)
+            } else if leaving {
                 Text("Envoi en cours…")
             } else if draft.conflict != nil {
                 Text("En attente de ton choix")
@@ -448,7 +494,8 @@ struct MailDraftListView: View {
     @ObservedObject var router: WindowRouter
 
     var body: some View {
-        let mine = mails.drafts.filter { !mails.hidden.contains($0.account) }
+        // A programmed mail is in « Programmés » only, as in Gmail (wave B).
+        let mine = mails.drafts.filter { !mails.hidden.contains($0.account) && mails.scheduled[$0.id] == nil }
         if mine.isEmpty && mails.gmailDrafts.isEmpty {
             ContentUnavailableView("Aucun brouillon", systemImage: "doc", description: Text("Un mail commencé et pas encore envoyé t'attend ici."))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

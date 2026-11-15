@@ -96,6 +96,15 @@ public final class NotificationHub: ObservableObject {
                                 sound: settings().sound)
     }
 
+    /// A programmed mail that left late, waits for Paul or did not leave (wave B): told even window closed. A
+    /// click opens its thread, else its folder (« Programmés », « Brouillons », « Envoyés »).
+    public func mailScheduleNotice(_ notice: MailScheduleNotice, now: Date = Date()) async {
+        await client.deliverNow(PlannedNotice(id: "programme|\(UUID().uuidString)", fireDate: now, title: notice.title,
+                                              body: notice.body, eventID: nil, meetCode: nil, account: nil, threadKey: notice.threadKey,
+                                              folder: notice.threadKey == nil ? notice.folder?.rawValue : nil, kind: .mail),
+                                sound: settings().sound)
+    }
+
     /// « Envoyer une notification d'essai ».
     public func test() async {
         _ = await SystemNotifications.requestAuthorization()

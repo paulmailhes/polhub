@@ -5,8 +5,8 @@ import MailFormat
 import Persistence
 
 /// Keeps the copy of each mailbox in step with Gmail (14/11): a first reading of everything, the most recent
-/// first, then « what is new since last time » every 30 seconds. Paul's gestures leave first, each naming its
-/// messages. A send never goes through here.
+/// first, then « what is new since last time » every 30 seconds. The mails Paul programmed leave first (wave B),
+/// then his gestures, each naming its messages. Nothing in the base ever asks for a send.
 public actor MailEngine {
     public typealias SendFor = @Sendable (String) -> MailProbe.Send
 
@@ -21,6 +21,11 @@ public actor MailEngine {
     let pause: @Sendable (TimeInterval) async -> Void
     /// The mails that just arrived in an inbox, for the notifications.
     let onNew: @Sendable ([MailMessageRow]) -> Void
+    /// Where the programmed sends live (wave B): the Keychain in the app, memory elsewhere.
+    let schedules: any ScheduleVault
+    /// The programmed sends after each change, and what became of one.
+    let onSchedules: @Sendable ([ScheduledSend]) -> Void
+    let onScheduleOutcome: @Sendable (ScheduleOutcome) -> Void
     private var pacers: [String: GmailPacer] = [:]
     private var loops: [String: Task<Void, Never>] = [:]
     /// The first reading: the messages still to read, the most recent first.
@@ -32,7 +37,10 @@ public actor MailEngine {
     public init(database: AppDatabase, root: URL, sendFor: @escaping SendFor, flavor: AppFlavor = .current,
                 now: @escaping @Sendable () -> Date = { Date() },
                 pause: @escaping @Sendable (TimeInterval) async -> Void = { try? await Task.sleep(for: .seconds($0)) },
-                onNew: @escaping @Sendable ([MailMessageRow]) -> Void = { _ in }) {
+                onNew: @escaping @Sendable ([MailMessageRow]) -> Void = { _ in },
+                schedules: any ScheduleVault = MemoryScheduleVault(),
+                onSchedules: @escaping @Sendable ([ScheduledSend]) -> Void = { _ in },
+                onScheduleOutcome: @escaping @Sendable (ScheduleOutcome) -> Void = { _ in }) {
         self.store = MailStore(database)
         self.files = MailFiles(root: root)
         self.sendFor = sendFor
@@ -40,6 +48,9 @@ public actor MailEngine {
         self.now = now
         self.pause = pause
         self.onNew = onNew
+        self.schedules = schedules
+        self.onSchedules = onSchedules
+        self.onScheduleOutcome = onScheduleOutcome
     }
 
     // MARK: - Following the mailboxes
@@ -55,6 +66,9 @@ public actor MailEngine {
         }
         if let existing = try? CalendarStore(store.database).accounts().map(\.email), let drafts = try? store.drafts().map(\.id) {
             files.keepOnly(accounts: existing, drafts: drafts)
+            // A mailbox gone takes its drafts with it (the base cascades): its programmed sends go too.
+            let known = Set(existing.map { $0.lowercased() })
+            dropSchedules { !known.contains($0.account) }
         }
         for account in wanted where loops[account] == nil {
             loops[account] = Task {
@@ -93,7 +107,8 @@ public actor MailEngine {
         while !Task.isCancelled {
             if await step(account) { continue }
             var waited = 0.0
-            while waited < (foreground ? 30 : 60), !Task.isCancelled, !kicked.contains(account) {
+            // A programmed mail leaves at its second while the Mac is awake.
+            while waited < (foreground ? 30 : 60), !Task.isCancelled, !kicked.contains(account), !isDue(account) {
                 await pause(1)
                 waited += 1
             }
@@ -124,6 +139,8 @@ public actor MailEngine {
         let account = account.lowercased()
         // Whatever went to the spam meanwhile (Paul's gesture, the phone) keeps nothing on the Mac but its headers.
         defer { purgeSpam(account) }
+        // What Paul programmed leaves first, at its time; nothing of it throws here.
+        await sendDue(account)
         do {
             try await sendGestures(account)
             var cursor = try store.cursor(account: account) ?? MailCursorRow(account: account)
@@ -529,7 +546,7 @@ public actor MailEngine {
     @discardableResult
     public func push(_ draftID: String) async throws -> MailDraftRow {
         guard flavor == .prod else { throw GoogleError.readOnlyBuild }
-        return try await oneAtATime(draftID) { try await $0.pushNow(draftID, always: true) }
+        return try await oneAtATime(draftID) { try await $0.pushNow(draftID) }
     }
 
     private func oneAtATime(_ draftID: String, _ work: @escaping @Sendable (MailEngine) async throws -> MailDraftRow) async throws -> MailDraftRow {
@@ -555,13 +572,17 @@ public actor MailEngine {
         while let running = pushing[draftID] { _ = try? await running.task.value }
     }
 
-    private func pushNow(_ draftID: String, always: Bool) async throws -> MailDraftRow {
+    private func pushNow(_ draftID: String) async throws -> MailDraftRow {
         guard let draft = try store.draft(draftID) else { throw GoogleError.notFound }
         if let conflict = draft.conflict { throw conflict }
         if let existing = draft.gmailDraftID { try await check(draft, existing) }
-        guard always || draft.needsPush || draft.gmailDraftID == nil else { return draft }
+        return try await upload(draft, raw: try MIMEBuilder.build(try outgoing(draft), draft: true))
+    }
+
+    /// Gives Gmail this very message as the draft's version: made the first time, replaced after. A Gmail draft
+    /// gone meanwhile is never made again on its own: Paul chooses.
+    private func upload(_ draft: MailDraftRow, raw: Data) async throws -> MailDraftRow {
         let version = draft.updatedAt
-        let raw = try MIMEBuilder.build(try outgoing(draft), draft: true)
         let threadID = draft.threadKey.map { String($0.dropFirst(draft.account.count + 1)) }
         let answer: GmailAPI.Draft
         do {
@@ -569,11 +590,11 @@ public actor MailEngine {
                 GmailAPI.draftUploadRequest(accessToken: $0, draftID: draft.gmailDraftID, raw: raw, threadID: threadID)
             }
         } catch GoogleError.notFound where draft.gmailDraftID != nil {
-            try store.setConflict(draftID, .absent)
+            try store.setConflict(draft.id, .absent)
             throw MailDraftRow.Conflict.absent
         }
-        try store.markPushed(draftID: draftID, gmailDraftID: answer.id, gmailMessageID: answer.message?.id, version: version, at: now())
-        return try store.draft(draftID) ?? draft
+        try store.markPushed(draftID: draft.id, gmailDraftID: answer.id, gmailMessageID: answer.message?.id, version: version, at: now())
+        return try store.draft(draft.id) ?? draft
     }
 
     /// Gmail's copy is still the one Polhub gave: same draft, same message.
@@ -618,6 +639,7 @@ public actor MailEngine {
     /// stays among the drafts begun elsewhere.
     public func forgetLocally(_ draftID: String) async throws {
         await settled(draftID)
+        try dropSchedule(draftID)
         guard let draft = try store.draft(draftID) else { return }
         try store.deleteDraft(draftID)
         try? FileManager.default.removeItem(at: files.draftFolder(draft))
@@ -628,6 +650,7 @@ public actor MailEngine {
     public func changeAccount(_ draftID: String, to account: String) async throws {
         await settled(draftID)
         guard let draft = try store.draft(draftID), draft.account != account.lowercased() else { return }
+        try dropSchedule(draftID)
         if flavor == .prod, let gmailDraftID = draft.gmailDraftID {
             do {
                 await pacer(draft.account).take(GmailAPI.Cost.draftDelete)
@@ -637,30 +660,68 @@ public actor MailEngine {
         try store.forgetGmailCopy(draftID, account: account)
     }
 
-    /// Sends what Gmail holds of the draft, after giving it the latest version. Only Paul's click leads here:
-    /// nothing in the base ever asks for a send. A Gmail copy sent or changed elsewhere never leaves.
+    /// Paul's click, at the end of the delay to call it back: the draft leaves now. Nothing in the base ever asks
+    /// for a send. « Envoyer maintenant » on a programmed mail takes it off the list first: it leaves once.
     public func send(_ draftID: String) async throws {
         guard flavor == .prod else { throw GoogleError.readOnlyBuild }
         guard let current = try store.draft(draftID) else { throw GoogleError.notFound }
         if let conflict = current.conflict { throw conflict }
         _ = try MIMEBuilder.build(try outgoing(current))
-        let draft = try await oneAtATime(draftID) { try await $0.pushNow(draftID, always: false) }
-        guard let gmailDraftID = draft.gmailDraftID else { throw GoogleError.badAnswer }
+        try dropSchedule(draftID)
+        _ = try await oneAtATime(draftID) { try await $0.sendNow(draftID, sealed: nil) }
+    }
+
+    /// The one way out, for Paul's click and for what he programmed: the mail is built from the draft as it is
+    /// (programmed, it must give the fingerprint Paul sealed, or nothing leaves), Gmail's copy is checked (sent
+    /// or changed elsewhere, it never leaves), Gmail is given exactly this message, then sends that draft.
+    /// Never a copy Gmail held from before: a row pointed at another draft would send that one (wave B).
+    private func sendNow(_ draftID: String, sealed: ScheduledSend?) async throws -> MailDraftRow {
+        guard let draft = try store.draft(draftID) else {
+            if sealed != nil { throw ScheduleStop.vanished }
+            throw GoogleError.notFound
+        }
+        if let conflict = draft.conflict {
+            if sealed != nil { throw ScheduleStop.conflict(conflict) }
+            throw conflict
+        }
+        let mail: OutgoingMail
+        if let sealed {
+            // Built again now from the base, the files on disk and the mailbox's signature: one difference and it stays.
+            guard draft.account == sealed.account, let built = try? outgoing(draft),
+                  built.fingerprint(threadKey: draft.threadKey) == sealed.fingerprint else { throw ScheduleStop.changed }
+            mail = built
+        } else {
+            mail = try outgoing(draft)
+        }
+        _ = try MIMEBuilder.build(mail)
+        let raw = try MIMEBuilder.build(mail, draft: true)
+        let held: MailDraftRow
+        do {
+            if let existing = draft.gmailDraftID { try await check(draft, existing) }
+            held = try await upload(draft, raw: raw)
+        } catch let conflict as MailDraftRow.Conflict where sealed != nil {
+            throw ScheduleStop.conflict(conflict)
+        }
+        guard let gmailDraftID = held.gmailDraftID else { throw GoogleError.badAnswer }
         do {
             await pacer(draft.account).take(GmailAPI.Cost.draftSend)
             _ = try await sendFor(draft.account)({ GmailAPI.draftSendRequest(accessToken: $0, draftID: gmailDraftID) })
         } catch GoogleError.notFound {
             try store.setConflict(draftID, .absent)
+            if sealed != nil { throw ScheduleStop.conflict(.absent) }
             throw GoogleError.refused("Gmail n'a plus ce brouillon : regarde dans Envoyés s'il est déjà parti")
         }
-        try store.deleteDraft(draftID)
+        // It left: what follows cannot make it « not sent ».
+        try? store.deleteDraft(draftID)
         try? FileManager.default.removeItem(at: files.draftFolder(draft))
         kick(draft.account)
+        return draft
     }
 
     /// The draft goes, here and in Gmail.
     public func discard(_ draftID: String) async throws {
         await settled(draftID)
+        try dropSchedule(draftID)
         guard let draft = try store.draft(draftID) else { return }
         if flavor == .prod, let gmailDraftID = draft.gmailDraftID, draft.conflict != .modifie {
             do {
@@ -718,6 +779,186 @@ public actor MailEngine {
         }
         try store.saveDraft(draft)
         return draft
+    }
+
+    // MARK: - Programmed sends (wave B, 15/11)
+
+    /// Later than this after its time (the Mac asleep, Polhub closed), a programmed mail no longer leaves on its
+    /// own: it waits for Paul (Paul, 15/11).
+    public static let lateLimit: TimeInterval = 12 * 3_600
+    /// After a passing failure (offline at wake, Gmail busy), the next try.
+    static let retryDelay: TimeInterval = 30
+
+    /// The vault's list, read once; `nil` until it could be read.
+    private var ledger: [ScheduledSend]?
+    private var retryAt: [String: Date] = [:]
+
+    /// The list, read from the vault the first time. The development build never touches the vault: it neither
+    /// programs nor sends.
+    private func entries() throws -> [ScheduledSend] {
+        guard flavor == .prod else { return [] }
+        if let ledger { return ledger }
+        var loaded = try schedules.load()
+        // Polhub stopped while these were leaving: they may have left. Never sent again; Paul is told.
+        let cut = loaded.filter { $0.state == .leaving }
+        if !cut.isEmpty {
+            loaded.removeAll { $0.state == .leaving }
+            try schedules.save(loaded)
+        }
+        ledger = loaded
+        onSchedules(loaded)
+        for entry in cut { onScheduleOutcome(.maybeSent(entry)) }
+        return loaded
+    }
+
+    /// The vault first: nothing changes here unless it took the list.
+    private func record(_ all: [ScheduledSend]) throws {
+        try schedules.save(all)
+        ledger = all
+        onSchedules(all)
+    }
+
+    /// The programmed sends, for the window (read from the vault the first time).
+    public func scheduledSends() throws -> [ScheduledSend] {
+        try entries()
+    }
+
+    /// Paul's choice: this draft leaves at `date`, exactly as it is now. Its fingerprint goes to the vault before
+    /// this returns. Refused from the development build, less than a minute ahead, for a draft in conflict or one
+    /// that could not leave as it is.
+    @discardableResult
+    public func schedule(_ draftID: String, at date: Date) throws -> ScheduledSend {
+        guard flavor == .prod else { throw GoogleError.readOnlyBuild }
+        guard date >= now().addingTimeInterval(60) else { throw ScheduleError.tooSoon }
+        guard let draft = try store.draft(draftID) else { throw GoogleError.notFound }
+        if let conflict = draft.conflict { throw conflict }
+        let mail = try outgoing(draft)
+        _ = try MIMEBuilder.build(mail)
+        var all = try entries()
+        if all.contains(where: { $0.draftID == draftID && $0.state == .leaving }) { throw ScheduleError.leaving }
+        let entry = ScheduledSend(draftID: draftID, account: draft.account, sendAt: date, fingerprint: mail.fingerprint(threadKey: draft.threadKey),
+                                  subject: draft.subject.isEmpty ? "(sans objet)" : draft.subject, threadKey: draft.threadKey, createdAt: now())
+        all.removeAll { $0.draftID == draftID }
+        all.append(entry)
+        try record(all.sorted { $0.sendAt < $1.sendAt })
+        retryAt[draftID] = nil
+        return entry
+    }
+
+    /// « Annuler l'envoi programmé »: the mail is a draft again. Too late once it is leaving.
+    @discardableResult
+    public func unschedule(_ draftID: String) throws -> ScheduledSend? {
+        guard flavor == .prod else { return nil }
+        var all = try entries()
+        guard let entry = all.first(where: { $0.draftID == draftID }) else { return nil }
+        guard entry.state != .leaving else { throw ScheduleError.leaving }
+        all.removeAll { $0.draftID == draftID }
+        try record(all)
+        retryAt[draftID] = nil
+        return entry
+    }
+
+    /// Before any other end of a draft (sent now, deleted, moved to another mailbox): off the list first.
+    private func dropSchedule(_ draftID: String) throws {
+        try unschedule(draftID)
+    }
+
+    /// The entries that answer, dropped quietly (a mailbox gone): a failure leaves them for next time.
+    private func dropSchedules(where gone: (ScheduledSend) -> Bool) {
+        guard flavor == .prod, let all = try? entries(), all.contains(where: { gone($0) && $0.state != .leaving }) else { return }
+        try? record(all.filter { !gone($0) || $0.state == .leaving })
+    }
+
+    /// Whether one of this mailbox's programmed mails waits to leave now.
+    private func isDue(_ account: String) -> Bool {
+        guard let ledger, !ledger.isEmpty else { return false }
+        let date = now()
+        return ledger.contains { isDue($0, account: account, at: date) }
+    }
+
+    private func isDue(_ entry: ScheduledSend, account: String, at date: Date) -> Bool {
+        entry.account == account && entry.state == .waiting && entry.sendAt <= date && (retryAt[entry.draftID] ?? .distantPast) <= date
+    }
+
+    /// This mailbox's programmed mails whose time came, one by one. A vault that cannot be read sends nothing:
+    /// the next pass tries again.
+    private func sendDue(_ account: String) async {
+        guard flavor == .prod, let all = try? entries() else { return }
+        let date = now()
+        for entry in all where isDue(entry, account: account, at: date) { await sendSealed(entry.draftID) }
+    }
+
+    /// One programmed mail at its time. More than `lateLimit` late, it waits for Paul instead. Otherwise it is
+    /// claimed in the vault, then sent by the one way out, as sealed.
+    private func sendSealed(_ draftID: String) async {
+        guard var all = try? entries(), let index = all.firstIndex(where: { $0.draftID == draftID }) else { return }
+        var entry = all[index]
+        let date = now()
+        guard isDue(entry, account: entry.account, at: date) else { return }
+        if date.timeIntervalSince(entry.sendAt) > Self.lateLimit {
+            entry.state = .held
+            all[index] = entry
+            guard (try? record(all)) != nil else { return }
+            onScheduleOutcome(.held(entry))
+            return
+        }
+        // Claimed before anything leaves: a stop from here on can lose this send, never make it twice.
+        entry.state = .leaving
+        all[index] = entry
+        guard (try? record(all)) != nil else { return }
+        let sealed = entry
+        do {
+            _ = try await oneAtATime(draftID) { try await $0.sendNow(draftID, sealed: sealed) }
+            finish(entry, .sent(entry, at: now()))
+        } catch let stop as ScheduleStop {
+            switch stop {
+            case .changed: try? store.markDraftError(draftID, error: "Modifié depuis sa programmation : rien n'est parti")
+            case .refused(let reason): try? store.markDraftError(draftID, error: "Gmail a refusé l'envoi programmé : \(reason)")
+            case .conflict, .vanished: break
+            }
+            finish(entry, .stopped(entry, stop))
+        } catch let error where Self.isPassing(error) {
+            // Offline at wake, Gmail busy: it waits and tries again shortly.
+            entry.state = .waiting
+            entry.lastError = "\(error)"
+            retryAt[draftID] = now().addingTimeInterval(Self.retryDelay)
+            replace(entry)
+        } catch {
+            try? store.markDraftError(draftID, error: "Gmail a refusé l'envoi programmé : \(error)")
+            finish(entry, .stopped(entry, .refused("\(error)")))
+        }
+    }
+
+    /// A failure that passes: the mail waits and tries again. Any other is final.
+    static func isPassing(_ error: Error) -> Bool {
+        switch error {
+        case GoogleError.timeout, GoogleError.rateLimited, GoogleError.expired, GoogleError.noKey: true
+        case GoogleError.http(let status): status >= 500 || status == 408
+        case is URLError, is ScheduleVaultError: true
+        default: false
+        }
+    }
+
+    /// The entry leaves the list (sent, or stopped for good), and Paul is told. If the vault cannot take it, the
+    /// entry stays « leaving » there: the next launch says « may have left », never sends it.
+    private func finish(_ entry: ScheduledSend, _ outcome: ScheduleOutcome) {
+        retryAt[entry.draftID] = nil
+        let rest = (ledger ?? []).filter { $0.draftID != entry.draftID }
+        if (try? record(rest)) == nil {
+            ledger = rest
+            onSchedules(rest)
+        }
+        onScheduleOutcome(outcome)
+    }
+
+    private func replace(_ entry: ScheduledSend) {
+        var all = ledger ?? []
+        guard let index = all.firstIndex(where: { $0.draftID == entry.draftID }) else { return }
+        all[index] = entry
+        if (try? record(all)) == nil {
+            ledger = all
+            onSchedules(all)
+        }
     }
 
     // MARK: - The agents' drafts (step « Agents », 14/11)

@@ -279,7 +279,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let agenda = AgendaLibrary(database: database, vaultPath: { projects?.vaultPath })
         self.agenda = agenda
         // The mails (14/11): the mailboxes that granted them are followed from the launch, window open or not.
-        let mails = MailLibrary(agenda: agenda, root: paths.root)
+        // The programmed sends live in the Keychain (wave B); the development build never touches it.
+        let mails = MailLibrary(agenda: agenda, root: paths.root, schedules: .keychain)
         self.mails = mails
         mails.start()
         router.section = .home
@@ -309,6 +310,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         // The new mails of the main tab (14/11).
         mails?.onArrival = { arrived in Task { await hub.mailsArrived(arrived) } }
         mails?.onSendFailed = { subject, thread in Task { await hub.mailNotSent(subject: subject, threadKey: thread) } }
+        // A programmed mail that left late, waits for Paul or did not leave (wave B).
+        mails?.onScheduleNotice = { notice in Task { await hub.mailScheduleNotice(notice) } }
         SystemNotifications.registerCategories()
         Task { @MainActor in
             _ = await SystemNotifications.requestAuthorization()
@@ -344,7 +347,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let info = response.notification.request.content.userInfo
         let meet = info[NoticeKey.meet] as? String, account = info[NoticeKey.account] as? String
         let event = info[NoticeKey.event] as? String, meeting = (info[NoticeKey.meeting] as? String).flatMap(UUID.init(uuidString:))
-        let thread = info[NoticeKey.thread] as? String
+        let thread = info[NoticeKey.thread] as? String, folder = info[NoticeKey.folder] as? String
         let action = response.actionIdentifier
         let kind = (info[NoticeKey.kind] as? String).flatMap(PlannedNotice.Kind.init(rawValue:))
         // A click joins only a reminder or a meeting not recorded; a new event, days ahead, opens its card (review
@@ -355,6 +358,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         Task { @MainActor in
             if kind == .mail {
                 self.router.openMail(thread)
+                // No thread: the folder it names (« Programmés » for a mail that waits for Paul, wave B).
+                if thread == nil { self.mails?.show(folderNamed: folder) }
                 self.showMainWindow()
             } else {
                 self.open(meet: meet, account: account, event: event, meeting: meeting, join: join)
