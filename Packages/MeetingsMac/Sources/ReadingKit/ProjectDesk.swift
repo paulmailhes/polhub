@@ -2,9 +2,9 @@ import Domain
 import Foundation
 import Persistence
 
-/// The projects as text, and the four writes a session may make: what the project tools of `polhub mcp`
-/// answer. Same vocabulary as the `obsidian` server they replace (13/11). The status, due date and « todo »
-/// of a project belong to Paul: nothing here changes them.
+/// The projects as text, and the writes a session may make: what the project tools of `polhub mcp` answer. Same
+/// vocabulary as the `obsidian` server they replace (13/11). Since 16/11, the status, due date and task of the
+/// moment change too, when Paul asks (`update`), and an action can be reworded or removed (`editAction`).
 public struct ProjectDesk: Sendable {
     public static let briefActions = 15
     /// The order of `projets`, as in the `obsidian` server: priorities first, done last.
@@ -203,6 +203,81 @@ public struct ProjectDesk: Sendable {
         let body = details.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }.map { "- \($0)" }.joined(separator: "\n")
         try projects.addJournal(ProjectJournalRow(projectID: project.id, date: now(), title: title, body: body, createdAt: now()))
         return "Journal de « \(project.name) » : \(title)"
+    }
+
+    // MARK: - What Paul asks to change (16/11)
+
+    /// The status, the due date (« AAAA-MM-JJ », or « aucune »), the task of the moment (empty or « aucune »
+    /// clears it), when Paul asks a session (16/11: « il m'a dit qu'il avait pas les droits »). Only the fields
+    /// given change; a new status puts the project at the bottom of its column, as on the board.
+    public func update(_ which: String?, status: String?, due: String?, todo: String?) throws -> String {
+        let project = try resolve(which)
+        var said: [String] = []
+        var newStatus: ProjectStatus?
+        if let status = status?.trimmingCharacters(in: .whitespacesAndNewlines), !status.isEmpty {
+            guard let value = ProjectStatus.allCases.first(where: { Self.fold($0.rawValue) == Self.fold(status) }) else {
+                throw ToolError("Statut inconnu « \(status) » : " + ProjectStatus.allCases.map(\.rawValue).joined(separator: ", ") + ".")
+            }
+            newStatus = value
+            said.append("statut \(value.label)")
+        }
+        var edited = project
+        if let due = due?.trimmingCharacters(in: .whitespacesAndNewlines), !due.isEmpty {
+            if ["aucune", "aucun", "sans", "rien"].contains(Self.fold(due)) {
+                edited.dueDate = nil
+                said.append("sans échéance")
+            } else {
+                guard let date = dayStart(due) else { throw ToolError("Échéance illisible « \(due) » : AAAA-MM-JJ, ou « aucune ».") }
+                edited.dueDate = date
+                said.append("échéance \(day(date))")
+            }
+        }
+        if let todo {
+            let text = todo.trimmingCharacters(in: .whitespacesAndNewlines)
+            if text.isEmpty || Self.fold(text) == "aucune" {
+                edited.todo = nil
+                said.append("sans tâche du moment")
+            } else {
+                edited.todo = text
+                said.append("tâche du moment « \(text) »")
+            }
+        }
+        guard !said.isEmpty else { throw ToolError("Rien à changer : donne « statut », « echeance » ou « tache ».") }
+        if edited.dueDate != project.dueDate || edited.todo != project.todo {
+            try projects.saveChanges(from: project, to: edited, at: now())
+        }
+        if let newStatus, newStatus != project.status {
+            try projects.move(project.id, to: newStatus, before: nil, at: now())
+        }
+        return "« \(project.name) » : " + said.joined(separator: ", ") + "."
+    }
+
+    /// An open action reworded, or removed (`remove`), by its number in `actions`.
+    public func editAction(_ which: String?, number: Int, text: String, remove: Bool) throws -> String {
+        let project = try resolve(which)
+        let open = try openActions(project)
+        guard open.indices.contains(number - 1) else {
+            throw ToolError("L'action \(number) n'existe pas : « \(project.name) » a \(open.count) action\(open.count > 1 ? "s" : "") ouverte\(open.count > 1 ? "s" : ""). Voir `actions`.")
+        }
+        var action = open[number - 1]
+        if remove {
+            try projects.deleteAction(id: action.id)
+            return "Action retirée de « \(project.name) » : \(action.text)"
+        }
+        action.text = try Self.required(text, "texte", "le nouveau texte de l'action")
+        action.updatedAt = now()
+        try projects.saveAction(action)
+        return "Action \(number) de « \(project.name) » : \(action.text)"
+    }
+
+    /// « 2026-12-04 » as the start of that day, here.
+    func dayStart(_ text: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.isLenient = false
+        return formatter.date(from: text)
     }
 
     // MARK: - Which project

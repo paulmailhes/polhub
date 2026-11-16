@@ -133,9 +133,13 @@ struct Fixture {
         let answer = try call(server, #"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#)
         let tools = try #require((answer["result"] as? [String: Any])?["tools"] as? [[String: Any]])
         #expect(tools.compactMap { $0["name"] as? String }
-            == ["projets", "contexte", "actions", "reunions", "reunion", "chercher", "action", "note", "journal", "fait"])
+            == ["projets", "contexte", "actions", "reunions", "reunion", "chercher", "action", "note", "journal", "fait", "projet"])
         let writing = tools.filter { ($0["annotations"] as? [String: Any])?["readOnlyHint"] as? Bool == false }.compactMap { $0["name"] as? String }
-        #expect(writing == ["action", "note", "journal", "fait"])
+        #expect(writing == ["action", "note", "journal", "fait", "projet"])
+        // The status, due date and task of the moment change when Paul asks (16/11): said so, never « ne se touchent jamais ».
+        let instructions = try call(server, #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#)
+        let text = try #require((instructions["result"] as? [String: Any])?["instructions"] as? String)
+        #expect(text.contains("`projet`") && !text.contains("ne se touchent jamais"))
     }
 
     @Test func aWriteToolWritesThenTellsTheApp() throws {

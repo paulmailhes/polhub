@@ -49,6 +49,38 @@ struct DeskFixture {
 }
 
 @Suite struct ProjectDeskTests {
+    /// What Paul asks a session to change (16/11: « modifier la priorité… le todo… il avait pas les droits »): the
+    /// status, the due date, the task of the moment; only the fields given change, and the answer says what.
+    @Test func aSessionChangesTheProjectWhenPaulAsks() throws {
+        let fixture = try DeskFixture()
+        let desk = fixture.desk()
+        let answer = try desk.update("Atelier Nord", status: "priorité 2", due: "2026-12-04", todo: "Relancer le client")
+        #expect(answer == "« Atelier Nord » : statut priorité 2, échéance 04/12/2026, tâche du moment « Relancer le client ».")
+        let changed = try #require(try fixture.projects.project(id: fixture.atelier.id))
+        #expect(changed.status == .priorite2 && changed.todo == "Relancer le client" && changed.client == "Studio Sud")
+        #expect(desk.day(try #require(changed.dueDate)) == "04/12/2026")
+        #expect(try desk.update("atelier", status: nil, due: "aucune", todo: "") == "« Atelier Nord » : sans échéance, sans tâche du moment.")
+        let cleared = try #require(try fixture.projects.project(id: fixture.atelier.id))
+        #expect(cleared.dueDate == nil && cleared.todo == nil && cleared.status == .priorite2)
+        #expect(try desk.update("Atelier Nord", status: "Terminé", due: nil, todo: nil) == "« Atelier Nord » : statut terminé.")
+        #expect(throws: ToolError.self) { try desk.update("Atelier Nord", status: "urgent", due: nil, todo: nil) }
+        #expect(throws: ToolError.self) { try desk.update("Atelier Nord", status: nil, due: "demain", todo: nil) }
+        #expect(throws: ToolError.self) { try desk.update("Atelier Nord", status: nil, due: nil, todo: nil) }
+    }
+
+    /// An action reworded or removed by its number in `actions`.
+    @Test func anActionIsRewordedOrRemoved() throws {
+        let fixture = try DeskFixture()
+        let desk = fixture.desk()
+        #expect(try desk.editAction("Atelier Nord", number: 2, text: "Préparer la réunion de lundi", remove: false)
+                == "Action 2 de « Atelier Nord » : Préparer la réunion de lundi")
+        #expect(try desk.actions("Atelier Nord", all: false).contains("2. Préparer la réunion de lundi"))
+        #expect(try desk.editAction("Atelier Nord", number: 1, text: "", remove: true) == "Action retirée de « Atelier Nord » : Relire la maquette")
+        #expect(try desk.actions("Atelier Nord", all: false).contains("1. Préparer la réunion de lundi"))
+        #expect(throws: ToolError.self) { try desk.editAction("Atelier Nord", number: 9, text: "x", remove: false) }
+        #expect(throws: ToolError.self) { try desk.editAction("Atelier Nord", number: 1, text: " ", remove: false) }
+    }
+
     @Test func aProjectIsFoundByNameByPieceOrByTheSessionsFolder() throws {
         let fixture = try DeskFixture()
         let desk = fixture.desk(in: "/Users/exemple/Code/atelier-nord/back")
