@@ -3,6 +3,18 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.22.0 — 16 novembre 2026
+
+**Exporter une réunion en Markdown, pour l'envoyer.**
+
+- Un bouton « Exporter » en haut de la page d'une réunion écrit un fichier .md, à l'endroit que tu choisis
+  (Téléchargements par défaut), nommé « 2026-11-16 Titre de la réunion.md ».
+- Une seule page, propre : le titre, la date et la durée, les participants, puis le compte rendu (résumé, points
+  clés, décisions, actions avec leurs cases) et la transcription, par prise de parole, avec l'heure. « Moi » y
+  devient ton prénom, puisque la page part chez d'autres.
+- Inspiration : les vignettes en mémoire suivent une règle simple, les moins récemment vues partent d'abord, et tout
+  se libère quand macOS manque de mémoire.
+
 ## 0.21.0 — 16 novembre 2026
 
 **Une carte qui reste à l'écran avant une visio.**
