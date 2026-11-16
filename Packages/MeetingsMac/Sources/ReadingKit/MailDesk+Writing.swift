@@ -1,0 +1,141 @@
+import Foundation
+import MailFormat
+import Persistence
+import UniformTypeIdentifiers
+
+/// What an agent does to Paul's mails besides reading them (16/11): files joined to its draft, a thread filed in a
+/// case. Still no network and nothing that sends: the app makes the draft, Paul sends it.
+extension MailDesk {
+    /// At most this many files in one draft.
+    static let maximumFiles = 10
+
+    // MARK: - The files of a draft
+
+    /// A file of the Mac an agent may join, checked whole before anything is copied (Paul, 16/11: « joindre un
+    /// fichier à un brouillon »). Never what Paul keeps out of sight: a hidden file or folder (`.ssh`, `.gnupg`, `.env`),
+    /// his Library (but iCloud Drive and his cloud drives), a keychain; neither directly nor through a link. A regular
+    /// file, readable, not a folder; 10 files and 25 Mo in all at most (Gmail's limit).
+    func joinable(_ paths: [String]) throws -> [(url: URL, name: String, size: Int)] {
+        guard !paths.isEmpty else { return [] }
+        guard paths.count <= Self.maximumFiles else {
+            throw ToolError("\(paths.count) fichiers : \(Self.maximumFiles) fichiers au plus par brouillon. Rien n'a été déposé.")
+        }
+        var chosen: [(url: URL, name: String, size: Int)] = [], refusals: [String] = []
+        var taken: Set<String> = [], total = 0
+        for path in paths {
+            do {
+                let file = try checked(path)
+                let name = AttachmentSafety.uniqueName(file.name, taken: taken)
+                taken.insert(name)
+                total += file.size
+                chosen.append((file.url, name, file.size))
+            } catch {
+                refusals.append("\(error)")
+            }
+        }
+        guard refusals.isEmpty else { throw ToolError(refusals.joined(separator: "\n") + "\nRien n'a été déposé : retire ces fichiers, ou demande à Paul.") }
+        guard total <= MIMEBuilder.maximumFiles else {
+            throw ToolError("Les fichiers font \(Self.size(total)) en tout : 25 Mo au plus, la limite de Gmail. Rien n'a été déposé.")
+        }
+        return chosen
+    }
+
+    /// One path: the file it names, after its links, if nothing keeps it from leaving the Mac.
+    func checked(_ path: String) throws -> (url: URL, name: String, size: Int) {
+        let shown = Self.line(path)
+        let expanded = path.hasPrefix("~/") ? home.appending(path: String(path.dropFirst(2))).path(percentEncoded: false) : path
+        guard expanded.hasPrefix("/") else { throw ToolError("« \(shown) » : donne le chemin complet du fichier sur le Mac (/Users/…).") }
+        let given = URL(fileURLWithPath: expanded).standardizedFileURL
+        guard FileManager.default.fileExists(atPath: given.path(percentEncoded: false)) else { throw ToolError("« \(shown) » est introuvable.") }
+        let resolved = given.resolvingSymlinksInPath()
+        // The path as given, and the file it leads to: a link never opens the way to what is kept out.
+        for url in [given, resolved] {
+            if url.pathComponents.contains(where: { $0.hasPrefix(".") }) {
+                throw ToolError("« \(shown) » est un fichier caché, ou dans un dossier caché : Polhub ne le joint pas.")
+            }
+            if isInLibrary(url) { throw ToolError("« \(shown) » est dans la Bibliothèque de Paul (~/Library) : Polhub ne le joint pas.") }
+            if url.pathComponents.contains("Keychains") || ["keychain", "keychain-db"].contains(url.pathExtension.lowercased()) {
+                throw ToolError("« \(shown) » est un trousseau de clés : Polhub ne le joint pas.")
+            }
+        }
+        let file: (url: URL, size: Int)
+        do {
+            file = try AttachmentSafety.joinable(given)
+        } catch let refusal as AttachmentSafety.Refusal {
+            if case .folder = refusal { throw ToolError("« \(shown) » est un dossier : compresse-le d'abord.") }
+            throw ToolError("« \(shown) » ne peut pas être lu.")
+        }
+        guard FileManager.default.isReadableFile(atPath: file.url.path(percentEncoded: false)) else { throw ToolError("« \(shown) » ne peut pas être lu.") }
+        return (file.url, given.lastPathComponent, file.size)
+    }
+
+    /// Under `~/Library`, the home being read as given and after its links (`/var` is `/private/var`). Two of its
+    /// folders are Paul's documents, which the Finder shows outside the Library: iCloud Drive and the drives of
+    /// `CloudStorage` (Google Drive, Dropbox…). The apps' iCloud folders beside iCloud Drive stay out.
+    func isInLibrary(_ url: URL) -> Bool {
+        let path = url.pathComponents
+        func under(_ folder: [String]) -> Bool { path.count >= folder.count && Array(path.prefix(folder.count)) == folder }
+        return [home.standardizedFileURL, home.resolvingSymlinksInPath()].contains { home in
+            let library = home.pathComponents + ["Library"]
+            return under(library) && !under(library + ["CloudStorage"]) && !under(library + ["Mobile Documents", "com~apple~CloudDocs"])
+        }
+    }
+
+    /// The files copied into the drop's own folder, for the app: what Paul sees is what was joined now, whatever
+    /// becomes of the original. A copy that fails takes the folder with it.
+    func stage(_ chosen: [(url: URL, name: String, size: Int)], for id: String) throws -> [MailDraftFile] {
+        guard !chosen.isEmpty else { return [] }
+        let folder = files.agentFolder(id: id)
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            return try chosen.map { item in
+                let target = folder.appending(path: item.name)
+                try FileManager.default.copyItem(at: item.url, to: target)
+                let size = (try? target.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? item.size
+                let type = UTType(filenameExtension: (item.name as NSString).pathExtension)?.preferredMIMEType ?? "application/octet-stream"
+                return MailDraftFile(filename: item.name, mimeType: type, size: size)
+            }
+        } catch {
+            try? FileManager.default.removeItem(at: folder)
+            throw ToolError("Les fichiers n'ont pas pu être copiés pour Polhub : \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - The case of a thread
+
+    /// Files a thread in a case (Paul, 16/11: « ranger un fil dans un projet »): a project, Perso, Newsletters,
+    /// Paiements, Services, or none. As Paul's click on its case, in Polhub only (no Gmail label); but an agent's choice
+    /// teaches nothing about the sender: his next mails do not follow, he becomes no contact. Only a thread Paul lets the
+    /// agents read.
+    public func fileThread(_ which: String, into place: String) throws -> String {
+        let rules = try store.filingRules()
+        let thread = try find(which, rules: rules)
+        let filing = try Self.filing(named: place, projects: projects)
+        let before = caseName(thread, rules: rules) ?? "aucune case"
+        try store.file(threadKey: thread.id, as: filing, at: now())
+        let after: String
+        switch filing {
+        case .project(let id): after = "le projet « \(rules.projects.first { $0.id == id }?.name ?? place) »"
+        case .none: after = "aucune case (il reste dans Personnes)"
+        default: after = filing.title ?? place
+        }
+        let subject = thread.subject.isEmpty ? "(sans objet)" : Self.line(thread.subject)
+        return "Fil « \(subject) » [\(thread.threadID)] rangé : \(after) (avant : \(before)). Dans Polhub seulement : rien ne change dans Gmail, "
+            + "et les prochains mails de cet expéditeur ne suivent pas."
+    }
+
+    /// « Perso », « Newsletters », « Paiements », « Services », « aucun », else a project's name.
+    static func filing(named place: String, projects: ProjectDesk?) throws -> MailFiling {
+        switch ProjectNames.tokens(place).joined(separator: " ") {
+        case "": throw ToolError("Il manque « projet » : le nom d'un projet, ou Perso, Newsletters, Paiements, Services, ou « aucun ».")
+        case "perso": return .perso
+        case "newsletters", "newsletter": return .newsletters
+        case "paiements", "paiement": return .payments
+        case "services", "service": return .services
+        case "aucun", "aucune", "aucune case", "sans case": return .none
+        default:
+            guard let projects else { throw ToolError("Les projets ne sont pas lisibles ici.") }
+            return .project(try projects.resolve(place).id)
+        }
+    }
+}
