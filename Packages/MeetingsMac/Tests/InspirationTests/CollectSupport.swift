@@ -107,7 +107,11 @@ final class PauseCounter: @unchecked Sendable {
 }
 
 enum CollectFixtures {
-    static var folder: URL { ExampleVault.fixtures.appending(path: "collecte", directoryHint: .isDirectory) }
+    static var folder: URL {
+        let fixtures = Bundle.module.url(forResource: "Fixtures", withExtension: nil)
+            ?? URL(fileURLWithPath: #filePath).deletingLastPathComponent().appending(path: "Fixtures", directoryHint: .isDirectory)
+        return fixtures.appending(path: "collecte", directoryHint: .isDirectory)
+    }
 
     static func html(_ name: String) -> String {
         (try? String(contentsOf: folder.appending(path: name), encoding: .utf8)) ?? ""

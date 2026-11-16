@@ -5,7 +5,7 @@ import PolhubDesign
 import Summarization
 import SwiftUI
 
-/// Contacts (15/11): the people of the calendars, the mails and the vault, those Paul crossed lately first. Paul
+/// Contacts (15/11): the people of the calendars, the mails and the old vault, those Paul crossed lately first. Paul
 /// rarely comes on purpose: he lands from a mail or a meeting, and the page says in a glance who the person is,
 /// their projects, and the mails, meetings and events with them.
 struct ContactsView: View {
@@ -117,7 +117,7 @@ struct ContactsView: View {
             ContactPage(contact: contact, agenda: agenda, router: router).id(contact.id)
         } else if !agenda.contacts.isEmpty {
             ContentUnavailableView("Aucun contact choisi", systemImage: "person.2",
-                                   description: Text("\(agenda.contacts.count) contacts, venus de tes agendas, de tes mails et de ton coffre."))
+                                   description: Text("\(agenda.contacts.count) contacts, venus de tes agendas, de tes mails et de l'ancien coffre."))
         }
     }
 }

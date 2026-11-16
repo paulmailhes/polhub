@@ -23,15 +23,11 @@ public final class ProjectLibrary: ObservableObject {
     public var openMail: ((String) -> Void)?
     public let store: ProjectStore
     public let meetings: MeetingStore
-    private let defaults: UserDefaults
     private var observations: [AnyDatabaseCancellable] = []
 
-    public static let vaultKey = "vaultPath"
-
-    public init(store: ProjectStore, meetings: MeetingStore, defaults: UserDefaults = .standard) {
+    public init(store: ProjectStore, meetings: MeetingStore) {
         self.store = store
         self.meetings = meetings
-        self.defaults = defaults
         observations.append(store.observeProjects { [weak self] rows in
             self?.projects = rows
             self?.loaded = true
@@ -39,12 +35,6 @@ public final class ProjectLibrary: ObservableObject {
         // Filing a meeting changes « À surveiller » at once (review, minor 9).
         observations.append(store.observeLastMeetings { [weak self] last in self?.lastAppMeetings = last })
         observations.append(store.observeNextEvents { [weak self] next in self?.nextEvents = next })
-    }
-
-    /// The vault the history import reads (read-only), chosen once by Paul: no path is written in the code.
-    public var vaultPath: String? {
-        get { defaults.string(forKey: Self.vaultKey) }
-        set { defaults.set(newValue, forKey: Self.vaultKey) }
     }
 
     /// « Supprimer le projet » (15/11): off the board and every list; its page closes.

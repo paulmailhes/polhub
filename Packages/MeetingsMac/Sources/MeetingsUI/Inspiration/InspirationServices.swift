@@ -19,24 +19,19 @@ public struct InspirationServices: Sendable {
     public var status: @Sendable () async -> [InspirationStatusLine]
     /// Asks Apple's on-device model for an item's categories; never for one whose categories Paul chose.
     public var tag: @Sendable (_ itemID: UUID) async throws -> Void
-    /// An import ended (finished or stopped): the vault's vocabulary is read again, and the items without
-    /// categories are tagged in the background. Called without waiting for it.
-    public var imported: @Sendable () async -> Void
 
     public init(
         addSite: @escaping @Sendable (URL) async throws -> UUID = { _ in throw InspirationServicesError.notConnected },
         addMockup: @escaping @Sendable (_ folder: URL) async throws -> UUID = { _ in throw InspirationServicesError.notConnected },
         collectNow: @escaping @Sendable () async throws -> Void = { throw InspirationServicesError.notConnected },
         status: @escaping @Sendable () async -> [InspirationStatusLine] = { [] },
-        tag: @escaping @Sendable (_ itemID: UUID) async throws -> Void = { _ in throw InspirationServicesError.notConnected },
-        imported: @escaping @Sendable () async -> Void = {}
+        tag: @escaping @Sendable (_ itemID: UUID) async throws -> Void = { _ in throw InspirationServicesError.notConnected }
     ) {
         self.addSite = addSite
         self.addMockup = addMockup
         self.collectNow = collectNow
         self.status = status
         self.tag = tag
-        self.imported = imported
     }
 
     /// Nothing wired yet: every action says so.
@@ -51,8 +46,7 @@ public struct InspirationServices: Sendable {
             addMockup: { folder in try await automation.addMockup(folder: folder) },
             collectNow: { await automation.collectNow() },
             status: { InspirationStatusLine.lines(await automation.statuses(), sources: (try? store.sources()) ?? []) },
-            tag: { id in try await automation.tag(id: id) },
-            imported: { await automation.imported() }
+            tag: { id in try await automation.tag(id: id) }
         )
     }
 }

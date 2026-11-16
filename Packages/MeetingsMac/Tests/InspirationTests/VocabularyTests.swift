@@ -3,7 +3,7 @@ import Persistence
 import Testing
 @testable import Inspiration
 
-/// The categories' vocabularies (16/11): the vault's two, bundled with Polhub, and the mock-ups' types.
+/// The categories' vocabularies (16/11): the two the vault had, bundled with Polhub, and the mock-ups' types.
 @Suite struct VocabularyTests {
     func temporaryFolder() throws -> URL {
         let folder = FileManager.default.temporaryDirectory.appending(path: "vocabulaire \(UUID().uuidString)", directoryHint: .isDirectory)
@@ -69,57 +69,8 @@ import Testing
         #expect(!websites.isTooShort("Title: Exemple\nSite: https://exemple.fr\n\nUn studio de design graphique installé à Nantes, en France."))
     }
 
-    /// The vault's tags sit in `tags`, after the fixed ones, family after family; an unknown tag goes to
-    /// « autres », never dropped.
-    @Test func theTagsOfANoteFindTheirFamilies() throws {
-        let websites = try InspirationVocabulary.bundled(.website)
-        let categories = websites.categories(fromTags: ["site", "sotd", "fait-main", "portfolio", "Minimal", "éditorial", "#portfolio", "minimal"],
-                                             ignoring: ["sotd"])
-        #expect(categories == ["secteur": ["portfolio"], "style": ["minimal", "éditorial"], "support": ["portfolio", "éditorial"],
-                               "autres": ["fait-main"]])
-        // Out of order (a tag added by hand after the families): its first family.
-        #expect(websites.categories(fromTags: ["site", "landing", "agence"]) == ["support": ["landing"], "secteur": ["agence"]])
-        let branding = try InspirationVocabulary.bundled(.branding)
-        #expect(branding.categories(fromTags: ["branding", "galerie-exemple", "restaurant", "chaleureux", "logo", "packaging"], ignoring: ["galerie-exemple"])
-                == ["secteur": ["restaurant"], "style": ["chaleureux"], "support": ["logo", "packaging"]])
-    }
-
-    /// A tag two families share (`portfolio`, `produit`: secteur and support; `éditorial`: style and support) is in
-    /// both, as the vault's tag bar showed it: its place in `tags` cannot say which family the AI meant
-    /// (review of 16/11: « agence, portfolio » lost its support, « portfolio, portfolio » too).
-    @Test func aTagTwoFamiliesShareIsInBoth() throws {
-        let websites = try InspirationVocabulary.bundled(.website)
-        #expect(websites.categories(fromTags: ["site", "sotd", "agence", "portfolio"], ignoring: ["sotd"])
-                == ["secteur": ["agence", "portfolio"], "support": ["portfolio"]])
-        #expect(websites.categories(fromTags: ["site", "portfolio", "portfolio"]) == ["secteur": ["portfolio"], "support": ["portfolio"]])
-        #expect(websites.categories(fromTags: ["culture", "éditorial"]) == ["secteur": ["culture"], "style": ["éditorial"], "support": ["éditorial"]])
-        #expect(websites.categories(fromTags: ["tech", "Produit"]) == ["secteur": ["tech", "produit"], "support": ["produit"]])
-    }
-
-    /// The vault may hold the live copy, with tags Paul added by hand: it comes first, then Polhub's own copy,
-    /// then the bundled one. A broken copy is passed over.
-    @Test func theVaultsCopyComesFirst() throws {
-        let vault = try temporaryFolder()
-        defer { try? FileManager.default.removeItem(at: vault) }
-        let bundledURL = try #require(InspirationVocabulary.bundledURL(.website))
-        var json = try JSONSerialization.jsonObject(with: Data(contentsOf: bundledURL)) as! [String: Any]
-        var style = json["style"] as! [String: String]
-        style["fait-main"] = "ajouté à la main dans le coffre"
-        json["style"] = style
-        let folder = vault.appending(path: "obsidian/ia", directoryHint: .isDirectory)
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let copy = folder.appending(path: "vocabulaire-websites.json")
-        try JSONSerialization.data(withJSONObject: json).write(to: copy)
-        let loaded = InspirationVocabulary.load(.website, vault: vault)
-        #expect(loaded.origin == .vault(copy))
-        #expect(loaded.family("style")?.contains("fait-main") == true)
-        // Branding has no copy in this vault: the bundled one.
-        #expect(InspirationVocabulary.load(.branding, vault: vault).origin == .bundled)
-        // A broken copy is passed over.
-        try Data("{ pas du json".utf8).write(to: copy)
-        #expect(InspirationVocabulary.load(.website, vault: vault).origin == .bundled)
-    }
-
+    /// Polhub's own copy (the vault's, with the tags Paul added by hand) comes before the bundled one; a broken copy
+    /// is passed over.
     @Test func polhubsOwnCopyComesBeforeTheBundledOne() throws {
         let root = try temporaryFolder()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -129,6 +80,8 @@ import Testing
         try FileManager.default.copyItem(at: bundledURL, to: InspirationVocabulary.appCopy(.branding, paths: paths))
         #expect(InspirationVocabulary.load(.branding, paths: paths).origin == .app(InspirationVocabulary.appCopy(.branding, paths: paths)))
         #expect(InspirationVocabulary.load(.website, paths: paths).origin == .bundled)
+        try Data("{ pas du json".utf8).write(to: InspirationVocabulary.appCopy(.branding, paths: paths))
+        #expect(InspirationVocabulary.load(.branding, paths: paths).origin == .bundled)
     }
 
     /// The bundled files carry no `_doc` (it names machines): only design words go public.

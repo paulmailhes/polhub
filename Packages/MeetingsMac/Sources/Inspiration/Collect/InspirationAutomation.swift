@@ -57,12 +57,6 @@ public actor InspirationAutomation {
         await runPass(collect: true, now: now)
     }
 
-    /// After an import: the vault's vocabulary read again, then the items without categories tagged, as a pass.
-    public func imported() async {
-        await tagger.reloadVocabularies()
-        await runPass(collect: false, now: Date())
-    }
-
     /// A meeting starts, or the app quits: the pass under way stops at once (nothing is recorded as a failure).
     public func stop() {
         pass?.cancel()

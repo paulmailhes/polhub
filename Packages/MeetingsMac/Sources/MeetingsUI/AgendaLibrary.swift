@@ -8,7 +8,6 @@ import Persistence
 import ProjectsUI
 import PolhubDesign
 import SwiftUI
-import VaultImport
 
 /// Calendars, contacts and the loop, for the window: what the base holds, and Paul's gestures (13/11).
 @MainActor
@@ -38,8 +37,7 @@ public final class AgendaLibrary: ObservableObject {
     weak var mails: MailLibrary?
     @Published public private(set) var projects: [ProjectRow] = []
     @Published public private(set) var syncing = false
-    @Published public private(set) var importing = false
-    /// The last thing to tell Paul: a sync error, an import's report.
+    /// The last thing to tell Paul: a sync error, an account connected.
     @Published public var message: String?
     /// Set by the app: the notifications follow each reading of the calendars (14/11).
     public weak var notifications: NotificationHub?
@@ -47,19 +45,15 @@ public final class AgendaLibrary: ObservableObject {
     public let database: AppDatabase
     let session: GoogleSession
     let sync: CalendarSync
-    /// The vault's folder, as chosen for the projects' import.
-    let vaultPath: @MainActor () -> String?
     private var observations: [AnyDatabaseCancellable] = []
 
-    public init(database: AppDatabase, session: GoogleSession? = nil, sync: CalendarSync = CalendarSync(),
-                vaultPath: @escaping @MainActor () -> String? = { nil }) {
+    public init(database: AppDatabase, session: GoogleSession? = nil, sync: CalendarSync = CalendarSync()) {
         self.database = database
         // One session for the calendar and the mails; what each account granted is kept in the base (14/11).
         self.session = session ?? GoogleSession(onGrant: { email, scopes in
             try? CalendarStore(database).setGrantedScopes(email: email, scopes: scopes)
         })
         self.sync = sync
-        self.vaultPath = vaultPath
         observations = [
             CalendarStore(database).observeEvents { [weak self] in self?.events = $0 },
             CalendarStore(database).observeAccounts { [weak self] in self?.accounts = $0 },
@@ -293,28 +287,5 @@ public final class AgendaLibrary: ObservableObject {
 
     public func contact(email: String) -> ContactRow? {
         contactsByEmail[email.lowercased()]
-    }
-
-    // MARK: - The vault's history
-
-    /// The vault's contacts and old meetings, added without replacing anything.
-    public func importHistory() async {
-        guard let path = vaultPath() else {
-            message = "Choisis d'abord le dossier du coffre (Réglages › Projets)."
-            return
-        }
-        importing = true
-        defer { importing = false }
-        let database = database
-        do {
-            let report = try await Task.detached(priority: .userInitiated) {
-                let report = try HistoryImport.apply(try HistoryReader.read(vault: URL(fileURLWithPath: path, isDirectory: true)), database: database, now: Date())
-                try LinkRunner(database: database).run(now: Date())
-                return report
-            }.value
-            message = "Historique importé : \(report.summary)."
-        } catch {
-            message = "L'import n'a pas pu se faire : \(error)"
-        }
     }
 }

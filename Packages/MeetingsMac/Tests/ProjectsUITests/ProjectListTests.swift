@@ -43,7 +43,7 @@ import Testing
     @Test func aNewProjectKeepsEveryFieldAndGoesToTheBottomOfItsColumn() throws {
         let database = try AppDatabase.inMemory()
         let store = ProjectStore(database)
-        let library = ProjectLibrary(store: store, meetings: MeetingStore(database), defaults: UserDefaults(suiteName: "nouveau-\(UUID().uuidString)")!)
+        let library = ProjectLibrary(store: store, meetings: MeetingStore(database))
         _ = try store.addProject(name: "Déjà là", status: .priorite1, at: now)
         var draft = ProjectRow(name: "  Nouveau site  ", status: .priorite1, createdAt: now)
         draft.client = "Atelier Nord"

@@ -89,7 +89,7 @@ struct WindowSnapshotTests {
             try store.save(project, at: Date())
         }
         let library = MeetingLibrary(store: MeetingStore(database))
-        let projects = ProjectLibrary(store: store, meetings: MeetingStore(database), defaults: UserDefaults(suiteName: "kanban-\(UUID().uuidString)")!)
+        let projects = ProjectLibrary(store: store, meetings: MeetingStore(database))
         let router = WindowRouter()
         router.section = .projects
         try await Task.sleep(for: .milliseconds(300))
@@ -133,7 +133,7 @@ struct WindowSnapshotTests {
             try store.setProject(meetingID: meeting.id, projectID: project.id)
             if day == 1 { try meetings.setSummary(meetingID: meeting.id, summary: "## Résumé\n\nLe client valide la maquette ; la page Contact reste à revoir.") }
         }
-        let projects = ProjectLibrary(store: store, meetings: meetings, defaults: UserDefaults(suiteName: "page-\(UUID().uuidString)")!)
+        let projects = ProjectLibrary(store: store, meetings: meetings)
         let quiet = UserDefaults(suiteName: "logos-\(UUID().uuidString)")!
         quiet.set(false, forKey: Preferences.Key.projectLogos)
         let folder = FileManager.default.temporaryDirectory.appending(path: "logos \(UUID().uuidString)", directoryHint: .isDirectory)
@@ -160,7 +160,7 @@ struct WindowSnapshotTests {
         let store = MeetingStore(database)
         try store.addJournal(JournalEntry(createdAt: Date(), kind: .info, message: "Polhub mis à jour : 0.3.0 → 0.3.1."))
         let library = MeetingLibrary(store: store)
-        let projects = ProjectLibrary(store: ProjectStore(database), meetings: store, defaults: UserDefaults(suiteName: "réglages-\(UUID().uuidString)")!)
+        let projects = ProjectLibrary(store: ProjectStore(database), meetings: store)
         let updates = UpdateService(current: SemanticVersion("0.3.1")!, fetch: { Data("[]".utf8) }, isIdle: { true },
                                     defaults: UserDefaults(suiteName: "maj-\(UUID().uuidString)")!)
         let router = WindowRouter()
@@ -239,7 +239,7 @@ struct WindowSnapshotTests {
             }
         }
         let library = MeetingLibrary(store: meetingStore)
-        let projects = ProjectLibrary(store: projectStore, meetings: MeetingStore(database), defaults: UserDefaults(suiteName: "agenda-\(UUID().uuidString)")!)
+        let projects = ProjectLibrary(store: projectStore, meetings: MeetingStore(database))
         let agenda = AgendaLibrary(database: database)
         let router = WindowRouter()
         try await Task.sleep(for: .milliseconds(400))
@@ -356,7 +356,7 @@ struct WindowSnapshotTests {
         let agenda = AgendaLibrary(database: database)
         let mails = MailLibrary(agenda: agenda, root: root, defaults: UserDefaults(suiteName: "contacts-\(UUID().uuidString)")!)
         let library = MeetingLibrary(store: meetingStore)
-        let projectLibrary = ProjectLibrary(store: projectStore, meetings: meetingStore, defaults: UserDefaults(suiteName: "contacts-p-\(UUID().uuidString)")!)
+        let projectLibrary = ProjectLibrary(store: projectStore, meetings: meetingStore)
         let router = WindowRouter()
         router.section = .contacts
         router.contactSelection = camille.id

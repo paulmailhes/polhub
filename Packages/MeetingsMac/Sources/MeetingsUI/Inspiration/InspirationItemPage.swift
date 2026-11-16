@@ -183,7 +183,7 @@ struct InspirationItemPage: View {
                 }
             }
             if item.categoriesByPaul {
-                Text("Choisies par toi : ni l'import ni l'IA n'y touchent plus.").font(.meta).foregroundStyle(.secondary)
+                Text("Choisies par toi : l'IA n'y touche plus.").font(.meta).foregroundStyle(.secondary)
             }
         }
     }

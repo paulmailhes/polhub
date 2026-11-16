@@ -82,7 +82,7 @@ struct InspirationPageView: View {
         if !library.loaded.contains(kind) {
             ProgressView()
         } else if library.items(kind).isEmpty {
-            InspirationEmptyState(kind: kind) { router.openSettings(.inspiration) }
+            InspirationEmptyState(kind: kind, add: add)
         } else {
             grid
         }
@@ -196,10 +196,10 @@ struct InspirationSuggestionRow: View {
     }
 }
 
-/// A page before any import: one line, and the way to the import.
+/// A page without an item: one line, and the page's « + » (16/11: the vault's import is gone with the vault).
 struct InspirationEmptyState: View {
     let kind: InspirationKind
-    let importFromVault: () -> Void
+    let add: () -> Void
 
     var body: some View {
         ContentUnavailableView {
@@ -211,7 +211,7 @@ struct InspirationEmptyState: View {
         } description: {
             Text(kind.emptyText)
         } actions: {
-            Button("Importer depuis le coffre", action: importFromVault)
+            Button(kind.addTitle, action: add)
                 .buttonStyle(.glassProminent)
                 .controlSize(.large)
         }

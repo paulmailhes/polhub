@@ -184,7 +184,7 @@ final class PanelWorld {
         agenda = AgendaLibrary(database: database)
         mails = MailLibrary(agenda: agenda, root: root, defaults: UserDefaults(suiteName: "coup-doeil-\(UUID().uuidString)")!)
         library = MeetingLibrary(store: meetingStore)
-        projects = ProjectLibrary(store: projectStore, meetings: meetingStore, defaults: UserDefaults(suiteName: "coup-doeil-p-\(UUID().uuidString)")!)
+        projects = ProjectLibrary(store: projectStore, meetings: meetingStore)
         let inbox = NotificationInbox(file: nil)
         for (id, title) in [("n1", "Compte rendu prêt"), ("n2", "Nouveau rendez-vous")] {
             inbox.record(PlannedNotice(id: id, fireDate: Date(), title: title, body: "Exemple", eventID: nil, meetCode: nil, account: nil, kind: .newEvent),

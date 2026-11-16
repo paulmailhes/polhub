@@ -29,21 +29,18 @@ public actor InspirationTagger {
 
     let store: InspirationStore
     let paths: AppPaths?
-    let vault: URL?
     let model: any InspirationTaggingModel
     private var vocabularies: [InspirationKind: InspirationVocabulary] = [:]
     /// The items the model declined or could not tag since the launch: not asked again.
     private var declined: Set<UUID> = []
 
-    /// `vault` and `paths`: where the live vocabularies are (the vault's copy, Polhub's copy); without them, the
-    /// bundled ones.
+    /// `paths`: where Polhub's copy of the vocabularies is; without it, the bundled ones.
     /// `answerTimeout`: what one answer of the model may take (16/11: it looped up to six minutes on a post, the Mac
     /// working for nothing meanwhile); past it, the item is passed until the next launch.
-    public init(database: AppDatabase, paths: AppPaths? = nil, vault: URL? = nil, model: any InspirationTaggingModel = AppleTaggingModel(),
+    public init(database: AppDatabase, paths: AppPaths? = nil, model: any InspirationTaggingModel = AppleTaggingModel(),
                 answerTimeout: Duration = .seconds(45)) {
         self.store = InspirationStore(database)
         self.paths = paths
-        self.vault = vault
         self.model = model
         self.answerTimeout = answerTimeout
     }
@@ -77,14 +74,9 @@ public actor InspirationTagger {
     /// The vocabulary of a kind, read once.
     func vocabulary(_ kind: InspirationKind) -> InspirationVocabulary {
         if let known = vocabularies[kind] { return known }
-        let loaded = InspirationVocabulary.load(kind, vault: vault, paths: paths)
+        let loaded = InspirationVocabulary.load(kind, paths: paths)
         vocabularies[kind] = loaded
         return loaded
-    }
-
-    /// Forgets the vocabularies read (after an import brought the vault's).
-    public func reloadVocabularies() {
-        vocabularies = [:]
     }
 
     /// Tags one item, whatever categories it has (unless Paul chose them).

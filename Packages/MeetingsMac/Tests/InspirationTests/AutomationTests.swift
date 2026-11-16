@@ -122,25 +122,6 @@ import Testing
         #expect(CollectionSchedule(calendar: Self.utc).due(lastRuns: runLog.lastRuns, now: now).contains(.websites))
     }
 
-    /// After an import, the images known only by their address come, when the collection may run (review of
-    /// 16/11); not in the development build nor during a meeting.
-    @Test func anImportBringsTheRemoteImagesWhenTheCollectionMayRun() async throws {
-        let world = try CollectWorld()
-        defer { world.remove() }
-        var galerie = InspirationItemRow(kind: .website, key: "https://galerie.exemple.fr", title: "Galerie", date: now, createdAt: now)
-        galerie.extra.imageURL = "https://galerie.exemple.fr/og.jpg"
-        try world.store.upsert(galerie, at: now)
-        world.http.image("https://galerie.exemple.fr/og.jpg", TestImages.jpeg(width: 1200, height: 630))
-        let gates = Gates()
-        gates.set(collect: false, tag: false)
-        let automation = automation(world, runLog: CollectWorld.runLog(), model: FakeTaggingModel(answers: []), gates: gates)
-        await automation.imported()
-        #expect(world.http.requested.isEmpty)
-        gates.set(collect: true)
-        await automation.imported()
-        #expect(try world.store.item(kind: .website, key: "https://galerie.exemple.fr")?.images.count == 1)
-    }
-
     /// A site added by hand is tagged at once when the AI is on; « Proposer des catégories » says what stops it.
     @Test func paulsGesturesAreTaggedOrSaid() async throws {
         let world = try CollectWorld()

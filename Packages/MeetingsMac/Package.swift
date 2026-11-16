@@ -14,7 +14,6 @@ let package = Package(
         .library(name: "Transcription", targets: ["Transcription"]),
         .library(name: "Compute", targets: ["Compute"]),
         .library(name: "ReadingKit", targets: ["ReadingKit"]),
-        .library(name: "VaultImport", targets: ["VaultImport"]),
         .library(name: "ProjectsUI", targets: ["ProjectsUI"]),
         .library(name: "Updates", targets: ["Updates"]),
         .library(name: "Agenda", targets: ["Agenda"]),
@@ -74,15 +73,9 @@ let package = Package(
             .product(name: "Persistence", package: "Kernel"),
             .product(name: "GRDB", package: "GRDB.swift"),
         ]),
-        // Reads the Obsidian vault (the history of meetings and contacts): read-only, never writes. The import of the
-        // projects is gone (15/11): it would bring the old statuses back.
-        .target(name: "VaultImport", dependencies: [
-            .product(name: "Domain", package: "Kernel"),
-            .product(name: "Persistence", package: "Kernel"),
-            .product(name: "Yams", package: "Yams"),
-        ]),
-        // « Inspiration » (16/11): the sites, the branding and the mock-ups. The vault's import (read-only), the
-        // images made light, the vocabularies of the categories; then the collection and the tagger. No UI here.
+        // « Inspiration » (16/11): the sites, the branding and the mock-ups. The images made light, the vocabularies
+        // of the categories (Yams keeps their order), the collection and the tagger. No UI here. The vault's import is
+        // gone with the vault (16/11).
         .target(name: "Inspiration", dependencies: [
             .product(name: "Domain", package: "Kernel"),
             .product(name: "Persistence", package: "Kernel"),
@@ -116,7 +109,6 @@ let package = Package(
             "GoogleKit",
             "Mail",
             "MailFormat",
-            "VaultImport",
             "Summarization",
             "PolhubDesign",
             "Notifications",
@@ -154,7 +146,6 @@ let package = Package(
         .testTarget(name: "ComputeTests", dependencies: ["Compute", "Transcription", "Recording", .product(name: "Domain", package: "Kernel")], resources: [.copy("Fixtures")]),
         .testTarget(name: "ReadingKitTests", dependencies: ["ReadingKit", "MailFormat", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "InspirationTests", dependencies: ["Inspiration", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")], resources: [.copy("Fixtures")]),
-        .testTarget(name: "VaultImportTests", dependencies: ["VaultImport", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")], resources: [.copy("Fixtures")]),
         .testTarget(name: "ProjectsUITests", dependencies: ["ProjectsUI", "PolhubDesign", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "UpdatesTests", dependencies: ["Updates"]),
         .testTarget(name: "NotificationsTests", dependencies: ["Notifications", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),

@@ -36,7 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var probeWindow: NSWindow?
     private var mainWindow: NSWindow?
     private var library: MeetingLibrary?
-    /// The projects module (copy of the vault's projects, imported by Paul).
+    /// The projects module.
     private var projects: ProjectLibrary?
     /// The projects' logos (15/11): Paul's images and the icons of the clients' sites, in `Logos/`.
     private var projectLogos: ProjectLogos?
@@ -327,8 +327,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     /// The window opens on Accueil; the calendars are read at launch, then every 10 minutes, and the loop
     /// links guests, events, meetings and projects after each reading (13/11).
     private func startAgenda(database: AppDatabase) {
-        let projects = projects
-        let agenda = AgendaLibrary(database: database, vaultPath: { projects?.vaultPath })
+        let agenda = AgendaLibrary(database: database)
         self.agenda = agenda
         // The mails (14/11): the mailboxes that granted them are followed from the launch, window open or not.
         // The programmed sends live in the Keychain (wave B); the development build never touches it.
@@ -347,15 +346,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
     /// « Inspiration » (16/11): the pages follow the base; the collection runs at its slots (Awwwards every two
     /// hours from 8 h to 22 h, the LinkedIn pages at 9, 14 and 20 h), looked at a minute after launch, every five
-    /// minutes and at wake; the items without categories are tagged by Apple's model after each pass and after an
-    /// import. Nothing on its own in the development build (no doubled requests to Awwwards and LinkedIn), nor during
-    /// a meeting; the model also waits for the transcriptions and the summaries.
+    /// minutes and at wake; the items without categories are tagged by Apple's model after each pass. Nothing on its
+    /// own in the development build (no doubled requests to Awwwards and LinkedIn), nor during a meeting; the model
+    /// also waits for the transcriptions and the summaries.
     private func startInspiration(database: AppDatabase) {
         let library = InspirationLibrary(database: database, paths: paths)
         inspiration = library
         let runLog = CollectionRunLog()
-        // The vocabularies the menus read (Polhub's copy, brought by the import): the app never reads the vault
-        // outside the import.
+        // The vocabularies the menus read: Polhub's copy (the vault's, brought while there was one), else the bundled.
         let tagger = InspirationTagger(database: database, paths: paths)
         let collector = InspirationCollector(database: database, paths: paths, runLog: runLog)
         let isDevelopment = isDevelopment
@@ -490,8 +488,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         if await transcription?.isRunning ?? false { return false }
         // A mail leaving waits ten seconds in memory: an update now would call it back (14/11).
         if mails?.isSending == true { return false }
-        // The vault's import, a collection or the tagging under way: they finish first (16/11).
-        if inspiration?.importing == true { return false }
+        // A collection or the tagging under way: they finish first (16/11).
         if await inspirationAutomation?.isRunning ?? false { return false }
         return !(await summaries?.isRunning ?? false)
     }
@@ -561,10 +558,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         library?.meetingActive = busy
         Task { await transcription?.meetingActivity(busy) }
         Task { await summaries?.meetingActivity(busy) }
-        // A collection or the tagging under way stops at once; its slot stays due (« Inspiration », 16/11). So does
-        // the vault's import, which decodes images on several cores.
+        // A collection or the tagging under way stops at once; its slot stays due (« Inspiration », 16/11).
         if busy { Task { await inspirationAutomation?.stop() } }
-        inspiration?.meetingActivity(busy)
         if status == .idle {
             // The meeting that ended gets its event's project, title and guests now, not at the next sync.
             Task { await agenda?.runLinks() }
