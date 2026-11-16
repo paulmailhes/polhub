@@ -3,6 +3,16 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.25.0 — 16 novembre 2026
+
+**Tes agents Claude Code peuvent changer un projet quand tu le leur demandes.**
+
+- Un nouvel outil `projet` dans le MCP de Polhub : le statut (priorité 2, priorité 1, en pause, terminé),
+  l'échéance et la tâche du moment d'un projet. Seul ce que tu demandes change, et la réponse dit quoi.
+- L'outil `action` corrige le texte d'une action ouverte, ou la retire quand elle n'a plus lieu d'être.
+- Les sessions Claude Code déjà ouvertes gardent l'ancien MCP : relance-les (ou `/mcp`, « Reconnect ») pour avoir
+  les nouveaux outils.
+
 ## 0.24.0 — 16 novembre 2026
 
 **Précédent et Suivant, partout dans la fenêtre.**
