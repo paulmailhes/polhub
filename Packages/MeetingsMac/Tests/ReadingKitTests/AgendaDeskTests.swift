@@ -257,7 +257,7 @@ struct AgendaFixture {
         let people = try #require(server.handle(#"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"contacts","arguments":{"texte":"nina"}}}"#))
         #expect(people.contains("Nina Durand"))
         let initialize = try #require(server.handle(#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#))
-        #expect(initialize.contains("`rendez_vous`") && initialize.contains("n'invite jamais"))
+        #expect(initialize.contains("`rendez_vous`") && initialize.contains("n'invite ni n'envoie jamais"))
         // Without the agenda, the tools are those of before.
         let before = MCPServer(reader: try Fixture().reader, desk: fixture.projects)
         #expect(!(try #require(before.handle(#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#))).contains("rendez_vous"))

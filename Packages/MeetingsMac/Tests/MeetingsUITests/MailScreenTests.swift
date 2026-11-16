@@ -510,6 +510,56 @@ struct MailScreenTests {
         try await capture("mails-lettre-page")
         UserDefaults.standard.set(true, forKey: Preferences.Key.floatingPages)
     }
+
+    /// 16/11: a draft an agent formatted and joined a file to, as the app adopts it (its HTML made by Polhub from the
+    /// agent's markdown, its plain version shown whole), in the compose view.
+    @Test func anAgentsFormattedDraft() async throws {
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let root = FileManager.default.temporaryDirectory.appending(path: "mails-agent \(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let database = try AppDatabase.inMemory()
+        let account = "moi@exemple.fr"
+        try CalendarStore(database).addAccount(email: account, at: Date())
+        try CalendarStore(database).setGrantedScopes(email: account, scopes: "openid https://www.googleapis.com/auth/gmail.modify")
+        let store = MailStore(database), files = MailFiles(root: root)
+        let camille = MailAddress(name: "Camille Martin", email: "camille.martin@exemple-studio.fr")
+        let received = MailMessageRow(account: account, messageID: "a1", threadID: "a", date: Date().addingTimeInterval(-3_600), sender: camille,
+                                      to: [MailAddress(email: account)], subject: "Devis du site vitrine", snippet: "Peux-tu m'envoyer le devis ?",
+                                      labels: ["INBOX", "CATEGORY_PERSONAL"], authenticated: true, hasBody: true, bodyIsHTML: true)
+        try FileManager.default.createDirectory(at: files.body(of: received).deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("<p>Bonjour, peux-tu m'envoyer le devis ?</p><p>Camille</p>".utf8).write(to: files.body(of: received))
+        try store.apply(account: account, upserts: [received])
+        let markdown = """
+        Bonjour Camille,
+
+        Voici le **devis** du site vitrine, comme convenu :
+
+        - la maquette des *trois pages* ;
+        - l'intégration et la mise en ligne ;
+        - [le planning détaillé](https://exemple.fr/planning).
+
+        Belle journée,
+        """
+        let draft = MailDraftRow(account: account, mode: .new, to: [camille], subject: "Devis du site vitrine", body: MailMarkdown.plain(markdown),
+                                 bodyHTML: MailMarkdown.html(markdown),
+                                 files: [MailDraftFile(filename: "devis-site-vitrine.pdf", mimeType: "application/pdf", size: 182_000)],
+                                 origin: .agent, createdAt: Date())
+        try store.saveDraft(draft)
+        let agenda = AgendaLibrary(database: database)
+        let mails = MailLibrary(agenda: agenda, root: root, defaults: try #require(UserDefaults(suiteName: "mails-agent-\(UUID().uuidString)")),
+                                flavor: .dev, send: { AsideGmail([]).send(for: $0) }, vault: MemoryScheduleVault())
+        for _ in 0..<150 where !mails.drafts.contains(where: { $0.id == draft.id }) { try await Task.sleep(for: .milliseconds(20)) }
+        let router = WindowRouter()
+        router.section = .mails
+        mails.composing = draft.id
+        for dark in [false, true] {
+            try await LiveWindow.capture(MainWindowView(library: MeetingLibrary(store: MeetingStore(database)), agenda: agenda, mails: mails, router: router,
+                                                        paths: AppPaths(root: root, logs: root)) { EmptyView() },
+                                         to: output.appending(path: "mails-brouillon-agent-mis-en-forme\(dark ? "-sombre" : "").png"),
+                                         size: NSSize(width: 1_180, height: 780), dark: dark, wait: .milliseconds(1_500))
+        }
+    }
 }
 
 /// Real mails, on Paul's Mac only, to check their rendering: `POLHUB_VRAIS_MAILS=<fichier.html>:<fichier.html>`
