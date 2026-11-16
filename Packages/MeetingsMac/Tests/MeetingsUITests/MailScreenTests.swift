@@ -145,7 +145,7 @@ final class CountingServer: @unchecked Sendable {
         view.appearance = NSAppearance(named: .darkAqua)
         view.load(Data(MailHTML.document(body: letter, isHTML: true, images: false, collapseQuote: false, dark: true).utf8),
                   mimeType: "text/html", characterEncodingName: "UTF-8", baseURL: URL(string: "about:blank")!)
-        try await Task.sleep(for: .milliseconds(1_500))
+        try await waitForPage(view, element: "bouton")
         func style(_ id: String, _ property: String) async throws -> String {
             try await view.callAsyncJavaScript("return getComputedStyle(document.getElementById(id))[property]", arguments: ["id": id, "property": property],
                                                in: nil, contentWorld: .defaultClient) as? String ?? "?"
@@ -183,13 +183,24 @@ final class CountingServer: @unchecked Sendable {
             configuration.defaultWebpagePreferences = preferences
             let view = WKWebView(frame: NSRect(x: 0, y: 0, width: 300, height: 200), configuration: configuration)
             view.loadHTMLString(MailHTML.document(body: html, isHTML: true, images: false, collapseQuote: false), baseURL: nil)
-            try await Task.sleep(for: .milliseconds(1_500))
+            try await waitForPage(view, element: "gif")
             let widths = try await view.callAsyncJavaScript(
                 "return ['png','webp','gif'].map(function (id) { return id + '=' + document.getElementById(id).naturalWidth; }).join(' ')",
                 arguments: [:], in: nil, contentWorld: .defaultClient) as? String ?? "?"
             print("MESURE mode Isolement \(lockdown ? "actif" : "inactif") : \(widths)")
             #expect(widths.contains("png=1") && widths.contains("gif=1"))
         }
+    }
+}
+
+/// Waits until the page is loaded, its images too, up to 10 s: a fixed pause of 1.5 s was not enough while the Mac
+/// was busy with a call (16/11), and the page's elements were not there yet.
+@MainActor private func waitForPage(_ view: WKWebView, element id: String) async throws {
+    for _ in 0..<100 {
+        let ready = try? await view.callAsyncJavaScript("return document.readyState === 'complete' && document.getElementById(id) !== null",
+                                                        arguments: ["id": id], in: nil, contentWorld: .defaultClient) as? Bool
+        if ready == true { return }
+        try await Task.sleep(for: .milliseconds(100))
     }
 }
 
