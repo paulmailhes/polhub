@@ -31,9 +31,29 @@ public final class AppModel {
     public private(set) var nextMeetAt: Date?
     /// The development build: it never detects on its own, never updates itself, and notifies nothing.
     public let isDevelopment: Bool
+    /// The meetings whose summary Paul put away from « Coup d'œil » (its cross, or read once ready): the hero no longer
+    /// shows them (Paul, 16/11: « je l'ai déjà traité, j'ai plus besoin qu'il s'affiche »). The latest `reportsKept`,
+    /// kept across launches.
+    public private(set) var reportsPutAway: Set<UUID> = []
+    public static let reportsKept = 50
+    @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored private var putAwayOrder: [UUID] = []
+    private static let putAwayKey = "coupDoeil.comptesRendusRanges"
 
-    public init(isDevelopment: Bool = false) {
+    public init(isDevelopment: Bool = false, defaults: UserDefaults = .standard) {
         self.isDevelopment = isDevelopment
+        self.defaults = defaults
+        putAwayOrder = (defaults.stringArray(forKey: Self.putAwayKey) ?? []).compactMap(UUID.init(uuidString:))
+        reportsPutAway = Set(putAwayOrder)
+    }
+
+    /// A meeting's summary leaves the hero for good.
+    public func putAway(report meetingID: UUID) {
+        guard !reportsPutAway.contains(meetingID) else { return }
+        putAwayOrder.append(meetingID)
+        if putAwayOrder.count > Self.reportsKept { putAwayOrder.removeFirst(putAwayOrder.count - Self.reportsKept) }
+        reportsPutAway = Set(putAwayOrder)
+        defaults.set(putAwayOrder.map(\.uuidString), forKey: Self.putAwayKey)
     }
 
     // MARK: - What records

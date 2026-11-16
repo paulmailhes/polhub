@@ -225,6 +225,19 @@ struct PanelHero: View {
                 } else if let seconds = report.seconds {
                     Text(DurationText.short(seconds)).font(.meta).foregroundStyle(.secondary).lineLimit(1)
                 }
+                // Paul, 16/11: a summary already dealt with goes with a click, for good.
+                Button { context.app.putAway(report: report.meetingID) } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .frame(width: 22, height: 22)
+                }
+                .buttonStyle(.hover(.circle))
+                .foregroundStyle(.secondary)
+                // Its circle spills into the margins: the line keeps the eyebrow's height.
+                .padding(.vertical, -5)
+                .padding(.trailing, -Space.xs)
+                .help("Ne plus afficher ce compte rendu ici")
+                .accessibilityLabel("Ranger ce compte rendu")
             }
             HeroTitle(report.title, lines: 1)
             switch report.stage {
@@ -272,7 +285,7 @@ struct PanelHero: View {
         case .transcriptReady: "Transcription prête"
         case .transcriptionFailed: "Transcription échouée"
         case .summaryFailed: "Résumé impossible"
-        default: "Compte rendu en préparation"
+        default: "Compte rendu en cours"
         }
     }
 

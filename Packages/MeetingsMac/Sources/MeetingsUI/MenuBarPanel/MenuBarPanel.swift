@@ -92,7 +92,8 @@ struct PanelBody: View {
     private var meetings: PanelModel.Meetings? {
         library.map { library in
             PanelModel.Meetings(rows: library.rows, jobs: library.jobs, summaryJobs: library.summaryJobs, summaryProgress: library.summaryProgress,
-                                overviews: library.overviews, summariesOn: summariesEnabled, unavailable: library.summaryUnavailable)
+                                overviews: library.overviews, summariesOn: summariesEnabled, unavailable: library.summaryUnavailable,
+                                putAway: app.reportsPutAway)
         }
     }
 

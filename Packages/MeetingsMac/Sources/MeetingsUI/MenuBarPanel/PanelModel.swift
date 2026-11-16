@@ -52,6 +52,8 @@ enum PanelModel {
         var summariesOn = true
         /// Why no summary can be made (Apple Intelligence off…).
         var unavailable: String?
+        /// The summaries Paul put away (`AppModel.reportsPutAway`): never in the hero again.
+        var putAway: Set<UUID> = []
     }
 
     // MARK: - The hero
@@ -272,6 +274,7 @@ enum PanelModel {
     static func report(_ meetings: Meetings, now: Date) -> Report? {
         let done = meetings.rows.filter { row in
             row.source != .imported && row.deletedAt == nil && !row.status.isUnfinished && row.status != .discarded
+                && !meetings.putAway.contains(row.id)
         }
         .sorted { ($0.endedAt ?? $0.startedAt) > ($1.endedAt ?? $1.startedAt) }
         for row in done {
@@ -280,6 +283,13 @@ enum PanelModel {
             if let since = report.since, now.timeIntervalSince(since) < readyFor { return report }
         }
         return nil
+    }
+
+    /// A meeting opened in Polhub's window once transcribed: its summary is read, it leaves the hero. Opened while it
+    /// records or is transcribed, it still announces itself once ready.
+    static func isRead(opening id: UUID, in meetings: Meetings) -> Bool {
+        guard let row = meetings.rows.first(where: { $0.id == id }) else { return false }
+        return row.transcribedAt != nil || meetings.overviews[id] != nil
     }
 
     private static func report(for row: MeetingRow, in meetings: Meetings, now: Date) -> Report? {

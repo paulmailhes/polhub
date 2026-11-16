@@ -171,6 +171,35 @@ import Updates
 
     // MARK: - The summary
 
+    /// Paul, 16/11: « le résumé d'ADG est prêt, je l'ai déjà traité, j'ai plus besoin qu'il s'affiche ». Put away (the
+    /// cross, or read once ready), a meeting's summary leaves the hero for good, the day comes back.
+    @Test func aSummaryPutAwayLeavesTheHero() {
+        let row = meeting("Revue de maquettes", start: at(14, 0), transcribed: at(14, 50))
+        var meetings = PanelModel.Meetings(rows: [row], summaryJobs: [row.id: SummaryJobRow(meetingID: row.id, state: .done, updatedAt: at(15, 18))],
+                                           overviews: [row.id: "Maquettes validées."])
+        #expect(PanelModel.report(meetings, now: now) != nil)
+        meetings.putAway = [row.id]
+        #expect(PanelModel.report(meetings, now: now) == nil)
+        #expect(PanelModel.hero(meeting: PanelModel.Meeting(), events: [], meetings: meetings, now: now, calendar: calendar).kind == "day")
+        // An older one still within its two hours does not take the place of the one put away.
+        let older = meeting("Point client", start: at(13, 0), transcribed: at(13, 45))
+        meetings.rows.append(older)
+        meetings.overviews[older.id] = "Tout va bien."
+        meetings.summaryJobs[older.id] = SummaryJobRow(meetingID: older.id, state: .done, updatedAt: at(14, 0))
+        #expect(PanelModel.report(meetings, now: now)?.meetingID == older.id)
+    }
+
+    /// Opened in Polhub's window once transcribed, a meeting's summary counts as read; opened while it records or is
+    /// transcribed, it still announces itself when it is ready.
+    @Test func aMeetingOpenedOnceTranscribedIsRead() {
+        let done = meeting("Revue de maquettes", start: at(14, 0), transcribed: at(14, 50))
+        let running = meeting("Point client", start: at(15, 0))
+        let meetings = PanelModel.Meetings(rows: [done, running])
+        #expect(PanelModel.isRead(opening: done.id, in: meetings))
+        #expect(!PanelModel.isRead(opening: running.id, in: meetings))
+        #expect(!PanelModel.isRead(opening: UUID(), in: meetings))
+    }
+
     @Test func aSummaryShowsWhileItIsWrittenThenTwoHours() {
         let row = meeting("Revue de maquettes", start: at(14, 0), transcribed: at(14, 50))
         var meetings = PanelModel.Meetings(rows: [row])

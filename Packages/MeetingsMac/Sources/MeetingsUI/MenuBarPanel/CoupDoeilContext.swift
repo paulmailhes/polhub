@@ -1,5 +1,6 @@
 import AppKit
 import Agenda
+import Combine
 import MeetingDetection
 import Notifications
 import Observation
@@ -78,10 +79,26 @@ public final class CoupDoeilContext {
     /// Updates (`state`, `newer`, `autoInstall`, `installNow()`); nil in the development build.
     public private(set) var updates: UpdateService?
 
+    /// Watches the meeting open in the window: once transcribed, its summary is read (16/11).
+    @ObservationIgnored private var openedMeeting: AnyCancellable?
+
     public init(app: AppModel, router: WindowRouter, actions: CoupDoeilActions = CoupDoeilActions()) {
         self.app = app
         self.router = router
         self.actions = actions
+        openedMeeting = router.$selection.removeDuplicates().sink { [weak self] id in
+            guard let id else { return }
+            MainActor.assumeIsolated { self?.opened(meeting: id) }
+        }
+    }
+
+    /// A meeting opened in Polhub's window (from its list, the panel or a notification): read once transcribed, its
+    /// summary leaves the hero.
+    func opened(meeting id: UUID) {
+        guard let library else { return }
+        if PanelModel.isRead(opening: id, in: PanelModel.Meetings(rows: library.rows, overviews: library.overviews)) {
+            app.putAway(report: id)
+        }
     }
 
     /// The libraries are ready: once, at the end of the app's launch.

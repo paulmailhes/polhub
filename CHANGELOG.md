@@ -3,6 +3,15 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.19.1 — 16 novembre 2026
+
+**Coup d'œil : le compte rendu se range.**
+
+- Une petite croix en haut de la carte « Résumé prêt » (ou « Compte rendu en cours ») la retire du panneau pour de
+  bon ; la journée revient à sa place.
+- Elle part aussi d'elle-même dès que tu ouvres la réunion dans Polhub une fois transcrite : un compte rendu déjà lu
+  ne reste pas en avant.
+
 ## 0.19.0 — 16 novembre 2026
 
 **Coup d'œil allégé : rien n'y est dit deux fois.**

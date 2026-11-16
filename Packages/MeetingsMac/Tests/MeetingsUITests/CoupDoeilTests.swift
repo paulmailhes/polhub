@@ -55,6 +55,18 @@ import Testing
         #expect(model.alerts.isEmpty && !model.recordingsAtRisk)
     }
 
+    /// A summary put away stays away once Polhub restarts; the list keeps only the latest ones.
+    @Test func aSummaryPutAwayStaysAwayAfterARestart() throws {
+        let defaults = try #require(UserDefaults(suiteName: "polhub.tests.\(UUID().uuidString)"))
+        let first = UUID()
+        let model = AppModel(defaults: defaults)
+        model.putAway(report: first)
+        #expect(model.reportsPutAway.contains(first))
+        #expect(AppModel(defaults: defaults).reportsPutAway.contains(first))
+        for _ in 0..<AppModel.reportsKept { model.putAway(report: UUID()) }
+        #expect(AppModel(defaults: defaults).reportsPutAway.count == AppModel.reportsKept && !model.reportsPutAway.contains(first))
+    }
+
     /// The disk alert follows the free space (finding of 16/11): its figure while space shrinks, gone once there is
     /// room, back in the same meeting when the disk fills again (without its pop-up, the coordinator's, once a
     /// meeting).
