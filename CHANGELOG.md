@@ -3,6 +3,16 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.26.0 — 16 novembre 2026
+
+**Les brouillons écrits dans Gmail, corrigés.**
+
+- Un brouillon écrit dans Gmail avec de la mise en forme (gras, listes, liens), comme ceux qu'écrivaient tes agents
+  avec l'ancien MCP, montre maintenant tout son texte dans Polhub. Il n'est plus replié dans un « Message cité ».
+- Un brouillon envoyé ou supprimé depuis Gmail, sur le web ou le téléphone, disparaît aussi de Polhub. S'il avait
+  changé dans Polhub entre-temps, Polhub te demande quoi en faire.
+- Supprimer un brouillon que Gmail n'a plus ne finit plus en « Google a répondu 500 ».
+
 ## 0.25.0 — 16 novembre 2026
 
 **Tes agents Claude Code peuvent changer un projet quand tu le leur demandes.**
