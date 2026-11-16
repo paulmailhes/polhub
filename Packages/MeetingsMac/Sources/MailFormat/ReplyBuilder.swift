@@ -118,9 +118,10 @@ public enum ReplyBuilder {
         }
     }
 
-    /// The HTML that leaves: Paul's text, his signature, then the quoted message.
-    public static func html(body: String, signature: String?, quote: String?) -> String {
-        var html = "<div dir=\"ltr\">\(HTMLText.linked(HTMLText.escape(body)).replacingOccurrences(of: "\n", with: "<br>"))</div>"
+    /// The HTML that leaves: Paul's text, his signature, then the quoted message. An agent's formatted text (16/11)
+    /// takes the place of the plain one's, the app having made it from its markdown (`MailMarkdown`).
+    public static func html(body: String, bodyHTML: String? = nil, signature: String?, quote: String?) -> String {
+        var html = "<div dir=\"ltr\">\(bodyHTML ?? HTMLText.linked(HTMLText.escape(body)).replacingOccurrences(of: "\n", with: "<br>"))</div>"
         if let signature, !signature.isEmpty {
             html += "<br><div dir=\"ltr\" class=\"gmail_signature\">\(signature)</div>"
         }

@@ -169,21 +169,37 @@ struct ComposeView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
                 }
-                TextEditor(text: $text)
-                    .font(.system(size: TextSize.reading))
-                    .lineSpacing(3)
-                    .scrollContentBackground(.hidden)
-                    .focused($focus, equals: .body)
-                    .frame(minHeight: 180)
-                    .onChange(of: text) { _, typed in if loaded { mails.edit(draftID) { $0.body = typed } } }
-                    .overlay(alignment: .topLeading) {
-                        if text.isEmpty {
-                            Text(draft.mode == .new ? "Écris ton mail…" : "Écris ta réponse…").font(.system(size: TextSize.reading)).foregroundStyle(.tertiary)
-                                .padding(.leading, 5).allowsHitTesting(false)
+                if let formatted = draft.formattedText {
+                    // An agent's formatted draft (16/11): it leaves as the agent formatted it, so its text shows whole, not in
+                    // the editor. « Repasser en texte simple » gives its plain version to edit as usual.
+                    VStack(alignment: .leading, spacing: Space.s) {
+                        HStack(alignment: .firstTextBaseline, spacing: Space.m) {
+                            Text(MailDraftRow.agentFormattedCaption).font(.meta).foregroundStyle(.secondary)
+                            Spacer(minLength: 0)
+                            TextButton("Repasser en texte simple") { mails.edit(draftID) { $0.makePlain() } }
+                                .help("Retire la mise en forme : tu modifies ensuite le texte comme d'habitude")
+                                .disabled(planned != nil)
                         }
+                        Text(formatted).font(.system(size: TextSize.reading)).lineSpacing(3).textSelection(.enabled)
+                            .frame(maxWidth: .infinity, minHeight: 180, alignment: .topLeading)
                     }
-                    .disabled(planned != nil)
-                    .opacity(planned != nil ? 0.75 : 1)
+                } else {
+                    TextEditor(text: $text)
+                        .font(.system(size: TextSize.reading))
+                        .lineSpacing(3)
+                        .scrollContentBackground(.hidden)
+                        .focused($focus, equals: .body)
+                        .frame(minHeight: 180)
+                        .onChange(of: text) { _, typed in if loaded { mails.edit(draftID) { $0.body = typed } } }
+                        .overlay(alignment: .topLeading) {
+                            if text.isEmpty {
+                                Text(draft.mode == .new ? "Écris ton mail…" : "Écris ta réponse…").font(.system(size: TextSize.reading)).foregroundStyle(.tertiary)
+                                    .padding(.leading, 5).allowsHitTesting(false)
+                            }
+                        }
+                        .disabled(planned != nil)
+                        .opacity(planned != nil ? 0.75 : 1)
+                }
                 if !draft.files.isEmpty { files(draft).disabled(planned != nil) }
                 if let signature = mails.signature(of: draft.account) {
                     Toggle(isOn: binding(\.signature, default: true)) {
@@ -585,4 +601,14 @@ extension MailDraftRow {
     /// A draft written in Gmail with formatting, taken up whole: its HTML is the draft itself (`MailEngine.resume`
     /// keeps it below what Paul adds), not a message it quotes.
     var isFormattedGmailDraft: Bool { origin == .gmail && quoteHTML != nil && mode != .forward }
+
+    /// Over an agent's formatted draft (16/11).
+    static let agentFormattedCaption = "Mis en forme par l'agent : il part tel quel."
+
+    /// An agent's formatted draft: the plain version of its text, shown whole in place of the editor; `nil` for a
+    /// draft Paul edits.
+    var formattedText: String? { bodyHTML == nil ? nil : body }
+
+    /// « Repasser en texte simple »: the formatting goes, the plain version stays, to edit as usual.
+    mutating func makePlain() { bodyHTML = nil }
 }

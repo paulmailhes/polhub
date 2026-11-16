@@ -124,9 +124,10 @@ public struct MailFiles: Sendable {
         try? target.setResourceValues(values)
     }
 
-    /// The mailboxes whose account is gone lose their folder, and the drafts that are gone theirs.
+    /// The mailboxes whose account is gone lose their folder, and the drafts that are gone theirs. The agents' files
+    /// waiting for the app stay: their drop may be written in this very moment.
     public func keepOnly(accounts: [String], drafts: [String]) {
-        let kept = Set(accounts.map { $0.lowercased() } + ["brouillons", Self.requestsName])
+        let kept = Set(accounts.map { $0.lowercased() } + ["brouillons", Self.requestsName, Self.agentsName])
         for folder in (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
         where !kept.contains(folder.lastPathComponent) {
             try? FileManager.default.removeItem(at: folder)
@@ -187,5 +188,41 @@ extension MailFiles {
     /// A request served (or that cannot be).
     public func served(_ file: URL) {
         try? FileManager.default.removeItem(at: file)
+    }
+}
+
+// MARK: - The files an agent joins (16/11)
+
+extension MailFiles {
+    static let agentsName = "agents"
+
+    var agentsFolder: URL { root.appending(path: Self.agentsName, directoryHint: .isDirectory) }
+
+    /// The files an agent joined to a drop, copied by `polhub mcp` until the app makes the drop a draft: one folder per
+    /// drop, named by its id, as the drafts' (an id that is not a UUID cannot leave `agents`).
+    public func agentFolder(id: String) -> URL {
+        let name = UUID(uuidString: id).map { $0.uuidString.lowercased() } ?? "invalide-" + String(id.filter { $0.isLetter || $0.isNumber }.prefix(40))
+        return agentsFolder.appending(path: name, directoryHint: .isDirectory)
+    }
+
+    /// A file of a drop, only if its name is one Polhub would have written and it stays in the drop's folder: a row
+    /// written by hand never reaches another file of the Mac.
+    public func agentFile(_ file: MailDraftFile, of drop: MailAgentDraftRow) throws -> URL {
+        let folder = agentFolder(id: drop.id)
+        guard file.filename == AttachmentSafety.cleanName(file.filename) else { throw AttachmentSafety.Refusal.badName(file.filename) }
+        let url = folder.appending(path: file.filename)
+        guard url.standardizedFileURL.deletingLastPathComponent().path(percentEncoded: false) == folder.standardizedFileURL.path(percentEncoded: false)
+        else { throw AttachmentSafety.Refusal.badName(file.filename) }
+        return url
+    }
+
+    /// The folders of drops gone (adopted or let go) for some time: what a helper stopped on the way left behind.
+    public func forgetAgentFolders(keeping drops: Set<String>, olderThan age: TimeInterval = 3_600, now: Date = Date()) {
+        let kept = Set(drops.map { agentFolder(id: $0).lastPathComponent })
+        for folder in (try? FileManager.default.contentsOfDirectory(at: agentsFolder, includingPropertiesForKeys: [.creationDateKey])) ?? []
+        where !kept.contains(folder.lastPathComponent) {
+            let created = (try? folder.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast
+            if now.timeIntervalSince(created) > age { try? FileManager.default.removeItem(at: folder) }
+        }
     }
 }

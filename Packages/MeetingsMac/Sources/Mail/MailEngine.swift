@@ -3,6 +3,7 @@ import Foundation
 import GoogleKit
 import MailFormat
 import Persistence
+import UniformTypeIdentifiers
 
 /// Keeps the copy of each mailbox in step with Gmail (14/11): a first reading of everything, the most recent
 /// first, then « what is new since last time » every 30 seconds. The mails Paul programmed leave first (wave B),
@@ -557,7 +558,7 @@ public actor MailEngine {
         }
         return OutgoingMail(from: MailAddress(name: cursor?.senderName, email: draft.account), to: draft.to, cc: draft.cc, bcc: draft.bcc,
                             subject: draft.subject, text: ReplyBuilder.text(body: draft.body, signature: signature, quote: draft.quoteText),
-                            html: ReplyBuilder.html(body: draft.body, signature: signature, quote: draft.quoteHTML),
+                            html: ReplyBuilder.html(body: draft.body, bodyHTML: draft.bodyHTML, signature: signature, quote: draft.quoteHTML),
                             inReplyTo: draft.inReplyTo, references: draft.references, files: attached, date: now())
     }
 
@@ -1137,7 +1138,8 @@ public actor MailEngine {
     /// What the agents dropped, made into drafts marked « préparé par un agent ». A reply gets its people,
     /// its subject and its quote from the thread's last message, as Paul's would: never from the agent.
     /// Nothing reaches Gmail until Paul changes the draft, and only his click sends. A drop whose thread or
-    /// mailbox is gone is let go; one that cannot be prepared now (offline) waits for the next pass.
+    /// mailbox is gone is let go; one that cannot be prepared now (offline) waits for the next pass. The files
+    /// the agent joined become the draft's, and its markdown simple HTML made here (16/11).
     @discardableResult
     public func adoptAgentDrafts() async -> [MailDraftRow] {
         // One pass at a time (second review of 14/11); a call during a pass makes it run once more.
@@ -1156,18 +1158,21 @@ public actor MailEngine {
     }
 
     private func adoptionPass() async -> [MailDraftRow] {
-        guard let dropped = try? store.agentDrafts(), !dropped.isEmpty else { return [] }
+        guard let dropped = try? store.agentDrafts() else { return [] }
+        // The folders of drops gone long ago, left by a helper stopped on the way.
+        files.forgetAgentFolders(keeping: Set(dropped.map(\.id)), now: now())
+        guard !dropped.isEmpty else { return [] }
         let mine = (try? store.filingRules().mine) ?? []
         let accounts = Set((try? store.mailAccounts()) ?? [])
         var adopted: [MailDraftRow] = []
         for row in dropped {
             do {
-                let draft: MailDraftRow
+                var draft: MailDraftRow
                 switch row.mode {
                 case .reply, .replyAll:
                     guard let key = row.threadKey, let thread = try store.thread(key), accounts.contains(thread.account),
                           let last = try store.messages(threadKey: key).last(where: { !$0.labels.contains("DRAFT") }) else {
-                        try store.discardAgentDraft(row.id)
+                        letGo(row)
                         continue
                     }
                     let source = try await replySource(for: last)
@@ -1180,18 +1185,55 @@ public actor MailEngine {
                                          updatedAt: now())
                 default:
                     guard let account = row.account, accounts.contains(account) else {
-                        try store.discardAgentDraft(row.id)
+                        letGo(row)
                         continue
                     }
                     draft = MailDraftRow(account: account, mode: .new, to: row.to, cc: row.cc, subject: HTMLText.clean(row.subject), body: HTMLText.clean(row.body), origin: .agent,
                                          createdAt: row.createdAt, updatedAt: now())
                 }
-                if try store.adopt(row.id, as: draft) { adopted.append(draft) }
+                // Formatted by the agent: the HTML is made here, from its markdown, and the plain version is the text part.
+                if row.format == .markdown {
+                    draft.bodyHTML = MailMarkdown.html(draft.body)
+                    draft.body = MailMarkdown.plain(draft.body)
+                }
+                draft.files = try takeFiles(of: row, into: draft)
+                if try store.adopt(row.id, as: draft) {
+                    adopted.append(draft)
+                    try? FileManager.default.removeItem(at: files.agentFolder(id: row.id))
+                } else {
+                    try? FileManager.default.removeItem(at: files.draftFolder(draft))
+                }
             } catch {
                 continue
             }
         }
         return adopted
+    }
+
+    /// The files the agent joined, copied into the draft's folder (a clone on the Mac's disk) before the draft exists;
+    /// the drop's folder goes once the draft is in the base. Each is read as it is on the disk, never as the row says;
+    /// a name Polhub would not have written, or a file gone, is left out.
+    private func takeFiles(of drop: MailAgentDraftRow, into draft: MailDraftRow) throws -> [MailDraftFile] {
+        guard !drop.files.isEmpty else { return [] }
+        let folder = files.draftFolder(draft)
+        var taken: [MailDraftFile] = []
+        for file in drop.files {
+            guard let source = try? files.agentFile(file, of: drop), let values = try? source.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
+                  values.isRegularFile == true, let size = values.fileSize, !taken.contains(where: { $0.filename == file.filename }) else { continue }
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let target = folder.appending(path: file.filename)
+            try? FileManager.default.removeItem(at: target)
+            try FileManager.default.copyItem(at: source, to: target)
+            let type = UTType(filenameExtension: (file.filename as NSString).pathExtension)?.preferredMIMEType ?? "application/octet-stream"
+            taken.append(MailDraftFile(filename: file.filename, mimeType: type, size: size))
+        }
+        return taken
+    }
+
+    /// A drop that can never be a draft (its thread or its mailbox gone): it goes, with its files.
+    private func letGo(_ drop: MailAgentDraftRow) {
+        try? store.discardAgentDraft(drop.id)
+        try? FileManager.default.removeItem(at: files.agentFolder(id: drop.id))
     }
 
     // MARK: - Reading more (14/11)

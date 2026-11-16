@@ -334,6 +334,12 @@ public struct MailStore: Sendable {
         try writer.read { try $0.tableExists(MailAgentDraftRow.databaseTableName) }
     }
 
+    /// Whether the base takes a drop as this helper writes it, with its files and its format (v14): the helper never
+    /// migrates, and a drop on an older base would not fit its table.
+    public func agentDraftsTakeFiles() throws -> Bool {
+        try writer.read { try $0.columns(in: MailAgentDraftRow.databaseTableName).contains { $0.name == "format" } }
+    }
+
     /// An agent's draft, dropped by `polhub mcp`.
     public func drop(_ draft: MailAgentDraftRow) throws {
         try writer.write { try draft.insert($0) }

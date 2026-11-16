@@ -47,10 +47,45 @@ struct MailDeskFixture {
         ])
     }
 
-    func desk(_ scope: MailDesk.Scope = .tout) -> MailDesk {
+    func desk(_ scope: MailDesk.Scope = .tout, home: URL? = nil) -> MailDesk {
         MailDesk(database: database, root: root, scope: scope,
                  projects: ProjectDesk(projects: ProjectStore(database), meetings: MeetingStore(database), workingDirectory: nil, now: { [now] in now }),
-                 now: { [now] in now }, timeZone: TimeZone(identifier: "Europe/Paris")!)
+                 now: { [now] in now }, timeZone: TimeZone(identifier: "Europe/Paris")!, home: home ?? root.appending(path: "maison", directoryHint: .isDirectory))
+    }
+
+    /// An invented home folder (16/11): files Paul could ask to join, and what must never leave the Mac.
+    static func home() throws -> URL {
+        let manager = FileManager.default
+        let home = manager.temporaryDirectory.appending(path: "maison-\(UUID().uuidString)", directoryHint: .isDirectory)
+        for folder in ["Documents/Dossier", ".ssh", ".gnupg", "Library/Mail", "Library/Keychains", "Library/CloudStorage/GoogleDrive-exemple/Mon Drive",
+                       "Library/Mobile Documents/com~apple~CloudDocs", "Library/Mobile Documents/iCloud~fr~exemple~notes"] {
+            try manager.createDirectory(at: home.appending(path: folder), withIntermediateDirectories: true)
+        }
+        func write(_ relative: String, _ text: String) throws { try Data(text.utf8).write(to: home.appending(path: relative)) }
+        try write("Documents/devis.pdf", "%PDF-1.4 devis")
+        try write("Documents/Plan du site.png", "png")
+        try write("Documents/.env", "SECRET=1")
+        try write(".ssh/id_ed25519", "clé")
+        try write(".gnupg/secring.gpg", "clé")
+        try write("Library/Mail/boite.txt", "courrier")
+        try write("Library/Keychains/login.keychain-db", "trousseau")
+        try write("Library/CloudStorage/GoogleDrive-exemple/Mon Drive/contrat.pdf", "%PDF-1.4 contrat")
+        try write("Library/Mobile Documents/com~apple~CloudDocs/maquette.pdf", "%PDF-1.4 maquette")
+        try write("Library/Mobile Documents/iCloud~fr~exemple~notes/notes.txt", "notes d'une app")
+        try write("Documents/ancien.keychain-db", "trousseau")
+        try write("Documents/verrouille.txt", "à ne pas lire")
+        try manager.setAttributes([.posixPermissions: 0o000], ofItemAtPath: home.appending(path: "Documents/verrouille.txt").path(percentEncoded: false))
+        for number in 1...11 { try write("Documents/note \(number).txt", "note") }
+        try manager.createSymbolicLink(at: home.appending(path: "Documents/cle.txt"), withDestinationURL: home.appending(path: ".ssh/id_ed25519"))
+        try manager.createSymbolicLink(at: home.appending(path: "Documents/courrier.txt"), withDestinationURL: home.appending(path: "Library/Mail/boite.txt"))
+        try manager.createSymbolicLink(at: home.appending(path: "Documents/lien vers le devis.pdf"), withDestinationURL: home.appending(path: "Documents/devis.pdf"))
+        // 26 Mo without taking them on the disk.
+        let big = home.appending(path: "Documents/film.mov")
+        manager.createFile(atPath: big.path(percentEncoded: false), contents: nil)
+        let handle = try FileHandle(forWritingTo: big)
+        try handle.truncate(atOffset: 26_000_000)
+        try handle.close()
+        return home
     }
 }
 
@@ -116,7 +151,7 @@ struct MailDeskFixture {
         let server = MCPServer(reader: try Fixture().reader, desk: projects, mails: fixture.desk(), onWrite: { writes.add() })
         let answer = try call(server, #"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#)
         let tools = try #require((answer["result"] as? [String: Any])?["tools"] as? [[String: Any]])
-        #expect(tools.compactMap { $0["name"] as? String }.suffix(4) == ["mails", "mail", "piece_jointe", "brouillon"])
+        #expect(tools.compactMap { $0["name"] as? String }.suffix(5) == ["mails", "mail", "piece_jointe", "brouillon", "ranger"])
         let read = try call(server, #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"mail","arguments":{"quel":"fil-maquette-01"}}}"#)
         #expect(!toolText(read).1 && writes.count == 0)
         let drop = try call(server, #"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"brouillon","arguments":{"quel":"fil-maquette-01","texte":"Merci !"}}}"#)
@@ -215,6 +250,145 @@ struct MailDeskFixture {
         let answer = try call(server, #"{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"piece_jointe","arguments":{"quel":"fil-captures-09","numero":1}}}"#)
         let blocks = try #require((answer["result"] as? [String: Any])?["content"] as? [[String: Any]])
         #expect(blocks.first?["type"] as? String == "image" && blocks.first?["mimeType"] as? String == "image/jpeg")
+    }
+
+    /// Paul, 16/11: an agent joins the files he asked for. They are copied for the app, which makes them the draft's;
+    /// the originals stay where they are.
+    @Test func anAgentJoinsFilesFromTheMac() throws {
+        let fixture = try MailDeskFixture()
+        let home = try MailDeskFixture.home()
+        defer { try? FileManager.default.removeItem(at: fixture.root); try? FileManager.default.removeItem(at: home) }
+        let desk = fixture.desk(home: home)
+        let devis = home.appending(path: "Documents/devis.pdf").path(percentEncoded: false)
+        let plan = home.appending(path: "Documents/Plan du site.png").path(percentEncoded: false)
+        let link = home.appending(path: "Documents/lien vers le devis.pdf").path(percentEncoded: false)
+        let answer = try desk.draft(replyTo: "fil-maquette-01", all: false, to: [], cc: [], subject: nil, text: "Voici le devis.", account: nil,
+                                    joining: [devis, plan, link])
+        #expect(answer.contains("« devis.pdf »") && answer.contains("« Plan du site.png »") && answer.contains("« lien vers le devis.pdf »"))
+        let drop = try #require(try fixture.store.agentDrafts().first)
+        #expect(drop.files.map(\.filename) == ["devis.pdf", "Plan du site.png", "lien vers le devis.pdf"])
+        #expect(drop.files[0].mimeType == "application/pdf" && drop.files[0].size == 14 && drop.files[1].mimeType == "image/png")
+        let files = MailFiles(root: fixture.root)
+        for file in drop.files where file.filename != "Plan du site.png" {
+            #expect(try Data(contentsOf: try files.agentFile(file, of: drop)) == Data("%PDF-1.4 devis".utf8))
+        }
+        // A copy, never a link: what the agent named may change or go, the draft keeps what was joined.
+        let copied = try files.agentFile(drop.files[2], of: drop)
+        #expect(try copied.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink == false)
+        #expect(FileManager.default.fileExists(atPath: devis))
+        // iCloud Drive and the cloud drives are Paul's documents, though under the Library.
+        let drive = home.appending(path: "Library/CloudStorage/GoogleDrive-exemple/Mon Drive/contrat.pdf").path(percentEncoded: false)
+        let icloud = home.appending(path: "Library/Mobile Documents/com~apple~CloudDocs/maquette.pdf").path(percentEncoded: false)
+        let fromCloud = try desk.draft(replyTo: nil, all: false, to: ["nina@exemple.net"], cc: [], subject: "Contrat", text: "Le voici.", account: nil,
+                                       joining: [drive, icloud])
+        #expect(fromCloud.contains("« contrat.pdf »") && fromCloud.contains("« maquette.pdf »"))
+    }
+
+    /// Never a hidden file, a key, the Library or a keychain, even through a link; a readable file, not a folder;
+    /// 10 files and 25 Mo at most. One file refused stops the drop: nothing is left half done.
+    @Test func whatMustNeverLeaveTheMacIsRefused() throws {
+        let fixture = try MailDeskFixture()
+        let home = try MailDeskFixture.home()
+        defer { try? FileManager.default.removeItem(at: fixture.root); try? FileManager.default.removeItem(at: home) }
+        let desk = fixture.desk(home: home)
+        func path(_ relative: String) -> String { home.appending(path: relative).path(percentEncoded: false) }
+        func refused(_ paths: [String], _ reason: String, sourceLocation: SourceLocation = #_sourceLocation) {
+            do {
+                _ = try desk.draft(replyTo: nil, all: false, to: ["nina@exemple.net"], cc: [], subject: "Devis", text: "Bonjour", account: nil, joining: paths)
+                Issue.record("accepté : \(paths)", sourceLocation: sourceLocation)
+            } catch {
+                #expect(error is ToolError && "\(error)".contains(reason), "\(error)", sourceLocation: sourceLocation)
+            }
+        }
+        refused([path("Documents/.env")], "caché")
+        refused([path(".ssh/id_ed25519")], "caché")
+        refused([path(".gnupg/secring.gpg")], "caché")
+        refused([path("Library/Mail/boite.txt")], "Bibliothèque")
+        refused([path("Library/Keychains/login.keychain-db")], "Bibliothèque")
+        refused([path("Library/Mobile Documents/iCloud~fr~exemple~notes/notes.txt")], "Bibliothèque")
+        refused([path("Documents/ancien.keychain-db")], "trousseau")
+        refused([path("Documents/cle.txt")], "caché")
+        refused([path("Documents/courrier.txt")], "Bibliothèque")
+        refused([path("Documents/verrouille.txt")], "ne peut pas être lu")
+        refused([path("Documents/Dossier")], "dossier")
+        refused([path("Documents/film.mov")], "25 Mo")
+        refused((1...11).map { path("Documents/note \($0).txt") }, "10 fichiers")
+        refused(["Documents/devis.pdf"], "chemin complet")
+        refused([path("Documents/absent.pdf")], "introuvable")
+        refused([path("Documents/devis.pdf"), path(".ssh/id_ed25519")], "id_ed25519")
+        #expect(try fixture.store.agentDrafts().isEmpty)
+        let staging = MailFiles(root: fixture.root).root.appending(path: "agents")
+        #expect(((try? FileManager.default.contentsOfDirectory(atPath: staging.path(percentEncoded: false))) ?? []).isEmpty)
+    }
+
+    /// A formatted draft keeps the agent's markdown as it wrote it: the app makes the HTML, never the agent.
+    @Test func aFormattedDraftKeepsItsMarkdownForTheApp() throws {
+        let fixture = try MailDeskFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let markdown = "**Bonjour** Nina,\n\n- le devis\n- [le site](https://exemple.fr)"
+        let answer = try fixture.desk().draft(replyTo: nil, all: false, to: ["nina@exemple.net"], cc: [], subject: "Devis", text: markdown, account: nil,
+                                              format: .markdown)
+        #expect(answer.contains("mis en forme"))
+        let drop = try #require(try fixture.store.agentDrafts().first)
+        #expect(drop.format == .markdown && drop.body == markdown && drop.files.isEmpty)
+        let plain = try fixture.desk().draft(replyTo: nil, all: false, to: ["nina@exemple.net"], cc: [], subject: "Devis", text: markdown, account: nil)
+        #expect(try !plain.contains("mis en forme") && fixture.store.agentDrafts().last?.format == .plain)
+    }
+
+    /// The server's `brouillon` takes « fichiers » and « format »; `ranger` writes and tells the app.
+    @Test func theServerJoinsFormatsAndFiles() throws {
+        let fixture = try MailDeskFixture()
+        let home = try MailDeskFixture.home()
+        defer { try? FileManager.default.removeItem(at: fixture.root); try? FileManager.default.removeItem(at: home) }
+        let writes = WriteCounter()
+        let projects = ProjectDesk(projects: ProjectStore(fixture.database), meetings: MeetingStore(fixture.database), workingDirectory: nil)
+        let server = MCPServer(reader: try Fixture().reader, desk: projects, mails: fixture.desk(home: home), onWrite: { writes.add() })
+        let list = try call(server, #"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#)
+        let tools = try #require((list["result"] as? [String: Any])?["tools"] as? [[String: Any]])
+        let draft = try #require(tools.first { $0["name"] as? String == "brouillon" })
+        let properties = try #require((draft["inputSchema"] as? [String: Any])?["properties"] as? [String: Any])
+        #expect(properties["fichiers"] != nil && properties["format"] != nil)
+        #expect((draft["description"] as? String)?.contains("seulement quand Paul") == true)
+        let devis = home.appending(path: "Documents/devis.pdf").path(percentEncoded: false)
+        let drop = try call(server, """
+            {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"brouillon","arguments":{"quel":"fil-maquette-01","texte":"**Merci** !","format":"markdown","fichiers":["\(devis)"]}}}
+            """)
+        #expect(!toolText(drop).1 && toolText(drop).0.contains("« devis.pdf »") && writes.count == 1)
+        #expect(try fixture.store.agentDrafts().first?.format == .markdown)
+        let html = try call(server, #"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"brouillon","arguments":{"quel":"fil-maquette-01","texte":"x","format":"html"}}}"#)
+        #expect(toolText(html).1 && toolText(html).0.contains("markdown") && writes.count == 1)
+        let filed = try call(server, #"{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"ranger","arguments":{"quel":"fil-lettre-02","projet":"Perso"}}}"#)
+        #expect(!toolText(filed).1 && toolText(filed).0.contains("Perso") && writes.count == 2)
+        let missing = try call(server, #"{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"ranger","arguments":{"quel":"fil-lettre-02"}}}"#)
+        #expect(toolText(missing).1 && writes.count == 2)
+    }
+
+    /// Paul, 16/11: an agent files a thread in a case, as Paul's click does (in Polhub only), but learns nothing about
+    /// its sender: his next mails do not follow, he becomes no contact. Paul's scope holds.
+    @Test func rangerFilesAThreadWithoutLearningItsSender() throws {
+        let fixture = try MailDeskFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let desk = fixture.desk()
+        let thread = try #require(try fixture.store.thread(MailThreadRow.key(account: fixture.account, threadID: "fil-lettre-02")))
+        let answer = try desk.fileThread("fil-lettre-02", into: "site VITRINE")
+        #expect(answer.contains("« Les nouveautés »") && answer.contains("projet « Site vitrine »"))
+        let rules = try fixture.store.filingRules()
+        #expect(rules.filing(of: thread)?.filing == .project(fixture.project.id) && rules.filing(of: thread)?.origin == .paul)
+        #expect(try fixture.store.senders()["lettre@lettre.exemple"] == nil)
+        #expect(try ContactStore(fixture.database).contact(email: "lettre@lettre.exemple") == nil)
+        #expect(try desk.fileThread("fil-lettre-02", into: "paiements").contains("Paiements"))
+        #expect(try fixture.store.filingRules().filing(of: thread)?.filing == .payments)
+        #expect(try desk.fileThread("[fil-lettre-02]", into: "aucun").contains("aucune case"))
+        #expect(try fixture.store.filingRules().filing(of: thread)?.filing == MailFiling.none)
+        #expect(throws: ToolError.self) { try desk.fileThread("fil-lettre-02", into: "Projet inconnu") }
+        #expect(throws: ToolError.self) { try desk.fileThread("fil-spam-03", into: "Perso") }
+        // Kept to the threads of his projects, an agent can file no other.
+        let other = MailMessageRow(account: fixture.account, messageID: "m5", threadID: "fil-autre-05", date: fixture.now, sender: MailAddress(email: "jules@exemple.net"),
+                                   subject: "Autre chose", snippet: "", labels: ["INBOX", "CATEGORY_PERSONAL"])
+        try fixture.store.apply(account: fixture.account, upserts: [other])
+        #expect(throws: ToolError.self) { try fixture.desk(.projets).fileThread("fil-autre-05", into: "Site vitrine") }
+        #expect(try fixture.store.filingRules().choices[other.threadKey] == nil)
+        #expect(try fixture.desk(.projets).fileThread("fil-maquette-01", into: "Perso").contains("Perso"))
     }
 
     /// A small PNG, drawn here.

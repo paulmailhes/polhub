@@ -29,16 +29,20 @@ public struct MailDesk: Sendable {
     let projects: ProjectDesk?
     let now: @Sendable () -> Date
     let timeZone: TimeZone
+    /// Paul's home folder: what lies in its Library or its hidden folders is never joined to a draft (16/11).
+    let home: URL
 
     /// `scope` is evaluated at each call: `.current()` reads Paul's setting every time.
     public init(database: AppDatabase, root: URL, scope: @autoclosure @escaping @Sendable () -> Scope, projects: ProjectDesk?,
-                now: @escaping @Sendable () -> Date = Date.init, timeZone: TimeZone = .current) {
+                now: @escaping @Sendable () -> Date = Date.init, timeZone: TimeZone = .current,
+                home: URL = FileManager.default.homeDirectoryForCurrentUser) {
         self.store = MailStore(database)
         self.files = MailFiles(root: root)
         self.scopeNow = scope
         self.projects = projects
         self.now = now
         self.timeZone = timeZone
+        self.home = home
     }
 
     // MARK: - Reading
@@ -235,9 +239,11 @@ public struct MailDesk: Sendable {
     // MARK: - The draft
 
     /// Drops a reply under a thread, or a new mail. The app makes a draft of it, marked « préparé par un
-    /// agent »; for a reply, it works out the people itself. Only Paul sends.
-    public func draft(replyTo which: String?, all: Bool, to: [String], cc: [String], subject: String?, text: String, account: String?) throws -> String {
-        guard try store.acceptsAgentDrafts() else {
+    /// agent »; for a reply, it works out the people itself. Only Paul sends. With files of the Mac (copied here for
+    /// the app, 16/11) and a text in markdown, which the app makes simple HTML: the agent never writes HTML.
+    public func draft(replyTo which: String?, all: Bool, to: [String], cc: [String], subject: String?, text: String, account: String?,
+                      joining paths: [String] = [], format: MailAgentDraftRow.Format = .plain) throws -> String {
+        guard try store.acceptsAgentDrafts(), try store.agentDraftsTakeFiles() else {
             throw ToolError("La base de Polhub n'accepte pas encore de brouillon : la dernière version de Polhub doit être ouverte une fois.")
         }
         // No invisible character leaves under Paul's eyes (review of 14/11): tags, zero widths, reversals.
@@ -245,27 +251,42 @@ public struct MailDesk: Sendable {
         let cleaned = body != text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty else { throw ToolError("Il manque « texte » : le texte du mail.") }
         guard body.count <= Self.maximumText else { throw ToolError("Le texte dépasse \(Self.maximumText) caractères.") }
-        let closing = (cleaned ? "Des caractères invisibles ont été retirés du texte. " : "") + "Paul le relit et l'envoie lui-même : aucun outil ne peut l'envoyer."
+        // Every file is checked before anything is written: one refused stops the drop, nothing is left half done.
+        let chosen = try joinable(paths)
+        var closing = (cleaned ? "Des caractères invisibles ont été retirés du texte. " : "") + "Paul le relit et l'envoie lui-même : aucun outil ne peut l'envoyer."
+        if format == .markdown { closing = "Texte mis en forme : Polhub en fait le mail (gras, italique, listes, liens), sans autre balise. " + closing }
+        var row: MailAgentDraftRow
+        var answer: String
         if let which {
             let rules = try store.filingRules()
             let thread = try find(which, rules: rules)
-            try store.drop(MailAgentDraftRow(mode: all ? .replyAll : .reply, account: thread.account, threadKey: thread.id,
-                                             subject: thread.subject, body: body, createdAt: now()))
-            var answer = "Réponse\(all ? " à tous" : "") déposée dans Polhub sous le fil « \(thread.subject) » (boîte \(thread.account)), marquée « préparé par un agent ». "
+            row = MailAgentDraftRow(mode: all ? .replyAll : .reply, account: thread.account, threadKey: thread.id, subject: thread.subject, body: body,
+                                    createdAt: now(), format: format)
+            answer = "Réponse\(all ? " à tous" : "") déposée dans Polhub sous le fil « \(thread.subject) » (boîte \(thread.account)), marquée « préparé par un agent ». "
             answer += "Polhub calcule lui-même ses destinataires, comme Gmail. "
             if !to.isEmpty || !cc.isEmpty { answer += "Les adresses données (« a », « cc ») sont ignorées pour une réponse. " }
-            return answer + closing
+        } else {
+            let people = try Self.addresses(to, "a"), copies = try Self.addresses(cc, "cc")
+            guard !people.isEmpty else { throw ToolError("Il manque « a » : les adresses du destinataire (ou « quel » pour répondre à un fil).") }
+            guard let subject = subject.map(Self.line), !subject.isEmpty else { throw ToolError("Il manque « objet ».") }
+            let from = try mailbox(account, for: people + copies)
+            row = MailAgentDraftRow(mode: .new, account: from, to: people, cc: copies, subject: subject, body: body, createdAt: now(), format: format)
+            let rules = try store.filingRules()
+            let strangers = (people + copies).filter { !rules.isPerson($0.email) }.map(\.email)
+            answer = "Nouveau mail « \(subject) » déposé dans Polhub (boîte \(from)), marqué « préparé par un agent ». "
+            if !strangers.isEmpty {
+                answer += "Adresses que Paul n'a jamais utilisées, qu'il verra signalées : \(strangers.joined(separator: ", ")). "
+            }
         }
-        let people = try Self.addresses(to, "a"), copies = try Self.addresses(cc, "cc")
-        guard !people.isEmpty else { throw ToolError("Il manque « a » : les adresses du destinataire (ou « quel » pour répondre à un fil).") }
-        guard let subject = subject.map(Self.line), !subject.isEmpty else { throw ToolError("Il manque « objet ».") }
-        let from = try mailbox(account, for: people + copies)
-        try store.drop(MailAgentDraftRow(mode: .new, account: from, to: people, cc: copies, subject: subject, body: body, createdAt: now()))
-        let rules = try store.filingRules()
-        let strangers = (people + copies).filter { !rules.isPerson($0.email) }.map(\.email)
-        var answer = "Nouveau mail « \(subject) » déposé dans Polhub (boîte \(from)), marqué « préparé par un agent ». "
-        if !strangers.isEmpty {
-            answer += "Adresses que Paul n'a jamais utilisées, qu'il verra signalées : \(strangers.joined(separator: ", ")). "
+        row.files = try stage(chosen, for: row.id)
+        do {
+            try store.drop(row)
+        } catch {
+            try? FileManager.default.removeItem(at: files.agentFolder(id: row.id))
+            throw error
+        }
+        if !row.files.isEmpty {
+            answer += "Joint\(row.files.count > 1 ? "s" : "") : " + row.files.map { "« \($0.filename) » (\(Self.size($0.size)))" }.joined(separator: ", ") + ". "
         }
         return answer + closing
     }
