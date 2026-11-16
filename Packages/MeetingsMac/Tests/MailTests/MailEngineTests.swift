@@ -68,6 +68,22 @@ final class FakeGmail: @unchecked Sendable {
     /// The conversation deleted on the phone: the draft goes to the trash with it (an hypothesis of Gmail's
     /// behaviour, not measured).
     func trashInGmail(_ id: String) { lock.withLock { draftStore[id]?.trashed = true } }
+    /// Paul sends the draft from Gmail (the web, the phone): the draft and its message go, a sent one comes.
+    func sendInGmail(_ id: String) {
+        lock.withLock {
+            guard let draft = draftStore.removeValue(forKey: id) else { return }
+            mails[draft.messageID] = nil
+            order.removeAll { $0 == draft.messageID }
+            records.append(#"{"messagesDeleted":[{"message":{"id":"\#(draft.messageID)"}}]}"#)
+            let sent = "sent-\(draft.messageID)"
+            mails[sent] = Mail(thread: draft.threadID ?? sent, labels: ["SENT"], from: "Moi <moi@exemple.fr>", subject: "envoyé")
+            order.insert(sent, at: 0)
+            records.append(#"{"messagesAdded":[{"message":{"id":"\#(sent)","threadId":"\#(draft.threadID ?? sent)","labelIds":["SENT"]}}]}"#)
+        }
+    }
+    /// Status to answer the next draft deletion with (500…), once, whatever the draft.
+    private var nextDraftDeleteStatus: Int?
+    func failNextDraftDelete(_ status: Int) { lock.withLock { nextDraftDeleteStatus = status } }
 
     var drafts: [String: StoredDraft] { lock.withLock { draftStore } }
     func addGmailDraft(id: String, messageID: String, thread: String) {
@@ -178,6 +194,10 @@ final class FakeGmail: @unchecked Sendable {
                     return Data(#"{"id":"\#(url.lastPathComponent)","message":{"id":"\#(draft.messageID)","labelIds":\#(labels)}}"#.utf8)
                 }
                 if path.contains("/drafts/"), request.httpMethod == "DELETE" {
+                    if let status = nextDraftDeleteStatus {
+                        nextDraftDeleteStatus = nil
+                        throw GmailAPI.error(status: status, data: Data())
+                    }
                     guard draftStore.removeValue(forKey: url.lastPathComponent) != nil else { throw GmailAPI.error(status: 404, data: Data()) }
                     return Data()
                 }

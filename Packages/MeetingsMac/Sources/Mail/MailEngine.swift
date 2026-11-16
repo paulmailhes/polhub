@@ -300,6 +300,7 @@ public actor MailEngine {
             files.forget(messageIDs: deleted, account: account)
         }
         if !back.isEmpty { try keep(try await fetch(back, account: account), account: account) }
+        await forgetDraftsGone(account: account, deleted: deleted)
         // The first reading may have saved the cursor meanwhile: only the point to resume from changes here.
         cursor = try store.cursor(account: account) ?? cursor
         cursor.historyID = newest ?? start
@@ -818,11 +819,58 @@ public actor MailEngine {
             do {
                 await pacer(draft.account).take(GmailAPI.Cost.draftDelete)
                 _ = try await sendFor(draft.account)({ GmailAPI.draftDeleteRequest(accessToken: $0, draftID: gmailDraftID) })
-            } catch GoogleError.notFound {}
+            } catch GoogleError.notFound {
+            } catch {
+                // Gmail answers 500 for a draft already sent or deleted elsewhere (16/11): gone there, it goes here.
+                guard await gmailDraftIsGone(draft.account, gmailDraftID) else { throw error }
+            }
         }
         try store.deleteDraft(draftID)
         try? FileManager.default.removeItem(at: files.draftFolder(draft))
         kick(draft.account)
+    }
+
+    /// Gmail no longer has this draft (asked again after an error).
+    private func gmailDraftIsGone(_ account: String, _ gmailDraftID: String) async -> Bool {
+        do {
+            _ = try await get(GmailAPI.Draft.self, account, cost: GmailAPI.Cost.draftGet) {
+                GmailAPI.draftRequest(accessToken: $0, draftID: gmailDraftID)
+            }
+            return false
+        } catch GoogleError.notFound {
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// The drafts whose Gmail message went (Paul, 16/11: one sent from Gmail stayed in Brouillons, empty). Gmail
+    /// changes a draft's message at each version: the draft is asked for. Gone, or changed there: untouched here,
+    /// the copy goes (Gmail's version, if any, shows in Brouillons to take up again); changed here since, it waits
+    /// for Paul (« Gmail n'a plus ce brouillon », « modifié ailleurs »). Never a draft being pushed or programmed.
+    private func forgetDraftsGone(account: String, deleted: Set<String>) async {
+        guard !deleted.isEmpty, flavor == .prod, let drafts = try? store.drafts() else { return }
+        let programmed = Set(((try? entries()) ?? []).map(\.draftID))
+        for draft in drafts where draft.account == account && pushing[draft.id] == nil && !programmed.contains(draft.id) {
+            guard let messageID = draft.gmailMessageID, deleted.contains(messageID), let gmailDraftID = draft.gmailDraftID else { continue }
+            let held: GmailAPI.Draft?
+            do {
+                held = try await get(GmailAPI.Draft.self, account, cost: GmailAPI.Cost.draftGet) {
+                    GmailAPI.draftRequest(accessToken: $0, draftID: gmailDraftID)
+                }
+            } catch GoogleError.notFound {
+                held = nil
+            } catch {
+                continue
+            }
+            if let current = held?.message?.id, current == messageID { continue }
+            if draft.needsPush {
+                try? store.setConflict(draft.id, held == nil ? .absent : .modifie)
+            } else {
+                try? store.deleteDraft(draft.id)
+                try? FileManager.default.removeItem(at: files.draftFolder(draft))
+            }
+        }
     }
 
     /// A draft written in Gmail (the phone, the web), taken up in Polhub: its text, its people, its files. A

@@ -193,7 +193,16 @@ struct ComposeView: View {
                     .help("Ta signature Gmail, ajoutée sous ton texte")
                     .disabled(planned != nil)
                 }
-                if let quote = draft.quoteText {
+                if let quote = draft.quoteText, draft.isFormattedGmailDraft {
+                    // A draft written in Gmail with formatting (bold, lists, links): its text is the draft itself, shown
+                    // whole, never folded as a quote (Paul, 16/11: « je vois pas le texte de mon brouillon »).
+                    VStack(alignment: .leading, spacing: Space.xs) {
+                        Text("Écrit dans Gmail, avec sa mise en forme : il part tel quel, sous ce que tu ajoutes.")
+                            .font(.meta).foregroundStyle(.secondary)
+                        Text(quote).font(.system(size: TextSize.reading)).textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                } else if let quote = draft.quoteText {
                     DisclosureGroup(isExpanded: $showQuote) {
                         Text(quote).font(.meta).foregroundStyle(.secondary).textSelection(.enabled).lineLimit(30)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -570,4 +579,10 @@ struct MailDraftLine: View {
         .overlay(alignment: .bottom) { MailLine() }
         .contentShape(Rectangle())
     }
+}
+
+extension MailDraftRow {
+    /// A draft written in Gmail with formatting, taken up whole: its HTML is the draft itself (`MailEngine.resume`
+    /// keeps it below what Paul adds), not a message it quotes.
+    var isFormattedGmailDraft: Bool { origin == .gmail && quoteHTML != nil && mode != .forward }
 }

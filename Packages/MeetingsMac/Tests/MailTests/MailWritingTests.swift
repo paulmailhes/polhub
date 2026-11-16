@@ -224,6 +224,45 @@ import Testing
         #expect(try twice.id == row.id && store.drafts().count == 1)
     }
 
+    /// Paul, 16/11: a draft taken up in Polhub, then sent from Gmail, stayed in Brouillons. Untouched here, it goes
+    /// when Gmail says its message went; changed here since, it waits for Paul.
+    @Test func aDraftSentFromGmailLeavesPolhub() async throws {
+        let (engine, gmail, store, root) = try await setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        gmail.add("d1", .init(thread: "t1", labels: ["DRAFT"], from: "Moi <moi@exemple.fr>", minutes: 5, to: "Camille Martin <camille@exemple.fr>"))
+        gmail.addGmailDraft(id: "r-tel", messageID: "d1", thread: "t1")
+        gmail.add("d2", .init(thread: "t2", labels: ["DRAFT"], from: "Moi <moi@exemple.fr>", minutes: 6, to: "Jules <jules@exemple.fr>"))
+        gmail.addGmailDraft(id: "r-web", messageID: "d2", thread: "t2")
+        await engine.step(account)
+        let untouched = try await engine.resume(gmailDraft: try #require(try store.gmailOnlyDrafts().first { $0.messageID == "d1" }))
+        let changed = try await engine.resume(gmailDraft: try #require(try store.gmailOnlyDrafts().first { $0.messageID == "d2" }))
+        try store.updateDraft(changed.id, at: Date().addingTimeInterval(600)) { $0.body = "Une ligne de plus" }
+        gmail.sendInGmail("r-tel")
+        gmail.sendInGmail("r-web")
+        await engine.step(account)
+        #expect(try store.draft(untouched.id) == nil)
+        #expect(try store.draft(changed.id)?.conflict == .absent)
+    }
+
+    /// Gmail may answer 500 when asked to delete a draft already sent or deleted elsewhere (16/11): gone there, it
+    /// goes here too, without an error.
+    @Test func discardingADraftGmailNoLongerHasWorksEvenWhenGmailErrs() async throws {
+        let (engine, gmail, store, root) = try await setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let row = try draft(store)
+        let id = try #require(try await engine.push(row.id).gmailDraftID)
+        try await engine.discardInGmailOnly(id, gmail: gmail)
+        gmail.failNextDraftDelete(500)
+        try await engine.discard(row.id)
+        #expect(try store.draft(row.id) == nil)
+        // One Gmail still has: a 500 is said, the draft stays.
+        let kept = try draft(store)
+        _ = try await engine.push(kept.id)
+        gmail.failNextDraftDelete(500)
+        await #expect(throws: (any Error).self) { try await engine.discard(kept.id) }
+        #expect(try store.draft(kept.id) != nil)
+    }
+
     @Test func aDraftWrittenInGmailIsTakenUp() async throws {
         let (engine, gmail, store, root) = try await setUp()
         defer { try? FileManager.default.removeItem(at: root) }
