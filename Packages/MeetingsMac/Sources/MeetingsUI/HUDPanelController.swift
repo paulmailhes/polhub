@@ -190,8 +190,9 @@ private final class KeyablePanel: NSPanel {
     override var canBecomeKey: Bool { true }
 }
 
-/// Lets a button answer the first click even though the panel's app is not active.
-private final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
+/// Lets a button answer the first click even though the panel's app is not active (the HUD, the card before a
+/// meeting).
+final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 

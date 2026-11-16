@@ -201,6 +201,8 @@ struct NotificationsSettingsPane: View {
     @AppStorage(Preferences.Key.reminders) private var reminders = true
     @AppStorage(Preferences.Key.reminderMinutes) private var minutesText = Preferences.Default.reminderMinutes
     @AppStorage(Preferences.Key.remindersMeetOnly) private var meetOnly = false
+    @AppStorage(Preferences.Key.meetingCard) private var meetingCard = true
+    @AppStorage(Preferences.Key.meetingCardMinutes) private var meetingCardMinutes = Preferences.Default.meetingCardMinutes
     @AppStorage(Preferences.Key.newEvents) private var newEvents = true
     @AppStorage(Preferences.Key.unrecorded) private var unrecorded = true
     @AppStorage(Preferences.Key.summaryReady) private var summaryReady = true
@@ -227,10 +229,19 @@ struct NotificationsSettingsPane: View {
                     }
                     Toggle("Seulement les rendez-vous avec une visio", isOn: $meetOnly)
                 }
+                Toggle("Carte qui reste à l'écran avant une visio", isOn: $meetingCard)
+                if meetingCard {
+                    Picker("Quand", selection: $meetingCardMinutes) {
+                        ForEach(Preferences.Default.meetingCardChoices, id: \.self) { minute in
+                            Text("\(minute) min avant").tag(minute)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
             } header: {
                 Text("Calendrier")
             } footer: {
-                Text("Un clic sur un rappel rejoint le Meet avec le bon compte, dans Dia, où la réunion s'enregistre. Les rappels arrivent même si Polhub est fermé.")
+                Text("Un clic sur un rappel rejoint le Meet avec le bon compte, dans Dia, où la réunion s'enregistre. Les rappels arrivent même si Polhub est fermé. La carte, en haut à droite, reste jusqu'à ce que tu rejoignes ou la fermes, dix minutes après le début au plus.")
             }
             Section {
                 Toggle("Nouveau rendez-vous dans tes agendas", isOn: $newEvents)

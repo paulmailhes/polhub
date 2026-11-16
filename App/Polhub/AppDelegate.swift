@@ -51,6 +51,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var agendaTimer: Timer?
     /// The notifications (14/11): reminders, new events, meetings not recorded, summaries ready.
     private var notifications: NotificationHub?
+    /// The card that stays at the top right before a Meet (16/11); nil in the development build.
+    private var meetingCards: MeetingCardPresenter?
+    private var meetingCardsLook = Date.distantPast
     private var notificationTimer: Timer?
     private var startup: StartupControl?
     /// Step 2: the transcriptions, run by `polhub-calcul` outside meetings.
@@ -232,6 +235,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                 // The Meet of « 8 min » started: the next one.
                 if self.model.nextMeetPassed, let agenda = self.agenda { self.model.updateNextMeet(agenda.shown, now: now) }
                 self.presenter?.tick()
+                self.updateMeetingCards(now: now)
                 Task { await self.coordinator?.tick() }
             }
         }
@@ -410,6 +414,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         mails?.onSendFailed = { subject, thread in Task { await hub.mailNotSent(subject: subject, threadKey: thread) } }
         // A programmed mail that left late, waits for Paul or did not leave (wave B).
         mails?.onScheduleNotice = { notice in Task { await hub.mailScheduleNotice(notice) } }
+        // The card before a Meet: « Rejoindre » opens it in Dia under the event's account, as Coup d'œil does.
+        meetingCards = MeetingCardPresenter(join: { [weak agenda] event in agenda?.join(event) },
+                                            color: { [weak agenda] account in agenda?.color(for: account) ?? .accentColor })
         SystemNotifications.registerCategories()
         Task { @MainActor in
             _ = await SystemNotifications.requestAuthorization()
@@ -429,6 +436,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     }
 
     // MARK: - Notifications
+
+    /// Once a second: the card before a Meet shows, changes or goes. No card for the meeting Polhub records or
+    /// offers to record: Paul is in it.
+    private func updateMeetingCards(now: Date) {
+        guard let meetingCards, let agenda, now.timeIntervalSince(meetingCardsLook) >= 1 else { return }
+        meetingCardsLook = now
+        let settings = Preferences()
+        meetingCards.update(events: agenda.shown, now: now, enabled: settings.meetingCard, minutes: settings.meetingCardMinutes,
+                            meetingCode: model.meetingUnderWay ? model.meetCode : nil)
+    }
 
     /// Shown even when Polhub is in front.
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,

@@ -237,6 +237,16 @@ Centre de contrôle. La logique vit à part, testée sans écran (`PanelModel`).
   ni base, ni réseau, ni essai matériel.
 - **Avec « Réduire les animations »**, il ne reste que des fondus.
 
+## La carte avant une visio
+
+- **En haut à droite de l'écran de la barre des menus**, sous la barre ou l'encoche, comme les notifications de
+  macOS, au-dessus de toutes les apps et sur tous les bureaux (`MeetingCardPresenter`, le panneau du HUD).
+- **Une carte en verre par rendez-vous** (trois au plus, le plus proche d'abord) : un rond à la couleur du compte, le
+  titre, « Dans 2 min · Google Meet » à la seconde, « Rejoindre » plein à la couleur du compte (le panneau ne prend
+  jamais la main : un bouton proéminent y deviendrait gris), la croix.
+- **Elle reste** jusqu'à « Rejoindre » ou la croix, dix minutes après le début au plus ; jamais pour la réunion que
+  Polhub enregistre déjà. Réglages › Notifications : activée, 2 min avant (1, 2 ou 5).
+
 ## Inspiration
 
 Les trois bases d'idées de Paul, reprises du coffre Obsidian (dossier `MeetingsUI/Inspiration`, 16/11). La logique

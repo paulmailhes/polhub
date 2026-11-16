@@ -100,6 +100,9 @@ public struct Preferences: @unchecked Sendable {
         public static let reminders = "notifications.rappels"
         public static let reminderMinutes = "notifications.delais"
         public static let remindersMeetOnly = "notifications.visioSeulement"
+        /// Réglages › Notifications (16/11): the card that stays at the top right before a Meet, and how long before.
+        public static let meetingCard = "notifications.carteAvantVisio"
+        public static let meetingCardMinutes = "notifications.carteAvantVisio.minutes"
         public static let newEvents = "notifications.nouveaux"
         public static let unrecorded = "notifications.nonEnregistree"
         public static let summaryReady = "notifications.compteRendu"
@@ -143,6 +146,9 @@ public struct Preferences: @unchecked Sendable {
         /// Ten minutes and one minute before (Paul, 14/11).
         public static let reminderMinutes = "10,1"
         public static let reminderChoices = [30, 15, 10, 5, 1]
+        /// The card before a Meet: two minutes before (Paul, 16/11: « une minute avant ou deux minutes avant même »).
+        public static let meetingCardMinutes = 2
+        public static let meetingCardChoices = [1, 2, 5]
         /// Gmail's choices for calling a mail back.
         public static let mailUndoChoices = [5, 10, 20, 30]
     }
@@ -167,6 +173,8 @@ public struct Preferences: @unchecked Sendable {
     /// The minutes before an event a reminder comes, the largest first.
     public var reminderMinutes: [Int] { Self.minutes(defaults.string(forKey: Key.reminderMinutes) ?? Default.reminderMinutes) }
     public var remindersMeetOnly: Bool { (defaults.object(forKey: Key.remindersMeetOnly) as? Bool) ?? false }
+    public var meetingCard: Bool { flag(Key.meetingCard) }
+    public var meetingCardMinutes: Int { (defaults.object(forKey: Key.meetingCardMinutes) as? Int) ?? Default.meetingCardMinutes }
     public var newEvents: Bool { flag(Key.newEvents) }
     public var unrecorded: Bool { flag(Key.unrecorded) }
     public var summaryReady: Bool { flag(Key.summaryReady) }
