@@ -3,6 +3,18 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.27.0 — 16 novembre 2026
+
+**Tes agents lisent les pièces jointes de tes mails.**
+
+- Un nouvel outil `piece_jointe` dans le MCP de Polhub : une capture d'écran ou une photo est montrée à l'agent, un
+  PDF ou un fichier texte lui donne son contenu, un autre fichier (Word, Excel…) son emplacement sur le Mac.
+- Les images collées dans le texte d'un mail, comme les captures d'écran, comptent aussi ; les logos et les
+  signatures non.
+- Une pièce pas encore sur le Mac est téléchargée par Polhub en quelques secondes : l'app doit être ouverte. Le
+  programme des agents, lui, n'a toujours aucun accès au réseau.
+- Les sessions Claude Code déjà ouvertes gardent l'ancien MCP : relance-les (ou `/mcp`, « Reconnect »).
+
 ## 0.26.0 — 16 novembre 2026
 
 **Les brouillons écrits dans Gmail, corrigés.**
