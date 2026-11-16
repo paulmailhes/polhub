@@ -32,6 +32,30 @@ import Testing
         let draft = try #require(tools.first { $0["name"] as? String == "brouillon" })
         let properties = try #require((draft["inputSchema"] as? [String: Any])?["properties"] as? [String: Any])
         #expect(Set(properties.keys) == ["quel", "tous", "a", "cc", "objet", "texte", "boite", "fichiers", "format"])
+        // `projet` replaces the notes whole: a destructive write, as `action` that removes one (review of 16/11).
+        let destructive = tools.filter { ($0["annotations"] as? [String: Any])?["destructiveHint"] as? Bool == true }.compactMap { $0["name"] as? String }
+        #expect(destructive == ["action", "projet"])
+    }
+
+    /// Each name the instructions give between backquotes is a tool offered or one of their parameters: a tool renamed
+    /// in one place leaves no instruction pointing at a tool that no longer exists (review of 16/11).
+    @Test func theInstructionsNameOnlyWhatIsOffered() throws {
+        let fixture = try MailDeskFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let server = try server(fixture)
+        let tools = try #require(try answer(server, #"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#)["tools"] as? [[String: Any]])
+        var known = Set(tools.compactMap { $0["name"] as? String })
+        for tool in tools {
+            let properties = ((tool["inputSchema"] as? [String: Any])?["properties"] as? [String: Any]) ?? [:]
+            known.formUnion(properties.keys)
+        }
+        let text = try #require(try answer(server, #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#)["instructions"] as? String)
+        let named = text.components(separatedBy: "`").enumerated().filter { $0.offset % 2 == 1 }.map(\.element)
+        #expect(!named.isEmpty)
+        for name in named { #expect(known.contains(name), "`\(name)`") }
+        for name in [MCPServer.fileThreadTool, MCPServer.newProjectTool, MCPServer.inspirationTool] + MCPServer.AgendaTool.allCases.map(\.rawValue) {
+            #expect(text.contains("`\(name)`"), "\(name)")
+        }
     }
 
     @Test func theInstructionsSayEachRuleOnce() throws {

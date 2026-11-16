@@ -20,7 +20,7 @@ extension MCPServer {
     /// `brouillon`'s two parameters of 16/11, added to its schema in `mailTools`.
     static var draftFileProperties: [String: Any] { [
         "fichiers": ["type": "array", "items": ["type": "string"],
-                     "description": "Seulement quand Paul l'a demandé : les fichiers du Mac à joindre, par leur chemin complet (/Users/…). 10 au plus, 25 Mo en tout ; jamais un fichier caché, un trousseau ni un fichier de la Bibliothèque (~/Library), sauf iCloud Drive et les Drive de ~/Library/CloudStorage. Polhub les copie : le brouillon garde ce qui a été joint."],
+                     "description": "Seulement quand Paul l'a demandé : les fichiers du Mac à joindre, par leur chemin complet (/Users/…). 10 au plus, 25 Mo en tout ; jamais un fichier caché (un worktree de Claude Code, <projet>/.claude/worktrees/…, est permis), un trousseau, un fichier de la Bibliothèque (~/Library, sauf iCloud Drive et les Drive de ~/Library/CloudStorage) ni une pièce jointe gardée par Polhub (Paul la joint depuis le fil). Polhub les copie : le brouillon garde ce qui a été joint."],
         "format": ["type": "string", "enum": ["texte", "markdown"],
                    "description": "« texte » (par défaut) ou « markdown » : **gras**, *italique*, listes « - » et « 1. », liens [texte](https://…), paragraphes. Rien d'autre (ni titre, ni image, ni HTML) : Polhub fait le mail mis en forme lui-même."],
     ] }

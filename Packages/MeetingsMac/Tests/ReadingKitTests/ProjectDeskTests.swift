@@ -75,14 +75,54 @@ struct DeskFixture {
     @Test func aSessionCreatesAProjectWhenPaulAsks() throws {
         let fixture = try DeskFixture()
         let desk = fixture.desk()
-        let answer = try desk.create(name: " Refonte Exemple ", status: "priorité 2", client: "Studio Est", due: "2026-12-04",
-                                     folder: "/Users/exemple/Code/refonte/")
-        #expect(answer == "Projet « Refonte Exemple » créé : priorité 2, client « Studio Est », échéance 04/12/2026, dossier /Users/exemple/Code/refonte.")
+        let code = try Self.folder("Code/refonte")
+        defer { try? FileManager.default.removeItem(at: code.deletingLastPathComponent().deletingLastPathComponent()) }
+        let path = ProjectDesk.normalized(code.path(percentEncoded: false))
+        let answer = try desk.create(name: " Refonte Exemple ", status: "priorité 2", client: "Studio Est", due: "2026-12-04", folder: path + "/")
+        #expect(answer == "Projet « Refonte Exemple » créé : priorité 2, client « Studio Est », échéance 04/12/2026, dossier \(path). "
+                + "Une session ouverte dans ce dossier travaillera sur ce projet.")
         let created = try desk.resolve("Refonte Exemple")
-        #expect(created.status == .priorite2 && created.client == "Studio Est" && created.codeFolder == "/Users/exemple/Code/refonte")
+        #expect(created.status == .priorite2 && created.client == "Studio Est" && created.codeFolder == path)
         #expect(desk.day(try #require(created.dueDate)) == "04/12/2026" && created.createdOn == fixture.now)
         // The session opened in its folder finds it.
-        #expect(try fixture.desk(in: "/Users/exemple/Code/refonte/front").resolve(nil).id == created.id)
+        #expect(try fixture.desk(in: path + "/front").resolve(nil).id == created.id)
+    }
+
+    /// The code folder of a new project is one folder of the Mac, its own: never the home folder or above it (every
+    /// session would take the project for its own), never one holding another project's folder (review of 16/11).
+    @Test func aNewProjectsFolderIsItsOwn() throws {
+        let fixture = try DeskFixture()
+        let base = try Self.folder("maison/Code/piste")
+        let top = base.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        defer { try? FileManager.default.removeItem(at: top) }
+        let home = top.appending(path: "maison", directoryHint: .isDirectory)
+        let desk = ProjectDesk(projects: fixture.projects, meetings: fixture.meetings, workingDirectory: nil, now: { [now = fixture.now] in now },
+                               home: home)
+        func refused(_ folder: String, _ reason: String, sourceLocation: SourceLocation = #_sourceLocation) {
+            do {
+                _ = try desk.create(name: "Autre piste", status: nil, client: nil, due: nil, folder: folder)
+                Issue.record("accepté : \(folder)", sourceLocation: sourceLocation)
+            } catch {
+                #expect(error is ToolError && "\(error)".contains(reason), "\(error)", sourceLocation: sourceLocation)
+            }
+        }
+        refused(home.path(percentEncoded: false), "trop large")
+        refused(top.path(percentEncoded: false), "trop large")
+        refused("/", "trop large")
+        refused(top.appending(path: "absent").path(percentEncoded: false), "n'est pas un dossier")
+        try Data("x".utf8).write(to: top.appending(path: "note.txt"))
+        refused(top.appending(path: "note.txt").path(percentEncoded: false), "n'est pas un dossier")
+        _ = try desk.create(name: "Piste", status: nil, client: nil, due: nil, folder: base.path(percentEncoded: false))
+        refused(base.path(percentEncoded: false), "« Piste »")
+        refused(home.appending(path: "Code").path(percentEncoded: false), "« Piste »")
+        #expect(try fixture.projects.projects().count == 4)
+    }
+
+    /// A folder made for a test, under a temporary one of its own.
+    static func folder(_ relative: String) throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appending(path: "projets-\(UUID().uuidString)/\(relative)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url.standardizedFileURL
     }
 
     @Test func aNewProjectHasDefaultsAndComesLastInItsColumn() throws {
@@ -125,11 +165,18 @@ struct DeskFixture {
         #expect(try fixture.projects.project(id: fixture.atelier.id)?.client == nil)
         _ = try desk.update("Atelier Nord", status: nil, due: nil, todo: nil, client: "Studio Est")
         #expect(try desk.update("Atelier Nord", status: nil, due: nil, todo: nil, client: "") == "« Atelier Nord » : sans client.")
-        #expect(try desk.update("Atelier Nord", status: nil, due: nil, todo: nil, notes: "- Le client veut une version anglaise.\n\n## Liens\n- https://exemple.fr")
-                == "« Atelier Nord » : notes remplacées.")
+        let rewritten = "- Le client veut une version anglaise.\n\n## Liens\n- https://exemple.fr"
+        // The notes Paul had are kept whole in the journal, and the answer says how much was replaced (review of 16/11).
+        #expect(try desk.update("Atelier Nord", status: nil, due: nil, todo: nil, notes: rewritten)
+                == "« Atelier Nord » : notes remplacées (\(fixture.atelier.notes.count) → \(rewritten.count) caractères ; les anciennes sont gardées au journal du projet).")
         let changed = try #require(try fixture.projects.project(id: fixture.atelier.id))
-        #expect(changed.notes == "- Le client veut une version anglaise.\n\n## Liens\n- https://exemple.fr")
+        #expect(changed.notes == rewritten)
         #expect(changed.todo == "Envoyer la maquette" && changed.status == .priorite1)
+        let kept = try #require(try fixture.projects.journal(projectID: fixture.atelier.id).first)
+        #expect(kept.title == "Notes avant leur remplacement par un agent" && kept.body == fixture.atelier.notes)
+        // The same notes again: nothing to keep.
+        #expect(try desk.update("Atelier Nord", status: nil, due: nil, todo: nil, notes: rewritten).contains("notes remplacées"))
+        #expect(try fixture.projects.journal(projectID: fixture.atelier.id).count == 2)
         // Empty notes are no notes given: nothing is wiped.
         #expect(throws: ToolError.self) { try desk.update("Atelier Nord", status: nil, due: nil, todo: nil, notes: "  ") }
         #expect(try fixture.projects.project(id: fixture.atelier.id)?.notes == changed.notes)
@@ -154,9 +201,20 @@ struct DeskFixture {
                 == "« Atelier Nord » : contact Jules Roy (jules@exemple.fr) retiré.")
         #expect(try contacts.contacts(projectID: fixture.atelier.id).isEmpty)
         #expect(try contacts.links().first { $0.contactID == jules.id }?.excluded == true)
-        // By a piece of the name, then back in.
-        #expect(try desk.update("Atelier Nord", status: nil, due: nil, todo: nil, contact: "Jules").contains("Jules Roy (jules@exemple.fr) lié"))
-        #expect(try contacts.contacts(projectID: fixture.atelier.id).map(\.id) == [jules.id])
+        // Taken out, it stays out: only Paul puts it back, from the project's page (review of 16/11).
+        do {
+            _ = try desk.update("Atelier Nord", status: nil, due: nil, todo: nil, contact: "Jules")
+            Issue.record("Jules a été retiré du projet")
+        } catch let error as ToolError {
+            #expect(error.description.contains("retiré de « Atelier Nord »") && error.description.contains("Paul"))
+        }
+        #expect(try contacts.contacts(projectID: fixture.atelier.id).isEmpty)
+        // By a piece of the name, a contact never linked comes in; the page open on the project hears of it.
+        let later = ProjectDesk(projects: fixture.projects, meetings: fixture.meetings, workingDirectory: nil, now: { [now = fixture.now] in now.addingTimeInterval(60) })
+        let nina = try contacts.upsert(email: "nina@exemple.fr", name: "Nina Durand", company: nil, at: fixture.now)
+        #expect(try later.update("Atelier Nord", status: nil, due: nil, todo: nil, contact: "Nina").contains("Nina Durand (nina@exemple.fr) lié"))
+        #expect(try contacts.contacts(projectID: fixture.atelier.id).map(\.id) == [nina.id])
+        #expect(try fixture.projects.project(id: fixture.atelier.id)?.updatedAt == fixture.now.addingTimeInterval(60))
         // Unknown, ambiguous, not linked: refused, and the status given with it is not changed.
         #expect(throws: ToolError.self) { try desk.update("Atelier Nord", status: "en pause", due: nil, todo: nil, contact: "inconnu@exemple.fr") }
         #expect(throws: ToolError.self) { try desk.update("Atelier Nord", status: "en pause", due: nil, todo: nil, contact: "Personne Inconnue") }

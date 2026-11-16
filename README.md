@@ -22,9 +22,9 @@ usage : il n'est ni configurable pour d'autres navigateurs, ni traduit.
   réunions et relancer une transcription dans une autre langue.
 - **Range les projets** : un kanban, des vues « À rendre » et « À surveiller », une page par projet.
 - **S'ouvre à Claude Code** par la commande `polhub` et son serveur MCP, sans réseau : les projets,
-  les réunions, les mails, l'agenda, les contacts et l'inspiration à lire ; des actions, des notes,
-  des brouillons et des rendez-vous à préparer. Rien ne part sans l'utilisateur : il relit et envoie
-  lui-même.
+  les réunions, les mails, l'agenda, les contacts et l'inspiration à lire ; des actions, des notes
+  et des brouillons à préparer, et des rendez-vous créés dans l'agenda à sa demande, sans aucun
+  invité. Aucun mail ne part sans l'utilisateur : il relit et envoie lui-même.
 - **Se met à jour seul** à partir des versions publiées ici, et jamais pendant une réunion.
 
 ## Configuration requise

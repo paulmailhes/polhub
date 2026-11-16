@@ -10,7 +10,7 @@
 <main>
   <p><a href="index.html">← Polhub</a></p>
   <h1>Règles de confidentialité</h1>
-  <p class="meta">En vigueur le 14 novembre 2026.</p>
+  <p class="meta">En vigueur le 16 novembre 2026.</p>
 
   <p>Polhub est une application macOS installée sur l'ordinateur de son utilisateur. Elle n'a pas de serveur :
   l'éditeur de Polhub ne reçoit, ne voit et ne stocke aucune donnée de ses utilisateurs.</p>
@@ -21,7 +21,7 @@
     <li><code>openid</code> et <code>email</code> : l'adresse du compte, pour savoir quel compte est connecté ;</li>
     <li><code>calendar.events</code> : les rendez-vous de l'agenda principal (titre, horaires, lieu, lien Google
     Meet, organisateur, invités et leurs réponses), en lecture, et en écriture pour ceux que l'utilisateur crée,
-    modifie ou supprime dans Polhub ;</li>
+    modifie ou supprime dans Polhub, ou qu'il demande à un assistant qu'il a branché (voir plus bas) ;</li>
     <li><code>gmail.modify</code>, seulement si l'utilisateur clique « Autoriser les mails » pour ce compte : les
     messages de cette boîte (en-têtes, contenu, pièces jointes), pour les lire et les afficher dans Polhub ; pour
     les marquer, les archiver, les mettre à la corbeille ou les signaler comme spam quand l'utilisateur le fait
@@ -29,8 +29,10 @@
     pour lire le nom et la signature de la boîte, posés sous ses messages comme dans Gmail. Jamais de suppression
     définitive. L'agenda fonctionne sans cette autorisation.</li>
   </ul>
-  <p>Polhub ne crée, ne modifie et ne supprime un rendez-vous que lorsque l'utilisateur le fait lui-même dans
-  l'application ; Google envoie alors les invitations comme d'habitude. De même, il n'archive et ne met un message
+  <p>Polhub crée, modifie ou supprime un rendez-vous quand l'utilisateur le fait dans l'application ; Google
+  envoie alors les invitations comme d'habitude. Il crée aussi un rendez-vous quand l'utilisateur le demande à
+  un assistant qu'il a branché, sans aucun invité (voir « Assistants branchés par l'utilisateur ») ; il ne
+  modifie ni ne supprime jamais un rendez-vous pour un assistant. De même, il n'archive et ne met un message
   à la corbeille que sur un geste de l'utilisateur. Polhub ne touche à rien d'autre dans le compte Google.</p>
   <p>Sur les boîtes autorisées, Polhub lit les messages pour les afficher, et en garde une copie sur le Mac. Cette
   copie suit Gmail : ce qui disparaît là-bas disparaît ici. Un brouillon est enregistré sur le Mac, puis dans Gmail,
@@ -51,7 +53,8 @@
     jointes que l'utilisateur ouvre sont rangés en fichiers à côté de cette base, sur le même Mac.</li>
     <li>Le jeton d'accès au compte Google est conservé dans le Trousseau de macOS. Il n'est jamais écrit ailleurs.</li>
     <li>Rien n'est envoyé à un serveur de l'éditeur ni à un tiers. Les seules connexions réseau vont aux services de
-    Google, pour lire les agendas et les boîtes autorisées et y écrire ce que l'utilisateur fait lui-même, et à
+    Google, pour lire les agendas et les boîtes autorisées et y écrire ce que l'utilisateur fait lui-même ou
+    demande à un assistant qu'il a branché, et à
     GitHub, pour vérifier
     qu'une nouvelle version de l'application existe (sans aucune donnée de l'utilisateur).</li>
     <li>Première exception : afficher les images distantes d'un message contacte le serveur de son expéditeur, qui

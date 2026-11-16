@@ -50,8 +50,12 @@ extension MailDesk {
         let resolved = given.resolvingSymlinksInPath()
         // The path as given, and the file it leads to: a link never opens the way to what is kept out.
         for url in [given, resolved] {
-            if url.pathComponents.contains(where: { $0.hasPrefix(".") }) {
-                throw ToolError("« \(shown) » est un fichier caché, ou dans un dossier caché : Polhub ne le joint pas.")
+            if isPolhubData(url) {
+                throw ToolError("« \(shown) » est gardé par Polhub (une pièce jointe d'un mail, une image d'Inspiration) : un agent ne le joint pas. "
+                                + "Dis à Paul de le joindre lui-même, depuis le fil.")
+            }
+            if let hidden = hiddenPart(url) {
+                throw ToolError("« \(shown) » est un fichier caché, ou dans un dossier caché (« \(hidden) ») : Polhub ne le joint pas.")
             }
             if isInLibrary(url) { throw ToolError("« \(shown) » est dans la Bibliothèque de Paul (~/Library) : Polhub ne le joint pas.") }
             if url.pathComponents.contains("Keychains") || ["keychain", "keychain-db"].contains(url.pathExtension.lowercased()) {
@@ -67,6 +71,34 @@ extension MailDesk {
         }
         guard FileManager.default.isReadableFile(atPath: file.url.path(percentEncoded: false)) else { throw ToolError("« \(shown) » ne peut pas être lu.") }
         return (file.url, given.lastPathComponent, file.size)
+    }
+
+    /// The first hidden part of a path (« .ssh », « .env »), else `nil`. One exception: a Claude Code worktree,
+    /// `<projet>/.claude/worktrees/<nom>/`, a project's own copy where an agent makes its documents (review of 16/11);
+    /// the rest of `.claude`, and the home's own, stay out.
+    func hiddenPart(_ url: URL) -> String? {
+        let parts = url.pathComponents
+        let homes = [home.standardizedFileURL.pathComponents, home.resolvingSymlinksInPath().pathComponents]
+        var index = 0
+        while index < parts.count {
+            if parts[index] == ".claude", index + 3 < parts.count, parts[index + 1] == "worktrees", !parts[index + 2].hasPrefix("."),
+               !homes.contains(Array(parts.prefix(index))) {
+                index += 3
+                continue
+            }
+            if parts[index].hasPrefix(".") { return parts[index] }
+            index += 1
+        }
+        return nil
+    }
+
+    /// In Polhub's own data, beside the base (mails' attachments, Inspiration's images): Paul joins those from the app.
+    func isPolhubData(_ url: URL) -> Bool {
+        let data = files.root.deletingLastPathComponent()
+        return [data.standardizedFileURL, data.resolvingSymlinksInPath()].contains { root in
+            let folder = root.pathComponents
+            return folder.count > 1 && url.pathComponents.count > folder.count && Array(url.pathComponents.prefix(folder.count)) == folder
+        }
     }
 
     /// Under `~/Library`, the home being read as given and after its links (`/var` is `/private/var`). Two of its

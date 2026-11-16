@@ -195,6 +195,38 @@ public enum ProjectViews {
         return String(text.prefix(limit)).trimmingCharacters(in: .whitespaces) + "…"
     }
 
+    /// What the base changed in a project while its page was open (a session's `projet`, 16/11), carried over to the
+    /// page's copy: a field Paul has not touched since takes the new value, one he is changing keeps his (review of 16/11).
+    static func reported(from old: ProjectRow, to new: ProjectRow, onto draft: ProjectRow) -> ProjectRow {
+        var shown = draft
+        func carry<Value: Equatable>(_ field: WritableKeyPath<ProjectRow, Value>) {
+            if new[keyPath: field] != old[keyPath: field], draft[keyPath: field] == old[keyPath: field] { shown[keyPath: field] = new[keyPath: field] }
+        }
+        carry(\.name)
+        carry(\.status)
+        carry(\.client)
+        carry(\.dueDate)
+        carry(\.todo)
+        carry(\.icon)
+        carry(\.color)
+        carry(\.contacts)
+        carry(\.createdOn)
+        carry(\.codeFolder)
+        carry(\.github)
+        carry(\.notion)
+        carry(\.lastActivity)
+        carry(\.lastMeetingImported)
+        carry(\.noteModifiedAt)
+        carry(\.lastEditedAt)
+        carry(\.notes)
+        carry(\.kanbanOrder)
+        carry(\.importedFrom)
+        carry(\.createdAt)
+        carry(\.updatedAt)
+        carry(\.deletedAt)
+        return shown
+    }
+
     // MARK: - The vault's colors
 
     /// The palette of the vault's own plugin: French names first, English aliases.

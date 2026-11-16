@@ -162,7 +162,8 @@ struct Fixture {
         #expect(toolText(twice).1 && writes.count == 1)
         try ContactStore(fixture.database).upsert(email: "jules@exemple.fr", name: "Jules Roy", company: nil, at: fixture.now)
         let changed = try call(server, #"{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"projet","arguments":{"projet":"Refonte Exemple","client":"aucun","notes":"- Une seule note.","contact":"jules@exemple.fr"}}}"#)
-        #expect(toolText(changed) == ("« Refonte Exemple » : sans client, notes remplacées, contact Jules Roy (jules@exemple.fr) lié.", false))
+        // A new project has no notes yet: nothing to keep in the journal.
+        #expect(toolText(changed) == ("« Refonte Exemple » : sans client, notes écrites, contact Jules Roy (jules@exemple.fr) lié.", false))
         #expect(writes.count == 2)
         let removed = try call(server, #"{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"projet","arguments":{"projet":"Refonte Exemple","retirer_contact":"Jules Roy"}}}"#)
         #expect(toolText(removed) == ("« Refonte Exemple » : contact Jules Roy (jules@exemple.fr) retiré.", false) && writes.count == 3)

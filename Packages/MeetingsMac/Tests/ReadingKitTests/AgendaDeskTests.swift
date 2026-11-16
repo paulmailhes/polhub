@@ -58,6 +58,8 @@ struct AgendaFixture {
         try calendar.applyGoogle(account: "paul@exemple.fr", changed: [point, lunch, fair, later, before], cancelled: [], at: now)
         try calendar.applyGoogle(account: "moi@gmail.com", changed: [copy, seminar], cancelled: [], at: now)
         try calendar.setProject(eventID: point.id, projectID: atelier.id, origin: .paul)
+        // Both agendas read a moment ago, as when Polhub runs.
+        for account in ["moi@gmail.com", "paul@exemple.fr"] { try calendar.recordSync(email: account, syncToken: nil, error: nil, at: now.addingTimeInterval(-300)) }
 
         // Camille's last meeting and last mail.
         let meeting = MeetingRow(createdAt: now, status: .ended, source: .dia, candidateKey: "t/a", title: "Point maquette",
@@ -122,6 +124,54 @@ struct AgendaFixture {
         #expect(throws: ToolError.self) { try desk.events(from: nil, to: nil, project: "inconnu", text: nil) }
     }
 
+    /// The copy holds about six months back and two ahead of its last reading. Past it, or when a reading failed or is
+    /// old, the agent is told so: « Aucun rendez-vous » must never read as a free day Polhub knows nothing of (review
+    /// of 16/11).
+    @Test func theAgendaSaysWhatItsCopyDoesNotKnow() throws {
+        let fixture = try AgendaFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let desk = fixture.desk()
+        let fresh = try desk.events(from: nil, to: nil, project: nil, text: nil)
+        #expect(!fresh.contains("Polhub ne sait pas") && !fresh.contains("date du"))
+        // Read at 8:55 on 16 November: the copy goes up to 15 January, 8:55.
+        let february = try desk.events(from: "2027-02-01", to: nil, project: nil, text: nil)
+        #expect(february.contains("La copie de Polhub s'arrête au vendredi 15 janvier 2027") && february.contains("Polhub ne sait pas"))
+        #expect(february.contains("Google Agenda") && !february.contains("\nAucun rendez-vous."))
+        let january = try desk.events(from: "2027-01-10", to: "2027-01-20", project: nil, text: nil)
+        #expect(january.contains("s'arrête au vendredi 15 janvier 2027"))
+        let april = try desk.events(from: "2026-04-01", to: "2026-04-07", project: nil, text: nil)
+        #expect(april.contains("La copie de Polhub commence au") && april.contains("Polhub ne sait pas"))
+        #expect(!(try desk.events(from: "2026-12-01", to: nil, project: nil, text: nil)).contains("Polhub ne sait pas"))
+        // A reading that failed, one three days old: said, with the date of the copy.
+        let calendar = CalendarStore(fixture.database)
+        try calendar.recordSync(email: "moi@gmail.com", syncToken: nil, error: "expired", at: fixture.now)
+        try calendar.recordSync(email: "paul@exemple.fr", syncToken: nil, error: nil, at: fixture.now.addingTimeInterval(-3 * 86_400))
+        let stale = try desk.events(from: nil, to: nil, project: nil, text: nil)
+        #expect(stale.contains("L'agenda moi@gmail.com n'a pas pu être lu la dernière fois (expired)"))
+        #expect(stale.contains("La copie de l'agenda paul@exemple.fr date du vendredi 13 novembre à 09:00"))
+        // An agenda never read yet.
+        try calendar.addAccount(email: "autre@exemple.org", at: fixture.now)
+        #expect(try desk.events(from: nil, to: nil, project: nil, text: nil).contains("L'agenda autre@exemple.org n'a encore jamais été lu"))
+    }
+
+    /// The dates agents send: seconds are fine; « jusqu_a » alone in the past is the week before it (review of 16/11).
+    @Test func theDatesAgentsSendAreRead() throws {
+        let fixture = try AgendaFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let desk = fixture.desk()
+        #expect(desk.moment("2026-11-18T10:00:00") == AgendaFixture.at("2026-11-18T09:00:00Z"))
+        #expect(desk.moment("2026-11-18 10:00") == AgendaFixture.at("2026-11-18T09:00:00Z"))
+        do {
+            _ = try desk.create(title: "Point", start: "2026-11-18T10:00:00+01:00", end: nil, minutes: nil, meet: false, account: nil, notes: "",
+                                project: nil, wait: 0.2)
+            Issue.record("un fuseau est donné")
+        } catch {
+            #expect("\(error)".contains("sans fuseau"))
+        }
+        let lastWeek = try desk.events(from: nil, to: "2026-11-15", project: nil, text: nil)
+        #expect(lastWeek.contains("du dimanche 8 novembre au dimanche 15 novembre 2026") && lastWeek.contains("Rendez-vous d'hier"))
+    }
+
     @Test func theContactsAreFoundByNameAddressCompanyOrProject() throws {
         let fixture = try AgendaFixture()
         defer { try? FileManager.default.removeItem(at: fixture.root) }
@@ -165,9 +215,10 @@ struct AgendaFixture {
         }
         app.start()
         let answer = try fixture.desk().create(title: "Point devis", start: "2026-11-17 10:00", end: "11:30", minutes: nil, meet: true,
-                                               account: "paul@exemple.fr", notes: "Relire le devis ensemble.", project: "Atelier Nord", wait: 10)
+                                               account: "paul@exemple.fr", notes: "Relire le devis ensemble.", project: "Atelier Nord",
+                                               location: " Café du Port ", wait: 10)
         let request = try #require(taken.value)
-        #expect(request.title == "Point devis" && request.start == AgendaFixture.at("2026-11-17T09:00:00Z"))
+        #expect(request.title == "Point devis" && request.start == AgendaFixture.at("2026-11-17T09:00:00Z") && request.location == "Café du Port")
         #expect(request.end == AgendaFixture.at("2026-11-17T10:30:00Z") && request.meet && request.account == "paul@exemple.fr")
         #expect(request.projectID == fixture.atelier.id && request.notes == "Relire le devis ensemble.")
         #expect(answer.contains("« Point devis »") && answer.contains("mardi 17 novembre 2026, 10:00–11:30") && answer.contains("agenda paul@exemple.fr"))
@@ -199,6 +250,13 @@ struct AgendaFixture {
         #expect(refused("  ").contains("« titre »"))
         #expect(refused(account: "autre@exemple.fr").contains("paul@exemple.fr"))
         #expect(refused(project: "inconnu").contains("Aucun projet"))
+        do {
+            _ = try desk.create(title: "Point", start: "2026-11-17 10:00", end: nil, minutes: nil, meet: false, account: nil, notes: "", project: nil,
+                                location: String(repeating: "x", count: 501), wait: 0.2)
+            Issue.record("un lieu de 501 caractères")
+        } catch {
+            #expect("\(error)".contains("« lieu »"))
+        }
         // Nothing was left for the app.
         #expect(fixture.files.take().isEmpty)
     }
@@ -251,7 +309,7 @@ struct AgendaFixture {
         // No guest can be given to `rendez_vous`.
         let create = try #require(tools?.first { $0["name"] as? String == "rendez_vous" })
         let properties = try #require((create["inputSchema"] as? [String: Any])?["properties"] as? [String: Any])
-        #expect(Set(properties.keys) == ["titre", "debut", "fin", "duree", "meet", "agenda", "description", "projet"])
+        #expect(Set(properties.keys) == ["titre", "debut", "fin", "duree", "meet", "agenda", "description", "projet", "lieu"])
         let called = try #require(server.handle(#"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"agenda","arguments":{"projet":"Atelier Nord"}}}"#))
         #expect(called.contains("Point maquette") && called.contains(#""isError":false"#))
         let people = try #require(server.handle(#"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"contacts","arguments":{"texte":"nina"}}}"#))

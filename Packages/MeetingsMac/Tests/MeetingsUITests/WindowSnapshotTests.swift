@@ -145,6 +145,8 @@ struct WindowSnapshotTests {
         UserDefaults.standard.set(false, forKey: Preferences.Key.floatingPages)
         try await LiveWindow.capture(ProjectsView(library: projects).environment(\.projectLogos, logos), to: output.appending(path: "projet.png"),
                                      size: NSSize(width: 1_200, height: 1_100))
+        try await LiveWindow.capture(ProjectsView(library: projects).environment(\.projectLogos, logos), to: output.appending(path: "projet-sombre.png"),
+                                     size: NSSize(width: 1_200, height: 1_100), dark: true)
         // 14/11: the page floats over the board, which stays in sight.
         UserDefaults.standard.set(true, forKey: Preferences.Key.floatingPages)
         try await LiveWindow.capture(ProjectsView(library: projects), to: output.appending(path: "projet-flottant.png"), size: NSSize(width: 1_200, height: 900))

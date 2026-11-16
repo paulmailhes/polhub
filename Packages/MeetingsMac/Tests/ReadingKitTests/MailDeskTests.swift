@@ -282,6 +282,13 @@ struct MailDeskFixture {
         let fromCloud = try desk.draft(replyTo: nil, all: false, to: ["nina@exemple.net"], cc: [], subject: "Contrat", text: "Le voici.", account: nil,
                                        joining: [drive, icloud])
         #expect(fromCloud.contains("« contrat.pdf »") && fromCloud.contains("« maquette.pdf »"))
+        // A document an agent made in its Claude Code worktree (review of 16/11).
+        let worktree = home.appending(path: "Code/projet/.claude/worktrees/wf-1")
+        try FileManager.default.createDirectory(at: worktree, withIntermediateDirectories: true)
+        try Data("%PDF-1.4 export".utf8).write(to: worktree.appending(path: "export.pdf"))
+        let fromWorktree = try desk.draft(replyTo: nil, all: false, to: ["nina@exemple.net"], cc: [], subject: "Export", text: "Le voici.", account: nil,
+                                          joining: [worktree.appending(path: "export.pdf").path(percentEncoded: false)])
+        #expect(fromWorktree.contains("« export.pdf »"))
     }
 
     /// Never a hidden file, a key, the Library or a keychain, even through a link; a readable file, not a folder;
@@ -301,7 +308,23 @@ struct MailDeskFixture {
             }
         }
         refused([path("Documents/.env")], "caché")
-        refused([path(".ssh/id_ed25519")], "caché")
+        refused([path(".ssh/id_ed25519")], "dossier caché (« .ssh »)")
+        // A Claude Code worktree is a project's own copy; the rest of `.claude`, and the home's, stay out (review of 16/11).
+        for folder in ["Code/projet/.claude/worktrees/wf-1", ".claude/worktrees/wf-2"] {
+            try FileManager.default.createDirectory(at: home.appending(path: folder), withIntermediateDirectories: true)
+            try Data("%PDF-1.4".utf8).write(to: home.appending(path: folder + "/devis.pdf"))
+        }
+        try Data("{}".utf8).write(to: home.appending(path: "Code/projet/.claude/settings.json"))
+        try FileManager.default.createDirectory(at: home.appending(path: "Code/projet/.claude/worktrees/wf-1/.git"), withIntermediateDirectories: true)
+        try Data("x".utf8).write(to: home.appending(path: "Code/projet/.claude/worktrees/wf-1/.git/config"))
+        refused([path(".claude/worktrees/wf-2/devis.pdf")], "« .claude »")
+        refused([path("Code/projet/.claude/settings.json")], "« .claude »")
+        refused([path("Code/projet/.claude/worktrees/wf-1/.git/config")], "« .git »")
+        // What Polhub keeps (a mail's attachment, an image of Inspiration): Paul joins it from the thread.
+        let kept = fixture.root.appending(path: "Mails/\(fixture.account)/m1-2")
+        try FileManager.default.createDirectory(at: kept, withIntermediateDirectories: true)
+        try Data("%PDF-1.4".utf8).write(to: kept.appending(path: "devis.pdf"))
+        refused([kept.appending(path: "devis.pdf").path(percentEncoded: false)], "gardé par Polhub")
         refused([path(".gnupg/secring.gpg")], "caché")
         refused([path("Library/Mail/boite.txt")], "Bibliothèque")
         refused([path("Library/Keychains/login.keychain-db")], "Bibliothèque")
@@ -389,6 +412,40 @@ struct MailDeskFixture {
         #expect(throws: ToolError.self) { try fixture.desk(.projets).fileThread("fil-autre-05", into: "Site vitrine") }
         #expect(try fixture.store.filingRules().choices[other.threadKey] == nil)
         #expect(try fixture.desk(.projets).fileThread("fil-maquette-01", into: "Perso").contains("Perso"))
+    }
+
+    /// Kept to the threads of his projects, an agent never widens them through `projet`: a contact it linked would
+    /// bring that person's mails, and his colleagues', into the project. And a link Paul took out stays out, whatever
+    /// the setting (review of 16/11).
+    @Test func anAgentKeptToTheProjectsCannotWidenThemByLinkingAContact() throws {
+        let fixture = try MailDeskFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let contacts = ContactStore(fixture.database)
+        let accountant = try contacts.upsert(email: "comptable@cabinet.exemple", name: "Le Comptable", company: nil, at: fixture.now)
+        try fixture.store.apply(account: fixture.account, upserts: [
+            MailMessageRow(account: fixture.account, messageID: "m6", threadID: "fil-compta-06", date: fixture.now,
+                           sender: MailAddress(name: "Le Comptable", email: "comptable@cabinet.exemple"), subject: "Le bilan", snippet: "",
+                           labels: ["INBOX", "CATEGORY_PERSONAL"]),
+            MailMessageRow(account: fixture.account, messageID: "m7", threadID: "fil-inconnu-07", date: fixture.now,
+                           sender: MailAddress(email: "associe@cabinet.exemple"), subject: "Une question", snippet: "", labels: ["INBOX", "CATEGORY_PERSONAL"]),
+        ])
+        let projects = ProjectDesk(projects: ProjectStore(fixture.database), meetings: MeetingStore(fixture.database), workingDirectory: nil)
+        let link = #"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"projet","arguments":{"projet":"Site vitrine","contact":"comptable@cabinet.exemple","client":"Studio Exemple"}}}"#
+        let kept = try call(MCPServer(reader: try Fixture().reader, desk: projects, mails: fixture.desk(.projets)), link)
+        #expect(toolText(kept).1 && toolText(kept).0.contains("page du projet"))
+        // Nothing was written, the client given with it neither; the accountant's threads stay out of reach.
+        #expect(try contacts.contacts(projectID: fixture.project.id).compactMap(\.email) == ["camille@studio.exemple"])
+        #expect(try ProjectStore(fixture.database).project(id: fixture.project.id)?.client == nil)
+        let list = try fixture.desk(.projets).list(project: nil, text: nil, unreadOnly: false, limit: 20)
+        #expect(!list.contains("fil-compta-06") && !list.contains("fil-inconnu-07"))
+        // Taking a contact out narrows: allowed.
+        let out = #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"projet","arguments":{"projet":"Site vitrine","retirer_contact":"camille@studio.exemple"}}}"#
+        #expect(try !toolText(call(MCPServer(reader: try Fixture().reader, desk: projects, mails: fixture.desk(.projets)), out)).1)
+        // Everything readable: still never over a link Paul took out.
+        try contacts.exclude(contactID: accountant.id, projectID: fixture.project.id, at: fixture.now)
+        let removed = try call(MCPServer(reader: try Fixture().reader, desk: projects, mails: fixture.desk(.tout)), link)
+        #expect(toolText(removed).1 && toolText(removed).0.contains("retiré de « Site vitrine »"))
+        #expect(try contacts.links().first { $0.contactID == accountant.id }?.excluded == true)
     }
 
     /// A small PNG, drawn here.

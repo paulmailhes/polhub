@@ -21,9 +21,12 @@ public struct ProjectDesk: Sendable {
     let dataRoot: URL?
     let now: @Sendable () -> Date
     let timeZone: TimeZone
+    /// Paul's home folder: a new project's code folder is never it, nor above it (review of 16/11).
+    let home: URL
 
     public init(projects: ProjectStore, meetings: MeetingStore, workingDirectory: String?, dataRoot: URL? = nil,
-                now: @escaping @Sendable () -> Date = Date.init, timeZone: TimeZone = .current) {
+                now: @escaping @Sendable () -> Date = Date.init, timeZone: TimeZone = .current,
+                home: URL = FileManager.default.homeDirectoryForCurrentUser) {
         self.projects = projects
         self.meetings = meetings
         self.reader = MeetingReader(meetings: meetings, transcripts: TranscriptStore(projects.database), now: now, timeZone: timeZone)
@@ -31,6 +34,7 @@ public struct ProjectDesk: Sendable {
         self.dataRoot = dataRoot
         self.now = now
         self.timeZone = timeZone
+        self.home = home
     }
 
     /// « Inspiration » (sites, branding, mock-ups), read from the same base (16/11).
@@ -254,12 +258,23 @@ public struct ProjectDesk: Sendable {
             said.append(edited.client.map { "client « \($0) »" } ?? "sans client")
         }
         let newNotes = Self.given(notes)
-        if newNotes != nil { said.append("notes remplacées") }
+        // The notes Paul had are kept whole in the journal, so that he can take them back (review of 16/11).
+        let oldNotes = project.notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        let keepsOldNotes = newNotes.map { !oldNotes.isEmpty && $0 != oldNotes } ?? false
+        if let newNotes {
+            said.append(oldNotes.isEmpty ? "notes écrites" : "notes remplacées (\(project.notes.count) → \(newNotes.count) caractères"
+                        + (keepsOldNotes ? " ; les anciennes sont gardées au journal du projet)" : ")"))
+        }
         let contacts = ContactStore(projects.database)
-        let links = try contacts.links().filter { $0.projectID == project.id && !$0.excluded }
+        let allLinks = try contacts.links().filter { $0.projectID == project.id }
+        let links = allLinks.filter { !$0.excluded }
         var toLink: ContactRow?
         if let contact = Self.given(contact) {
             let row = try findContact(contact)
+            // Taken out of the project, it stays out: only Paul puts it back (review of 16/11).
+            if allLinks.contains(where: { $0.contactID == row.id && $0.excluded }) {
+                throw ToolError("\(Self.contactLabel(row)) a été retiré de « \(project.name) » : seul Paul l'y remet, depuis la page du projet.")
+            }
             let linked = links.contains { $0.contactID == row.id }
             if !linked { toLink = row }
             said.append("contact \(Self.contactLabel(row)) \(linked ? "déjà lié" : "lié")")
@@ -280,6 +295,10 @@ public struct ProjectDesk: Sendable {
             try projects.saveChanges(from: project, to: edited, at: now())
         }
         if let newNotes {
+            if keepsOldNotes {
+                try projects.addJournal(ProjectJournalRow(projectID: project.id, date: now(), title: "Notes avant leur remplacement par un agent",
+                                                          body: project.notes, createdAt: now()))
+            }
             // Written by a session, as `note` writes: not a change of Paul's (`lastEditedAt` stays).
             var notesOnly = project
             notesOnly.notes = newNotes
@@ -288,6 +307,8 @@ public struct ProjectDesk: Sendable {
         }
         if let toLink { try contacts.include(contactID: toLink.id, projectID: project.id, at: now()) }
         if let toRemove { try contacts.exclude(contactID: toRemove.id, projectID: project.id, at: now()) }
+        // The project's page, open in the app, hears of its contacts through its row (review of 16/11).
+        if toLink != nil || toRemove != nil { try projects.touch(project.id, at: now()) }
         if let newStatus, newStatus != project.status {
             try projects.move(project.id, to: newStatus, before: nil, at: now())
         }
@@ -304,12 +325,7 @@ public struct ProjectDesk: Sendable {
         let column = try Self.given(status).map(Self.status) ?? Self.newProjectStatus
         let deadline = try Self.given(due).flatMap { try dueDate($0) }
         let clientName = client.flatMap(Self.clientName)
-        var codeFolder: String?
-        if let folder = Self.given(folder) {
-            let path = Self.normalized(folder)
-            guard path.hasPrefix("/") else { throw ToolError("« dossier » attend le chemin complet d'un dossier du Mac (/Users/…), pas « \(folder) ».") }
-            codeFolder = path
-        }
+        let codeFolder = try Self.given(folder).map(newCodeFolder)
         let added = try projects.addProject(name: name, status: column, at: now())
         var filled = added
         filled.client = clientName
@@ -322,6 +338,28 @@ public struct ProjectDesk: Sendable {
         if let deadline { said.append("échéance \(day(deadline))") }
         if let codeFolder { said.append("dossier \(codeFolder)") }
         return "Projet « \(name) » créé : " + said.joined(separator: ", ") + "."
+            + (codeFolder == nil ? "" : " Une session ouverte dans ce dossier travaillera sur ce projet.")
+    }
+
+    /// A new project's code folder: a folder of the Mac, its own. Never the home folder or one above it (every session
+    /// would take the project for its own), never one that holds another project's folder (review of 16/11).
+    func newCodeFolder(_ folder: String) throws -> String {
+        let path = Self.normalized(folder)
+        guard path.hasPrefix("/") else { throw ToolError("« dossier » attend le chemin complet d'un dossier du Mac (/Users/…), pas « \(folder) ».") }
+        var isFolder: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isFolder), isFolder.boolValue else {
+            throw ToolError("« dossier » : \(path) n'est pas un dossier du Mac.")
+        }
+        let home = Self.normalized(self.home.path(percentEncoded: false))
+        guard path != "/", !(home + "/").hasPrefix(path + "/") else {
+            throw ToolError("« dossier » : \(path) est trop large (le dossier de départ ou au-dessus) : donne le dossier de code du projet lui-même.")
+        }
+        let holder = try projects.projects().first { project in
+            guard let other = Self.folderPath(project.codeFolder).map(Self.normalized) else { return false }
+            return other == path || other.hasPrefix(path + "/")
+        }
+        if let holder { throw ToolError("« dossier » : \(path) contient déjà le dossier du projet « \(holder.name) » : donne un dossier à lui.") }
+        return path
     }
 
     /// A contact of the base, by its address (« Nom <adresse> » too) or its name, case and accents ignored; a piece

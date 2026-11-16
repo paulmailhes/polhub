@@ -16,6 +16,8 @@ struct ProjectPage: View {
     var close: (() -> Void)?
 
     @State private var draft: ProjectRow
+    /// The copy the base just gave the page (`onChange(of: project)`): not to be written back as Paul's change.
+    @State private var reported: ProjectRow?
     @State private var actions: [ActionRow] = []
     @State private var journal: [ProjectJournalRow] = []
     @State private var meetings: [MeetingRow] = []
@@ -92,7 +94,22 @@ struct ProjectPage: View {
             }
         }
         .onAppear(perform: reload)
+        .onChange(of: project) { old, new in
+            // A session changed the project meanwhile (`projet`, 16/11): what Paul is not changing shows at once, and
+            // his next keystroke no longer writes the old notes over the new ones (review of 16/11).
+            let shown = ProjectViews.reported(from: old, to: new, onto: draft)
+            if shown != draft {
+                reported = shown
+                draft = shown
+            }
+            contacts = (try? ContactStore(library.store.database).contacts(projectID: project.id)) ?? []
+            journal = (try? library.store.journal(projectID: project.id)) ?? []
+        }
         .onChange(of: draft) { previous, changed in
+            // What the base just said is no change of Paul's: nothing to write back.
+            let fromBase = changed == reported
+            reported = nil
+            if fromBase { return }
             // Only what Paul just changed: a note a session wrote meanwhile stays (review, Important 7).
             if changed != previous { library.save(from: previous, to: changed) }
         }

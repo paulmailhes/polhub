@@ -350,6 +350,21 @@ extension MailEngine {
         #expect(AttachmentSafety.uniqueName("", taken: ["piece-jointe", "piece-jointe 2"]) == "piece-jointe 3")
     }
 
+    /// A name longer than 120 characters keeps its extension, and a name cleaned once stays as it is: the app takes up
+    /// an agent's file only under a name Polhub would write (review of 16/11).
+    @Test func aLongNameKeepsItsExtensionAndStaysClean() {
+        let names = [String(repeating: "x", count: 119) + " proposition finale.pdf", String(repeating: "z", count: 119) + ".pdf",
+                     String(repeating: "y", count: 130) + ".pdf", String(repeating: "w", count: 130), "devis.pdf", " .caché. "]
+        for name in names {
+            let clean = AttachmentSafety.cleanName(name)
+            #expect(clean.count <= 120 && AttachmentSafety.cleanName(clean) == clean, "\(name)")
+            if name.hasSuffix(".pdf") { #expect(clean.hasSuffix(".pdf") && !clean.hasSuffix(" .pdf"), "\(clean)") }
+        }
+        let long = AttachmentSafety.cleanName(names[0])
+        let second = AttachmentSafety.uniqueName(names[0], taken: [long])
+        #expect(second != long && second.hasSuffix(" 2.pdf") && second.count <= 120 && AttachmentSafety.cleanName(second) == second)
+    }
+
     @Test func aFolderIsRefusedAndALinkGivesItsFile() throws {
         let folder = FileManager.default.temporaryDirectory.appending(path: "joindre-\(UUID().uuidString)", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: folder) }

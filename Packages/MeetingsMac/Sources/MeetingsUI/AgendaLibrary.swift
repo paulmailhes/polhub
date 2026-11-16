@@ -237,8 +237,11 @@ public final class AgendaLibrary: ObservableObject {
         defer { servingAgents = false }
         repeat {
             serveAgentsAgain = false
-            let made = await agentEvents.serve()
-            guard let last = made.last else { continue }
+            let pass = await agentEvents.serveAll()
+            // An event perhaps made unseen: the agendas are read again now, so that the agent finds it in `agenda` rather
+            // than asking twice (review of 16/11).
+            if pass.unsure { Task { [weak self] in await self?.syncAll() } }
+            guard let last = pass.made.last else { continue }
             message = "Un agent a créé « \(last.title) » dans ton agenda."
             await runLinks()
         } while serveAgentsAgain

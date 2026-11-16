@@ -12,6 +12,8 @@ public struct AgendaDesk: Sendable {
     static let defaultDays = 7
     static let maximumEvents = 200
     static let maximumGuests = 15
+    /// Polhub reads the agendas every 10 minutes while it runs: a copy older than this is said (review of 16/11).
+    static let staleCopy: TimeInterval = 3_600
 
     let calendar: CalendarStore
     let contactStore: ContactStore
@@ -38,12 +40,16 @@ public struct AgendaDesk: Sendable {
     /// The events of the days asked (today and the next seven by default), day by day: hours, title, agenda, Meet,
     /// Paul's answer, guests, project, Google's id.
     public func events(from: String?, to: String?, project: String?, text: String?) throws -> String {
-        let first = try from.map { try day($0, "depuis") } ?? clock.startOfDay(for: now())
+        let today = clock.startOfDay(for: now())
+        var first = try from.map { try day($0, "depuis") } ?? today
         let last = try to.map { try day($0, "jusqu_a") } ?? clock.date(byAdding: .day, value: Self.defaultDays, to: first)!
+        // « jusqu_a » alone, in the past: the week before it (« qu'est-ce que j'avais la semaine dernière ? »).
+        if from == nil, last < today { first = clock.date(byAdding: .day, value: -Self.defaultDays, to: last)! }
         guard last >= first else { throw ToolError("« jusqu_a » (\(dayName(last))) tombe avant « depuis » (\(dayName(first))).") }
         let end = clock.date(byAdding: .day, value: 1, to: last)!
+        let accounts = try calendar.accounts()
         // An event of several days begun before the first day still shows.
-        var events = CalendarCopies.merge(try calendar.events(from: first.addingTimeInterval(-31 * 86_400), to: end), accounts: try calendar.accounts())
+        var events = CalendarCopies.merge(try calendar.events(from: first.addingTimeInterval(-31 * 86_400), to: end), accounts: accounts)
             .filter { $0.endAt > first }
         var title = "L'agenda de Paul " + (clock.isDate(first, inSameDayAs: last) ? "du \(dayName(first, year: true))" : "du \(dayName(first)) au \(dayName(last, year: true))")
         let projectRows = try ProjectStore(calendar.database).projects()
@@ -63,8 +69,11 @@ public struct AgendaDesk: Sendable {
             }
             title += ", qui contiennent « \(MailDesk.line(text)) »"
         }
-        var lines = [Self.reminder, "", "# \(title) (\(events.count) rendez-vous)"]
-        guard !events.isEmpty else { return (lines + ["Aucun rendez-vous."]).joined(separator: "\n") }
+        let unknown = gaps(first: first, end: end, accounts: accounts)
+        var lines = [Self.reminder, "", "# \(title) (\(events.count) rendez-vous)"] + unknown
+        guard !events.isEmpty else {
+            return (lines + [unknown.isEmpty ? "Aucun rendez-vous." : "Aucun rendez-vous dans la copie de Polhub."]).joined(separator: "\n")
+        }
         let projectNames = Dictionary(projectRows.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
         var shownDay: Date?
         for event in events.prefix(Self.maximumEvents) {
@@ -105,6 +114,31 @@ public struct AgendaDesk: Sendable {
                 return said
             }
             lines.append("  Invités : " + shown.joined(separator: ", ") + (guests.count > shown.count ? " et \(guests.count - shown.count) autres" : ""))
+        }
+        return lines
+    }
+
+    /// What the copy does not know of these days (review of 16/11): the days past its window, an agenda never read, a
+    /// reading that failed or is old. Said, so that no answer reads as a free day Polhub knows nothing of.
+    func gaps(first: Date, end: Date, accounts: [GoogleAccountRow]) -> [String] {
+        guard !accounts.isEmpty else { return ["Aucun agenda Google n'est connecté à Polhub : il ne sait rien de ces jours."] }
+        var lines: [String] = []
+        if let covered = CalendarWindow.covered(by: accounts) {
+            let unknown = "Polhub ne sait pas ; demande à Paul, ou regarde Google Agenda."
+            if end > covered.to { lines.append("La copie de Polhub s'arrête au \(dayName(covered.to, year: true)) à \(time(covered.to)) : au-delà, \(unknown)") }
+            if first < covered.from { lines.append("La copie de Polhub commence au \(dayName(covered.from, year: true)) : avant, \(unknown)") }
+        }
+        for account in accounts {
+            guard let read = account.lastSyncAt else {
+                lines.append("L'agenda \(account.email) n'a encore jamais été lu par Polhub : ses rendez-vous manquent.")
+                continue
+            }
+            let copy = "\(dayName(read)) à \(time(read))"
+            if let error = account.lastError.map(MailDesk.line), !error.isEmpty {
+                lines.append("L'agenda \(account.email) n'a pas pu être lu la dernière fois (\(String(error.prefix(120)))) : sa copie date du \(copy).")
+            } else if now().timeIntervalSince(read) > Self.staleCopy {
+                lines.append("La copie de l'agenda \(account.email) date du \(copy) : ce qui a changé depuis n'y est pas (Polhub était peut-être fermé).")
+            }
         }
         return lines
     }
@@ -188,13 +222,16 @@ public struct AgendaDesk: Sendable {
     /// Asks the app for an event in one of Paul's agendas, and waits for its answer (`wait` seconds). Never a guest:
     /// an agent invites nobody. No answer in time, the request is taken back, so that it is never made later.
     public func create(title: String, start: String, end: String?, minutes: Int?, meet: Bool, account: String?, notes: String, project: String?,
-                       wait: TimeInterval = 25) throws -> String {
+                       location: String? = nil, wait: TimeInterval = 25) throws -> String {
         let name = MailDesk.line(title)
         guard !name.isEmpty else { throw ToolError("Il manque « titre » : le titre du rendez-vous.") }
         guard name.count <= 200 else { throw ToolError("Le titre dépasse 200 caractères.") }
+        let place = location.map(MailDesk.line).flatMap { $0.isEmpty ? nil : $0 }
+        if let place, place.count > 500 { throw ToolError("« lieu » dépasse 500 caractères.") }
         let description = HTMLText.clean(notes).trimmingCharacters(in: .whitespacesAndNewlines)
         guard description.count <= 8_000 else { throw ToolError("La description dépasse 8 000 caractères.") }
         guard let begin = moment(start) else {
+            if Self.hasZone(start) { throw ToolError("« debut » se donne à l'heure de Paul, sans fuseau : « AAAA-MM-JJ HH:MM », pas « \(start) ».") }
             throw ToolError("« debut » attend une date et une heure « AAAA-MM-JJ HH:MM » (heure de Paul), pas « \(start) ».")
         }
         guard begin >= clock.startOfDay(for: now()) else { throw ToolError("« debut » (\(dayName(begin, year: true)) \(time(begin))) est passé.") }
@@ -202,6 +239,7 @@ public struct AgendaDesk: Sendable {
         if let end = end?.trimmingCharacters(in: .whitespaces), !end.isEmpty {
             guard minutes == nil else { throw ToolError("Donne « fin » ou « duree », pas les deux.") }
             guard let date = moment(end) ?? sameDay(end, as: begin) else {
+                if Self.hasZone(end) { throw ToolError("« fin » se donne à l'heure de Paul, sans fuseau : « AAAA-MM-JJ HH:MM » ou « HH:MM », pas « \(end) ».") }
                 throw ToolError("« fin » attend « AAAA-MM-JJ HH:MM » ou « HH:MM » (le même jour), pas « \(end) ».")
             }
             guard date > begin else { throw ToolError("La fin (\(time(date))) tombe avant le début (\(time(begin))) ou en même temps.") }
@@ -224,7 +262,7 @@ public struct AgendaDesk: Sendable {
             filed = try projects.resolve(project)
         }
         let request = AgentEventRequest(title: name, start: begin, end: finish, minutes: minutes, meet: meet, account: chosen, notes: description,
-                                        projectID: filed?.id, createdAt: now())
+                                        projectID: filed?.id, createdAt: now(), location: place)
         try files.request(request)
         ExternalChangeSignal.post(name: AgentEventFiles.signal)
         let deadline = Date().addingTimeInterval(wait)
@@ -247,6 +285,7 @@ public struct AgendaDesk: Sendable {
         let made = result.start ?? begin, over = result.end ?? finish ?? begin
         var answer = "Rendez-vous « \(result.title ?? name) » créé dans l'agenda \(result.account ?? chosen ?? "?") : \(dayName(made, year: true, weekday: true)), "
             + (clock.isDate(made, inSameDayAs: over) ? "\(time(made))–\(time(over))" : "\(time(made)) → \(dayName(over, weekday: true)) \(time(over))")
+        if let place { answer += ", lieu : \(place)" }
         if let code = result.meetCode { answer += ", lien Meet https://meet.google.com/\(code)" }
         if let filed { answer += ", rangé dans « \(filed.name) »" }
         if let id = result.eventID { answer += " [\(id)]" }
@@ -278,9 +317,16 @@ public struct AgendaDesk: Sendable {
         return date
     }
 
-    /// « 2026-11-17 10:00 » (or « 2026-11-17T10:00 »), here.
+    /// « 2026-11-17 10:00 » (or « 2026-11-17T10:00 », seconds too, as agents often send it), here.
     func moment(_ text: String) -> Date? {
-        formatter("yyyy-MM-dd HH:mm", locale: "en_US_POSIX").date(from: text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "T", with: " "))
+        let text = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "T", with: " ")
+        return formatter("yyyy-MM-dd HH:mm", locale: "en_US_POSIX").date(from: text)
+            ?? formatter("yyyy-MM-dd HH:mm:ss", locale: "en_US_POSIX").date(from: text)
+    }
+
+    /// « 2026-11-17T10:00:00+01:00 », « …Z »: a time zone given, which Polhub does not take (Paul's hour only).
+    static func hasZone(_ text: String) -> Bool {
+        text.trimmingCharacters(in: .whitespaces).range(of: #"\d:\d\d(:\d\d(\.\d+)?)?\s*(Z|[+-]\d\d:?\d\d)$"#, options: .regularExpression) != nil
     }
 
     /// « 11:30 », the day of `date`.

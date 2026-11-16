@@ -17,8 +17,13 @@ import Testing
         private let lock = NSLock()
         private var sent: [(account: String, request: URLRequest)] = []
         let failure: (any Error)?
+        /// Google's answer cannot be read.
+        let garbled: Bool
 
-        init(failure: (any Error)? = nil) { self.failure = failure }
+        init(failure: (any Error)? = nil, garbled: Bool = false) {
+            self.failure = failure
+            self.garbled = garbled
+        }
 
         var requests: [(account: String, request: URLRequest)] { lock.withLock { sent } }
 
@@ -27,6 +32,7 @@ import Testing
             let request = build("jeton")
             lock.withLock { sent.append((account, request)) }
             if let failure { throw failure }
+            if garbled { return Data("{\"kind\":\"calendar#event\"}".utf8) }
             let body = (try? JSONSerialization.jsonObject(with: request.httpBody ?? Data()) as? [String: Any]) ?? [:]
             var event: [String: Any] = ["id": "agent\(requests.count)", "status": "confirmed", "summary": body["summary"] ?? "",
                                         "start": body["start"] ?? [:], "end": body["end"] ?? [:], "organizer": ["email": account, "self": true]]
@@ -67,7 +73,7 @@ import Testing
         let google = FakeGoogle()
         let request = AgentEventRequest(title: "Point devis", start: ISO8601DateFormatter().date(from: "2026-11-17T09:00:00Z")!,
                                         end: ISO8601DateFormatter().date(from: "2026-11-17T10:30:00Z")!, meet: true, account: "paul@exemple.fr",
-                                        notes: "Relire le devis.", projectID: fixture.atelier.id, createdAt: Self.now)
+                                        notes: "Relire le devis.", projectID: fixture.atelier.id, createdAt: Self.now, location: "Café du Port")
         try fixture.files.request(request)
         let made = await maker(fixture, google).serve()
         #expect(made.map(\.eventID) == ["agent1"])
@@ -75,6 +81,8 @@ import Testing
         #expect(google.requests.count == 1 && sent.account == "paul@exemple.fr" && sent.request.httpMethod == "POST")
         let json = try body(sent.request)
         #expect(json["summary"] as? String == "Point devis")
+        // The place asked goes in Google's own field (review of 16/11).
+        #expect(json["location"] as? String == "Café du Port")
         #expect(json["description"] as? String == "Relire le devis.\n\n" + AgentEventMaker.mark)
         #expect((json["start"] as? [String: String]) == ["dateTime": "2026-11-17T10:00:00+01:00", "timeZone": "Europe/Paris"])
         #expect((json["end"] as? [String: String]) == ["dateTime": "2026-11-17T11:30:00+01:00", "timeZone": "Europe/Paris"])
@@ -149,6 +157,28 @@ import Testing
         #expect(fixture.files.result(cut.id)?.error?.contains("`agenda`") == true)
     }
 
+    /// The event may exist though Polhub could not confirm it (a connection cut once the request left, an answer it
+    /// cannot read): the pass says so, and the app reads the agendas again at once, so that the agent finds it in
+    /// `agenda` rather than asking twice (review of 16/11).
+    @Test func anUnsureAnswerAsksForAReadingOfTheAgendas() async throws {
+        let fixture = try Fixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let start = ISO8601DateFormatter().date(from: "2026-11-17T09:00:00Z")!
+        let cut = AgentEventRequest(title: "Coupé", start: start, createdAt: Self.now)
+        try fixture.files.request(cut)
+        #expect(await maker(fixture, FakeGoogle(failure: URLError(.networkConnectionLost))).serveAll().unsure)
+        #expect(fixture.files.result(cut.id)?.error?.contains("peut-être été créé") == true)
+        let garbled = AgentEventRequest(title: "Illisible", start: start, createdAt: Self.now)
+        try fixture.files.request(garbled)
+        let pass = await maker(fixture, FakeGoogle(garbled: true)).serveAll()
+        #expect(pass.unsure && pass.made.isEmpty)
+        #expect(fixture.files.result(garbled.id)?.error?.contains("peut-être été créé") == true)
+        // Offline, nothing left: nothing to read again.
+        let offline = AgentEventRequest(title: "Hors ligne", start: start, createdAt: Self.now)
+        try fixture.files.request(offline)
+        #expect(await !maker(fixture, FakeGoogle(failure: URLError(.notConnectedToInternet))).serveAll().unsure)
+    }
+
     /// The development build never writes to Google.
     @Test func theDevelopmentBuildNeverWrites() async throws {
         let fixture = try Fixture()
@@ -158,5 +188,20 @@ import Testing
         let google = FakeGoogle()
         #expect(await maker(fixture, google, flavor: .dev).serve().isEmpty)
         #expect(google.requests.isEmpty && fixture.files.result(request.id)?.error?.contains("développement") == true)
+    }
+
+    /// The public pages behind Google's consent screen say what the app writes in the calendars: what the user makes,
+    /// and what an assistant he connected asks for, without any guest (review of 16/11).
+    @Test func thePublicPagesSayAnAssistantMayCreateAnEvent() throws {
+        let docs = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().appending(path: "docs")
+        for page in ["index.html", "confidentialite.html"] {
+            let text = try String(contentsOf: docs.appending(path: page), encoding: .utf8)
+                .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            #expect(!text.contains("seulement quand l'utilisateur le fait lui-même"), "\(page)")
+            #expect(!text.contains("que lorsque l'utilisateur le fait lui-même dans l'application"), "\(page)")
+            #expect(!text.contains("pour ceux que l'utilisateur crée, modifie ou supprime dans Polhub ;"), "\(page)")
+            #expect(text.contains("assistant") && text.contains("sans aucun invité"), "\(page)")
+        }
     }
 }

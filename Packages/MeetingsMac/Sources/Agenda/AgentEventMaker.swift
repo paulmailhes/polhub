@@ -34,6 +34,18 @@ public struct AgentEventMaker: Sendable {
         init(_ description: String) { self.description = description }
     }
 
+    /// Google took the request, but Polhub could not confirm the event: it may exist (review of 16/11).
+    struct Unsure: Error, CustomStringConvertible {
+        let reason: String
+        var description: String { "\(reason) : le rendez-vous a peut-être été créé ; Polhub relit l'agenda, regarde `agenda` dans une minute avant de redemander" }
+    }
+
+    /// One pass: the events made, and whether one may have been made unseen (the app then reads the agendas again).
+    public struct Pass: Sendable {
+        public var made: [CalendarEventRow]
+        public var unsure: Bool
+    }
+
     let database: AppDatabase
     let files: AgentEventFiles
     let flavor: AppFlavor
@@ -55,22 +67,32 @@ public struct AgentEventMaker: Sendable {
 
     /// Every request waiting, the oldest first, each answered; the events made.
     public func serve() async -> [CalendarEventRow] {
-        var made: [CalendarEventRow] = []
+        await serveAll().made
+    }
+
+    /// Every request waiting, the oldest first, each answered; the events made, and whether one may exist unseen.
+    public func serveAll() async -> Pass {
+        var pass = Pass(made: [], unsure: false)
         for pending in files.take() {
             let result: AgentEventResult
             do {
                 guard let request = pending.request else { throw Refusal("demande illisible") }
                 let event = try await make(request)
-                made.append(event)
+                pass.made.append(event)
                 result = .made(event)
             } catch let error as URLError {
-                result = .refused(Self.reason(error))
+                let reason = Self.reason(error)
+                pass.unsure = pass.unsure || reason is Unsure
+                result = .refused("\(reason)")
+            } catch let error as Unsure {
+                pass.unsure = true
+                result = .refused("\(error)")
             } catch {
                 result = .refused("\(error)")
             }
             files.answer(result, id: pending.id, now: now())
         }
-        return made
+        return pass
     }
 
     func make(_ request: AgentEventRequest) async throws -> CalendarEventRow {
@@ -86,28 +108,36 @@ public struct AgentEventMaker: Sendable {
         guard end > request.start else { throw Refusal("la fin tombe avant le début") }
         guard end.timeIntervalSince(request.start) <= 86_400 else { throw Refusal("un rendez-vous dure 24 heures au plus") }
         let notes = request.notes.trimmingCharacters(in: .whitespacesAndNewlines)
-        let draft = EventDraft(title: title, start: request.start, end: end, notes: notes.isEmpty ? Self.mark : notes + "\n\n" + Self.mark,
-                               guests: [], addMeet: request.meet)
+        let draft = EventDraft(title: title, start: request.start, end: end, location: request.location ?? "",
+                               notes: notes.isEmpty ? Self.mark : notes + "\n\n" + Self.mark, guests: [], addMeet: request.meet)
         let requestID = request.id.uuidString, zone = timeZone
         let data = try await send(account) { token in
             CalendarWrite.insertRequest(accessToken: token, draft: draft, timeZone: zone, requestID: requestID)
         }
-        guard let event = try CalendarWrite.event(from: data, account: account) else { throw GoogleError.badAnswer }
-        try store.applyGoogle(account: account, changed: [event], cancelled: [], at: now())
-        // Filed as Paul's own gesture: he asked for it, and the loop never moves it.
-        if let projectID = request.projectID, try ProjectStore(database).project(id: projectID) != nil {
-            try store.setProject(googleEventID: event.eventID, projectID: projectID, origin: .paul)
+        // Google has the request: from here on, a failure leaves the event perhaps made.
+        let event: CalendarEventRow
+        do {
+            guard let read = try CalendarWrite.event(from: data, account: account) else { throw GoogleError.badAnswer }
+            try store.applyGoogle(account: account, changed: [read], cancelled: [], at: now())
+            event = read
+        } catch {
+            throw Unsure(reason: "Google a reçu la demande, mais Polhub n'a pas pu lire sa réponse (\(error))")
         }
-        return try store.event(id: event.id) ?? event
+        // Filed as Paul's own gesture: he asked for it, and the loop never moves it. The event is made whatever becomes
+        // of its filing: the answer says so.
+        if let projectID = request.projectID, (try? ProjectStore(database).project(id: projectID)) != nil {
+            try? store.setProject(googleEventID: event.eventID, projectID: projectID, origin: .paul)
+        }
+        return (try? store.event(id: event.id)) ?? event
     }
 
     /// Google out of reach: nothing was made; a connection cut once the request left: the event may exist.
-    static func reason(_ error: URLError) -> String {
+    static func reason(_ error: URLError) -> any Error & CustomStringConvertible {
         switch error.code {
         case .notConnectedToInternet, .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed, .dataNotAllowed, .internationalRoamingOff:
-            "Polhub est hors ligne : Google n'a pas pu être joint"
+            Refusal("Polhub est hors ligne : Google n'a pas pu être joint")
         default:
-            "la connexion à Google s'est coupée : le rendez-vous a peut-être été créé, regarde `agenda` dans un instant avant de redemander"
+            Unsure(reason: "la connexion à Google s'est coupée")
         }
     }
 

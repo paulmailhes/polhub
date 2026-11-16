@@ -1196,7 +1196,8 @@ public actor MailEngine {
                     draft.bodyHTML = MailMarkdown.html(draft.body)
                     draft.body = MailMarkdown.plain(draft.body)
                 }
-                draft.files = try takeFiles(of: row, into: draft)
+                let joined = try takeFiles(of: row, into: &draft)
+                draft.files = joined
                 if try store.adopt(row.id, as: draft) {
                     adopted.append(draft)
                     try? FileManager.default.removeItem(at: files.agentFolder(id: row.id))
@@ -1212,14 +1213,23 @@ public actor MailEngine {
 
     /// The files the agent joined, copied into the draft's folder (a clone on the Mac's disk) before the draft exists;
     /// the drop's folder goes once the draft is in the base. Each is read as it is on the disk, never as the row says;
-    /// a name Polhub would not have written, or a file gone, is left out.
-    private func takeFiles(of drop: MailAgentDraftRow, into draft: MailDraftRow) throws -> [MailDraftFile] {
+    /// a name Polhub would not have written, or a file gone, is left out, and said on the draft (review of 16/11).
+    private func takeFiles(of drop: MailAgentDraftRow, into draft: inout MailDraftRow) throws -> [MailDraftFile] {
         guard !drop.files.isEmpty else { return [] }
         let folder = files.draftFolder(draft)
-        var taken: [MailDraftFile] = []
+        var taken: [MailDraftFile] = [], missing: [String] = []
+        defer {
+            if !missing.isEmpty {
+                draft.lastError = "Polhub n'a pas pu reprendre \(missing.count > 1 ? "ces fichiers" : "ce fichier") de l'agent : "
+                    + missing.map { "« \(HTMLText.clean($0)) »" }.joined(separator: ", ")
+            }
+        }
         for file in drop.files {
             guard let source = try? files.agentFile(file, of: drop), let values = try? source.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
-                  values.isRegularFile == true, let size = values.fileSize, !taken.contains(where: { $0.filename == file.filename }) else { continue }
+                  values.isRegularFile == true, let size = values.fileSize, !taken.contains(where: { $0.filename == file.filename }) else {
+                missing.append(file.filename)
+                continue
+            }
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             let target = folder.appending(path: file.filename)
             try? FileManager.default.removeItem(at: target)

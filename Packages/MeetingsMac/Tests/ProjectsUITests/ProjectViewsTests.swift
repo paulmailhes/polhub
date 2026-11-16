@@ -37,6 +37,26 @@ import Testing
         #expect(ProjectViews.columnWidth(available: 900, count: 4, spacing: 16, minimum: 290) == 290)
     }
 
+    /// A session rewrote the notes and the client while the page was open (`projet`, 16/11): the page shows them at
+    /// once, so that Paul's next keystroke never writes the old text over them; what Paul is changing stays his (review
+    /// of 16/11).
+    @Test func whatTheBaseChangedReachesTheOpenPage() {
+        let opened = ProjectRow(name: "Atelier Nord", status: .priorite1, client: "Studio Sud", todo: "Envoyer la maquette", notes: "Les notes de Paul",
+                                kanbanOrder: 0, createdAt: date(13))
+        var stored = opened
+        stored.notes = "Les notes réécrites par l'agent"
+        stored.client = "Studio Est"
+        stored.todo = "Relancer le client"
+        stored.updatedAt = date(16)
+        var draft = opened
+        draft.todo = "Ce que Paul tape"
+        let shown = ProjectViews.reported(from: opened, to: stored, onto: draft)
+        #expect(shown.notes == "Les notes réécrites par l'agent" && shown.client == "Studio Est" && shown.updatedAt == date(16))
+        #expect(shown.todo == "Ce que Paul tape")
+        // Nothing new in the base: the page's copy stays as it is.
+        #expect(ProjectViews.reported(from: stored, to: stored, onto: draft) == draft)
+    }
+
     @Test func terminéShowsCompactCards() {
         #expect(ProjectViews.cardSize(.termine, chosen: .medium) == .small)
         #expect(ProjectViews.cardSize(.priorite1, chosen: .medium) == .medium && ProjectViews.cardSize(.enPause, chosen: .small) == .small)

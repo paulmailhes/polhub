@@ -85,8 +85,9 @@ public enum CalendarAPI {
 /// One account's primary calendar, read again over the whole window at each sync: what Google no
 /// longer has goes (plan of 13/11: simpler and sturdier than Google's incremental tokens).
 public struct CalendarSync: Sendable {
-    public static let past: TimeInterval = 180 * 86_400
-    public static let future: TimeInterval = 60 * 86_400
+    /// The window, shared with the agents' helper (`CalendarWindow`, 16/11).
+    public static let past = CalendarWindow.past
+    public static let future = CalendarWindow.future
     let fetch: @Sendable (URLRequest) async throws -> (Data, Int)
 
     public init(fetch: @escaping @Sendable (URLRequest) async throws -> (Data, Int) = CalendarSync.live) {

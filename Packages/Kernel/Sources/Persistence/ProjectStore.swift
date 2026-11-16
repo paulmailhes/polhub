@@ -83,6 +83,14 @@ public struct ProjectStore: Sendable {
         }
     }
 
+    /// Something of the project changed beside its row (a contact linked by a session, 16/11): its row says so, and the
+    /// page open on it hears it. Not a change of Paul's: `lastEditedAt` stays.
+    public func touch(_ id: UUID, at date: Date) throws {
+        try writer.write { db in
+            try db.execute(sql: "UPDATE project SET updatedAt = ? WHERE id = ?", arguments: [date, Self.key(id)])
+        }
+    }
+
     /// A new project at the bottom of its column.
     @discardableResult
     public func addProject(name: String, status: ProjectStatus, at date: Date) throws -> ProjectRow {

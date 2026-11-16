@@ -73,6 +73,9 @@ import Testing
         let draft = try #require(await engine.adoptAgentDrafts().first)
         #expect(draft.files.map(\.filename) == ["plan.png"])
         #expect(FileManager.default.fileExists(atPath: secret.path(percentEncoded: false)))
+        // What was left out is said on the draft, never skipped in silence (review of 16/11).
+        #expect(draft.lastError?.contains("« absent.pdf »") == true && draft.lastError?.contains("« ../../secret.txt »") == true)
+        #expect(draft.lastError?.contains("« plan.png »") == false)
         // A reply whose thread is gone is let go, with its files.
         let orphan = MailAgentDraftRow(mode: .reply, account: account, threadKey: MailThreadRow.key(account: account, threadID: "parti"), body: "x",
                                        createdAt: Date(), files: [MailDraftFile(filename: "a.txt", mimeType: "text/plain", size: 1)])
@@ -80,6 +83,30 @@ import Testing
         try store.drop(orphan)
         #expect(await engine.adoptAgentDrafts().isEmpty)
         #expect(!FileManager.default.fileExists(atPath: engine.files.agentFolder(id: orphan.id).path(percentEncoded: false)))
+    }
+
+    /// The agents' files wait for the app in their own folder: the clean-up of the mailboxes' folders leaves them, and
+    /// only the folders of drops gone for an hour go (review of 16/11).
+    @Test func theAgentsFilesWaitingAreKept() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: "agents-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let files = MailFiles(root: root)
+        let pending = UUID().uuidString, recent = UUID().uuidString, old = UUID().uuidString
+        func exists(_ url: URL) -> Bool { FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) }
+        for id in [pending, recent, old] {
+            try FileManager.default.createDirectory(at: files.agentFolder(id: id), withIntermediateDirectories: true)
+            try Data("%PDF-1.4".utf8).write(to: files.agentFolder(id: id).appending(path: "devis.pdf"))
+        }
+        try FileManager.default.createDirectory(at: files.folder(account: "parti@exemple.fr"), withIntermediateDirectories: true)
+        files.keepOnly(accounts: [account], drafts: [])
+        for id in [pending, recent, old] { #expect(exists(files.agentFolder(id: id).appending(path: "devis.pdf"))) }
+        #expect(!exists(files.folder(account: "parti@exemple.fr")))
+        let now = Date()
+        for id in [pending, old] {
+            try FileManager.default.setAttributes([.creationDate: now.addingTimeInterval(-7_200)], ofItemAtPath: files.agentFolder(id: id).path(percentEncoded: false))
+        }
+        files.forgetAgentFolders(keeping: [pending], now: now)
+        #expect(exists(files.agentFolder(id: pending)) && exists(files.agentFolder(id: recent)) && !exists(files.agentFolder(id: old)))
     }
 
     /// The agent's markdown becomes simple HTML, everything it wrote escaped: no tag of its own, no link but http(s)

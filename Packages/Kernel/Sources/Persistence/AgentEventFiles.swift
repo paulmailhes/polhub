@@ -16,9 +16,11 @@ public struct AgentEventRequest: Codable, Equatable, Sendable {
     public var notes: String
     public var projectID: UUID?
     public var createdAt: Date
+    /// The place, in Google's own field (review of 16/11); absent from a request of before.
+    public var location: String?
 
     public init(id: UUID = UUID(), title: String, start: Date, end: Date? = nil, minutes: Int? = nil, meet: Bool = false, account: String? = nil,
-                notes: String = "", projectID: UUID? = nil, createdAt: Date) {
+                notes: String = "", projectID: UUID? = nil, createdAt: Date, location: String? = nil) {
         self.id = id
         self.title = title
         self.start = start
@@ -29,6 +31,7 @@ public struct AgentEventRequest: Codable, Equatable, Sendable {
         self.notes = notes
         self.projectID = projectID
         self.createdAt = createdAt
+        self.location = location
     }
 }
 

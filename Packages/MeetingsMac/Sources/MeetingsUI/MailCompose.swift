@@ -134,6 +134,9 @@ struct ComposeView: View {
     @State private var threadProject: UUID?
     /// « Choisir une date et une heure… » is open (wave B).
     @State private var choosingDate = false
+    /// The formatting « Repasser en texte simple » took off an agent's draft, until Paul writes in the text: « Remettre
+    /// la mise en forme » gives it back (review of 16/11).
+    @State private var setAside: String?
     @FocusState private var focus: Field?
 
     enum Field { case body, subject }
@@ -176,21 +179,40 @@ struct ComposeView: View {
                         HStack(alignment: .firstTextBaseline, spacing: Space.m) {
                             Text(MailDraftRow.agentFormattedCaption).font(.meta).foregroundStyle(.secondary)
                             Spacer(minLength: 0)
-                            TextButton("Repasser en texte simple") { mails.edit(draftID) { $0.makePlain() } }
-                                .help("Retire la mise en forme : tu modifies ensuite le texte comme d'habitude")
-                                .disabled(planned != nil)
+                            TextButton("Repasser en texte simple") {
+                                setAside = draft.bodyHTML
+                                mails.edit(draftID) { $0.makePlain() }
+                            }
+                            .help("Retire la mise en forme : tu modifies ensuite le texte comme d'habitude")
+                            .disabled(planned != nil)
                         }
                         Text(formatted).font(.system(size: TextSize.reading)).lineSpacing(3).textSelection(.enabled)
                             .frame(maxWidth: .infinity, minHeight: 180, alignment: .topLeading)
                     }
                 } else {
+                    if let html = setAside {
+                        // Until Paul writes in the text, the formatting comes back in one click (review of 16/11).
+                        HStack(alignment: .firstTextBaseline, spacing: Space.m) {
+                            Text("Mise en forme retirée : tu modifies le texte comme d'habitude.").font(.meta).foregroundStyle(.secondary)
+                            Spacer(minLength: 0)
+                            TextButton("Remettre la mise en forme") {
+                                mails.edit(draftID) { $0.formatAgain(html) }
+                                setAside = nil
+                            }
+                            .disabled(planned != nil)
+                        }
+                    }
                     TextEditor(text: $text)
                         .font(.system(size: TextSize.reading))
                         .lineSpacing(3)
                         .scrollContentBackground(.hidden)
                         .focused($focus, equals: .body)
                         .frame(minHeight: 180)
-                        .onChange(of: text) { _, typed in if loaded { mails.edit(draftID) { $0.body = typed } } }
+                        .onChange(of: text) { _, typed in
+                            guard loaded else { return }
+                            setAside = nil
+                            mails.edit(draftID) { $0.body = typed }
+                        }
                         .overlay(alignment: .topLeading) {
                             if text.isEmpty {
                                 Text(draft.mode == .new ? "Écris ton mail…" : "Écris ta réponse…").font(.system(size: TextSize.reading)).foregroundStyle(.tertiary)
@@ -602,13 +624,21 @@ extension MailDraftRow {
     /// keeps it below what Paul adds), not a message it quotes.
     var isFormattedGmailDraft: Bool { origin == .gmail && quoteHTML != nil && mode != .forward }
 
-    /// Over an agent's formatted draft (16/11).
-    static let agentFormattedCaption = "Mis en forme par l'agent : il part tel quel."
+    /// Over an agent's formatted draft (16/11): what leaves, and what Paul sees (review of 16/11).
+    static let agentFormattedCaption = "Mis en forme par l'agent (gras, listes, liens) : il part ainsi. Ici, son texte sans la mise en forme."
 
     /// An agent's formatted draft: the plain version of its text, shown whole in place of the editor; `nil` for a
     /// draft Paul edits.
     var formattedText: String? { bodyHTML == nil ? nil : body }
 
-    /// « Repasser en texte simple »: the formatting goes, the plain version stays, to edit as usual.
-    mutating func makePlain() { bodyHTML = nil }
+    /// « Repasser en texte simple »: the formatting goes, the plain version stays, to edit as usual. The formatting
+    /// taken off comes back, for « Remettre la mise en forme ».
+    @discardableResult
+    mutating func makePlain() -> String? {
+        defer { bodyHTML = nil }
+        return bodyHTML
+    }
+
+    /// « Remettre la mise en forme », while Paul has not written in the text (review of 16/11).
+    mutating func formatAgain(_ html: String) { bodyHTML = html }
 }

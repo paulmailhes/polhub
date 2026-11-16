@@ -3,12 +3,30 @@ import Persistence
 
 /// What a received file may be called and whether Polhub may open it itself.
 public enum AttachmentSafety {
-    /// A name safe to write on disk: no folder, no hidden file, no control character.
+    /// A name safe to write on disk: no folder, no hidden file, no control character. 120 characters at most, the
+    /// extension kept; a name cleaned once stays as it is (review of 16/11: the app takes up an agent's file only under
+    /// a name Polhub would write).
     public static func cleanName(_ name: String) -> String {
         let last = name.replacingOccurrences(of: "\\", with: "/").split(separator: "/").last.map(String.init) ?? ""
-        let safe = String(last.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) && $0 != ":" })
-            .trimmingCharacters(in: CharacterSet(charactersIn: ". ").union(.whitespacesAndNewlines))
-        return safe.isEmpty ? "piece-jointe" : String(safe.prefix(120))
+        let safe = trimmed(String(last.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) && $0 != ":" }))
+        guard !safe.isEmpty else { return "piece-jointe" }
+        return safe.count > longestName ? fitted(safe, suffix: "") : safe
+    }
+
+    static let longestName = 120
+
+    static func trimmed(_ text: String) -> String {
+        text.trimmingCharacters(in: CharacterSet(charactersIn: ". ").union(.whitespacesAndNewlines))
+    }
+
+    /// A clean name with `suffix` before its extension (« devis 2.pdf »), in 120 characters: the stem gives way, then is
+    /// trimmed again. An extension too long to be one goes with the rest.
+    static func fitted(_ name: String, suffix: String) -> String {
+        let ext = (name as NSString).pathExtension, stem = (name as NSString).deletingPathExtension
+        let keepsExtension = !ext.isEmpty && ext.count <= 10 && !stem.isEmpty
+        let tail = suffix + (keepsExtension ? "." + ext : "")
+        let cut = trimmed(String((keepsExtension ? stem : name).prefix(longestName - tail.count)))
+        return (cut.isEmpty ? "piece-jointe" : cut) + tail
     }
 
     public enum Refusal: Error, Equatable, CustomStringConvertible {
@@ -29,10 +47,10 @@ public enum AttachmentSafety {
     public static func uniqueName(_ name: String, taken: Set<String>) -> String {
         let clean = cleanName(name)
         guard taken.contains(clean) else { return clean }
-        let base = (clean as NSString).deletingPathExtension, ext = (clean as NSString).pathExtension
         var index = 2
         while true {
-            let candidate = ext.isEmpty ? "\(base) \(index)" : "\(base) \(index).\(ext)"
+            // Still 120 characters at most: the stem gives way to the number (review of 16/11).
+            let candidate = fitted(clean, suffix: " \(index)")
             if !taken.contains(candidate) { return candidate }
             index += 1
         }
