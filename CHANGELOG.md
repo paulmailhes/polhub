@@ -3,6 +3,17 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.21.0 — 16 novembre 2026
+
+**Une carte qui reste à l'écran avant une visio.**
+
+- Deux minutes avant un rendez-vous avec Meet, une carte apparaît en haut à droite de l'écran, au-dessus de toutes
+  les apps et sur tous les bureaux : le titre, « Dans 2 min », puis « Maintenant », et un bouton « Rejoindre » à la
+  couleur du compte, qui ouvre le Meet dans Dia avec le bon compte.
+- Contrairement aux notifications de macOS, elle ne part pas seule : elle reste jusqu'à ce que tu rejoignes ou la
+  fermes avec la croix, dix minutes après le début au plus. Rien pour la réunion que Polhub enregistre déjà.
+- Réglages › Notifications : activée, 1, 2 ou 5 minutes avant.
+
 ## 0.20.0 — 16 novembre 2026
 
 **Inspiration : tes sites, ton branding et tes mock-ups quittent Obsidian.**
