@@ -156,7 +156,7 @@ import Testing
     @Test func aNewEventIsARequestCalendrierUsesOnce() {
         let router = WindowRouter()
         let context = CoupDoeilContext(app: AppModel(), router: router)
-        context.newEvent()
+        context.open(.newEvent)
         let first = router.newEventRequest
         #expect(router.section == .calendar && first != nil)
         router.newEvent()

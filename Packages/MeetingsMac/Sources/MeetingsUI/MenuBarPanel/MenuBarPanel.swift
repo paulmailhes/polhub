@@ -9,7 +9,8 @@ import Updates
 
 /// « Coup d'œil », the panel under the menu bar's logo (15/11), built as macOS's Control Center: from top to bottom,
 /// « À régler » (only when something keeps Polhub from working well), the hero (what matters now, one main action),
-/// four fixed tiles (Calendrier, Mails, Réunions, Projets), the new mails of people, four round buttons and the footer.
+/// two fixed tiles (Calendrier, Mails), the new mails of people, three round buttons and the footer (« Tuiles
+/// allégées », Paul, 16/11: nothing said twice).
 /// The grid and the buttons never move; only the banner, the hero's content and the mails change, and go when they
 /// have nothing to say. The rules are in docs/design-system.md, « Coup d'œil ».
 ///
@@ -110,7 +111,6 @@ struct PanelBody: View {
         let meetings = meetings, mailState = mailState, updateState = updateState
         let projects = agenda?.projects ?? []
         let hero = PanelModel.hero(meeting: meeting, events: agenda?.shown, projects: projects, meetings: meetings, now: now)
-        let report = meetings.flatMap { PanelModel.report($0, now: now) }
         let issues = ready ? PanelModel.issues(alerts: app.alerts, accounts: agenda?.accounts ?? [],
                                                mailFailure: mailState?.failure, updates: updateState) : []
         let lines = mailLines(mailState)
@@ -129,8 +129,6 @@ struct PanelBody: View {
                     PanelTiles(context: context,
                                calendar: PanelModel.calendarTile(agenda?.shown, hiding: hero.eventID, now: now),
                                mails: PanelModel.mailsTile(mailState),
-                               meetings: PanelModel.meetingsTile(status: app.status, meetings: meetings, report: report, now: now),
-                               projects: PanelModel.projectsTile(agenda.map { _ in projects }),
                                hasAgenda: agenda != nil, hasMailboxes: mailState?.hasMailboxes ?? false)
                 }
             }
@@ -143,7 +141,7 @@ struct PanelBody: View {
                 .transition(arrival)
             }
             VStack(alignment: .leading, spacing: MenuBarPanel.gap) {
-                PanelButtons(context: context, hasMailboxes: mailState?.hasMailboxes ?? false, hasAgenda: agenda != nil)
+                PanelButtons(context: context, hasMailboxes: mailState?.hasMailboxes ?? false)
                 PanelFooter(context: context, updateLine: PanelModel.updateLine(updateState))
             }
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { bottomHeight = $0 }

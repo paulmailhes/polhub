@@ -2,45 +2,30 @@ import Notifications
 import PolhubDesign
 import SwiftUI
 
-/// The four round buttons of « Coup d'œil » (15/11), as Control Center's toggles: a circle of glass, filled with its
-/// color when it is « on », its name under it. Enregistrer becomes Arrêter (red) during a meeting, Suspendre becomes
-/// Reprendre (orange) while detection is paused. A gesture leaves the panel open; the hero follows.
+/// The three round buttons of « Coup d'œil », as Control Center's toggles: a circle of glass, filled with its color
+/// when it is « on », its name under it. Enregistrer only starts a recording, from rest: a meeting is answered and
+/// stopped in the hero, so Arrêter is never there twice (« Tuiles allégées », Paul, 16/11). Suspendre becomes Reprendre
+/// (orange) while detection is paused. A gesture leaves the panel open; the hero follows.
 struct PanelButtons: View {
     let context: CoupDoeilContext
     let hasMailboxes: Bool
-    let hasAgenda: Bool
 
     private var app: AppModel { context.app }
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
-            record
+            let canRecord = PanelModel.canRecord(app.status)
+            RoundToggle(title: "Enregistrer", systemImage: "record.circle",
+                        help: canRecord ? "Enregistrer le son du Mac maintenant" : "La réunion se règle dans la carte du haut") {
+                context.actions.user(.recordNow)
+            }
+            .disabled(!canRecord)
             if hasMailboxes {
                 RoundToggle(title: "Nouveau mail", systemImage: "square.and.pencil", help: "Écrire un nouveau mail (⌘N)") { context.newMail() }
-            }
-            if hasAgenda {
-                RoundToggle(title: "Rendez-vous", systemImage: "calendar.badge.plus", help: "Créer un rendez-vous") { context.newEvent() }
             }
             detection
         }
         .padding(.top, 2)
-    }
-
-    @ViewBuilder
-    private var record: some View {
-        switch PanelModel.recordToggle(app.status) {
-        case .stop:
-            // A click only: no key ever stops a real meeting by mistake.
-            RoundToggle(title: "Arrêter", systemImage: "stop.fill", lit: true, tint: PanelTint.red, help: "Arrêter l'enregistrement") {
-                context.actions.user(.stop)
-            }
-        case .record(let enabled):
-            RoundToggle(title: "Enregistrer", systemImage: "record.circle", help: enabled ? "Enregistrer le son du Mac maintenant"
-                        : "La réunion détectée se règle dans la carte du haut") {
-                context.actions.user(.recordNow)
-            }
-            .disabled(!enabled)
-        }
     }
 
     @ViewBuilder

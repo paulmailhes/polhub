@@ -179,7 +179,7 @@ import Updates
         meetings.summaryJobs[row.id] = SummaryJobRow(meetingID: row.id, state: .running, updatedAt: now)
         meetings.summaryProgress[row.id] = SummaryProgress(done: 2, total: 5)
         let writing = PanelModel.report(meetings, now: now)
-        #expect(writing?.stageText == "Résumé, partie 3 sur 5" && writing?.tileText == "Résumé 3/5")
+        #expect(writing?.stageText == "Résumé, partie 3 sur 5")
         meetings.summaryJobs[row.id] = SummaryJobRow(meetingID: row.id, state: .done, updatedAt: at(15, 18))
         meetings.overviews[row.id] = "Maquettes validées ; reste la page tarifs."
         let ready = PanelModel.report(meetings, now: now)
@@ -250,31 +250,6 @@ import Updates
         #expect(PanelModel.mailsTile(PanelModel.Mails(unread: unread, hasMailboxes: true, failure: expired)).value == "Atelier Nord déconnecté")
         let offline = PanelModel.Mails.Failure(account: "paul@atelier-nord.fr", text: "The Internet connection appears to be offline.")
         #expect(PanelModel.mailsTile(PanelModel.Mails(unread: unread, hasMailboxes: true, failure: offline)).value == "3 nouveaux")
-    }
-
-    @Test func theMeetingsTileFollowsTheMeeting() {
-        let yesterday = meeting("Point équipe", start: at(10, 0, day: 14), transcribed: at(11, 0, day: 14))
-        var meetings = PanelModel.Meetings(rows: [yesterday], overviews: [yesterday.id: "Tout va bien."])
-        #expect(PanelModel.meetingsTile(status: .recording(title: "Revue", since: now), meetings: meetings, report: nil, now: now, calendar: calendar)
-            == PanelModel.Tile(value: "En cours", detail: "Revue", live: true))
-        #expect(PanelModel.meetingsTile(status: .idle, meetings: meetings, report: nil, now: now, calendar: calendar)
-            == PanelModel.Tile(value: "Point équipe", detail: "Hier · Résumé prêt"))
-        meetings.overviews = [:]
-        meetings.jobs[yesterday.id] = JobRow(meetingID: yesterday.id, state: .done, language: "fr", doubtful: true, createdAt: now)
-        #expect(PanelModel.meetingsTile(status: .idle, meetings: meetings, report: nil, now: now, calendar: calendar).detail == "Hier · À vérifier")
-        let report = PanelModel.Report(meetingID: yesterday.id, title: "Revue de maquettes", seconds: nil, stage: .transcribing(0.58), since: nil, summaryToCome: true)
-        #expect(PanelModel.meetingsTile(status: .idle, meetings: meetings, report: report, now: now, calendar: calendar)
-            == PanelModel.Tile(value: "Transcription 58 %", detail: "Revue de maquettes"))
-        #expect(PanelModel.meetingsTile(status: .idle, meetings: PanelModel.Meetings(), report: nil, now: now, calendar: calendar).value == "Aucune réunion")
-    }
-
-    @Test func theProjectsTileCountsPrioriteDeuxTheMostUrgent() {
-        let projects = [ProjectRow(name: "Refonte site", status: .priorite2, createdAt: now), ProjectRow(name: "Identité", status: .priorite1, createdAt: now),
-                        ProjectRow(name: "Studio photo", status: .priorite2, createdAt: now)]
-        #expect(PanelModel.projectsTile(projects) == PanelModel.Tile(value: "2 en priorité", detail: "Refonte site, Studio photo"))
-        #expect(PanelModel.projectsTile([projects[1]]) == PanelModel.Tile(value: "Rien d'urgent"))
-        #expect(PanelModel.projectsTile([]).value == "Aucun projet")
-        #expect(PanelModel.projectsTile(nil).value == "Aucun projet")
     }
 
     // MARK: - « À régler »
@@ -359,13 +334,13 @@ import Updates
 
     // MARK: - Buttons and keys
 
-    @Test func theRecordButtonBecomesStopDuringAMeeting() {
-        #expect(PanelModel.recordToggle(.idle) == .record(enabled: true))
-        #expect(PanelModel.recordToggle(.paused(until: now)) == .record(enabled: true))
-        // The hero answers a detected meeting.
-        #expect(PanelModel.recordToggle(.prompting(title: "Point")) == .record(enabled: false))
-        #expect(PanelModel.recordToggle(.recording(title: "Point", since: now)) == .stop)
-        #expect(PanelModel.recordToggle(.presumedEnded(title: "Point")) == .stop)
+    /// « Tuiles allégées » (Paul, 16/11): Arrêter is only in the hero; the round button stays Enregistrer, at rest
+    /// while a meeting is detected or recorded.
+    @Test func theRoundButtonOnlyRecords() {
+        #expect(PanelModel.canRecord(.idle) && PanelModel.canRecord(.paused(until: now)))
+        #expect(!PanelModel.canRecord(.prompting(title: "Point")))
+        #expect(!PanelModel.canRecord(.recording(title: "Point", since: now)))
+        #expect(!PanelModel.canRecord(.presumedEnded(title: "Point")))
         #expect(PanelModel.pages == [.home, .projects, .meetings, .calendar, .mails, .contacts])
     }
 }

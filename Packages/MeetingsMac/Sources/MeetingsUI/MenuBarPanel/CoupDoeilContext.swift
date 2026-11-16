@@ -123,9 +123,4 @@ public final class CoupDoeilContext {
         mails.writeNewMail(router: router)
         actions.showMainWindow()
     }
-
-    /// « Rendez-vous »: Calendrier, with the editor of a new event.
-    public func newEvent() {
-        open(.newEvent)
-    }
 }

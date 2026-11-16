@@ -156,21 +156,6 @@ enum PanelModel {
             case .summaryFailed: "Le résumé n'a pas pu se faire"
             }
         }
-
-        /// The tile's short word for it.
-        var tileText: String {
-            switch stage {
-            case .transcriptionWaiting: "En attente"
-            case .transcribing(let value): "Transcription \(Int((value * 100).rounded())) %"
-            case .summaryWaiting: "Résumé en attente"
-            case .summarizing(let progress?) where progress.total > 1 && !progress.finishing:
-                "Résumé \(min(progress.done + 1, progress.total))/\(progress.total)"
-            case .summarizing: "Résumé en cours"
-            case .ready: "Résumé prêt"
-            case .transcriptReady: "Transcription prête"
-            case .transcriptionFailed, .summaryFailed: "Échec"
-            }
-        }
     }
 
     /// The first true, in the fixed order of the brief: detected, recording, presumed end, an event in 15 min or a Meet
@@ -365,8 +350,6 @@ enum PanelModel {
         var value: String
         var detail: String?
         var count: Int?
-        /// A meeting records: a red dot before the value.
-        var live = false
     }
 
     /// Calendrier: the next two events of today (without the hero's), else the next one to come.
@@ -430,41 +413,6 @@ enum PanelModel {
             if names.count == 2 { break }
         }
         return Tile(value: count == 1 ? "1 nouveau" : "\(count) nouveaux", detail: names.joined(separator: ", "))
-    }
-
-    /// Réunions: the meeting under way, the summary on its way, else the last meeting and where it stands.
-    static func meetingsTile(status: RecorderStatus, meetings: Meetings?, report: Report?, now: Date, calendar: Calendar = calendar) -> Tile {
-        switch status {
-        case .recording(let title, _): return Tile(value: "En cours", detail: title, live: true)
-        case .presumedEnded(let title): return Tile(value: "Fin présumée", detail: title, live: true)
-        case .prompting(let title): return Tile(value: "Réunion détectée", detail: title)
-        default: break
-        }
-        if let report, report.isPreparing { return Tile(value: report.tileText, detail: report.title) }
-        guard let meetings else { return Tile(value: "Aucune réunion") }
-        let last = meetings.rows.filter { $0.deletedAt == nil && $0.status != .discarded && $0.status != .pending }
-            .max { $0.startedAt < $1.startedAt }
-        guard let last else { return Tile(value: "Aucune réunion") }
-        let state: String? = if meetings.overviews[last.id] != nil {
-            "Résumé prêt"
-        } else if let badge = TranscriptModel.badge(meetings.jobs[last.id]) {
-            badge
-        } else {
-            last.transcribedAt != nil ? "Transcrite" : nil
-        }
-        // Today, its time: « Aujourd'hui · Résumé prêt » would not fit the tile.
-        let when = calendar.isDate(last.startedAt, inSameDayAs: now) ? clock(last.startedAt, calendar: calendar)
-            : day(last.startedAt, now: now, calendar: calendar, capitalized: true)
-        return Tile(value: last.title, detail: [when, state].compactMap { $0 }.joined(separator: " · "))
-    }
-
-    /// Projets: the Priorité 2 projects (the most urgent, in Paul's scale), in the board's order.
-    static func projectsTile(_ projects: [ProjectRow]?) -> Tile {
-        guard let projects, !projects.isEmpty else { return Tile(value: "Aucun projet") }
-        let urgent = projects.filter { $0.status == .priorite2 }
-        guard !urgent.isEmpty else { return Tile(value: "Rien d'urgent") }
-        return Tile(value: urgent.count == 1 ? "1 en priorité" : "\(urgent.count) en priorité",
-                    detail: urgent.map(\.name).joined(separator: ", "))
     }
 
     // MARK: - « À régler »
@@ -670,17 +618,12 @@ enum PanelModel {
 
     // MARK: - Buttons and keys
 
-    /// The round Enregistrer button: Arrêter while a meeting records; idle only otherwise (the hero answers a prompt).
-    enum RecordToggle: Equatable {
-        case record(enabled: Bool)
-        case stop
-    }
-
-    static func recordToggle(_ status: RecorderStatus) -> RecordToggle {
+    /// The round Enregistrer button (« Tuiles allégées », Paul, 16/11): it only starts a recording, from rest; a meeting
+    /// detected or recorded is answered and stopped in the hero, so Arrêter is never there twice.
+    static func canRecord(_ status: RecorderStatus) -> Bool {
         switch status {
-        case .recording, .presumedEnded: .stop
-        case .idle, .paused: .record(enabled: true)
-        case .prompting: .record(enabled: false)
+        case .idle, .paused: true
+        case .prompting, .recording, .presumedEnded: false
         }
     }
 
