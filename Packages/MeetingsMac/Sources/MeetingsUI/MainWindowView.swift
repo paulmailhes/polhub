@@ -1,4 +1,5 @@
 import Agenda
+import AppKit
 import Domain
 import Persistence
 import ProjectsUI
@@ -153,28 +154,28 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
 /// Where the window is: the app sets it to open a meeting from the menu.
 @MainActor
 public final class WindowRouter: ObservableObject {
-    @Published public var section: SidebarItem = .projects
-    @Published public var selection: UUID?
+    @Published public var section: SidebarItem = .projects { didSet { moved() } }
+    @Published public var selection: UUID? { didSet { moved() } }
     /// A moment to play in the selected meeting, asked by the search.
     @Published public var seekRequest: (meetingID: UUID, seconds: Double)?
     @Published public var query = ""
     /// The family of Réglages entered; `nil` for the list of families.
-    @Published public var settingsPane: SettingsPane?
-    @Published public var contactSelection: UUID?
+    @Published public var settingsPane: SettingsPane? { didSet { moved() } }
+    @Published public var contactSelection: UUID? { didSet { moved() } }
     /// An event Accueil asked Calendrier to open (14/11).
     @Published public var eventSelection: String?
     /// A project Accueil asked Projets to open (review of 14/11).
     @Published public var projectSelection: UUID?
     /// The thread open in Mails (`account|threadID`); `nil` for the list (14/11).
-    @Published public var mailSelection: String?
+    @Published public var mailSelection: String? { didSet { moved() } }
     /// A new event asked for (« Coup d'œil », Calendrier's « + »): Calendrier opens its editor, then clears it. A new
     /// value per request, so that two requests in a row open two editors.
     @Published public var newEventRequest: UUID?
     /// The notifications' panel asked for: the sidebar's bell opens it once on screen, then clears it.
     @Published public var notificationsRequested = false
     /// The page of « Inspiration » shown (Websites, Branding, Mock-ups), and the item open over it (16/11).
-    @Published public var inspirationPage: InspirationKind = .website
-    @Published public var inspirationItem: UUID?
+    @Published public var inspirationPage: InspirationKind = .website { didSet { moved() } }
+    @Published public var inspirationItem: UUID? { didSet { moved() } }
 
     public init() {}
 
@@ -261,6 +262,175 @@ public final class WindowRouter: ObservableObject {
         section = .meetings
         selection = meetingID
         seekRequest = seconds.map { (meetingID, $0) }
+    }
+
+    // MARK: - « Précédent », « Suivant »
+
+    /// Where the window is, for « Précédent » and « Suivant » (Paul, 16/11: « je fais retour sur les pages internet,
+    /// sur n'importe quoi »): the section and what is open in it. The open project and the mails' folder are kept by
+    /// their libraries, which tell the router (`projectChanged`, `mailFolderChanged`) and are asked them back.
+    struct Location: Equatable {
+        var section: SidebarItem
+        var meeting: UUID?
+        var mail: String?
+        var mailFolder: MailFolder
+        var settingsPane: SettingsPane?
+        var contact: UUID?
+        var project: UUID?
+        var inspirationPage: InspirationKind
+        var inspirationItem: UUID?
+    }
+
+    /// The steps kept behind: a long morning of clicks.
+    static let depth = 100
+
+    public var restoreProject: ((UUID?) -> Void)?
+    public var restoreMailFolder: ((MailFolder) -> Void)?
+    private var project: UUID?
+    private var mailFolder: MailFolder = .inbox
+    private var back: [Location] = []
+    private var forward: [Location] = []
+    /// The place the window is at, as last settled; at first, the router's own defaults.
+    private var current = Location(section: .projects, meeting: nil, mail: nil, mailFolder: .inbox, settingsPane: nil, contact: nil,
+                                   project: nil, inspirationPage: .website, inspirationItem: nil)
+    private var restoring = false
+    private var pending = false
+
+    public var canGoBack: Bool { !back.isEmpty || (pending && location != current) }
+    public var canGoForward: Bool { !forward.isEmpty }
+
+    var location: Location {
+        Location(section: section, meeting: selection, mail: mailSelection, mailFolder: mailFolder, settingsPane: settingsPane,
+                 contact: contactSelection, project: project, inspirationPage: inspirationPage, inspirationItem: inspirationItem)
+    }
+
+    /// Projets opened a project, or went back to the grid.
+    public func projectChanged(_ id: UUID?) {
+        guard project != id else { return }
+        project = id
+        moved()
+    }
+
+    /// Mails showed another folder.
+    public func mailFolderChanged(_ folder: MailFolder) {
+        guard mailFolder != folder else { return }
+        mailFolder = folder
+        moved()
+    }
+
+    /// The changes of one gesture (a section and what opens in it) make one step: kept at the end of the turn.
+    private func moved() {
+        guard !restoring, !pending else { return }
+        pending = true
+        DispatchQueue.main.async { [weak self] in self?.settle() }
+    }
+
+    /// The place reached becomes a step; what was ahead goes. A list choosing its first row by itself only refines
+    /// the place.
+    func settle() {
+        pending = false
+        let now = location
+        guard now != current else { return }
+        if Self.refines(now, current) {
+            current = now
+            return
+        }
+        back.append(current)
+        if back.count > Self.depth { back.removeFirst(back.count - Self.depth) }
+        forward.removeAll()
+        current = now
+    }
+
+    /// The meetings' and the contacts' lists choose a row when none is: the same place, refined.
+    static func refines(_ now: Location, _ before: Location) -> Bool {
+        var filled = before
+        if before.meeting == nil { filled.meeting = now.meeting }
+        if before.contact == nil { filled.contact = now.contact }
+        return filled == now
+    }
+
+    /// The window opens: where it is now is the start, nothing behind (the launch's « Accueil » is no step back).
+    public func clearHistory() {
+        pending = false
+        back.removeAll()
+        forward.removeAll()
+        current = location
+    }
+
+    /// The mouse's « Précédent », ⌘[, the trackpad's swipe to the right.
+    public func goBack() {
+        settle()
+        guard let previous = back.popLast() else { return }
+        forward.append(current)
+        restore(previous)
+    }
+
+    /// The mouse's « Suivant », ⌘], the swipe to the left.
+    public func goForward() {
+        settle()
+        guard let next = forward.popLast() else { return }
+        back.append(current)
+        restore(next)
+    }
+
+    private func restore(_ place: Location) {
+        restoring = true
+        defer { restoring = false }
+        section = place.section
+        selection = place.meeting
+        mailSelection = place.mail
+        settingsPane = place.settingsPane
+        contactSelection = place.contact
+        inspirationPage = place.inspirationPage
+        inspirationItem = place.inspirationItem
+        project = place.project
+        restoreProject?(place.project)
+        mailFolder = place.mailFolder
+        restoreMailFolder?(place.mailFolder)
+        current = place
+        pending = false
+    }
+}
+
+/// What goes back and what goes forward (Paul, 16/11): the mouse's side buttons, ⌘[ and ⌘] (by where they are on the
+/// keyboard, as Safari, whatever its layout), ⌘← and ⌘→ outside a text being written, the trackpad's swipe.
+public enum NavigationInput {
+    public enum Direction: Equatable, Sendable { case back, forward }
+
+    public enum Gesture: Equatable {
+        case mouse(button: Int)
+        case key(code: UInt16, modifiers: NSEvent.ModifierFlags, editingText: Bool)
+        case swipe(deltaX: CGFloat)
+    }
+
+    static let leftBracket: UInt16 = 33, rightBracket: UInt16 = 30, leftArrow: UInt16 = 123, rightArrow: UInt16 = 124
+
+    public static func direction(_ gesture: Gesture) -> Direction? {
+        switch gesture {
+        case .mouse(let button):
+            return button == 3 ? .back : button == 4 ? .forward : nil
+        case .key(let code, let modifiers, let editingText):
+            guard modifiers.intersection([.command, .option, .control, .shift]) == .command else { return nil }
+            switch code {
+            case leftBracket: return .back
+            case rightBracket: return .forward
+            case leftArrow: return editingText ? nil : .back
+            case rightArrow: return editingText ? nil : .forward
+            default: return nil
+            }
+        case .swipe(let deltaX):
+            return deltaX > 0 ? .back : deltaX < 0 ? .forward : nil
+        }
+    }
+
+    /// An event of the window, read.
+    public static func direction(of event: NSEvent, editingText: Bool) -> Direction? {
+        switch event.type {
+        case .otherMouseDown: direction(.mouse(button: event.buttonNumber))
+        case .keyDown: direction(.key(code: event.keyCode, modifiers: event.modifierFlags, editingText: editingText))
+        case .swipe: direction(.swipe(deltaX: event.deltaX))
+        default: nil
+        }
     }
 }
 

@@ -51,6 +51,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var agendaTimer: Timer?
     /// The notifications (14/11): reminders, new events, meetings not recorded, summaries ready.
     private var notifications: NotificationHub?
+    /// « Précédent », « Suivant »: the window's events read, the libraries followed.
+    private var navigationMonitor: Any?
+    private var navigationObservers: [AnyCancellable] = []
     /// The card that stays at the top right before a Meet (16/11); nil in the development build.
     private var meetingCards: MeetingCardPresenter?
     private var meetingCardsLook = Date.distantPast
@@ -596,10 +599,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             window.setFrameAutosaveName("Polhub.main")
             window.center()
             mainWindow = window
+            router.clearHistory()
+            followNavigation()
         }
         NSApp.setActivationPolicy(.regular)
         mainWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate()
+    }
+
+    /// « Précédent » and « Suivant » in the window (Paul, 16/11: his mouse's side buttons, as in a browser): the
+    /// mouse's buttons, ⌘[ ⌘], ⌘← ⌘→ outside a text, the trackpad's swipe; the open project and the mails' folder told
+    /// to the router, and given back by it.
+    private func followNavigation() {
+        guard navigationMonitor == nil else { return }
+        let router = router
+        router.restoreProject = { [weak self] id in self?.projects?.selected = id }
+        router.restoreMailFolder = { [weak self] folder in self?.mails?.folder = folder }
+        if let projects {
+            navigationObservers.append(projects.$selected.sink { id in MainActor.assumeIsolated { router.projectChanged(id) } })
+        }
+        if let mails {
+            navigationObservers.append(mails.$folder.sink { folder in MainActor.assumeIsolated { router.mailFolderChanged(folder) } })
+        }
+        navigationMonitor = NSEvent.addLocalMonitorForEvents(matching: [.otherMouseDown, .keyDown, .swipe]) { [weak self] event in
+            let handled: Bool = MainActor.assumeIsolated {
+                guard let window = self?.mainWindow, event.window === window else { return false }
+                switch NavigationInput.direction(of: event, editingText: window.firstResponder is NSTextView) {
+                case .back?: router.goBack()
+                case .forward?: router.goForward()
+                case nil: return false
+                }
+                return true
+            }
+            return handled ? nil : event
+        }
     }
 
     func showMeeting(_ id: UUID) {
