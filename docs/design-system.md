@@ -164,7 +164,8 @@ rien** : il change un fond, une ombre, une échelle, jamais une marge ni la plac
 
 ## Le logo de la barre des menus
 
-Une image monochrome de 18 × 16 que la barre colore seule (`MenuBarGlyph`, `MenuBarLabel`, module `MeetingsUI`).
+Une image monochrome de 18 × 16 (22 de large avec la pastille) que la barre colore seule (`MenuBarGlyph`,
+`MenuBarLabel`, module `MeetingsUI`).
 Une seule règle : **plein**, Polhub guette les réunions ; **en contour**, il ne les guette pas ; **rouge**, il
 enregistre des voix. Rien n'y bouge : l'image change seulement avec l'état.
 
@@ -176,9 +177,11 @@ enregistre des voix. Rien n'y bouge : l'image change seulement avec l'état.
 | Détection suspendue, version de développement | les trois colonnes en contour |
 | Repos | les trois colonnes pleines ; « 8 min » à côté dans le quart d'heure avant un Meet (Réglages › Général) |
 
-Une pastille découpée en haut à droite s'ajoute aux colonnes quand un enregistrement est menacé (onglets de Dia
-illisibles, autotest raté, disque presque plein, piste en échec) ; elle disparaît seule quand la cause n'existe
-plus. Les mails, les notifications, les comptes et les mises à jour ne touchent jamais le logo.
+Une pastille découpée sur le coin en haut à droite s'ajoute aux colonnes quand un enregistrement est menacé (onglets
+de Dia illisibles, autotest raté, disque presque plein, piste en échec) ; elle déborde du coin, et la troisième
+colonne garde toute sa hauteur, mordue en haut : posée sur la colonne, elle se lisait comme le point d'un « i ». Elle
+disparaît seule quand la cause n'existe plus. Les mails, les notifications, les comptes et les mises à jour ne
+touchent jamais le logo.
 
 ## Coup d'œil
 
@@ -189,31 +192,41 @@ Centre de contrôle. La logique vit à part, testée sans écran (`PanelModel`).
   Réunions, Projets), « Nouveaux mails », quatre boutons ronds, le pied (Ouvrir Polhub, la cloche, Réglages, « ⋯ »).
   La grille et les boutons ne bougent jamais ; le bandeau, le contenu de la vedette et les mails partent quand ils
   n'ont rien à dire.
-- **Mesures** : 360 points de large, marges de 14, écarts de 10 ; tuiles de 161 × 80 (rayon 16), vedette de rayon 22 ;
-  hauteur selon le contenu, au plus 640 points (ou l'écran moins 40). Au-delà, seule la liste des mails défile ; si
-  même un mail n'y tient plus, la carte part et la tuile Mails garde le nombre.
+- **Mesures** : 360 points de large, marges de 14, écarts de 10 ; tuiles de 161 × 80 (rayon 16), vedette de rayon 22 et
+  de 90 à 130 points de haut (une exception : « Réunion détectée » avec un lien Meet, les cinq lignes de la maquette,
+  environ 146 points pendant ses 10 secondes) ; hauteur selon le contenu, au plus 640 points (ou l'écran moins 40).
+  Au-delà, seule la carte des mails cède, par lignes entières (jamais un mail coupé à travers son objet) : les mails
+  qui tiennent, puis son seul en-tête avec « Voir les N nouveaux » ; si même cela ne tient plus, elle part et la tuile
+  Mails garde le nombre.
 - **La vedette** montre la première situation vraie, dans cet ordre : réunion détectée (le même décompte que le HUD),
   enregistrement (rouge, l'horloge), fin présumée (orange), rendez-vous dans 15 min ou Meet commencé sans
   enregistrement (couleur du compte), détection suspendue (gris), compte rendu en préparation ou prêt depuis moins de
   2 h (violet), sinon la journée (« Libre jusqu'à 16:30 », « Plus rien aujourd'hui »). Une carte calme teintée à 10 %
   (16 % en sombre), titre en 17 points, horloge en 22 points à chiffres fixes ; une action principale en
-  `.glassProminent` (↩), au plus une secondaire en `.glass`. Elle change en fondu (`Motion.gentle`).
+  `.glassProminent` (↩), au plus une secondaire en `.glass`, de taille normale. Elle change en fondu (`Motion.gentle`).
+  « Réunion détectée » suit la maquette : le décompte, le titre, « S'enregistre seule dans 7 s », les deux réponses,
+  puis « Jamais pour ce lien » dessous, seulement pour un lien Meet. Un Meet enregistré puis fini dans son créneau n'est
+  jamais « pas enregistrée » : son compte rendu en préparation prend la place.
 - **Les tuiles** : l'icône de la section dans sa couleur et son nom (13 points), la valeur (15 points), une ligne de
   détail (13 points), un nombre en haut à droite pour Calendrier. Un plateau clair sur le verre du panneau
   (`PanelSurface`), `.cardHover` au survol ; un clic ouvre la page puis la fenêtre (⌘1 à ⌘6 dans l'ordre de la barre
   latérale).
 - **« À régler »** : une carte orange calme, une ligne par cause, trois au plus, la plus risquée pour les
-  enregistrements d'abord (alertes, compte Google à reconnecter, mise à jour en échec ou en attente de Paul). Une erreur
-  de réseau n'y va jamais. Une version qui attend la fin d'une réunion est une ligne grise du pied.
+  enregistrements d'abord (alertes, compte Google à reconnecter, mise à jour en échec ou en attente de Paul) ; le
+  détail de chaque cause sur deux lignes au plus. Une erreur de réseau n'y va jamais. Une version qui attend la fin
+  d'une réunion est une ligne grise du pied.
 - **« Nouveaux mails »** : les non-lus de la Boîte de réception (jamais Notifications), ceux d'un projet d'abord (le
-  point à sa couleur), puis les contacts connus, puis les autres ; trois au plus, puis « Voir les N autres ». Au
-  survol, « Marquer comme lu » se pose sur l'heure, sans rien décaler. Cachée pendant une réunion.
+  point à sa couleur), puis les contacts connus, puis les autres ; trois au plus, puis « Voir les N autres », qui
+  compte tous ceux qu'elle ne montre pas. Au survol, « Marquer comme lu » se pose sur l'heure, sur la ligne de
+  l'expéditeur, sans rien décaler ni couvrir l'objet. Cachée pendant une réunion.
 - **Les boutons ronds** : 44 points de verre, leur nom en 12 points dessous, pleins de leur couleur quand ils sont
-  allumés (Arrêter rouge, Reprendre orange). Arrêter se fait au clic, jamais au clavier.
+  allumés (Arrêter rouge, Reprendre orange, comme le Reprendre de la vedette). Arrêter se fait au clic, jamais au
+  clavier.
 - **Le verre** ne sert qu'aux boutons ; tuiles, vedette et cartes sont calmes, jamais de verre sous du texte.
-- **Le temps** : le panneau ne lit jamais `AppModel.now` ; il suit une horloge de 30 s, et le décompte comme l'horloge
-  d'un enregistrement ont leur propre `TimelineView` à la seconde. Il ne lit que ce qui est déjà en mémoire : ni base,
-  ni réseau, ni essai matériel.
+- **Le temps** : le panneau ne lit jamais `AppModel.now` ; il suit une horloge de 30 s calée sur les demi-minutes
+  (`PanelModel.clock`), si bien que « dans 8 min » tourne en même temps que le « 8 min » de la barre ; le décompte comme
+  l'horloge d'un enregistrement ont leur propre `TimelineView` à la seconde. Il ne lit que ce qui est déjà en mémoire :
+  ni base, ni réseau, ni essai matériel.
 - **Avec « Réduire les animations »**, il ne reste que des fondus.
 
 ## Les réglages

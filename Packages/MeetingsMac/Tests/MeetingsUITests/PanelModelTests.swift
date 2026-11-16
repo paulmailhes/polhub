@@ -110,6 +110,58 @@ import Updates
         #expect(PanelModel.upcoming([event("Plus tard", at(15, 40))], now: now, calendar: calendar) == nil)
     }
 
+    /// A Meet recorded, then ended inside its slot (the tab closed, the presumed end ran out), is not « pas
+    /// enregistrée »: its summary on its way shows instead (finding of 16/11, as the notification of a meeting not
+    /// recorded).
+    @Test func aMeetRecordedThenEndedInItsSlotIsNotUnrecorded() {
+        let long = event("Atelier", at(14, 0), minutes: 120)
+        var recorded = meeting("Atelier", start: at(14, 2), minutes: 38)
+        recorded.meetCode = long.meetCode
+        #expect(PanelModel.upcoming([long], recorded: [recorded], now: now, calendar: calendar) == nil)
+        // A short one, a moment ago.
+        let late = event("Point client", at(15, 15))
+        var short = meeting("Point client", start: at(15, 16), minutes: 4)
+        short.meetCode = late.meetCode
+        #expect(PanelModel.upcoming([late], recorded: [short], now: now, calendar: calendar) == nil)
+        // Recorded with « Enregistrer » (the whole Mac, no Meet code) during its slot: recorded too.
+        let whole = meeting("Enregistrement", start: at(14, 5), minutes: 30, source: .wholeMac)
+        #expect(PanelModel.upcoming([long], recorded: [whole], now: now, calendar: calendar) == nil)
+        // Another Meet recorded, or this one long before, or a recording thrown away: still not recorded.
+        var other = recorded
+        other.meetCode = "zzz-zzzz-zzz"
+        #expect(PanelModel.upcoming([long], recorded: [other], now: now, calendar: calendar)?.started == true)
+        var before = recorded
+        before.startedAt = at(13, 0)
+        #expect(PanelModel.upcoming([long], recorded: [before], now: now, calendar: calendar)?.event == long)
+        var thrown = recorded
+        thrown.status = .discarded
+        #expect(PanelModel.upcoming([long], recorded: [thrown], now: now, calendar: calendar)?.event == long)
+        // The next event still comes.
+        let next = event("Revue", at(15, 30), meet: false)
+        #expect(PanelModel.upcoming([long, next], recorded: [recorded], now: now, calendar: calendar)?.event == next)
+        // The hero: the summary on its way, never « Enregistrer » after Paul left.
+        let meetings = PanelModel.Meetings(rows: [recorded], jobs: [recorded.id: JobRow(meetingID: recorded.id, state: .running, language: "fr",
+                                                                                         progress: 0.3, createdAt: now)])
+        let hero = PanelModel.hero(meeting: PanelModel.Meeting(), events: [long], meetings: meetings, now: now, calendar: calendar)
+        guard case .report(let report) = hero else { Issue.record("expected the report, got \(hero)"); return }
+        #expect(report.meetingID == recorded.id)
+    }
+
+    /// « dans 8 min » turns with the menu bar's « 8 min » (finding of 16/11): the panel's clock ticks on the whole
+    /// half-minutes, and an event starts on a whole minute, so both read the same number between two ticks.
+    @Test func theHerosMinutesTurnWithTheLogos() {
+        let start = at(16, 30)
+        let opened = at(16, 14).addingTimeInterval(17.3)
+        let ticks = Array(PanelModel.clock.entries(from: opened, mode: .normal).prefix(40))
+        #expect(ticks.count == 40)
+        for (tick, next) in zip(ticks, ticks.dropFirst()) {
+            let shown = MenuBarLabel.minutes(before: start, now: tick.addingTimeInterval(0.001))
+            for offset in [0.5, 10, 20, next.timeIntervalSince(tick) - 0.01] {
+                #expect(MenuBarLabel.minutes(before: start, now: tick.addingTimeInterval(offset)) == shown, "à \(tick) + \(offset) s")
+            }
+        }
+    }
+
     @Test func theDaySaysWhatIsUnderWayOrWhenItIsFree() {
         #expect(PanelModel.dayLine([event("Déjeuner", at(15, 0), minutes: 60, meet: false)], now: now, calendar: calendar) == "Déjeuner, jusqu'à 16:00")
         #expect(PanelModel.dayLine([event("Revue", at(16, 30))], now: now, calendar: calendar) == "Libre jusqu'à 16:30")
@@ -266,16 +318,35 @@ import Updates
         #expect(PanelModel.firstName("Camille Martin") == "Camille" && PanelModel.firstName("\"Léa\"") == "Léa")
     }
 
-    /// Under the cap of 640 points, only the mails' list gives way; not even one mail left, the card goes.
-    @Test func onlyTheMailsListGivesWayUnderTheCap() {
+    /// Under the cap of 640 points, only the mails' card gives way, by whole rows (finding of 16/11: a row cut through
+    /// its subject): the rows that fit, then only its header and « Voir les N nouveaux »; the card goes only when not
+    /// even that fits.
+    @Test func onlyTheMailsCardGivesWayUnderTheCapByWholeRows() {
         // Room for all three.
-        #expect(PanelModel.mailListHeight(cap: 640, fixed: 400, chrome: 70, gap: 10, rows: 150) == 150)
-        // Room for part of them: the list scrolls.
-        #expect(PanelModel.mailListHeight(cap: 640, fixed: 480, chrome: 70, gap: 10, rows: 150) == 80)
-        // Not one row: the card goes, the Mails tile still counts them.
-        #expect(PanelModel.mailListHeight(cap: 640, fixed: 530, chrome: 70, gap: 10, rows: 150) == nil)
-        // One short mail still fits where it fits.
-        #expect(PanelModel.mailListHeight(cap: 640, fixed: 520, chrome: 70, gap: 10, rows: 40) == 40)
+        #expect(PanelModel.mailRowsShown(cap: 640, fixed: 400, chrome: 66, gap: 10, rowHeight: 45, count: 3) == 3)
+        // Room for 1.6 rows: one, whole, never half of the next.
+        #expect(PanelModel.mailRowsShown(cap: 640, fixed: 490, chrome: 66, gap: 10, rowHeight: 45, count: 3) == 1)
+        // Room for exactly two.
+        #expect(PanelModel.mailRowsShown(cap: 640, fixed: 474, chrome: 66, gap: 10, rowHeight: 45, count: 3) == 2)
+        // A row of 45 points fits in 45, whatever the rounding of the measures.
+        #expect(PanelModel.mailRowsShown(cap: 640, fixed: 518.6, chrome: 66.2, gap: 10, rowHeight: 45.3, count: 3) == 1)
+        // Not one row: the header and its link stay; the Mails tile still counts them.
+        #expect(PanelModel.mailRowsShown(cap: 640, fixed: 541, chrome: 66, gap: 10, rowHeight: 45, count: 3) == 0)
+        // Not even the header: the card goes.
+        #expect(PanelModel.mailRowsShown(cap: 640, fixed: 580, chrome: 66, gap: 10, rowHeight: 45, count: 3) == nil)
+        // Before the rows were measured: all of them, the panel measures them next.
+        #expect(PanelModel.mailRowsShown(cap: 640, fixed: 580, chrome: 66, gap: 10, rowHeight: 0, count: 2) == 2)
+    }
+
+    /// « Voir les N autres » counts every mail the card does not show (finding of 16/11).
+    @Test func theLinkCountsEveryMailNotShown() {
+        #expect(PanelModel.moreMails(total: 5, shown: 3) == "Voir les 2 autres")
+        #expect(PanelModel.moreMails(total: 5, shown: 1) == "Voir les 4 autres")
+        #expect(PanelModel.moreMails(total: 4, shown: 3) == "Voir l'autre")
+        #expect(PanelModel.moreMails(total: 3, shown: 3) == nil)
+        // Only the header left: the link names them all.
+        #expect(PanelModel.moreMails(total: 5, shown: 0) == "Voir les 5 nouveaux")
+        #expect(PanelModel.moreMails(total: 1, shown: 0) == "Voir le nouveau")
     }
 
     // MARK: - Buttons and keys

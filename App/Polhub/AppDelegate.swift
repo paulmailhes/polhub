@@ -235,7 +235,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     }
 
     /// What the menu bar needs besides the coordinator (« Coup d'œil », 15/11): the next Meet, from the events as they
-    /// change; the free space while the disk alert is up (a statfs a minute, never during a quiet disk).
+    /// change; the free space while a meeting records or the disk alert is up (a statfs a minute, never otherwise), so
+    /// the badge follows the disk, back in the same meeting if it fills again.
     private func followAlertCauses() {
         if let agenda {
             nextMeetObserver = agenda.$shown.sink { [weak self] events in
@@ -245,7 +246,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let root = paths.root
         alertTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
-                guard let self, self.model.alerts.contains(where: { $0.kind == .diskLow }) else { return }
+                guard let self, self.model.needsDiskCheck else { return }
                 self.model.checkDisk(availableBytes: DiskGuard.availableBytes(at: root))
             }
         }
@@ -549,12 +550,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             }
         )
         diagnostic = model
+        // The others' sound is captured again, by a check just run (never an earlier « ok » left in the list, when
+        // another line is checked): the self-test's alert goes.
+        model.systemAudioChecked = { [weak self] state in
+            if state == .ok { self?.model.resolve(.selfTestFailed) }
+        }
         let defaults = UserDefaults.standard
-        checklistObserver = model.$states.sink { [weak model, weak self] states in
+        checklistObserver = model.$states.sink { [weak model] _ in
             Task { @MainActor in
                 if model?.allGood == true { defaults.set(true, forKey: Self.checklistDoneKey) }
-                // The others' sound is captured again (Paul ran the check): the self-test's alert goes.
-                if states[.systemAudio] == .ok { self?.model.resolve(.selfTestFailed) }
             }
         }
 

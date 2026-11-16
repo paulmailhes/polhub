@@ -42,25 +42,26 @@ struct PanelHero: View {
     // MARK: - The meeting
 
     /// The HUD's question, here too, with the same countdown: both answers go through the coordinator, so the HUD
-    /// and the panel close together.
+    /// and the panel close together. As the brief's mockup: what happens at the end of the countdown under the title,
+    /// the two answers, then « Jamais pour ce lien » under them, only for a Meet link.
     private func detected(title: String, deadline: Date, canForget: Bool) -> some View {
-        HeroCard(tint: PanelTint.red) {
+        // Aligned on the deadline, so both turn with the HUD's.
+        let countdown = PeriodicTimelineSchedule(from: deadline.addingTimeInterval(-60), by: 1)
+        return HeroCard(tint: PanelTint.red) {
             HStack(alignment: .firstTextBaseline) {
                 HeroEyebrow("Réunion détectée", systemImage: "record.circle", tint: PanelTint.red)
                 Spacer(minLength: Space.s)
-                // Aligned on the deadline, so it turns with the HUD's.
-                TimelineView(.periodic(from: deadline.addingTimeInterval(-60), by: 1)) { timeline in
+                TimelineView(countdown) { timeline in
                     Text("\(HUDText.remaining(until: deadline, now: timeline.date)) s")
-                        .font(HeroFont.clock)
+                        .font(HeroMetrics.clock)
                         .contentTransition(reduceMotion ? .identity : .numericText(countsDown: true))
                         .animation(Motion.quick, value: HUDText.remaining(until: deadline, now: timeline.date))
                 }
             }
             HeroTitle(title)
-            if canForget {
-                PanelLink("Jamais pour ce lien", help: "Ne plus jamais enregistrer ce lien Meet") { actions.user(.neverForThisLink) }
-            } else {
-                HeroDetail("S'enregistre toute seule à la fin du décompte")
+            TimelineView(countdown) { timeline in
+                HeroDetail("S'enregistre seule dans \(HUDText.remaining(until: deadline, now: timeline.date)) s")
+                    .monospacedDigit()
             }
             HStack(spacing: Space.s) {
                 Button { actions.user(.decline) } label: { Text("Pas cette fois").frame(maxWidth: .infinity) }
@@ -75,8 +76,13 @@ struct PanelHero: View {
                 .keyboardShortcut(.defaultAction)
                 .help("Enregistrer maintenant (↩)")
             }
-            .controlSize(.large)
-            .padding(.top, Space.xs)
+            .controlSize(HeroMetrics.buttons)
+            .padding(.top, HeroMetrics.aboveButtons)
+            if canForget {
+                PanelLink("Jamais pour ce lien", help: "Ne plus jamais enregistrer ce lien Meet") { actions.user(.neverForThisLink) }
+                    // Its capsule spills into the gaps: the line costs only its text.
+                    .padding(.vertical, -2)
+            }
         }
     }
 
@@ -88,7 +94,7 @@ struct PanelHero: View {
                 Spacer(minLength: Space.s)
                 TimelineView(.periodic(from: since, by: 1)) { timeline in
                     Text(DurationText.clock(Int(timeline.date.timeIntervalSince(since))))
-                        .font(HeroFont.clock)
+                        .font(HeroMetrics.clock)
                 }
             }
             HeroTitle(title)
@@ -184,9 +190,11 @@ struct PanelHero: View {
             HStack(alignment: .center, spacing: Space.m) {
                 HeroTitle("Jusqu'à \(PanelModel.clock(until))")
                 Spacer(minLength: Space.s)
+                // Orange, as the lit round Reprendre under it: one action, one color, whatever the Mac's accent.
                 Button { actions.resumeDetection() } label: { Label("Reprendre", systemImage: "play.fill") }
                     .buttonStyle(.glassProminent)
-                    .controlSize(.large)
+                    .tint(PanelTint.orange)
+                    .controlSize(HeroMetrics.buttons)
                     .keyboardShortcut(.defaultAction)
                     .help("Reprendre la détection (↩)")
             }
@@ -235,13 +243,15 @@ struct PanelHero: View {
                 // Where it stands, and the way to the meeting, on one line.
                 HStack(alignment: .center, spacing: Space.s) {
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(report.stageText).font(.meta.weight(.semibold).monospacedDigit())
+                        Text(report.stageText).font(.meta.weight(.semibold).monospacedDigit()).lineLimit(1)
                         if case .transcribing = report.stage, report.summaryToCome {
-                            Text("Puis le résumé").font(.meta).foregroundStyle(.secondary)
+                            Text("Puis le résumé").font(.meta).foregroundStyle(.secondary).lineLimit(1)
                         }
                     }
+                    // Where it stands, on one line: the button keeps its size, the text takes the rest first.
+                    .layoutPriority(1)
                     Spacer(minLength: Space.s)
-                    reportAction(report).controlSize(.large)
+                    reportAction(report).controlSize(HeroMetrics.buttons)
                 }
                 .padding(.top, 2)
             } else {
@@ -312,7 +322,7 @@ struct PanelHero: View {
                     .foregroundStyle(.tertiary)
             }
             .padding(Space.l)
-            .frame(maxWidth: .infinity, minHeight: 80, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: HeroMetrics.minHeight, alignment: .leading)
             .background(PanelSurface.card, in: RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
             .contentShape(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
         }
@@ -323,16 +333,28 @@ struct PanelHero: View {
 
 // MARK: - The hero's pieces
 
-/// The hero's sizes. Larger than the brief's `.title3` / `.title2`, which are 15 and 17 points on macOS: the hero's
+/// The hero's sizes. Its text is larger than the brief's `.title3` / `.title2`, which are 15 and 17 points on macOS: the hero's
 /// title would be no larger than a tile's value.
-enum HeroFont {
+enum HeroMetrics {
     /// 17 points (`.title2` on macOS).
     static let title = Font.title2.weight(.semibold)
     /// 22 points with fixed digits (`.title` on macOS): the recording's clock, the countdown.
     static let clock = Font.title.weight(.semibold).monospacedDigit()
+    /// The buttons' size: the regular one, the large took the hero past 130 points (finding of 16/11).
+    static let buttons = ControlSize.regular
+    /// The buttons' gap to the text, besides the card's spacing (4 points): none, the glass of a button draws its own
+    /// margin.
+    static let aboveButtons: CGFloat = 0
+    /// The card's padding: 16 on the sides, 12 above, 10 below, where a button's glass draws its own margin.
+    static let padding = EdgeInsets(top: Space.m, leading: Space.l, bottom: 10, trailing: Space.l)
+    /// The brief's floor: the day, alone in its card, is not shorter than the others.
+    static let minHeight: CGFloat = 90
 }
 
-/// The hero's card: its color at 10 % (16 % in dark), a firmer edge of it, radius 22. No glass under its text.
+/// The hero's card: its color at 10 % (16 % in dark), a firmer edge of it, radius 22. No glass under its text. From
+/// 90 to 130 points tall, as the brief wants, so the grid under it moves little from one state to the next: a little
+/// less padding above and below than on the sides, buttons of the regular size. One exception: « Réunion détectée »
+/// with a Meet link, the five lines of the brief's mockup, for its ten seconds.
 private struct HeroCard<Content: View>: View {
     let tint: Color
     let content: Content
@@ -346,8 +368,8 @@ private struct HeroCard<Content: View>: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: Radius.hero, style: .continuous)
         VStack(alignment: .leading, spacing: Space.xs) { content }
-            .padding(Space.l)
-            .frame(maxWidth: .infinity, minHeight: 90, alignment: .topLeading)
+            .padding(HeroMetrics.padding)
+            .frame(maxWidth: .infinity, minHeight: HeroMetrics.minHeight, alignment: .topLeading)
             .background(PanelTint.fill(tint, dark: scheme == .dark), in: shape)
             .overlay(shape.strokeBorder(PanelTint.edge(tint, dark: scheme == .dark)))
     }
@@ -431,7 +453,7 @@ private struct HeroTitle: View {
 
     var body: some View {
         Text(text)
-            .font(HeroFont.title)
+            .font(HeroMetrics.title)
             .lineLimit(lines)
             .fixedSize(horizontal: false, vertical: true)
     }
@@ -471,7 +493,7 @@ private struct HeroButtons<Secondary: View, Primary: View>: View {
             Spacer(minLength: Space.s)
             primary
         }
-        .controlSize(.large)
-        .padding(.top, Space.s)
+        .controlSize(HeroMetrics.buttons)
+        .padding(.top, HeroMetrics.aboveButtons)
     }
 }

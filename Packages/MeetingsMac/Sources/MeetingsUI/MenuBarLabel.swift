@@ -72,7 +72,7 @@ public struct MenuBarLabel: Equatable, Sendable {
     public var image: NSImage {
         switch icon {
         case .recording: Self.redCircle
-        case .listening: Self.symbol("record.circle", description: "Réunion détectée")
+        case .listening: Self.listening
         case .columns(let style, let badge): MenuBarGlyph.image(style: style, badge: badge)
         }
     }
@@ -85,6 +85,10 @@ public struct MenuBarLabel: Equatable, Sendable {
         image.isTemplate = false
         return image
     }()
+
+    /// Drawn once, as the others: the menu bar asks for its label twice a second, and a new image each time would be a
+    /// new label for it.
+    @MainActor static let listening = symbol("record.circle", description: "Réunion détectée")
 
     @MainActor static func symbol(_ name: String, description: String) -> NSImage {
         let image = NSImage(systemSymbolName: name, accessibilityDescription: description) ?? NSImage()

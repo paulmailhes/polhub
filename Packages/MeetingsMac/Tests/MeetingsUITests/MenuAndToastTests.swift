@@ -77,6 +77,15 @@ import Testing
         #expect(MenuBarLabel(icon: .columns(.filled, badge: true), text: nil).image.isTemplate)
     }
 
+    /// The menu bar asks for its label twice a second: each look is drawn once, the circle of a detected meeting
+    /// too (finding of 16/11), so its image changes only with the state.
+    @Test func eachLookIsDrawnOnce() {
+        _ = NSApplication.shared
+        for icon in [MenuBarLabel.Icon.recording, .listening, .columns(.filled, badge: false), .columns(.outline, badge: true)] {
+            #expect(MenuBarLabel(icon: icon, text: nil).image === MenuBarLabel(icon: icon, text: "7 s").image)
+        }
+    }
+
     @Test func aToastWaitsForThePromptToClose() {
         var queue = HUDQueue()
         let prompt = HUDContent.prompt(title: "Point", deadline: Date(timeIntervalSince1970: 0))
@@ -123,7 +132,8 @@ import Testing
             for badge in [false, true] {
                 let image = MenuBarGlyph.image(style: style, badge: badge)
                 #expect(image.isTemplate)
-                #expect(image.size.height == 16 && image.size.width == 18)
+                // The badge spills past the corner: its image is wider.
+                #expect(image.size.height == 16 && image.size.width == (badge ? 22 : 18))
             }
         }
         let rects = MenuBarGlyph.columns(in: NSRect(x: 0, y: 0, width: 18, height: 16))
@@ -134,14 +144,16 @@ import Testing
         #expect(rects.allSatisfy { $0.minX >= 0 && $0.maxX <= 18 && $0.minY >= 0 && $0.maxY <= 16 })
     }
 
-    /// The image drawn at 1 point per pixel: the ink at a point, from 0 to 1.
+    /// The image drawn at 4 pixels per point: the ink at a point, from 0 to 1.
     private func ink(style: MenuBarGlyph.Style, badge: Bool) throws -> (CGFloat, CGFloat) -> CGFloat {
         let scale: CGFloat = 4
-        let rep = try #require(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 72, pixelsHigh: 64, bitsPerSample: 8, samplesPerPixel: 4,
-                                                hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+        let size = MenuBarGlyph.size(badge: badge)
+        let rep = try #require(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width * scale), pixelsHigh: Int(size.height * scale),
+                                                bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+                                                bytesPerRow: 0, bitsPerPixel: 0))
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
-        MenuBarGlyph.image(style: style, badge: badge).draw(in: NSRect(x: 0, y: 0, width: 72, height: 64))
+        MenuBarGlyph.image(style: style, badge: badge).draw(in: NSRect(x: 0, y: 0, width: size.width * scale, height: size.height * scale))
         NSGraphicsContext.restoreGraphicsState()
         // AppKit's points count from the bottom, the bitmap's rows from the top.
         return { x, y in rep.colorAt(x: Int(x * scale), y: Int((16 - y) * scale))?.alphaComponent ?? 0 }
@@ -164,12 +176,24 @@ import Testing
         let badged = try ink(style: .filled, badge: true)
         let center = MenuBarGlyph.badgeCenter
         #expect(badged(center.x, center.y) > 0.9)
-        // A ring cut around it, where the third column was inked.
-        let ring = NSPoint(x: center.x, y: center.y - MenuBarGlyph.badgeRadius - MenuBarGlyph.badgeGap / 2)
+        // A ring cut around it, on its side of the third column, where the column was inked.
+        let ring = NSPoint(x: center.x - MenuBarGlyph.badgeRadius - MenuBarGlyph.badgeGap / 2, y: center.y)
         #expect(plain(ring.x, ring.y) > 0.9)
         #expect(badged(ring.x, ring.y) < 0.2)
-        // The first column is untouched.
-        let first = MenuBarGlyph.columns(in: NSRect(x: 0, y: 0, width: 18, height: 16))[0]
-        #expect(badged(first.midX, first.maxY - 1) > 0.9)
+        // The first two columns are untouched.
+        let columns = MenuBarGlyph.columns(in: NSRect(x: 0, y: 0, width: 18, height: 16))
+        #expect(badged(columns[0].midX, columns[0].maxY - 1) > 0.9)
+        #expect(badged(columns[1].maxX - 0.3, columns[1].maxY - 1.5) > 0.9)
+    }
+
+    /// The badge sits on the corner, mostly outside the third column, which keeps its full height: centred on it, the
+    /// column became a stem under a dot, an « i » at real size (finding of 16/11).
+    @Test func theBadgeSitsOnTheCornerNotOnTheColumn() throws {
+        let badged = try ink(style: .filled, badge: true)
+        let third = MenuBarGlyph.columns(in: NSRect(x: 0, y: 0, width: 18, height: 16))[2]
+        #expect(MenuBarGlyph.badgeCenter.x > third.maxX)
+        // The column's left edge still reaches its top, beside the badge.
+        #expect(badged(third.minX + 0.6, third.maxY - 1.2) > 0.5)
+        #expect(badged(third.minX + 0.6, third.midY) > 0.9)
     }
 }

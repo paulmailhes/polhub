@@ -48,6 +48,28 @@ import Testing
         #expect(DiagnosticModel.state(.diaAutomation, from: "notRunning") == .denied("Dia n'est pas ouvert"))
     }
 
+    /// Only a fresh check of the others' sound is told (finding of 16/11): an earlier « ok » left in the list says
+    /// nothing when another line is checked again, so the self-test's badge never goes on it.
+    @Test func onlyAFreshCheckOfTheOthersSoundIsTold() async {
+        let heard = Heard()
+        let model = DiagnosticModel(amplitude: 0.0000316, showsRelaunch: true, relaunchEnabled: { true }, setRelaunch: { _ in nil },
+                                    missingModels: { [] })
+        model.systemAudioChecked = { heard.states.append($0) }
+        // A check earlier in the session.
+        model.set(.systemAudio, .ok)
+        #expect(heard.states == [.ok])
+        // The other lines, checked again (« Tout revérifier » starts with them, « Tester », the relaunch switch).
+        await model.test(.relaunch, prompt: false)
+        await model.test(.models, prompt: false)
+        model.toggleRelaunch(false)
+        model.set(.microphone, .ok)
+        #expect(heard.states == [.ok])
+        #expect(model.states[.systemAudio] == .ok)
+        // The fresh check says it is not captured: told too.
+        model.set(.systemAudio, .denied("Le son n'est pas capté"))
+        #expect(heard.states == [.ok, .denied("Le son n'est pas capté")])
+    }
+
     // Revue finale, mineur relevé : après une mise à jour, « Dia fermé » ou la relance décochée ne sont pas une autorisation perdue.
     @Test func aReplayOnlyCountsPermissions() {
         let model = DiagnosticModel(amplitude: 0.0000316, showsRelaunch: true, relaunchEnabled: { false }, setRelaunch: { _ in nil })
@@ -59,4 +81,8 @@ import Testing
         model.set(.diaAutomation, .denied("denied"))
         #expect(!model.permissionsGood)
     }
+}
+
+@MainActor final class Heard {
+    var states: [ItemState] = []
 }

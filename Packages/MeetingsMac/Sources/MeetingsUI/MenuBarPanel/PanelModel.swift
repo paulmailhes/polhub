@@ -6,6 +6,7 @@ import MeetingDetection
 import Persistence
 import Pipeline
 import Summarization
+import SwiftUI
 import Updates
 
 /// What « Coup d'œil » says (15/11), from what Polhub already holds in memory: the hero and its fixed order, the four
@@ -194,7 +195,7 @@ enum PanelModel {
         default:
             break
         }
-        if let events, let found = upcoming(events, now: now, calendar: calendar) {
+        if let events, let found = upcoming(events, recorded: rows, now: now, calendar: calendar) {
             let paused = meeting.pausedUntil.map { $0 > max(found.event.startAt, now) } ?? false
             return .upcoming(Upcoming(event: found.event, started: found.started,
                                       detail: eventDetail(found.event, projects: projects, calendar: calendar), pausedThrough: paused))
@@ -224,14 +225,32 @@ enum PanelModel {
     }
 
     /// A Meet that started a moment ago (late, or not detected), else an event in a quarter of an hour, else a Meet
-    /// started longer ago and still not recorded.
-    static func upcoming(_ events: [CalendarEventRow], now: Date, calendar: Calendar = calendar) -> (event: CalendarEventRow, started: Bool)? {
+    /// started longer ago and still not recorded. A Meet already recorded (`recorded`, the library's meetings) is not
+    /// « pas enregistrée », even once its recording ended inside its slot.
+    static func upcoming(_ events: [CalendarEventRow], recorded: [MeetingRow] = [], now: Date, calendar: Calendar = calendar) -> (event: CalendarEventRow, started: Bool)? {
         let left = today(events, now: now, calendar: calendar)
-        let live = left.filter { $0.startAt <= now && $0.meetCode != nil }.max { $0.startAt < $1.startAt }
+        let live = left.filter { $0.startAt <= now && $0.meetCode != nil && !wasRecorded($0, in: recorded, now: now) }
+            .max { $0.startAt < $1.startAt }
         let next = left.first { $0.startAt > now && $0.startAt.timeIntervalSince(now) <= soon }
         if let live, now.timeIntervalSince(live.startAt) <= soon { return (live, true) }
         if let next { return (next, false) }
         return live.map { ($0, true) }
+    }
+
+    /// How long before its start a recording counts for an event: the notification of a meeting not recorded looks as
+    /// far back (`NotificationHub.tick`).
+    static let recordedLead: TimeInterval = 30 * 60
+
+    /// A meeting of the library recorded this event, neither thrown away nor deleted: the same Meet code, started from
+    /// half an hour before it; or « Enregistrer » (the whole Mac, without a code) during its slot.
+    static func wasRecorded(_ event: CalendarEventRow, in rows: [MeetingRow], now: Date) -> Bool {
+        rows.contains { row in
+            guard row.deletedAt == nil, row.status != .discarded, row.source != .imported, row.startedAt <= now else { return false }
+            if let code = row.meetCode {
+                return code == event.meetCode && row.startedAt >= event.startAt.addingTimeInterval(-recordedLead)
+            }
+            return row.source == .wholeMac && row.startedAt < event.endAt && (row.endedAt ?? now) > event.startAt
+        }
     }
 
     /// The event of the meeting being recorded: the same Meet code, the one under way or the nearest.
@@ -616,15 +635,34 @@ enum PanelModel {
         return "il y a " + DurationText.short(seconds)
     }
 
+    // MARK: - The clock
+
+    /// The panel's clock: every 30 s, on the whole half-minutes (from a whole minute, the first of 2001). An event
+    /// starts on a whole minute, so « dans 8 min » and the hero's quarter of an hour turn at the very tick the menu
+    /// bar's « 8 min » turns (`AppModel.minutesToMeet`, every 0.5 s), not up to 30 s later.
+    static let clock = PeriodicTimelineSchedule(from: Date(timeIntervalSinceReferenceDate: 0), by: 30)
+
     // MARK: - The height
 
-    /// The mails' list under the panel's cap: the height of its rows, or what the rest leaves it, or nil when not even
-    /// one row fits (the card then goes; the Mails tile still says how many). `fixed` is the height of everything but
-    /// the card, `chrome` the card without its list.
-    static func mailListHeight(cap: CGFloat, fixed: CGFloat, chrome: CGFloat, gap: CGFloat, rows: CGFloat, oneRow: CGFloat = 52) -> CGFloat? {
-        let room = cap - fixed - gap - chrome
-        guard room >= min(rows, oneRow) else { return nil }
-        return min(rows, room)
+    /// How many of the card's mails show under the panel's cap: all of them when they fit, else as many whole rows as
+    /// fit (never a row cut through its subject); 0 when not one does (the card keeps its header and « Voir les N
+    /// nouveaux »); nil when not even that fits (the card goes, the Mails tile still says how many). `fixed` is the
+    /// height of everything but the card, `chrome` the card without its rows; `rowHeight` 0 before they were measured.
+    static func mailRowsShown(cap: CGFloat, fixed: CGFloat, chrome: CGFloat, gap: CGFloat, rowHeight: CGFloat, count: Int) -> Int? {
+        guard rowHeight > 0 else { return count }
+        // Half a point of slack: the measures come rounded.
+        let room = cap - fixed - gap - chrome + 0.5
+        guard room >= 0 else { return nil }
+        return min(count, Int((room / rowHeight).rounded(.down)))
+    }
+
+    /// The card's link: every mail it does not show, « Voir les 2 autres »; « Voir les 5 nouveaux » when only its
+    /// header is left; nil when it shows them all.
+    static func moreMails(total: Int, shown: Int) -> String? {
+        let hidden = total - shown
+        guard hidden > 0 else { return nil }
+        if shown == 0 { return hidden == 1 ? "Voir le nouveau" : "Voir les \(hidden) nouveaux" }
+        return hidden == 1 ? "Voir l'autre" : "Voir les \(hidden) autres"
     }
 
     // MARK: - Buttons and keys

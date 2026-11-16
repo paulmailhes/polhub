@@ -102,7 +102,7 @@ public final class AppModel {
     /// A recording is at risk: the logo's badge.
     public var recordingsAtRisk: Bool { !alerts.isEmpty }
 
-    /// An alert, raised again: it replaces the one of its kind (the free space of the last check).
+    /// An alert, raised again: it replaces the one of its kind (the free space of the last check, `checkDisk`).
     public func raise(_ alert: AppAlert) {
         var next = alerts.filter { $0.kind != alert.kind }
         next.append(alert)
@@ -115,10 +115,18 @@ public final class AppModel {
         alerts.removeAll { $0.kind == kind }
     }
 
-    /// The free space, measured by the app while the disk alert is up: enough again, it goes.
+    /// The free space is worth measuring (a statfs a minute): while a meeting records, or while the disk alert is up.
+    public var needsDiskCheck: Bool { isRecording || alerts.contains { $0.kind == .diskLow } }
+
+    /// The free space, measured by the app (`needsDiskCheck`): enough again, the alert goes; still short, it says the
+    /// new figure, and comes back if it went during the same meeting. Never its pop-up: the coordinator shows it, once a
+    /// meeting.
     public func checkDisk(availableBytes: Int64?) {
-        guard let availableBytes, !DiskGuard.isLow(availableBytes: availableBytes) else { return }
-        resolve(.diskLow)
+        guard let availableBytes else { return }
+        guard DiskGuard.isLow(availableBytes: availableBytes) else { return resolve(.diskLow) }
+        guard needsDiskCheck else { return }
+        let alert = AppAlert.diskLow(freeGB: Int(availableBytes / 1_000_000_000))
+        if !alerts.contains(alert) { raise(alert) }
     }
 
     // MARK: - The next Meet

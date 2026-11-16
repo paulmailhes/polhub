@@ -27,7 +27,7 @@ public struct MenuBarPanel: View {
     /// Margins and gaps of the panel (Control Center's).
     static let margin: CGFloat = 14
     static let gap: CGFloat = 10
-    /// The panel's tallest: past it, only the mails' list scrolls.
+    /// The panel's tallest: past it, only the mails' card gives way, by whole rows.
     static let maxHeight: CGFloat = 640
 
     public init(context: CoupDoeilContext) {
@@ -39,9 +39,10 @@ public struct MenuBarPanel: View {
             OptionalObserving(context.agenda) { agenda in
                 OptionalObserving(context.mails) { mails in
                     OptionalObserving(context.updates) { updates in
-                        // « dans 8 min » and the hero's choice follow the clock every 30 s; the countdown and the
-                        // recording's clock have their own timeline, by the second.
-                        TimelineView(.periodic(from: .now, by: 30)) { timeline in
+                        // « dans 8 min » and the hero's choice follow the clock every 30 s, on the half-minutes the
+                        // menu bar's « 8 min » turns on; the countdown and the recording's clock have their own
+                        // timeline, by the second.
+                        TimelineView(PanelModel.clock) { timeline in
                             PanelBody(context: context, library: library, agenda: agenda, mails: mails, updates: updates,
                                       now: fixedNow ?? timeline.date)
                         }
@@ -70,11 +71,11 @@ struct PanelBody: View {
     @AppStorage(Preferences.Key.summariesEnabled) private var summariesEnabled = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// What the panel measured of itself: the fixed top (banner, hero, tiles) and bottom (buttons, footer), the mails'
-    /// card without its list, and the list's rows. Past the cap, only the list shrinks and scrolls.
+    /// card without its rows, and one row. Past the cap, only the card gives way, by whole rows.
     @State private var topHeight: CGFloat = 0
     @State private var bottomHeight: CGFloat = 0
-    @State private var mailChrome: CGFloat = 72
-    @State private var mailRows: CGFloat = 0
+    @State private var mailChrome: CGFloat = 66
+    @State private var mailRowHeight: CGFloat = 0
 
     private var app: AppModel { context.app }
     private var ready: Bool { library != nil }
@@ -110,11 +111,11 @@ struct PanelBody: View {
         let issues = ready ? PanelModel.issues(alerts: app.alerts, accounts: agenda?.accounts ?? [],
                                                mailFailure: mailState?.failure, updates: updateState) : []
         let lines = mailLines(mailState)
-        // The list's height under the cap; nil when not even one mail fits (then the card goes, the tile says it).
+        // The mails' rows under the cap, whole; nil when not even the card's header fits (then it goes, the tile says it).
         let fixed = topHeight + bottomHeight + 2 * MenuBarPanel.margin + MenuBarPanel.gap
-        let listFrame = mailRows == 0 ? nil : PanelModel.mailListHeight(cap: MenuBarPanel.heightCap, fixed: fixed, chrome: mailChrome,
-                                                                          gap: MenuBarPanel.gap, rows: mailRows)
-        let showMails = ready && !app.meetingUnderWay && !lines.isEmpty && (mailRows == 0 || listFrame != nil)
+        let mailRows = PanelModel.mailRowsShown(cap: MenuBarPanel.heightCap, fixed: fixed, chrome: mailChrome, gap: MenuBarPanel.gap,
+                                                rowHeight: mailRowHeight, count: min(lines.count, PanelModel.mailLimit))
+        let showMails = ready && !app.meetingUnderWay && !lines.isEmpty && mailRows != nil
         VStack(alignment: .leading, spacing: MenuBarPanel.gap) {
             VStack(alignment: .leading, spacing: MenuBarPanel.gap) {
                 if !issues.isEmpty {
@@ -131,9 +132,9 @@ struct PanelBody: View {
                 }
             }
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { topHeight = $0 }
-            if showMails, let mails {
-                PanelMailCard(lines: lines, mails: mails, listFrame: listFrame, open: { context.open($0) }) { rows, chrome in
-                    if abs(rows - mailRows) > 0.5 { mailRows = rows }
+            if showMails, let mails, let mailRows {
+                PanelMailCard(lines: lines, mails: mails, rows: mailRows, open: { context.open($0) }) { row, chrome in
+                    if abs(row - mailRowHeight) > 0.5 { mailRowHeight = row }
                     if abs(chrome - mailChrome) > 0.5 { mailChrome = chrome }
                 }
                 .transition(arrival)

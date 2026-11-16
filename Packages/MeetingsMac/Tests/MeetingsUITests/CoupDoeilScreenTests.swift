@@ -61,11 +61,19 @@ struct CoupDoeilScreenTests {
             ("fin-presumee", world.at(17, 6), { world in try await world.presumedEnd() }),
             ("compte-rendu-en-cours", world.at(17, 12), { world in try await world.transcribing() }),
             ("resume-pret", world.at(17, 22), { world in try await world.summaryReady() }),
+            // Recorded, then ended inside its slot (the tab closed): the summary on its way, never « pas enregistrée ».
+            ("enregistree-puis-finie", world.at(16, 45), { world in try await world.recordedThenEnded() }),
             ("mails-en-attente", world.at(15, 22), { world in try await world.unreadMails() }),
+            // The summary ready and five mails: under the cap, the card keeps whole rows and counts the others.
+            ("resume-pret-et-mails", world.at(17, 22), { world in
+                try await world.summaryReady()
+                try await world.unreadMails()
+            }),
             ("suspendue", world.at(15, 22), { world in world.app.pausedUntil = world.at(16, 50) }),
             // The update stays from here on: it is never reset.
             ("a-regler", world.at(15, 22), { world in try await world.troubles() }),
-            // Everything at once: past the height cap, only the mails' list scrolls.
+            // Everything at once: past the height cap, the mails' card gives way first, down to its header alone, and
+            // goes only when not even that fits (the Mails tile still counts them).
             ("tout-a-la-fois", world.at(15, 22), { world in
                 try await world.troubles()
                 world.app.raise(.diskLow(freeGB: 9))
@@ -93,6 +101,30 @@ struct CoupDoeilScreenTests {
         try await world.reset()
         try await PanelWindow.capture(MenuBarPanel(context: context).environment(\.panelNow, world.at(15, 22)),
                                       to: output.appending(path: "panneau-developpement-clair.png"), dark: false)
+    }
+
+    /// A mail under the pointer: « Marquer comme lu » on the sender's line, where the time was, never over a long
+    /// subject.
+    @Test func aMailUnderThePointer() async throws {
+        let output = try output
+        let world = try await PanelWorld()
+        try await world.unreadMails()
+        try await Task.sleep(for: .milliseconds(400))
+        let unread = PanelModel.unread(world.mails.inbox, hidden: [], tab: { _ in .personnes })
+        var lines = PanelModel.mailLines(unread, projectTint: { _ in nil }, isKnown: { _ in false }, now: world.at(15, 22))
+        lines[1].subject = "Re: Proposition pour la refonte complète du site vitrine et de la boutique"
+        let rows = VStack(alignment: .leading, spacing: 0) {
+            PanelMailRow(line: lines[0], open: {}, markRead: {})
+            PanelMailRow(line: lines[1], open: {}, markRead: {}, hovering: true)
+        }
+        .padding(.horizontal, Space.m)
+        .padding(.vertical, 10)
+        .frame(width: MenuBarPanel.width - 2 * MenuBarPanel.margin)
+        .background(PanelSurface.card, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        .padding(MenuBarPanel.margin)
+        for dark in [false, true] {
+            try await PanelWindow.capture(rows, to: output.appending(path: "mail-survol-\(dark ? "sombre" : "clair").png"), dark: dark)
+        }
     }
 
     @Test func theGeneralSettings() async throws {
@@ -242,6 +274,15 @@ final class PanelWorld {
         return row
     }
 
+    /// Recorded from 16:31 to 16:40, the tab closed: the event runs till 17:00, the transcription waits.
+    func recordedThenEnded() async throws {
+        let row = MeetingRow(createdAt: at(16, 31), status: .ended, source: .dia, candidateKey: "t/\(Self.meetCode)", meetCode: Self.meetCode,
+                             title: "Revue de maquettes", startedAt: at(16, 31), endedAt: at(16, 40), endReason: .tabClosed, projectID: refonte.id)
+        try MeetingStore(database).save(row)
+        today = row
+        try TranscriptStore(database).save(JobRow(meetingID: row.id, state: .queued, language: "fr", createdAt: at(16, 40)))
+    }
+
     func transcribing() async throws {
         let row = try endedMeeting(transcribed: false)
         try TranscriptStore(database).save(JobRow(meetingID: row.id, state: .running, language: "fr", progress: 0.58, createdAt: at(17, 8),
@@ -355,10 +396,11 @@ private struct LogoSheet: View {
                 ForEach(states.indices, id: \.self) { index in
                     VStack(alignment: .leading, spacing: Space.xs) {
                         HStack(spacing: 24) {
+                            // Six times its own size: the badge's image is wider than the columns'.
                             icon(states[index].1)
                                 .resizable()
                                 .interpolation(.high)
-                                .frame(width: 108, height: 96)
+                                .frame(width: states[index].1.image.size.width * 6, height: states[index].1.image.size.height * 6)
                             if let text = states[index].1.text {
                                 Text(text).font(.system(size: 13 * 6)).monospacedDigit().lineLimit(1).fixedSize()
                             }

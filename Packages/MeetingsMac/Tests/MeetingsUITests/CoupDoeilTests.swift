@@ -55,6 +55,34 @@ import Testing
         #expect(model.alerts.isEmpty && !model.recordingsAtRisk)
     }
 
+    /// The disk alert follows the free space (finding of 16/11): its figure while space shrinks, gone once there is
+    /// room, back in the same meeting when the disk fills again (without its pop-up, the coordinator's, once a
+    /// meeting).
+    @Test func theDiskAlertFollowsTheFreeSpace() {
+        let model = AppModel()
+        #expect(!model.needsDiskCheck)
+        model.status = .recording(title: "Revue de maquettes", since: now)
+        #expect(model.needsDiskCheck)
+        model.raise(.diskLow(freeGB: 15))
+        model.checkDisk(availableBytes: 9_000_000_000)
+        #expect(model.alerts == [.diskLow(freeGB: 9)])
+        // The Trash emptied: it goes.
+        model.checkDisk(availableBytes: 25_000_000_000)
+        #expect(model.alerts.isEmpty)
+        // A download fills the disk during the same meeting: it comes back.
+        model.checkDisk(availableBytes: 4_000_000_000)
+        #expect(model.alerts == [.diskLow(freeGB: 4)])
+        // Between meetings, an alert still up keeps following the disk; with none, nothing is checked.
+        model.status = .idle
+        #expect(model.needsDiskCheck)
+        model.checkDisk(availableBytes: 3_000_000_000)
+        #expect(model.alerts == [.diskLow(freeGB: 3)])
+        model.resolve(.diskLow)
+        #expect(!model.needsDiskCheck)
+        model.checkDisk(availableBytes: 3_000_000_000)
+        #expect(model.alerts.isEmpty)
+    }
+
     @Test func aPauseEndsWhenItsTimeComes() {
         let model = AppModel()
         model.pausedUntil = now.addingTimeInterval(3_600)

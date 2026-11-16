@@ -51,6 +51,9 @@ public final class DiagnosticModel: ObservableObject {
     @Published public private(set) var states: [ChecklistItem: ItemState] = [:]
     @Published public private(set) var testing: Set<ChecklistItem> = []
     @Published public var relaunchMessage: String?
+    /// A check of the others' sound just gave its answer: told only then, never when another line is checked again
+    /// while an earlier answer stays in `states` (the self-test's badge goes on a fresh « ok » only).
+    public var systemAudioChecked: ((ItemState) -> Void)?
     public let showsRelaunch: Bool
     private let amplitude: Float
     private let relaunchEnabled: () -> Bool
@@ -88,8 +91,10 @@ public final class DiagnosticModel: ObservableObject {
             && (states[.diaAutomation] == .ok || states[.diaAutomation] == .denied("Dia n'est pas ouvert"))
     }
 
+    /// A line's answer; the others' sound is told as it comes (`systemAudioChecked`).
     func set(_ item: ChecklistItem, _ state: ItemState) {
         states[item] = state
+        if item == .systemAudio { systemAudioChecked?(state) }
     }
 
     /// One check; `prompt` lets macOS ask the question it has never asked.
@@ -106,9 +111,9 @@ public final class DiagnosticModel: ObservableObject {
         }
         let status = await PermissionCheck.run(prompt: prompt, testSystemAudio: item == .systemAudio, amplitude: amplitude)
         switch item {
-        case .microphone: states[item] = Self.state(item, from: status.microphone)
-        case .systemAudio: states[item] = Self.state(item, from: status.systemAudio)
-        case .diaAutomation: states[item] = Self.state(item, from: status.appleEventsDia)
+        case .microphone: set(item, Self.state(item, from: status.microphone))
+        case .systemAudio: set(item, Self.state(item, from: status.systemAudio))
+        case .diaAutomation: set(item, Self.state(item, from: status.appleEventsDia))
         case .models, .relaunch: break
         }
     }
@@ -118,9 +123,9 @@ public final class DiagnosticModel: ObservableObject {
         checkModels()
         testing = Set(items).subtracting([.models, .relaunch])
         let status = await PermissionCheck.run(prompt: prompt, testSystemAudio: true, amplitude: amplitude)
-        states[.microphone] = Self.state(.microphone, from: status.microphone)
-        states[.systemAudio] = Self.state(.systemAudio, from: status.systemAudio)
-        states[.diaAutomation] = Self.state(.diaAutomation, from: status.appleEventsDia)
+        set(.microphone, Self.state(.microphone, from: status.microphone))
+        set(.systemAudio, Self.state(.systemAudio, from: status.systemAudio))
+        set(.diaAutomation, Self.state(.diaAutomation, from: status.appleEventsDia))
         testing = []
     }
 

@@ -26,11 +26,13 @@ struct PanelAttention: View {
                                 .lineLimit(2)
                                 .fixedSize(horizontal: false, vertical: true)
                             if let detail = issue.detail {
-                                // Two lines for one cause; one each when there are several, so the panel stays short.
+                                // Two lines, whatever the number of causes: cut to one, « par le micro seul » lost
+                                // its « seul », the very word that says what is wrong (finding of 16/11). Three causes
+                                // at most keep the banner short.
                                 Text(detail)
                                     .font(.meta)
                                     .foregroundStyle(.secondary)
-                                    .lineLimit(issues.count == 1 ? 2 : 1)
+                                    .lineLimit(2)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                         }
