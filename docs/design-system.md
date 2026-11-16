@@ -188,13 +188,18 @@ touchent jamais le logo.
 Le panneau qui s'ouvre d'un clic sur le logo (`MenuBarPanel`, dossier `MeetingsUI/MenuBarPanel`), construit comme le
 Centre de contrôle. La logique vit à part, testée sans écran (`PanelModel`).
 
-- **De haut en bas** : « À régler » (seulement s'il y a une cause), la vedette, quatre tuiles fixes (Calendrier, Mails,
-  Réunions, Projets), « Nouveaux mails », quatre boutons ronds, le pied (Ouvrir Polhub, la cloche, Réglages, « ⋯ »).
-  La grille et les boutons ne bougent jamais ; le bandeau, le contenu de la vedette et les mails partent quand ils
-  n'ont rien à dire.
+- **De haut en bas** : « À régler » (seulement s'il y a une cause), la vedette, deux tuiles fixes (Calendrier, Mails),
+  « Nouveaux mails », trois boutons ronds (Enregistrer, Nouveau mail, Suspendre), le pied (Ouvrir Polhub, la cloche,
+  Réglages, « ⋯ »). Les tuiles et les boutons ne bougent jamais ; le bandeau, le contenu de la vedette et les mails
+  partent quand ils n'ont rien à dire.
+- **Rien n'est dit deux fois** (« Tuiles allégées », Paul, 16/11) : une tuile Réunions redisait la vedette, une tuile
+  Projets donnait un nombre sur lequel on n'agit pas, « Arrêter » était à la fois dans la vedette et en bouton rond.
+  Avant d'ajouter une chose au panneau, vérifier qu'aucune autre ne la dit déjà.
 - **Mesures** : 360 points de large, marges de 14, écarts de 10 ; tuiles de 161 × 80 (rayon 16), vedette de rayon 22 et
-  de 90 à 130 points de haut (une exception : « Réunion détectée » avec un lien Meet, les cinq lignes de la maquette,
+  de 90 à 130 points de haut, jamais écrasée sous son contenu (une exception : « Réunion détectée » avec un lien Meet, les cinq lignes de la maquette,
   environ 146 points pendant ses 10 secondes) ; hauteur selon le contenu, au plus 640 points (ou l'écran moins 40).
+  Le panneau prend toujours sa hauteur entière (`fixedSize`) : souple, il laissait la fenêtre de la barre des menus
+  garder une hauteur plus ancienne, et les boutons de la vedette débordaient sur les tuiles (16/11).
   Au-delà, seule la carte des mails cède, par lignes entières (jamais un mail coupé à travers son objet) : les mails
   qui tiennent, puis son seul en-tête avec « Voir les N nouveaux » ; si même cela ne tient plus, elle part et la tuile
   Mails garde le nombre.
@@ -220,8 +225,8 @@ Centre de contrôle. La logique vit à part, testée sans écran (`PanelModel`).
   compte tous ceux qu'elle ne montre pas. Au survol, « Marquer comme lu » se pose sur l'heure, sur la ligne de
   l'expéditeur, sans rien décaler ni couvrir l'objet. Cachée pendant une réunion.
 - **Les boutons ronds** : 44 points de verre, leur nom en 12 points dessous, pleins de leur couleur quand ils sont
-  allumés (Arrêter rouge, Reprendre orange, comme le Reprendre de la vedette). Arrêter se fait au clic, jamais au
-  clavier.
+  allumés (Reprendre orange, comme le Reprendre de la vedette). Enregistrer ne sert qu'au repos : une réunion détectée
+  ou enregistrée se règle dans la vedette, et Arrêter n'est que là, au clic, jamais au clavier.
 - **Le verre** ne sert qu'aux boutons ; tuiles, vedette et cartes sont calmes, jamais de verre sous du texte.
 - **Le temps** : le panneau ne lit jamais `AppModel.now` ; il suit une horloge de 30 s calée sur les demi-minutes
   (`PanelModel.clock`), si bien que « dans 8 min » tourne en même temps que le « 8 min » de la barre ; le décompte comme

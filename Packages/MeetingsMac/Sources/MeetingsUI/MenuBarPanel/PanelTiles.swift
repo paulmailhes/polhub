@@ -1,14 +1,13 @@
 import PolhubDesign
 import SwiftUI
 
-/// The four fixed tiles of « Coup d'œil » (15/11), two by two, always in the same place: Calendrier, Mails, Réunions,
-/// Projets. Their words change with the moment (`PanelModel.Tile`); a click opens the page and Polhub's window.
+/// The two tiles of « Coup d'œil », side by side, always in the same place: Calendrier and Mails. « Tuiles allégées »
+/// (Paul, 16/11): Réunions said again what the hero says, Projets gave a count nobody acts on; they left. Their words
+/// change with the moment (`PanelModel.Tile`); a click opens the page and Polhub's window.
 struct PanelTiles: View {
     let context: CoupDoeilContext
     let calendar: PanelModel.Tile
     let mails: PanelModel.Tile
-    let meetings: PanelModel.Tile
-    let projects: PanelModel.Tile
     let hasAgenda: Bool
     let hasMailboxes: Bool
 
@@ -16,18 +15,12 @@ struct PanelTiles: View {
     static let size = CGSize(width: (MenuBarPanel.width - 2 * MenuBarPanel.margin - MenuBarPanel.gap) / 2, height: 80)
 
     var body: some View {
-        Grid(horizontalSpacing: MenuBarPanel.gap, verticalSpacing: MenuBarPanel.gap) {
-            GridRow {
-                PanelTile(item: .calendar, tile: calendar, shortcut: 4) {
-                    context.open(hasAgenda ? .section(.calendar) : .settings(.accounts))
-                }
-                PanelTile(item: .mails, tile: mails, shortcut: 5) {
-                    context.open(hasMailboxes ? .mail(nil) : .settings(.accounts))
-                }
+        HStack(spacing: MenuBarPanel.gap) {
+            PanelTile(item: .calendar, tile: calendar, shortcut: 4) {
+                context.open(hasAgenda ? .section(.calendar) : .settings(.accounts))
             }
-            GridRow {
-                PanelTile(item: .meetings, tile: meetings, shortcut: 3) { context.open(.section(.meetings)) }
-                PanelTile(item: .projects, tile: projects, shortcut: 2) { context.open(.section(.projects)) }
+            PanelTile(item: .mails, tile: mails, shortcut: 5) {
+                context.open(hasMailboxes ? .mail(nil) : .settings(.accounts))
             }
         }
     }
@@ -59,15 +52,10 @@ struct PanelTile: View {
                     }
                 }
                 Spacer(minLength: 0)
-                HStack(alignment: .center, spacing: 5) {
-                    if tile.live {
-                        Circle().fill(PanelTint.red).frame(width: 7, height: 7)
-                    }
-                    Text(tile.value)
-                        .font(.rowTitle.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                }
+                Text(tile.value)
+                    .font(.rowTitle.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
                 Text(tile.detail ?? " ")
                     .font(.meta)
                     .foregroundStyle(.secondary)
