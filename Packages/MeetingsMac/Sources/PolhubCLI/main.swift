@@ -70,7 +70,12 @@ do {
         if let tools = try? AppDatabase.forTools(path: basePath), (try? MailStore(tools).acceptsAgentDrafts()) == true {
             mails = MailDesk(database: tools, root: URL(fileURLWithPath: basePath).deletingLastPathComponent(), scope: .current(), projects: desk)
         }
-        let server = MCPServer(reader: reader, desk: desk, mails: mails, version: HelperVersion.read(helper: helper) ?? "0.0.0",
+        // The agenda and the contacts (16/11): the copy, read; an event asked of the app, which alone speaks to Google.
+        var agenda: AgendaDesk?
+        if desk != nil, let tools = try? AppDatabase.forTools(path: basePath) {
+            agenda = AgendaDesk(database: tools, root: URL(fileURLWithPath: basePath).deletingLastPathComponent(), projects: desk, mailScope: .current())
+        }
+        let server = MCPServer(reader: reader, desk: desk, mails: mails, agenda: agenda, version: HelperVersion.read(helper: helper) ?? "0.0.0",
                                onWrite: { ExternalChangeSignal.post() })
         while let line = readLine(strippingNewline: true) {
             guard !line.trimmingCharacters(in: .whitespaces).isEmpty, let answer = server.handle(line) else { continue }
