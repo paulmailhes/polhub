@@ -123,7 +123,11 @@ final class RecordedAnswers: URLProtocol, @unchecked Sendable {
         let requests = RecordedAnswers.requestsTo(url)
         #expect(requests.count == 2)
         #expect(requests.allSatisfy { $0.value(forHTTPHeaderField: "Cookie") == nil })
-        #expect(requests.allSatisfy { $0.value(forHTTPHeaderField: "User-Agent")?.contains("Safari/537.36") == true })
+        // Safari's name, never Chrome's: macOS's network looks like Safari, and Awwwards refuses a Chrome name on it (16/11).
+        #expect(requests.allSatisfy { agent in
+            let name = agent.value(forHTTPHeaderField: "User-Agent") ?? ""
+            return name.contains("Version/18.0 Safari/605.1.15") && !name.contains("Chrome")
+        })
         await #expect(throws: InspirationFetchError.refusedAddress) {
             try await http.get(InspirationRequest(url: URL(string: "http://192.168.1.1/")!, purpose: .page, limit: 1000))
         }

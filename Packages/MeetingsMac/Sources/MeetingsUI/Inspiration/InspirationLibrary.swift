@@ -145,7 +145,8 @@ public final class InspirationLibrary: ObservableObject {
         let chosen = filters[kind] ?? [:]
         let index = haystacks[kind] ?? [:]
         shown[kind] = InspirationBrowse.filter(rows, query: query, filters: chosen, haystacks: index)
-        chips[kind] = InspirationBrowse.chipRows(rows, kind: kind, vocabulary: vocabulary(kind), sources: sources, query: query,
+        // The values the filters chosen leave, counted without the words typed: what the search suggests and detects.
+        chips[kind] = InspirationBrowse.chipRows(rows, kind: kind, vocabulary: vocabulary(kind), sources: sources, query: "",
                                                  filters: chosen, haystacks: index)
     }
 
@@ -153,10 +154,44 @@ public final class InspirationLibrary: ObservableObject {
 
     public func query(_ kind: InspirationKind) -> String { queries[kind] ?? "" }
 
+    /// What Paul types; a value typed in full, then a space, becomes a filter (« minimal », « Beyond Branding »).
     public func setQuery(_ query: String, for kind: InspirationKind) {
         guard queries[kind] ?? "" != query else { return }
-        queries[kind] = query
+        if let detected = InspirationBrowse.detect(query, in: chips(kind)) {
+            var chosen = filters[kind] ?? [:]
+            chosen[detected.token.family] = detected.token.value
+            filters[kind] = chosen
+            queries[kind] = detected.rest
+        } else {
+            queries[kind] = query
+        }
         recompute(kind)
+    }
+
+    /// The filters chosen, as tokens of the search field, in the families' order.
+    func tokens(_ kind: InspirationKind) -> [InspirationBrowse.InspirationToken] {
+        let chosen = filters[kind] ?? [:]
+        let order = InspirationBrowse.families(kind, vocabulary: vocabulary(kind), items: items(kind))
+        let titles = Dictionary(order.map { ($0.name, $0.title) }, uniquingKeysWith: { first, _ in first })
+        let rank = Dictionary(order.enumerated().map { ($0.element.name, $0.offset) }, uniquingKeysWith: { first, _ in first })
+        return chosen.sorted { (rank[$0.key] ?? .max, $0.key) < (rank[$1.key] ?? .max, $1.key) }.map { family, value in
+            InspirationBrowse.InspirationToken(family: family, familyTitle: titles[family] ?? InspirationBrowse.label(family), value: value, count: 0,
+                                               color: family == InspirationBrowse.sourceFamily ? InspirationBrowse.color(ofSource: value, in: sources) : nil)
+        }
+    }
+
+    /// The field's tokens changed (one removed, one chosen in the suggestions): one value per family, the last one.
+    func setTokens(_ tokens: [InspirationBrowse.InspirationToken], for kind: InspirationKind) {
+        var chosen: [String: String] = [:]
+        for token in tokens { chosen[token.family] = token.value }
+        guard chosen != filters[kind] ?? [:] else { return }
+        filters[kind] = chosen
+        recompute(kind)
+    }
+
+    /// The filters to suggest for what is being typed.
+    func suggestions(_ kind: InspirationKind) -> [InspirationBrowse.InspirationToken] {
+        InspirationBrowse.suggestions(chips(kind), text: query(kind))
     }
 
     public func filter(_ kind: InspirationKind, family: String) -> String? { filters[kind]?[family] }

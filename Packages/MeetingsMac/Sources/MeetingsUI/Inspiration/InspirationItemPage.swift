@@ -45,7 +45,7 @@ struct InspirationItemPage: View {
     private var header: some View {
         HStack(alignment: .top, spacing: Space.l) {
             VStack(alignment: .leading, spacing: Space.xs) {
-                Text(item.title)
+                Text(InspirationBrowse.displayTitle(item))
                     .font(.title.weight(.bold))
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
@@ -145,6 +145,9 @@ struct InspirationItemPage: View {
 
     // MARK: - Fonts, client
 
+    /// The width of the labels on the left (« Polices », « Secteur »).
+    static let labelWidth: CGFloat = 64
+
     @ViewBuilder
     private var details: some View {
         let rows: [(String, String)] = [
@@ -156,7 +159,7 @@ struct InspirationItemPage: View {
                 ForEach(rows, id: \.0) { title, value in
                     GridRow {
                         Text(title).font(.meta.weight(.semibold)).foregroundStyle(.secondary)
-                            .frame(width: InspirationFilterRow.titleWidth, alignment: .leading)
+                            .frame(width: InspirationItemPage.labelWidth, alignment: .leading)
                         Text(value).font(.rowBody).textSelection(.enabled)
                     }
                 }
@@ -174,7 +177,7 @@ struct InspirationItemPage: View {
                 ForEach(rows) { row in
                     GridRow {
                         Text(row.title).font(.meta.weight(.semibold)).foregroundStyle(.secondary)
-                            .frame(width: InspirationFilterRow.titleWidth, alignment: .leading)
+                            .frame(width: InspirationItemPage.labelWidth, alignment: .leading)
                         InspirationCategoryMenu(row: row) { value in library.toggleCategory(item, family: row.family, value: value) }
                     }
                 }

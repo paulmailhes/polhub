@@ -28,8 +28,9 @@ public actor InspirationAutomation {
         }
     }
 
-    /// The items one pass tags at most: about a minute and a half of Apple's model (≈ 4 s an item, 16/11).
-    public static let tagsPerPass = 25
+    /// The items one pass tags at most, every five minutes: under a minute of Apple's model as a rule (≈ 4 s an
+    /// item), a quarter of an hour at the very worst (45 s an answer, two answers an item, 16/11).
+    public static let tagsPerPass = 10
 
     let collector: InspirationCollector
     let tagger: InspirationTagger

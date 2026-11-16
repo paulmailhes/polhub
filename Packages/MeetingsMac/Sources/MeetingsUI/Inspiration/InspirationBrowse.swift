@@ -36,9 +36,9 @@ extension InspirationKind {
 
     var searchPrompt: String {
         switch self {
-        case .website: "Chercher un site"
-        case .branding: "Chercher un branding"
-        case .mockup: "Chercher un mock-up"
+        case .website: "Chercher un site, un style, une techno…"
+        case .branding: "Chercher un projet, un studio, un style…"
+        case .mockup: "Chercher un mock-up, un type…"
         }
     }
 
@@ -74,6 +74,21 @@ enum InspirationBrowse {
     static let sourceFamily = "source"
     static let locale = Locale(identifier: "fr_FR")
 
+    /// A filter of the search field: a value of a family (« Minimal », in Style), or a LinkedIn page.
+    struct InspirationToken: Identifiable, Hashable, Sendable {
+        let family: String
+        let familyTitle: String
+        let value: String
+        /// The items it would show (for the suggestions).
+        let count: Int
+        let color: String?
+        var id: String { family + "|" + InspirationBrowse.fold(value) }
+        var label: String { InspirationBrowse.label(value) }
+
+        static func == (left: Self, right: Self) -> Bool { left.id == right.id }
+        func hash(into hasher: inout Hasher) { hasher.combine(id) }
+    }
+
     /// One value of a family's row of chips.
     struct ChipValue: Hashable, Identifiable, Sendable {
         let value: String
@@ -86,7 +101,7 @@ enum InspirationBrowse {
         var label: String { InspirationBrowse.label(value) }
     }
 
-    /// The chips of one family, « Tout » first (drawn by the view).
+    /// The values of one family, the most used first: what the search suggests and detects.
     struct ChipRow: Hashable, Identifiable, Sendable {
         let family: String
         let title: String
@@ -203,17 +218,74 @@ enum InspirationBrowse {
         }
     }
 
-    /// The chips a row shows: its `limit` most used values, the one chosen always, the rest behind « +N » (review
-    /// of 16/11: chips past the edge of a scrolling row could not be reached with a mouse wheel). One left over
-    /// shows rather than hides behind « +1 ».
-    static func visibleChips(_ row: ChipRow, limit: Int) -> (shown: [ChipValue], more: [ChipValue]) {
-        guard row.values.count > limit + 1 else { return (row.values, []) }
-        var shown = Array(row.values.prefix(limit))
-        var more = Array(row.values.dropFirst(limit))
-        if let selected = row.selected.map(fold), let index = more.firstIndex(where: { fold($0.value) == selected }) {
-            shown.append(more.remove(at: index))
+    // MARK: - The search's filters
+
+    /// The values of the page's rows as filters of the search field, with their counts; the ones chosen out.
+    static func tokens(_ rows: [ChipRow]) -> [InspirationToken] {
+        rows.flatMap { row in
+            row.values.filter { value in row.selected.map { fold($0) != fold(value.value) } ?? true }.map { value in
+                InspirationToken(family: row.family, familyTitle: row.title, value: value.value, count: value.count, color: value.color)
+            }
         }
-        return (shown, more)
+    }
+
+    /// What is being typed suggests the values one of whose words starts with its last word, the most used first;
+    /// nothing typed, the most used of all (Paul, 16/11: « une barre de recherche avec détection automatique »).
+    static func suggestions(_ rows: [ChipRow], text: String, limit: Int = 8) -> [InspirationToken] {
+        let all = tokens(rows).sorted { $0.count != $1.count ? $0.count > $1.count : $0.id < $1.id }
+        guard !text.hasSuffix(" "), let last = words(text).last else {
+            return text.trimmingCharacters(in: .whitespaces).isEmpty ? Array(all.prefix(limit)) : []
+        }
+        return Array(all.filter { token in words(spaced(token.value)).contains { $0.hasPrefix(last) } }.prefix(limit))
+    }
+
+    /// A value typed in full, then a space, becomes a filter (« minimal », « bas de casse », « Beyond Branding »):
+    /// the token, and the text without it. A value of two families goes to the one where it is most used.
+    static func detect(_ text: String, in rows: [ChipRow]) -> (token: InspirationToken, rest: String)? {
+        guard text.last?.isWhitespace == true else { return nil }
+        let typed = text.split(whereSeparator: \.isWhitespace).map(String.init)
+        let candidates = rows.flatMap { row in
+            row.values.map { InspirationToken(family: row.family, familyTitle: row.title, value: $0.value, count: $0.count, color: $0.color) }
+        }
+        for size in stride(from: min(4, typed.count), through: 1, by: -1) {
+            let phrase = words(typed.suffix(size).joined(separator: " ")).joined(separator: " ")
+            let found = candidates.filter { words(spaced($0.value)).joined(separator: " ") == phrase }
+            if let best = found.max(by: { $0.count < $1.count }) {
+                let rest = typed.dropLast(size).joined(separator: " ")
+                return (best, rest.isEmpty ? "" : rest + " ")
+            }
+        }
+        return nil
+    }
+
+    /// `bas-de-casse` read as « bas de casse ».
+    static func spaced(_ value: String) -> String {
+        value.replacingOccurrences(of: "-", with: " ")
+    }
+
+    // MARK: - Titles
+
+    /// The title a card shows: a site's name without its page's words (« Adam Exemple - Home » → « Adam Exemple »,
+    /// « Home - ADA » → « ADA »), a post's without the emoji it starts with (« 💥 Café… »). The stored title stays as
+    /// collected (16/11: the vault's titles are the pages' own).
+    static func displayTitle(_ item: InspirationItemRow) -> String {
+        let trimmed = String(item.title.drop { !($0.isLetter || $0.isNumber || "\"«“'(".contains($0)) })
+            .trimmingCharacters(in: .whitespaces)
+        let title = item.kind == .website ? siteName(trimmed) : trimmed
+        return title.isEmpty ? item.title : title
+    }
+
+    static let pageWords: Set<String> = ["home", "homepage", "home page", "accueil", "page d'accueil", "index", "welcome", "bienvenue",
+                                         "official site", "official website", "site officiel"]
+
+    /// The first part of a page's title that is not « Home » or the like, between its separators.
+    static func siteName(_ title: String) -> String {
+        var parts = [title]
+        for separator in [" - ", " | ", " — ", " – ", " · ", " :: "] {
+            parts = parts.flatMap { $0.components(separatedBy: separator) }
+        }
+        let named = parts.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        return named.first { !pageWords.contains(fold($0)) } ?? named.first ?? title
     }
 
     /// « Minimaliste » for `minimaliste`, « Business card » for `business card`, « Bas de casse » for

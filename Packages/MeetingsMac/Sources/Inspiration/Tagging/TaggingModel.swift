@@ -50,6 +50,8 @@ public enum TaggingModelError: Error, Equatable, Sendable {
     case refused
     /// The text did not fit.
     case tooLong
+    /// The answer took longer than the time limit (`InspirationTagger.answerTimeout`).
+    case tooSlow
     case other(String)
 }
 
@@ -67,7 +69,9 @@ public struct AppleTaggingModel: InspirationTaggingModel {
     public func answer(_ request: TaggingRequest) async throws -> TaggingAnswer {
         let schema = try Self.schema(for: request.vocabulary)
         let session = LanguageModelSession(instructions: request.instructions)
-        let options = GenerationOptions(temperature: request.isLastAttempt ? 0 : 0.1)
+        // A bounded answer: the categories fit in about a hundred tokens; without a bound, the free text (client, fonts)
+        // could run on until the window was full (16/11: six minutes on one post).
+        let options = GenerationOptions(temperature: request.isLastAttempt ? 0 : 0.1, maximumResponseTokens: Self.maximumTokens)
         do {
             // The instructions already list every tag with its meaning: the schema constrains the answer without
             // being written out again in the prompt (the window is small).
@@ -82,8 +86,13 @@ public struct AppleTaggingModel: InspirationTaggingModel {
         }
     }
 
+    /// The answer's bound, in tokens.
+    static let maximumTokens = 300
+
     /// One property per family (an array of that family's tags, at most its maximum), then `police` (four names
-    /// at most) and `client`, in the order of `ia_locale.py`'s JSON schema.
+    /// at most) and `client`, in the order of `ia_locale.py`'s JSON schema. The free texts cannot be bounded by a
+    /// pattern (Apple's model refuses it: « UnsupportedGuide », 16/11): the answer's token bound and the tagger's
+    /// time limit keep them short.
     public static func schema(for vocabulary: InspirationVocabulary) throws -> GenerationSchema {
         var properties: [DynamicGenerationSchema.Property] = vocabulary.families.map { family in
             let tag = DynamicGenerationSchema(name: "\(family.name)Tag", anyOf: family.tags.map(\.value))

@@ -132,7 +132,9 @@ public enum PublicWeb {
 /// is read up to its limit, an image refused beyond it.
 public struct LiveInspirationHTTP: InspirationHTTP {
     /// A browser's name, as n8n sent it: LinkedIn serves its public pages to browsers only.
-    public static let userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+    /// Safari's: the requests go out through macOS's network stack, which looks like Safari to a site. A Chrome
+    /// name on it is refused by Awwwards' bot shield (16/11: 403, while Safari's gets the page).
+    public static let userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15"
     let session: URLSession
 
     public init(timeout: TimeInterval = 20) {

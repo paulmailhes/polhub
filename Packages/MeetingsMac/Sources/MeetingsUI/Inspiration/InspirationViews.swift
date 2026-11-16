@@ -47,8 +47,18 @@ struct InspirationPageView: View {
                         .disabled(library.adding)
                 }
             }
+            // One field (Paul, 16/11: « une barre de recherche avec détection automatique avec les filtres »): the
+            // words search, a category typed in full becomes a filter, the suggestions offer the others.
             .searchable(text: Binding(get: { library.query(kind) }, set: { library.setQuery($0, for: kind) }),
-                        placement: .toolbar, prompt: kind.searchPrompt)
+                        tokens: Binding(get: { library.tokens(kind) }, set: { library.setTokens($0, for: kind) }),
+                        placement: .toolbar, prompt: kind.searchPrompt) { token in
+                Text(token.label)
+            }
+            .searchSuggestions {
+                ForEach(library.suggestions(kind)) { token in
+                    InspirationSuggestionRow(token: token).searchCompletion(token)
+                }
+            }
             .sheet(isPresented: $addingSite) {
                 InspirationAddSiteSheet(library: library) { id in router.openInspiration(.website, item: id) }
             }
@@ -91,15 +101,6 @@ struct InspirationPageView: View {
         let shown = library.shown(kind)
         return ScrollView {
             LazyVStack(alignment: .leading, spacing: Space.l) {
-                let rows = library.chips(kind)
-                if !rows.isEmpty {
-                    VStack(alignment: .leading, spacing: Space.s) {
-                        ForEach(rows) { row in
-                            InspirationFilterRow(row: row) { library.setFilter($0, family: row.family, for: kind) }
-                        }
-                    }
-                    .padding(.bottom, Space.xs)
-                }
                 if shown.isEmpty {
                     InspirationNoMatch { library.clearFilters(kind) }
                 } else {
@@ -137,7 +138,7 @@ struct InspirationCard: View {
                 InspirationImage(url: imageURL, mode: .fill, icon: item.kind.appIcon)
                     .aspectRatio(4 / 3, contentMode: .fit)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(item.title).font(.rowTitle.weight(.medium)).lineLimit(1)
+                    Text(InspirationBrowse.displayTitle(item)).font(.rowTitle.weight(.medium)).lineLimit(1)
                     HStack(spacing: 6) {
                         if let sourceColor { ColorDot(Color(hex: sourceColor), size: 8) }
                         Text(InspirationBrowse.meta(item)).font(.meta).foregroundStyle(.secondary).lineLimit(1)
@@ -180,84 +181,18 @@ struct InspirationCardButtonStyle: ButtonStyle {
     }
 }
 
-/// A family's row: its name, then « Tout » and its most used values, one at a time, as the vault's tag bar; the
-/// others behind « +N », in a menu (review of 16/11: a scrolling row hid them from a mouse wheel).
-struct InspirationFilterRow: View {
-    let row: InspirationBrowse.ChipRow
-    let choose: (String?) -> Void
-
-    static let titleWidth: CGFloat = 64
-    /// The values a row shows before « +N »: about one line of a 1 080-point page.
-    static let chipLimit = 9
+/// A suggestion of the search field: the value, its family (or the page's color), and how many items it shows.
+struct InspirationSuggestionRow: View {
+    let token: InspirationBrowse.InspirationToken
 
     var body: some View {
-        let split = InspirationBrowse.visibleChips(row, limit: Self.chipLimit)
-        HStack(alignment: .top, spacing: Space.m) {
-            Text(row.title)
-                .font(.meta.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: Self.titleWidth, alignment: .leading)
-                .padding(.top, 4)
-            FlowLayout(spacing: Space.xs + 2) {
-                InspirationFilterChip(title: "Tout", selected: row.selected == nil) { choose(nil) }
-                ForEach(split.shown) { value in
-                    let selected = isSelected(value)
-                    InspirationFilterChip(title: value.label, color: value.color, selected: selected) {
-                        choose(selected ? nil : value.value)
-                    }
-                }
-                if !split.more.isEmpty {
-                    Menu {
-                        ForEach(split.more) { value in
-                            Button("\(value.label) (\(value.count))") { choose(value.value) }
-                        }
-                    } label: {
-                        Text("+\(split.more.count)")
-                            .font(.meta)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .foregroundStyle(Color.primary.opacity(0.8))
-                            .background(Surface.fill, in: Capsule())
-                    }
-                    .menuStyle(.button)
-                    .buttonStyle(.hover(.capsule))
-                    .menuIndicator(.hidden)
-                    .fixedSize()
-                    .help("Les autres valeurs de \(row.title.lowercased())")
-                }
-            }
+        HStack(spacing: Space.s) {
+            if let color = token.color { ColorDot(Color(hex: color), size: 8) }
+            Text(token.label)
+            Text(token.familyTitle).foregroundStyle(.secondary)
+            Spacer(minLength: Space.m)
+            Text("\(token.count)").foregroundStyle(.secondary).monospacedDigit()
         }
-    }
-
-    private func isSelected(_ value: InspirationBrowse.ChipValue) -> Bool {
-        row.selected.map { InspirationBrowse.fold($0) == InspirationBrowse.fold(value.value) } ?? false
-    }
-}
-
-/// A chip to click: grey at rest, tinted with the accent once chosen (calm: every row has one, « Tout » at rest);
-/// its fill under the pointer.
-struct InspirationFilterChip: View {
-    let title: String
-    var color: String? = nil
-    let selected: Bool
-    let action: () -> Void
-    @Environment(\.self) private var environment
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 5) {
-                if let color { ColorDot(Color(hex: color), size: 7) }
-                Text(title).lineLimit(1)
-            }
-            .font(.meta.weight(selected ? .semibold : .regular))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
-            .foregroundStyle(selected ? Color.accentColor.readable(in: environment) : Color.primary.opacity(0.8))
-            .background(selected ? Color.accentColor.opacity(0.16) : Surface.fill, in: Capsule())
-            .overlay(Capsule().strokeBorder(selected ? Color.accentColor.opacity(0.35) : .clear))
-        }
-        .buttonStyle(.hover(.capsule))
-        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 

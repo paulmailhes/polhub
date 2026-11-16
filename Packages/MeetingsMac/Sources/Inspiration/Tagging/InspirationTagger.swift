@@ -37,11 +37,32 @@ public actor InspirationTagger {
 
     /// `vault` and `paths`: where the live vocabularies are (the vault's copy, Polhub's copy); without them, the
     /// bundled ones.
-    public init(database: AppDatabase, paths: AppPaths? = nil, vault: URL? = nil, model: any InspirationTaggingModel = AppleTaggingModel()) {
+    /// `answerTimeout`: what one answer of the model may take (16/11: it looped up to six minutes on a post, the Mac
+    /// working for nothing meanwhile); past it, the item is passed until the next launch.
+    public init(database: AppDatabase, paths: AppPaths? = nil, vault: URL? = nil, model: any InspirationTaggingModel = AppleTaggingModel(),
+                answerTimeout: Duration = .seconds(45)) {
         self.store = InspirationStore(database)
         self.paths = paths
         self.vault = vault
         self.model = model
+        self.answerTimeout = answerTimeout
+    }
+
+    let answerTimeout: Duration
+
+    /// The model's answer, or `tooSlow` past the time limit (the answer under way is cancelled).
+    private func answer(_ request: TaggingRequest) async throws -> TaggingAnswer {
+        let model = model, timeout = answerTimeout
+        return try await withThrowingTaskGroup(of: TaggingAnswer.self) { group in
+            group.addTask { try await model.answer(request) }
+            group.addTask {
+                try await Task.sleep(for: timeout)
+                throw TaggingModelError.tooSlow
+            }
+            defer { group.cancelAll() }
+            guard let first = try await group.next() else { throw CancellationError() }
+            return first
+        }
     }
 
     /// Whether the model can answer now.
@@ -85,11 +106,14 @@ public actor InspirationTagger {
                                          prompt: submitted, isLastAttempt: last)
             let answer: TaggingAnswer
             do {
-                answer = try await model.answer(request)
+                answer = try await self.answer(request)
             } catch is CancellationError {
                 return .cancelled
             } catch TaggingModelError.unavailable {
                 return .unavailable
+            } catch TaggingModelError.tooSlow {
+                declined.insert(id)
+                return .failed("Le modèle d'Apple a mis trop de temps.")
             } catch TaggingModelError.refused {
                 declined.insert(id)
                 return .failed("Le modèle d'Apple a refusé ce texte.")

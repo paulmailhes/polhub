@@ -27,6 +27,25 @@ final class FakeTaggingModel: InspirationTaggingModel, @unchecked Sendable {
     }
 }
 
+/// A model that takes its time: each answer waits its delay, in order.
+final class SlowTaggingModel: InspirationTaggingModel, @unchecked Sendable {
+    private let lock = NSLock()
+    private var delays: [Duration]
+    let answer: TaggingAnswer
+    let isAvailable = true
+
+    init(delays: [Duration], answer: TaggingAnswer) {
+        self.delays = delays
+        self.answer = answer
+    }
+
+    func answer(_ request: TaggingRequest) async throws -> TaggingAnswer {
+        let delay = lock.withLock { delays.isEmpty ? .zero : delays.removeFirst() }
+        try await Task.sleep(for: delay)
+        return answer
+    }
+}
+
 /// The categories put by Apple's model (16/11), as `ia_locale.py` did: the text only, the vocabulary's tags only,
 /// never on Paul's choice, nothing when the model is away.
 @Suite struct TaggerTests {
@@ -49,6 +68,21 @@ final class FakeTaggingModel: InspirationTaggingModel, @unchecked Sendable {
     static let goodAnswer = TaggingAnswer(
         categories: ["secteur": ["restaurant"], "style": ["artisanal", "chaleureux-inconnu"], "typo": [], "support": ["signalétique", "packaging"]],
         fonts: ["Garamond Exemple", "serif", "Helvetica Inventée"], client: "café de quartier à Lyon.")
+
+    /// An answer that drags on is given up at the time limit (16/11: Apple's model looped up to six minutes on a
+    /// post): the item is passed, the next one is tagged.
+    @Test func aSlowAnswerIsGivenUp() async throws {
+        let database = try AppDatabase.inMemory()
+        let store = InspirationStore(database)
+        let slow = try post(store)
+        let model = SlowTaggingModel(delays: [.seconds(30), .zero], answer: Self.goodAnswer)
+        let tagger = InspirationTagger(database: database, model: model, answerTimeout: .milliseconds(200))
+        let started = Date()
+        #expect(await tagger.tag(id: slow.id, now: now) == .failed("Le modèle d'Apple a mis trop de temps."))
+        #expect(Date().timeIntervalSince(started) < 5)
+        let next = try post(store)
+        #expect(await tagger.tag(id: next.id, now: now) == .tagged(["secteur": ["restaurant"], "style": ["artisanal"], "support": ["signalétique", "packaging"]]))
+    }
 
     @Test func aPostIsTaggedWithinTheVocabulary() async throws {
         let database = try AppDatabase.inMemory()

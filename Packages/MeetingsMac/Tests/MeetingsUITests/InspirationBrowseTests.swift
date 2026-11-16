@@ -135,17 +135,61 @@ import Testing
         #expect(["e-commerce", "non-lucratif", "minimal", "webflow"].map(InspirationBrowse.label) == ["E-commerce", "Non-lucratif", "Minimal", "Webflow"])
     }
 
-    /// A long row shows its most used values, then « +N » for the others, in a menu: every value is one click
-    /// away, with a mouse wheel too (review of 16/11: the chips past the edge could only be reached with a
-    /// trackpad); the value chosen always shows.
-    @Test func aLongRowKeepsTheRestInAMenu() {
-        let values = (1...20).map { InspirationBrowse.ChipValue(value: "v\($0)", count: 21 - $0, color: nil) }
-        let row = InspirationBrowse.ChipRow(family: "style", title: "Style", values: values, selected: "V18")
-        let split = InspirationBrowse.visibleChips(row, limit: 8)
-        #expect(split.shown.map(\.value) == (1...8).map { "v\($0)" } + ["v18"])
-        #expect(split.more.map(\.value) == ((9...17).map { "v\($0)" } + ["v19", "v20"]))
-        let short = InspirationBrowse.ChipRow(family: "style", title: "Style", values: Array(values.prefix(9)), selected: nil)
-        #expect(InspirationBrowse.visibleChips(short, limit: 8).shown.count == 9 && InspirationBrowse.visibleChips(short, limit: 8).more.isEmpty)
+    /// The search's filters (Paul, 16/11: « une barre de recherche avec détection automatique »): rows of values with
+    /// their counts, as the page has them.
+    static let rows = [
+        InspirationBrowse.ChipRow(family: "source", title: "Source", values: [
+            .init(value: "Beyond Branding", count: 40, color: "#3366FF"), .init(value: "Studio Exemple", count: 12, color: nil)], selected: nil),
+        InspirationBrowse.ChipRow(family: "style", title: "Style", values: [
+            .init(value: "minimal", count: 30, color: nil), .init(value: "moderne", count: 25, color: nil), .init(value: "ludique", count: 4, color: nil)],
+            selected: nil),
+        InspirationBrowse.ChipRow(family: "secteur", title: "Secteur", values: [
+            .init(value: "portfolio", count: 9, color: nil), .init(value: "tech", count: 20, color: nil)], selected: nil),
+        InspirationBrowse.ChipRow(family: "support", title: "Support", values: [
+            .init(value: "portfolio", count: 14, color: nil), .init(value: "boite aux lettres", count: 2, color: nil)], selected: "portfolio"),
+        InspirationBrowse.ChipRow(family: "typo", title: "Typo", values: [.init(value: "bas-de-casse", count: 3, color: nil)], selected: nil),
+    ]
+
+    /// What is being typed suggests the values that start with it, the most used first; the one already chosen not
+    /// again. Nothing typed: the most used of all.
+    @Test func whatIsTypedSuggestsFilters() {
+        #expect(InspirationBrowse.suggestions(Self.rows, text: "mo").map(\.id) == ["style|moderne"])
+        #expect(InspirationBrowse.suggestions(Self.rows, text: "un site m").map(\.id) == ["style|minimal", "style|moderne"])
+        #expect(InspirationBrowse.suggestions(Self.rows, text: "port").map(\.id) == ["secteur|portfolio"])
+        #expect(InspirationBrowse.suggestions(Self.rows, text: "bey").first?.label == "Beyond Branding")
+        #expect(InspirationBrowse.suggestions(Self.rows, text: "BOI").first?.familyTitle == "Support")
+        #expect(InspirationBrowse.suggestions(Self.rows, text: "", limit: 3).map(\.id) == ["source|beyond branding", "style|minimal", "style|moderne"])
+        #expect(InspirationBrowse.suggestions(Self.rows, text: "zzz").isEmpty)
+    }
+
+    /// A value typed in full, then a space, becomes a filter; the rest stays a search. A value of two families
+    /// goes to the one where it is most used; a value of several words is found too.
+    @Test func aValueTypedInFullBecomesAFilter() {
+        let minimal = InspirationBrowse.detect("café minimal ", in: Self.rows)
+        #expect(minimal?.token.id == "style|minimal" && minimal?.rest == "café ")
+        #expect(InspirationBrowse.detect("Minimal", in: Self.rows) == nil)
+        #expect(InspirationBrowse.detect("beyond branding ", in: Self.rows)?.token.id == "source|beyond branding")
+        #expect(InspirationBrowse.detect("bas de casse ", in: Self.rows)?.token.id == "typo|bas-de-casse")
+        #expect(InspirationBrowse.detect("tech ", in: Self.rows)?.rest == "")
+        #expect(InspirationBrowse.detect("portfolio ", in: Self.rows)?.token.id == "support|portfolio")
+        #expect(InspirationBrowse.detect("galerie ", in: Self.rows) == nil)
+    }
+
+    /// The title a card shows: a site's name without its page's words, a post's without its leading emoji; the
+    /// stored title stays.
+    @Test func theTitlesReadClean() {
+        func site(_ title: String) -> String {
+            InspirationBrowse.displayTitle(InspirationItemRow(kind: .website, key: "https://exemple.fr", title: title, date: Self.now, createdAt: Self.now))
+        }
+        #expect(site("Adam Exemple - Home") == "Adam Exemple")
+        #expect(site("Home - ADA") == "ADA")
+        #expect(site("HomePage - Units") == "Units")
+        #expect(site("Studio Exemple | Design graphique") == "Studio Exemple")
+        #expect(site("Atelier Nord — Céramiques") == "Atelier Nord")
+        #expect(site("E-commerce Exemple") == "E-commerce Exemple")
+        #expect(site("Home") == "Home")
+        let post = InspirationItemRow(kind: .branding, key: "7500000000000000001", title: "💥 Café Exemple", date: Self.now, createdAt: Self.now)
+        #expect(InspirationBrowse.displayTitle(post) == "Café Exemple")
     }
 
     /// The window's subtitle: the count, « N sur M » while filtered, nothing on an empty page.
