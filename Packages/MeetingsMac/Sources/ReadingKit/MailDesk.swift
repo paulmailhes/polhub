@@ -88,6 +88,7 @@ public struct MailDesk: Sendable {
         let rules = try store.filingRules()
         let thread = try find(which, rules: rules)
         let messages = try store.messages(threadKey: thread.id).filter { !$0.labels.contains("DRAFT") }
+        let attachments = Self.numbered(messages)
         var text = "# \(thread.subject.isEmpty ? "(sans objet)" : Self.line(thread.subject))\n"
         text += (["Boîte : \(thread.account)", caseName(thread, rules: rules), "\(messages.count) message\(messages.count > 1 ? "s" : "")"].compactMap { $0 })
             .joined(separator: " · ") + "\n"
@@ -95,8 +96,10 @@ public struct MailDesk: Sendable {
             text += "\n## \(message.sender.map(address) ?? "?") — \(moment(message.date))\n"
             if !message.to.isEmpty { text += "À : \(message.to.map(address).joined(separator: ", "))\n" }
             if !message.cc.isEmpty { text += "Cc : \(message.cc.map(address).joined(separator: ", "))\n" }
-            if !message.files.isEmpty {
-                text += "Pièces jointes (non lisibles par les outils) : " + message.files.map { Self.line(AttachmentSafety.cleanName($0.filename)) }.joined(separator: ", ") + "\n"
+            let shown = attachments.filter { $0.message.id == message.id }
+            if !shown.isEmpty {
+                text += "Pièces jointes (outil `piece_jointe`, avec ce fil et le numéro) : "
+                    + shown.map { "[\($0.number)] \(Self.line(AttachmentSafety.cleanName($0.file.filename))) (\(Self.size($0.file.size)))" }.joined(separator: ", ") + "\n"
             }
             text += "\n" + body(of: message) + "\n"
         }
@@ -107,6 +110,81 @@ public struct MailDesk: Sendable {
             answer += "\n\n— Page \(index) sur \(pages.count)." + (index < pages.count ? " La suite : `mail` avec « page » \(index + 1)." : "")
         }
         return answer
+    }
+
+    // MARK: - Attachments (16/11)
+
+    /// A file of a thread, numbered across its messages as `mail` shows it.
+    struct ThreadFile {
+        let number: Int
+        let message: MailMessageRow
+        let file: MailAttachment
+    }
+
+    /// An image in the text under this size is a logo or a signature, not something to read.
+    static let smallInlineImage = 20_000
+
+    /// The attached files, and the images pasted in the text (screenshots often are), not the logos.
+    static func numbered(_ messages: [MailMessageRow]) -> [ThreadFile] {
+        var number = 0
+        var result: [ThreadFile] = []
+        for message in messages {
+            for file in message.attachments where !file.inline || file.size >= smallInlineImage {
+                number += 1
+                result.append(ThreadFile(number: number, message: message, file: file))
+            }
+        }
+        return result
+    }
+
+    /// What `piece_jointe` gives back: an image made light for the agent's eyes, the words of a PDF or a text, or
+    /// only the file's place on the Mac.
+    public enum FileAnswer: Sendable, Equatable {
+        case image(jpeg: Data, path: String, name: String)
+        case text(String, path: String, name: String)
+        case file(path: String, name: String)
+    }
+
+    /// The files of a thread, numbered.
+    public func files(_ which: String) throws -> String {
+        let thread = try find(which, rules: try store.filingRules())
+        let all = Self.numbered(try store.messages(threadKey: thread.id).filter { !$0.labels.contains("DRAFT") })
+        guard !all.isEmpty else { return "Le fil « \(Self.line(thread.subject)) » n'a pas de pièce jointe." }
+        return "Pièces jointes du fil « \(Self.line(thread.subject)) » :\n" + all.map { item in
+            "[\(item.number)] \(Self.line(AttachmentSafety.cleanName(item.file.filename))) · \(Self.size(item.file.size)) · de \(item.message.sender.map(address) ?? "?"), \(moment(item.message.date))"
+                + (item.file.inline ? " · dans le texte" : "")
+        }.joined(separator: "\n") + "\n\nPour en lire une : `piece_jointe` avec ce fil et son « numero »."
+    }
+
+    /// A file of a thread (Paul, 16/11: « Polhub ne sait pas lire les fichiers joints »). Not on the Mac yet, the
+    /// app is asked to download it (this helper has no network), and waited for.
+    public func file(_ which: String, number: Int, wait: TimeInterval = 25) throws -> FileAnswer {
+        let thread = try find(which, rules: try store.filingRules())
+        let all = Self.numbered(try store.messages(threadKey: thread.id).filter { !$0.labels.contains("DRAFT") })
+        guard let chosen = all.first(where: { $0.number == number }) else {
+            throw ToolError(all.isEmpty ? "Ce fil n'a pas de pièce jointe." : "Pas de pièce jointe n° \(number) : ce fil en a \(all.count) (outil `piece_jointe` sans numéro).")
+        }
+        guard !chosen.message.labels.contains("SPAM") else { throw ToolError("Polhub n'ouvre pas les pièces jointes d'un spam.") }
+        let url = files.attachment(chosen.file, of: chosen.message)
+        let name = AttachmentSafety.cleanName(chosen.file.filename)
+        func there() -> Bool { FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) }
+        if !there() {
+            try files.request(MailFileRequest(account: chosen.message.account, messageID: chosen.message.messageID, partID: chosen.file.partID))
+            ExternalChangeSignal.post(name: MailFiles.requestSignal)
+            let deadline = Date().addingTimeInterval(wait)
+            while !there() && Date() < deadline { Thread.sleep(forTimeInterval: 0.3) }
+            guard there() else {
+                throw ToolError("Polhub n'a pas encore téléchargé « \(name) » : il doit être ouvert et en ligne. Réessaie dans un instant.")
+            }
+        }
+        return AttachmentReader.read(url, name: name, mimeType: chosen.file.mimeType, maximumText: Self.maximumText)
+    }
+
+    /// « 240 Ko », « 1,2 Mo ».
+    static func size(_ bytes: Int) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: Int64(bytes))
     }
 
     /// The first words of the thread's last message, as `mail` would show them.

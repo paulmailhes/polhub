@@ -126,7 +126,7 @@ public struct MailFiles: Sendable {
 
     /// The mailboxes whose account is gone lose their folder, and the drafts that are gone theirs.
     public func keepOnly(accounts: [String], drafts: [String]) {
-        let kept = Set(accounts.map { $0.lowercased() } + ["brouillons"])
+        let kept = Set(accounts.map { $0.lowercased() } + ["brouillons", Self.requestsName])
         for folder in (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
         where !kept.contains(folder.lastPathComponent) {
             try? FileManager.default.removeItem(at: folder)
@@ -137,5 +137,55 @@ public struct MailFiles: Sendable {
         where !draftsKept.contains(folder.lastPathComponent) {
             try? FileManager.default.removeItem(at: folder)
         }
+    }
+}
+
+// MARK: - The agents' requests for a file (16/11)
+
+/// An attachment an agent asked for (`polhub mcp`, which has no network): the app downloads it, then removes the
+/// request. Paul, 16/11: « Polhub ne sait pas lire les fichiers joints ».
+public struct MailFileRequest: Codable, Equatable, Sendable {
+    public var account: String
+    public var messageID: String
+    public var partID: String
+
+    public init(account: String, messageID: String, partID: String) {
+        self.account = account
+        self.messageID = messageID
+        self.partID = partID
+    }
+}
+
+extension MailFiles {
+    /// The signal the helper posts after a request: the app serves it at once.
+    public static let requestSignal = "fr.paulmailhes.polhub.piece-demandee"
+    static let requestsName = "demandes"
+
+    var requestsFolder: URL { root.appending(path: Self.requestsName, directoryHint: .isDirectory) }
+
+    /// Leaves a request for the app.
+    public func request(_ request: MailFileRequest) throws {
+        try FileManager.default.createDirectory(at: requestsFolder, withIntermediateDirectories: true)
+        try JSONEncoder().encode(request).write(to: requestsFolder.appending(path: "\(UUID().uuidString).json"), options: .atomic)
+    }
+
+    /// The requests waiting, the oldest first; an unreadable one is dropped.
+    public func pendingRequests() -> [(file: URL, request: MailFileRequest)] {
+        let names = (try? FileManager.default.contentsOfDirectory(at: requestsFolder, includingPropertiesForKeys: [.creationDateKey])) ?? []
+        return names.filter { $0.pathExtension == "json" }
+            .sorted { (try? $0.resourceValues(forKeys: [.creationDateKey]).creationDate ?? .distantPast) ?? .distantPast
+                < (try? $1.resourceValues(forKeys: [.creationDateKey]).creationDate ?? .distantPast) ?? .distantPast }
+            .compactMap { file in
+                guard let data = try? Data(contentsOf: file), let request = try? JSONDecoder().decode(MailFileRequest.self, from: data) else {
+                    try? FileManager.default.removeItem(at: file)
+                    return nil
+                }
+                return (file, request)
+            }
+    }
+
+    /// A request served (or that cannot be).
+    public func served(_ file: URL) {
+        try? FileManager.default.removeItem(at: file)
     }
 }

@@ -383,6 +383,21 @@ public final class MailLibrary: ObservableObject {
         Task { _ = try? await engine.scheduledSends() }
     }
 
+    /// The listener of the agents' requests for an attachment.
+    private var fileRequests: ExternalChangeSignal.Listener?
+
+    /// Downloads the attachments the agents asked for, one after the other, then drops each request; a request
+    /// for a message gone, a spam's file or an unknown part is dropped too.
+    public func serveFileRequests() async {
+        let engine = self.engine, store = self.store
+        for (file, request) in engine.files.pendingRequests() {
+            defer { engine.files.served(file) }
+            guard let message = try? store.message(MailMessageRow.key(account: request.account, messageID: request.messageID)),
+                  let attachment = message.attachments.first(where: { $0.partID == request.partID }) else { continue }
+            _ = try? await engine.file(attachment, of: message)
+        }
+    }
+
     /// Starts following the mailboxes that granted the mails, and keeps following as accounts come and go.
     /// Gmail is asked more often while the app is in front.
     public func start() {
@@ -407,6 +422,12 @@ public final class MailLibrary: ObservableObject {
         .store(in: &cancellables)
         // Gmail's answers once kept on disk by the shared session (a spam's body among them) go (wave B review).
         GoogleHTTP.forgetOldCache()
+        // The attachments an agent asked for (`polhub mcp` has no network, 16/11): downloaded at its signal, and those
+        // left from before at the launch.
+        fileRequests = ExternalChangeSignal.listen(name: MailFiles.requestSignal, queue: .main) { [weak self] in
+            Task { await self?.serveFileRequests() }
+        }
+        Task { await serveFileRequests() }
     }
 
     /// Asks Gmail what is new, now.

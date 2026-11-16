@@ -1,4 +1,6 @@
+import CoreGraphics
 import Foundation
+import ImageIO
 import MailFormat
 import Persistence
 import Testing
@@ -114,7 +116,7 @@ struct MailDeskFixture {
         let server = MCPServer(reader: try Fixture().reader, desk: projects, mails: fixture.desk(), onWrite: { writes.add() })
         let answer = try call(server, #"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#)
         let tools = try #require((answer["result"] as? [String: Any])?["tools"] as? [[String: Any]])
-        #expect(tools.compactMap { $0["name"] as? String }.suffix(3) == ["mails", "mail", "brouillon"])
+        #expect(tools.compactMap { $0["name"] as? String }.suffix(4) == ["mails", "mail", "piece_jointe", "brouillon"])
         let read = try call(server, #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"mail","arguments":{"quel":"fil-maquette-01"}}}"#)
         #expect(!toolText(read).1 && writes.count == 0)
         let drop = try call(server, #"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"brouillon","arguments":{"quel":"fil-maquette-01","texte":"Merci !"}}}"#)
@@ -176,6 +178,56 @@ struct MailDeskFixture {
                 #expect(throws: ToolError.self) { try desk.thread(which, page: 1) }
             }
         }
+    }
+
+    /// Paul, 16/11: « Polhub ne sait pas lire les fichiers joints ». The files of a thread are numbered in `mail`; an
+    /// image is shown shrunk, a text read; one not on the Mac yet is asked of the app, never fetched here.
+    @Test func theAgentsReadTheAttachments() throws {
+        let fixture = try MailDeskFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let files = MailFiles(root: fixture.root)
+        let capture = MailAttachment(partID: "1", filename: "capture.png", mimeType: "image/png", size: 240_000, attachmentID: "a1", contentID: "c1", inline: true)
+        let logo = MailAttachment(partID: "2", filename: "logo.png", mimeType: "image/png", size: 3_000, attachmentID: "a2", contentID: "c2", inline: true)
+        let notes = MailAttachment(partID: "3", filename: "notes.txt", mimeType: "text/plain", size: 40, attachmentID: "a3", contentID: nil, inline: false)
+        let devis = MailAttachment(partID: "4", filename: "devis.pdf", mimeType: "application/pdf", size: 90_000, attachmentID: "a4", contentID: nil, inline: false)
+        let message = MailMessageRow(account: fixture.account, messageID: "m9", threadID: "fil-captures-09", date: fixture.now.addingTimeInterval(-600),
+                                     sender: MailAddress(name: "Camille Martin", email: "camille@studio.exemple"), subject: "Les captures du site",
+                                     snippet: "", labels: ["INBOX"], hasBody: false, attachments: [capture, logo, notes, devis])
+        try fixture.store.apply(account: fixture.account, upserts: [message])
+        let desk = fixture.desk()
+        let thread = try desk.thread("fil-captures-09", page: 1)
+        #expect(thread.contains("[1] capture.png") && thread.contains("[2] notes.txt") && thread.contains("[3] devis.pdf") && !thread.contains("logo.png"))
+        #expect(try desk.files("fil-captures-09").contains("[1] capture.png · 234 KB") || desk.files("fil-captures-09").contains("[1] capture.png"))
+        // On the Mac already: an image comes back as JPEG, a text as its words.
+        let image = try #require(Self.png())
+        try files.write(image, to: files.attachment(capture, of: message))
+        guard case .image(let jpeg, let path, let name) = try desk.file("fil-captures-09", number: 1) else { Issue.record("pas une image"); return }
+        #expect(jpeg.starts(with: [0xFF, 0xD8]) && path.hasSuffix("capture.png") && name == "capture.png")
+        try files.write(Data("Changer le titre de la page Contact.".utf8), to: files.attachment(notes, of: message))
+        #expect(try desk.file("fil-captures-09", number: 2) == .text("Changer le titre de la page Contact.",
+                                                                       path: files.attachment(notes, of: message).path(percentEncoded: false), name: "notes.txt"))
+        // Not on the Mac: the app is asked; without an answer, it is said.
+        #expect(throws: ToolError.self) { try desk.file("fil-captures-09", number: 3, wait: 0.2) }
+        #expect(files.pendingRequests().map(\.request) == [MailFileRequest(account: fixture.account, messageID: "m9", partID: "4")])
+        #expect(throws: ToolError.self) { try desk.file("fil-captures-09", number: 9) }
+        // The server shows the image itself.
+        let server = MCPServer(reader: try Fixture().reader, mails: desk)
+        let answer = try call(server, #"{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"piece_jointe","arguments":{"quel":"fil-captures-09","numero":1}}}"#)
+        let blocks = try #require((answer["result"] as? [String: Any])?["content"] as? [[String: Any]])
+        #expect(blocks.first?["type"] as? String == "image" && blocks.first?["mimeType"] as? String == "image/jpeg")
+    }
+
+    /// A small PNG, drawn here.
+    static func png() -> Data? {
+        let context = CGContext(data: nil, width: 64, height: 48, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        context?.setFillColor(CGColor(red: 0.2, green: 0.4, blue: 0.9, alpha: 1))
+        context?.fill(CGRect(x: 0, y: 0, width: 64, height: 48))
+        guard let image = context?.makeImage() else { return nil }
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(data, "public.png" as CFString, 1, nil) else { return nil }
+        CGImageDestinationAddImage(destination, image, nil)
+        return CGImageDestinationFinalize(destination) ? data as Data : nil
     }
 
     /// The agents' binary has no way out: no network code in what it is built from, no Gmail module.
