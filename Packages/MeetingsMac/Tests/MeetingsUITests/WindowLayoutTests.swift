@@ -63,7 +63,7 @@ import ProjectsUI
             }
         }
         let library = MeetingLibrary(store: store)
-        let projects = ProjectLibrary(store: projectStore, meetings: store, defaults: UserDefaults(suiteName: "largeur-\(UUID().uuidString)")!)
+        let projects = ProjectLibrary(store: projectStore, meetings: store)
         let router = WindowRouter()
         router.section = .projects
         try await Task.sleep(for: .milliseconds(200))

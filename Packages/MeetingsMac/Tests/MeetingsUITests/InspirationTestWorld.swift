@@ -13,18 +13,16 @@ struct InspirationTestWorld {
     let paths: AppPaths
     let database: AppDatabase
     let store: InspirationStore
-    let defaults: UserDefaults
 
     init(name: String = "inspiration") throws {
         root = FileManager.default.temporaryDirectory.appending(path: "\(name)-\(UUID().uuidString)", directoryHint: .isDirectory)
         paths = AppPaths(root: root, logs: root.appending(path: "logs"))
         database = try AppDatabase.inMemory()
         store = InspirationStore(database)
-        defaults = UserDefaults(suiteName: "\(name)-\(UUID().uuidString)")!
     }
 
     func library(services: InspirationServices = .notConnected) -> InspirationLibrary {
-        InspirationLibrary(database: database, paths: paths, services: services, defaults: defaults)
+        InspirationLibrary(database: database, paths: paths, services: services)
     }
 
     func clean() {

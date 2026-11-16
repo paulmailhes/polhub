@@ -90,8 +90,6 @@ struct InspirationScreenTests {
         let full = try InspirationTestWorld(name: "captures-reglages")
         defer { full.clean() }
         try full.fill()
-        full.defaults.set("1794830400|212 sites, 488 branding, 292 mock-ups ; 640 Mo d'images", forKey: InspirationLibrary.lastImportKey)
-        full.defaults.set("/Volumes/Exemple/Coffre", forKey: "vaultPath")
         let lastRun = InspirationTestWorld.day(11, 16).addingTimeInterval(2 * 3_600)
         let services = InspirationServices(status: {
             [InspirationStatusLine(id: "awwwards", name: "Awwwards", lastRun: lastRun, added: 1),

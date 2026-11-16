@@ -7,7 +7,7 @@ import Testing
 @testable import MeetingsUI
 
 /// The library of « Inspiration » (16/11): it follows the base page by page, filters and searches, keeps Paul's
-/// categories, deletes with « Annuler », keeps the LinkedIn pages, asks the collection, runs the vault's import.
+/// categories, deletes with « Annuler », keeps the LinkedIn pages, asks the collection.
 @MainActor @Suite struct InspirationLibraryTests {
     private func waitUntil(_ condition: () -> Bool) async throws {
         for _ in 0..<200 where !condition() { try await Task.sleep(for: .milliseconds(10)) }
@@ -54,7 +54,7 @@ import Testing
         #expect(library.filter(.branding, family: "source") == "Studio Exemple")
     }
 
-    /// Paul's categories are his from then on: the base marks them, and an import never changes them.
+    /// Paul's categories are his from then on: the base marks them, and a later write of the item never changes them.
     @Test func paulsCategoriesStayHis() async throws {
         let world = try InspirationTestWorld()
         defer { world.clean() }
@@ -160,87 +160,6 @@ import Testing
             .isEmpty)
     }
 
-    /// An import that ends (finished, or stopped by Paul) tells the collection, which tags what came in the background.
-    @Test func anImportThatEndsTellsTheCollection() async throws {
-        let world = try InspirationTestWorld()
-        defer { world.clean() }
-        let vault = world.root.appending(path: "coffre", directoryHint: .isDirectory)
-        try FileManager.default.createDirectory(at: vault.appending(path: "database/Websites", directoryHint: .isDirectory),
-                                                withIntermediateDirectories: true)
-        let library = world.library()
-        let asked = Asked()
-        library.services = InspirationServices(imported: { await asked.add("importé") })
-        library.vaultPath = vault.path(percentEncoded: false)
-        library.runImport()
-        try await waitUntil { !library.importing }
-        for _ in 0..<200 where await asked.all.isEmpty { try await Task.sleep(for: .milliseconds(10)) }
-        #expect(await asked.all == ["importé"])
-    }
-
-    /// The import reads the vault chosen in Réglages › Projets, says how far it is, then its one line, kept from
-    /// one launch to the next; run again, it adds nothing.
-    @Test func theImportReadsTheVaultAndSaysItInOneLine() async throws {
-        let world = try InspirationTestWorld()
-        defer { world.clean() }
-        let vault = world.root.appending(path: "coffre", directoryHint: .isDirectory)
-        let websites = vault.appending(path: "database/Websites", directoryHint: .isDirectory)
-        try FileManager.default.createDirectory(at: websites, withIntermediateDirectories: true)
-        try """
-        ---
-        site: https://maison.exemple.fr
-        description: "Une maison inventée."
-        date: 2026-10-20
-        tags:
-          - site
-          - minimal
-        cssclasses:
-          - website-note
-        ---
-
-        Une maison inventée.
-        """.write(to: websites.appending(path: "Maison Exemple.md"), atomically: true, encoding: .utf8)
-        let library = world.library()
-        library.runImport()
-        #expect(library.importState == .failed("Choisis d'abord le dossier du coffre."))
-        library.vaultPath = vault.path(percentEncoded: false)
-        library.runImport()
-        #expect(library.importing)
-        try await waitUntil { !library.importing }
-        guard case .finished(let report) = library.importState else {
-            Issue.record("\(library.importState)")
-            return
-        }
-        #expect(report.summary == "1 site, 0 branding, 0 mock-up ; aucune image")
-        try await waitUntil { library.items(.website).count == 1 }
-        #expect(library.items(.website).first?.categories["style"] == ["minimal"])
-        #expect(library.lastImport?.summary == report.summary)
-        #expect(InspirationLibrary.readLastImport(world.defaults)?.summary == report.summary)
-
-        library.runImport()
-        try await waitUntil { !library.importing }
-        guard case .finished(let again) = library.importState else {
-            Issue.record("\(library.importState)")
-            return
-        }
-        #expect(again[.website].added == 0 && library.items(.website).count == 1)
-    }
-
-    /// A vault folder that is not one: said in plain words, nothing imported.
-    @Test func aFolderThatIsNotAVaultIsSaid() async throws {
-        let world = try InspirationTestWorld()
-        defer { world.clean() }
-        try FileManager.default.createDirectory(at: world.root, withIntermediateDirectories: true)
-        let library = world.library()
-        library.vaultPath = world.root.path(percentEncoded: false)
-        library.runImport()
-        try await waitUntil { !library.importing }
-        guard case .failed(let problem) = library.importState else {
-            Issue.record("\(library.importState)")
-            return
-        }
-        #expect(problem.hasPrefix("L'import n'a pas pu se faire"))
-    }
-
     /// A card never decodes the whole image: a thumbnail at the pixels it fills, made once, then from memory.
     @Test func aCardDecodesOnlyTheThumbnailItShows() async throws {
         let world = try InspirationTestWorld()
@@ -296,30 +215,5 @@ import Testing
         #expect(thumbnails.cached(urls[0], pixels: box, mode: .fill) != nil)
         #expect(thumbnails.cached(urls[1], pixels: box, mode: .fill) == nil)
         #expect(thumbnails.cached(urls[2], pixels: box, mode: .fill) != nil)
-    }
-
-    /// A meeting that starts stops the import (it decodes images on several cores) and keeps it from starting
-    /// until the end; what was imported stays, and the next import goes on (review of 16/11).
-    @Test func aMeetingStopsTheImport() async throws {
-        let world = try InspirationTestWorld()
-        defer { world.clean() }
-        let vault = world.root.appending(path: "coffre", directoryHint: .isDirectory)
-        try FileManager.default.createDirectory(at: vault.appending(path: "database/Websites", directoryHint: .isDirectory),
-                                                withIntermediateDirectories: true)
-        let library = world.library()
-        library.vaultPath = vault.path(percentEncoded: false)
-        library.runImport()
-        library.meetingActivity(true)
-        try await waitUntil { !library.importing }
-        #expect(library.importState == .failed(InspirationLibrary.stoppedByMeeting))
-        library.runImport()
-        #expect(!library.importing && library.importState == .failed(InspirationLibrary.notDuringMeeting))
-        library.meetingActivity(false)
-        library.runImport()
-        try await waitUntil { !library.importing }
-        guard case .finished = library.importState else {
-            Issue.record("\(library.importState)")
-            return
-        }
     }
 }

@@ -51,7 +51,7 @@ extension InspirationKind {
         }
     }
 
-    /// The empty page, before any import.
+    /// The page without an item.
     var emptyTitle: String {
         switch self {
         case .website: "Aucun site"
@@ -62,9 +62,9 @@ extension InspirationKind {
 
     var emptyText: String {
         switch self {
-        case .website: "Les sites de ton coffre Obsidian arrivent ici avec l'import ; ensuite, chaque site du jour d'Awwwards."
-        case .branding: "Les publications de ton coffre Obsidian arrivent ici avec l'import ; ensuite, les nouveaux posts de tes pages LinkedIn."
-        case .mockup: "Les mock-ups de ton coffre Obsidian arrivent ici avec l'import, avec leur aperçu et le lien vers leur dossier."
+        case .website: "Chaque site du jour d'Awwwards arrive ici, avec ceux que tu ajoutes."
+        case .branding: "Les nouveaux posts de tes pages LinkedIn arrivent ici."
+        case .mockup: "Les mock-ups que tu ajoutes arrivent ici, avec leur aperçu et le lien vers leur dossier."
         }
     }
 }

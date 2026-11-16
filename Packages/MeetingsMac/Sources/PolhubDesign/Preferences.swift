@@ -131,11 +131,9 @@ public struct Preferences: @unchecked Sendable {
         /// Réglages › Général (15/11): « 8 min » beside the logo in the quarter of an hour before a Meet.
         public static let menuBarMeetMinutes = "general.minutesAvantUnMeet"
         /// Réglages › Inspiration (16/11): the automatic collection (Awwwards, LinkedIn), the categories by Apple's
-        /// AI, and the optional second folder of the vault's import (« Ancienne copie (n8n) »). The vault's folder
-        /// itself is the one of Réglages › Projets (`vaultPath`).
+        /// AI.
         public static let inspirationAutoCollect = "inspiration.collecteAuto"
         public static let inspirationAICategories = "inspiration.categoriesIA"
-        public static let inspirationOldCopyFolder = "inspiration.dossierAncienneCopie"
     }
 
     public enum Default {
@@ -196,10 +194,6 @@ public struct Preferences: @unchecked Sendable {
     public var inspirationAutoCollect: Bool { flag(Key.inspirationAutoCollect) }
     /// Apple's on-device model proposes the categories of a new item (on by default).
     public var inspirationAICategories: Bool { flag(Key.inspirationAICategories) }
-    /// The old copy of the vault the import also reads; `nil` when none is chosen.
-    public var inspirationOldCopyFolder: String? {
-        defaults.string(forKey: Key.inspirationOldCopyFolder).flatMap { $0.isEmpty ? nil : $0 }
-    }
 
     private func flag(_ key: String) -> Bool { (defaults.object(forKey: key) as? Bool) ?? true }
 

@@ -14,8 +14,8 @@ public struct MCPServer: Sendable {
     """
     static let projectInstructions = """
     Polhub, l'app de Paul : ses projets et ses réunions Google Meet (enregistrées et transcrites sur son \
-    Mac). Elle remplace son coffre Obsidian : n'ouvre jamais ce coffre ni la base de Polhub toi-même, \
-    passe par ces outils. Ce serveur est déclaré pour toutes les sessions Claude Code.
+    Mac). N'ouvre jamais la base de Polhub toi-même : passe par ces outils. Ce serveur est déclaré pour \
+    toutes les sessions Claude Code.
 
     Par où commencer : dans un dossier de code lié à un projet, appelle `contexte` sans argument — le \
     projet se déduit du dossier courant et la réponse le nomme. Sinon, `projets`, puis passe `projet` (le \

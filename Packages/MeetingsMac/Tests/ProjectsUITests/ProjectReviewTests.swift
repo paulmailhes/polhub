@@ -31,7 +31,7 @@ import Testing
     func library() throws -> (ProjectLibrary, ProjectStore, MeetingStore) {
         let database = try AppDatabase.inMemory()
         let store = ProjectStore(database), meetings = MeetingStore(database)
-        return (ProjectLibrary(store: store, meetings: meetings, defaults: UserDefaults(suiteName: "revue-\(UUID().uuidString)")!), store, meetings)
+        return (ProjectLibrary(store: store, meetings: meetings), store, meetings)
     }
 
     func eventually(_ condition: () throws -> Bool) async rethrows -> Bool {

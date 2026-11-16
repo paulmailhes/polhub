@@ -9,9 +9,8 @@ import Yams
 public struct InspirationVocabulary: Sendable, Equatable {
     /// Where it was read.
     public enum Origin: Sendable, Equatable {
-        /// The vault's live copy (`obsidian/ia/` or `ia/`), with the tags Paul added by hand.
-        case vault(URL)
-        /// Polhub's own copy, brought from the vault by the import (`AppPaths.inspiration`).
+        /// Polhub's own copy (`AppPaths.inspiration`): the vault's, with the tags Paul added by hand, brought by the
+        /// import while there was a vault.
         case app(URL)
         /// The one shipped with Polhub.
         case bundled
@@ -122,28 +121,16 @@ public struct InspirationVocabulary: Sendable, Equatable {
         return try parse(Data(contentsOf: url), kind: kind, origin: .bundled)
     }
 
-    /// The vault's live copy, where the vault's scripts keep it (`obsidian/ia/`), or at its root's `ia/`.
-    public static func vaultCopy(_ kind: InspirationKind, vault: URL) -> URL? {
-        ["obsidian/ia", "ia"]
-            .map { vault.appending(path: $0, directoryHint: .isDirectory).appending(path: fileName(kind)) }
-            .first { FileManager.default.isReadableFile(atPath: $0.path(percentEncoded: false)) }
-    }
-
-    /// Polhub's own copy: the vault's, brought by the import, so that Paul's tags outlive Obsidian.
+    /// Polhub's own copy: the vault's, brought by the import, so that Paul's tags outlived Obsidian.
     public static func appCopy(_ kind: InspirationKind, paths: AppPaths) -> URL {
         paths.inspiration.appending(path: fileName(kind))
     }
 
-    /// The vault's copy when there is one that reads, else Polhub's own, else the bundled one.
-    public static func load(_ kind: InspirationKind, vault: URL? = nil, paths: AppPaths? = nil) -> InspirationVocabulary {
-        var candidates: [(URL, Origin)] = []
-        if let vault, let url = vaultCopy(kind, vault: vault) { candidates.append((url, .vault(url))) }
+    /// Polhub's own copy when there is one that reads, else the bundled one.
+    public static func load(_ kind: InspirationKind, paths: AppPaths? = nil) -> InspirationVocabulary {
         if let paths {
             let url = appCopy(kind, paths: paths)
-            if FileManager.default.isReadableFile(atPath: url.path(percentEncoded: false)) { candidates.append((url, .app(url))) }
-        }
-        for (url, origin) in candidates {
-            if let data = try? Data(contentsOf: url), let vocabulary = try? parse(data, kind: kind, origin: origin) {
+            if let data = try? Data(contentsOf: url), let vocabulary = try? parse(data, kind: kind, origin: .app(url)) {
                 return vocabulary
             }
         }
@@ -203,30 +190,6 @@ public struct InspirationVocabulary: Sendable, Equatable {
     }
 
     // MARK: - Using it
-
-    /// The categories of a note from its `tags`, as the vault wrote them: the fixed tags and the source's slug
-    /// first, then each family in order (`ia-tags.py`, the plugin's « Modifier »). A tag two families share
-    /// (`portfolio`: secteur and support) goes to both, as the vault's tag bar showed it (`tagsParFamille`): its
-    /// place cannot say which one was meant (review of 16/11). An unknown tag goes to « autres ».
-    public func categories(fromTags tags: [String], ignoring fixed: Set<String> = []) -> [String: [String]] {
-        let ignored = Set((fixed.union(fixedTags)).map { $0.lowercased() })
-        var result: [String: [String]] = [:]
-        func add(_ value: String, to family: String) {
-            if !(result[family] ?? []).contains(value) { result[family, default: []].append(value) }
-        }
-        for raw in tags {
-            var tag = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            while tag.hasPrefix("#") { tag.removeFirst() }
-            guard !tag.isEmpty, !ignored.contains(tag.lowercased()) else { continue }
-            let homes = families.filter { $0.contains(tag) }
-            if homes.isEmpty {
-                add(tag, to: Self.otherFamily)
-            } else {
-                for family in homes { add(tag.lowercased(), to: family.name) }
-            }
-        }
-        return result
-    }
 
     /// The tagger's instructions, built as the vault's `ia_locale.py` did: what is classified, the rules, each
     /// family with its bounds, fonts and client, then every tag with its description. `nil` without a prompt.

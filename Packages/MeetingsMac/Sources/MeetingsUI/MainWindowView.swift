@@ -135,7 +135,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .mails: "Images distantes"
         case .projects: "Taille des cartes du Kanban"
         case .meetings: "Comptes rendus, langue des transcriptions"
-        case .inspiration: "Import du coffre, pages LinkedIn, collecte, catégories"
+        case .inspiration: "Pages LinkedIn, collecte, catégories"
         case .updates: "Version installée, installation automatique"
         case .diagnostic: "Autorisations, micro, Dia"
         case .journal: "Ce que l'app a fait et vu"
@@ -434,7 +434,7 @@ public enum NavigationInput {
     }
 }
 
-/// Polhub's window: the projects, the meetings, and Réglages (updates, diagnostic, journal, vault).
+/// Polhub's window: the projects, the meetings, and Réglages (updates, diagnostic, journal).
 public struct MainWindowView<Diagnostic: View>: View {
     /// The sidebar, the meetings' list, its divider and the smallest meeting page: derived from them, so that the
     /// narrowest window never squeezes the sidebar nor cuts the page (correctifs, 15/11: 860 had become too narrow).

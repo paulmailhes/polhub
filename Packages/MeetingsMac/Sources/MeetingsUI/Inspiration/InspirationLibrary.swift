@@ -2,19 +2,6 @@ import Foundation
 import GRDB
 import Inspiration
 import Persistence
-import PolhubDesign
-import ProjectsUI
-
-/// The vault's import, as Réglages › Inspiration shows it.
-public enum InspirationImportState: Equatable, Sendable {
-    case idle
-    /// `total` is 0 while the notes are counted.
-    case running(done: Int, total: Int)
-    case finished(InspirationImportReport)
-    /// Stopped by Paul: what was imported stays.
-    case cancelled
-    case failed(String)
-}
 
 /// « Supprimer », while « Annuler » can bring the item back.
 public struct InspirationUndo: Identifiable, Equatable, Sendable {
@@ -25,8 +12,8 @@ public struct InspirationUndo: Identifiable, Equatable, Sendable {
 
 /// The three pages of « Inspiration » (16/11): the items of each kind kept up to date from the base, the search
 /// and the filters of each page, the LinkedIn pages, and the gestures (categories, « Supprimer » with « Annuler »,
-/// the additions through the collection, the vault's import). The page shown and the item open live in the
-/// window's router (`WindowRouter.inspirationPage`, `.inspirationItem`), as Mails' folder and thread.
+/// the additions through the collection). The page shown and the item open live in the window's router
+/// (`WindowRouter.inspirationPage`, `.inspirationItem`), as Mails' folder and thread.
 @MainActor
 public final class InspirationLibrary: ObservableObject {
     @Published public private(set) var items: [InspirationKind: [InspirationItemRow]] = [:]
@@ -44,9 +31,6 @@ public final class InspirationLibrary: ObservableObject {
     @Published public private(set) var undoable: InspirationUndo?
     /// One line at the bottom of the page: what an addition or a collection answered.
     @Published public var message: String?
-    @Published public private(set) var importState: InspirationImportState = .idle
-    /// The last import's one line and its day, kept from one launch to the next.
-    @Published public private(set) var lastImport: (summary: String, date: Date)?
     /// How the last collection went, place by place.
     @Published public private(set) var status: [InspirationStatusLine] = []
     @Published public private(set) var collecting = false
@@ -58,25 +42,19 @@ public final class InspirationLibrary: ObservableObject {
     public let paths: AppPaths
     /// The collection; the app sets it once wired.
     public var services: InspirationServices
-    let defaults: UserDefaults
     private var haystacks: [InspirationKind: [UUID: String]] = [:]
     private var vocabularies: [InspirationKind: InspirationVocabulary] = [:]
     private var observations: [AnyDatabaseCancellable] = []
-    private var importTask: Task<Void, Never>?
     private var undoToken = 0
 
     /// The sidebar's « Inspiration », open or closed (a view's state, not a setting).
     public static let sidebarOpenKey = "inspiration.barreOuverte"
-    /// The last import: « <seconds since 1970>|<summary> ».
-    static let lastImportKey = "inspiration.dernierImport"
 
-    public init(database: AppDatabase, paths: AppPaths, services: InspirationServices = .notConnected, defaults: UserDefaults = .standard) {
+    public init(database: AppDatabase, paths: AppPaths, services: InspirationServices = .notConnected) {
         self.database = database
         self.store = InspirationStore(database)
         self.paths = paths
         self.services = services
-        self.defaults = defaults
-        lastImport = Self.readLastImport(defaults)
         for kind in InspirationKind.allCases {
             observations.append(store.observeItems(kind: kind) { [weak self] rows in self?.received(rows, kind: kind) })
         }
@@ -102,8 +80,8 @@ public final class InspirationLibrary: ObservableObject {
         return nil
     }
 
-    /// The categories' vocabulary of a kind: Polhub's copy of the vault's (brought by the import), else the one
-    /// shipped with Polhub.
+    /// The categories' vocabulary of a kind: Polhub's copy of the vault's (brought by the import while there was a
+    /// vault), else the one shipped with Polhub.
     public func vocabulary(_ kind: InspirationKind) -> InspirationVocabulary {
         if let vocabulary = vocabularies[kind] { return vocabulary }
         let vocabulary = InspirationVocabulary.load(kind, paths: paths)
@@ -217,7 +195,7 @@ public final class InspirationLibrary: ObservableObject {
 
     // MARK: - Gestures on an item
 
-    /// Paul's categories: his from now on, never changed by an import nor by the AI.
+    /// Paul's categories: his from now on, never changed by the collection nor by the AI.
     public func setCategories(_ item: InspirationItemRow, _ categories: [String: [String]]) {
         do {
             try store.setCategories(id: item.id, categories, at: Date())
@@ -343,118 +321,6 @@ public final class InspirationLibrary: ObservableObject {
         } catch {
             message = "« \(source.name) » n'a pas pu être retirée : \(Self.text(error))"
         }
-    }
-
-    // MARK: - The vault's import
-
-    /// The vault's folder, the one of Réglages › Projets (`ProjectLibrary.vaultKey`).
-    public var vaultPath: String? {
-        get { defaults.string(forKey: ProjectLibrary.vaultKey).flatMap { $0.isEmpty ? nil : $0 } }
-        set {
-            objectWillChange.send()
-            defaults.set(newValue, forKey: ProjectLibrary.vaultKey)
-        }
-    }
-
-    /// « Ancienne copie (n8n) »: the old copy of the vault the n8n flows still write to.
-    public var oldCopyPath: String? {
-        get { Preferences(defaults: defaults).inspirationOldCopyFolder }
-        set {
-            objectWillChange.send()
-            defaults.set(newValue, forKey: Preferences.Key.inspirationOldCopyFolder)
-        }
-    }
-
-    public var importing: Bool {
-        if case .running = importState { return true }
-        return false
-    }
-
-    /// « Importer depuis le coffre »: reads the vault (and the old copy), never writes there. Run twice, it adds
-    /// nothing.
-    public func runImport() {
-        guard importTask == nil else { return }
-        guard !meetingUnderWay else {
-            importState = .failed(Self.notDuringMeeting)
-            return
-        }
-        guard let vault = vaultPath else {
-            importState = .failed("Choisis d'abord le dossier du coffre.")
-            return
-        }
-        let extra = oldCopyPath.map { URL(fileURLWithPath: $0, isDirectory: true) }
-        let database = database, paths = paths
-        importState = .running(done: 0, total: 0)
-        // The library lives as long as the app: the import holds it until it ends. Utility priority: it decodes
-        // images on several cores, and Paul keeps working meanwhile (review of 16/11).
-        importTask = Task(priority: .utility) {
-            var state: InspirationImportState
-            do {
-                let report = try await InspirationImport.run(
-                    vault: URL(fileURLWithPath: vault, isDirectory: true), extra: extra, database: database, paths: paths,
-                    progress: { done, total in Task { @MainActor in self.progressed(done: done, total: total) } })
-                state = .finished(report)
-            } catch is CancellationError {
-                state = .cancelled
-            } catch {
-                state = .failed("L'import n'a pas pu se faire : \(Self.text(error))")
-            }
-            if stoppedForMeeting { state = .failed(Self.stoppedByMeeting) }
-            finishImport(state)
-        }
-    }
-
-    public func cancelImport() {
-        importTask?.cancel()
-    }
-
-    /// A meeting under way, from the pop-up to its end: no import.
-    private var meetingUnderWay = false
-    /// The import under way was stopped by a meeting.
-    private var stoppedForMeeting = false
-    static let stoppedByMeeting = "Import arrêté : une réunion a commencé. Relance-le à la fin, ce qui est fait reste."
-    static let notDuringMeeting = "Pas d'import pendant une réunion : relance-le à la fin."
-
-    /// A meeting starts or ends (the app's recorder): the import, which decodes images on several cores, stops, and
-    /// none starts until the end (review of 16/11: it made the Mac lag during a call). Run again, it goes on.
-    public func meetingActivity(_ busy: Bool) {
-        meetingUnderWay = busy
-        guard busy, importTask != nil else { return }
-        stoppedForMeeting = true
-        importTask?.cancel()
-    }
-
-    private func progressed(done: Int, total: Int) {
-        guard importTask != nil, case .running(let before, _) = importState, done >= before else { return }
-        importState = .running(done: done, total: total)
-    }
-
-    private func finishImport(_ state: InspirationImportState) {
-        importTask = nil
-        stoppedForMeeting = false
-        importState = state
-        // What was imported, even by an import stopped midway: the collection reads the vocabulary again and tags
-        // the items without categories, in the background.
-        switch state {
-        case .finished, .cancelled:
-            let services = services
-            Task { await services.imported() }
-        default:
-            break
-        }
-        guard case .finished(let report) = state else { return }
-        // The import brings the vault's live vocabulary into Polhub: the menus read it from now on.
-        vocabularies = [:]
-        InspirationKind.allCases.forEach(recompute)
-        let now = Date()
-        lastImport = (report.summary, now)
-        defaults.set("\(Int(now.timeIntervalSince1970))|\(report.summary)", forKey: Self.lastImportKey)
-    }
-
-    static func readLastImport(_ defaults: UserDefaults) -> (summary: String, date: Date)? {
-        guard let text = defaults.string(forKey: lastImportKey), let bar = text.firstIndex(of: "|"),
-              let seconds = Double(text[..<bar]) else { return nil }
-        return (String(text[text.index(after: bar)...]), Date(timeIntervalSince1970: seconds))
     }
 
     nonisolated static func text(_ error: any Error) -> String {

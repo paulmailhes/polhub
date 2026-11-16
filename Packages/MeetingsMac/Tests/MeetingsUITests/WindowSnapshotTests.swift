@@ -89,7 +89,7 @@ struct WindowSnapshotTests {
             try store.save(project, at: Date())
         }
         let library = MeetingLibrary(store: MeetingStore(database))
-        let projects = ProjectLibrary(store: store, meetings: MeetingStore(database), defaults: UserDefaults(suiteName: "kanban-\(UUID().uuidString)")!)
+        let projects = ProjectLibrary(store: store, meetings: MeetingStore(database))
         let router = WindowRouter()
         router.section = .projects
         try await Task.sleep(for: .milliseconds(300))
@@ -133,7 +133,7 @@ struct WindowSnapshotTests {
             try store.setProject(meetingID: meeting.id, projectID: project.id)
             if day == 1 { try meetings.setSummary(meetingID: meeting.id, summary: "## Résumé\n\nLe client valide la maquette ; la page Contact reste à revoir.") }
         }
-        let projects = ProjectLibrary(store: store, meetings: meetings, defaults: UserDefaults(suiteName: "page-\(UUID().uuidString)")!)
+        let projects = ProjectLibrary(store: store, meetings: meetings)
         let quiet = UserDefaults(suiteName: "logos-\(UUID().uuidString)")!
         quiet.set(false, forKey: Preferences.Key.projectLogos)
         let folder = FileManager.default.temporaryDirectory.appending(path: "logos \(UUID().uuidString)", directoryHint: .isDirectory)
@@ -160,7 +160,7 @@ struct WindowSnapshotTests {
         let store = MeetingStore(database)
         try store.addJournal(JournalEntry(createdAt: Date(), kind: .info, message: "Polhub mis à jour : 0.3.0 → 0.3.1."))
         let library = MeetingLibrary(store: store)
-        let projects = ProjectLibrary(store: ProjectStore(database), meetings: store, defaults: UserDefaults(suiteName: "réglages-\(UUID().uuidString)")!)
+        let projects = ProjectLibrary(store: ProjectStore(database), meetings: store)
         let updates = UpdateService(current: SemanticVersion("0.3.1")!, fetch: { Data("[]".utf8) }, isIdle: { true },
                                     defaults: UserDefaults(suiteName: "maj-\(UUID().uuidString)")!)
         let router = WindowRouter()
@@ -172,6 +172,11 @@ struct WindowSnapshotTests {
                                                         paths: AppPaths(root: root, logs: root)) { Text("Le diagnostic de l'app").padding() },
                                          to: output.appending(path: "reglages-\(tab?.rawValue ?? "familles").png"), size: NSSize(width: 1_000, height: 600))
         }
+        // 16/11: Réglages › Projets in the dark too (the vault's folder gone).
+        router.settingsPane = .projects
+        try await LiveWindow.capture(MainWindowView(library: library, projects: projects, updates: updates, router: router,
+                                                    paths: AppPaths(root: root, logs: root)) { EmptyView() },
+                                     to: output.appending(path: "reglages-projects-sombre.png"), size: NSSize(width: 1_000, height: 600), dark: true)
     }
 
     /// Accueil, Calendrier and Contacts, with made-up data (13/11).
@@ -239,7 +244,7 @@ struct WindowSnapshotTests {
             }
         }
         let library = MeetingLibrary(store: meetingStore)
-        let projects = ProjectLibrary(store: projectStore, meetings: MeetingStore(database), defaults: UserDefaults(suiteName: "agenda-\(UUID().uuidString)")!)
+        let projects = ProjectLibrary(store: projectStore, meetings: MeetingStore(database))
         let agenda = AgendaLibrary(database: database)
         let router = WindowRouter()
         try await Task.sleep(for: .milliseconds(400))
@@ -259,11 +264,13 @@ struct WindowSnapshotTests {
         try calendar.setGrantedScopes(email: "moi@exemple.fr", scopes: "openid https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.modify")
         try await Task.sleep(for: .milliseconds(300))
         router.section = .settings
-        for pane in [SettingsPane.accounts, .calendar] {
+        // 16/11: Réglages › Calendrier in the dark too.
+        for (pane, dark) in [(SettingsPane.accounts, false), (.calendar, false), (.calendar, true)] {
             router.settingsPane = pane
             try await LiveWindow.capture(MainWindowView(library: library, projects: projects, agenda: agenda, router: router,
                                                         paths: AppPaths(root: root, logs: root)) { EmptyView() },
-                                         to: output.appending(path: "reglages-\(pane.rawValue).png"), size: NSSize(width: 1_000, height: 860))
+                                         to: output.appending(path: "reglages-\(pane.rawValue)\(dark ? "-sombre" : "").png"),
+                                         size: NSSize(width: 1_000, height: 860), dark: dark)
         }
     }
     /// Contacts (15/11): the list by last exchange, and a contact's page with its projects, mails, events and
@@ -356,7 +363,7 @@ struct WindowSnapshotTests {
         let agenda = AgendaLibrary(database: database)
         let mails = MailLibrary(agenda: agenda, root: root, defaults: UserDefaults(suiteName: "contacts-\(UUID().uuidString)")!)
         let library = MeetingLibrary(store: meetingStore)
-        let projectLibrary = ProjectLibrary(store: projectStore, meetings: meetingStore, defaults: UserDefaults(suiteName: "contacts-p-\(UUID().uuidString)")!)
+        let projectLibrary = ProjectLibrary(store: projectStore, meetings: meetingStore)
         let router = WindowRouter()
         router.section = .contacts
         router.contactSelection = camille.id

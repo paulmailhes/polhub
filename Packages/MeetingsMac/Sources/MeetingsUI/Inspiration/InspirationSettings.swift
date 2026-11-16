@@ -2,23 +2,16 @@ import AppKit
 import Persistence
 import PolhubDesign
 import SwiftUI
-import UniformTypeIdentifiers
 
-/// Réglages › Inspiration (16/11): the vault's import, the LinkedIn pages followed, the automatic collection and
-/// how its last runs went, the categories by Apple's AI.
+/// Réglages › Inspiration (16/11): the LinkedIn pages followed, the automatic collection and how its last runs went,
+/// the categories by Apple's AI. The vault's import is gone with the vault (16/11).
 struct InspirationSettingsPane: View {
     @ObservedObject var library: InspirationLibrary
     @ObservedObject var router: WindowRouter
     @AppStorage(Preferences.Key.inspirationAutoCollect) private var autoCollect = true
     @AppStorage(Preferences.Key.inspirationAICategories) private var aiCategories = true
-    @State private var choosing: Folder?
     @State private var editing: SourceDraft?
     @State private var removing: InspirationSourceRow?
-
-    enum Folder: Identifiable {
-        case vault, oldCopy
-        var id: Self { self }
-    }
 
     struct SourceDraft: Identifiable {
         let id = UUID()
@@ -27,26 +20,16 @@ struct InspirationSettingsPane: View {
 
     var body: some View {
         Form {
-            importSection
             sourcesSection
             collectionSection
             Section {
                 Toggle("Catégories par l'IA d'Apple", isOn: $aiCategories)
             } footer: {
-                Text("Le modèle d'Apple, sur le Mac, range chaque nouvelle fiche dans le vocabulaire du coffre, d'après son texte. Il ne touche jamais une fiche dont tu as choisi les catégories.")
+                Text("Le modèle d'Apple, sur le Mac, range chaque nouvelle fiche dans tes catégories, d'après son texte. Il ne touche jamais une fiche dont tu as choisi les catégories.")
             }
         }
         .formStyle(.grouped)
         .frame(maxWidth: 640)
-        .fileImporter(isPresented: Binding(get: { choosing != nil }, set: { if !$0 { choosing = nil } }), allowedContentTypes: [.folder]) { result in
-            guard case .success(let url) = result else { return }
-            switch choosing {
-            case .vault: library.vaultPath = url.path(percentEncoded: false)
-            case .oldCopy: library.oldCopyPath = url.path(percentEncoded: false)
-            case nil: break
-            }
-            choosing = nil
-        }
         .sheet(item: $editing) { draft in InspirationSourceSheet(library: library, source: draft.source) }
         .confirmationDialog("Ne plus suivre « \(removing?.name ?? "") » ?",
                             isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }), presenting: removing) { source in
@@ -62,107 +45,12 @@ struct InspirationSettingsPane: View {
         }
     }
 
-    // MARK: - The import
-
-    private var importSection: some View {
-        Section {
-            folderRow("Coffre Obsidian", path: library.vaultPath, empty: "Pas encore choisi") { choosing = .vault }
-            folderRow("Ancienne copie (n8n)", path: library.oldCopyPath, empty: "Aucune") { choosing = .oldCopy } clear: {
-                library.oldCopyPath = nil
-            }
-            importControls
-            importResult
-        } header: {
-            Text("Import du coffre")
-        } footer: {
-            Text("Polhub lit le coffre sans rien y changer ; relancé, l'import n'ajoute que ce qui manque, et les catégories que tu as corrigées restent. L'ancienne copie, celle où n8n écrit encore, apporte ce que le coffre n'a pas.")
-        }
-    }
-
-    private func folderRow(_ title: String, path: String?, empty: String, choose: @escaping () -> Void,
-                           clear: (() -> Void)? = nil) -> some View {
-        LabeledContent(title) {
-            HStack(spacing: Space.s) {
-                Text(path.map { ($0 as NSString).abbreviatingWithTildeInPath } ?? empty)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .help(path ?? "")
-                Button("Choisir…", action: choose).disabled(library.importing)
-                if let clear, path != nil {
-                    Button("Retirer", action: clear).disabled(library.importing)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var importControls: some View {
-        if case .running(let done, let total) = library.importState {
-            VStack(alignment: .leading, spacing: Space.s) {
-                if total > 0 {
-                    ProgressView(value: Double(done), total: Double(total))
-                } else {
-                    ProgressView().progressViewStyle(.linear)
-                }
-                HStack {
-                    Text(total > 0 ? "\(done) fiches sur \(total)" : "Lecture du coffre…")
-                        .font(.meta.monospacedDigit()).foregroundStyle(.secondary)
-                    Spacer()
-                    Button("Arrêter") { library.cancelImport() }
-                }
-            }
-        } else {
-            HStack {
-                Button("Importer depuis le coffre") { library.runImport() }
-                    .buttonStyle(.glassProminent)
-                    .disabled(library.vaultPath == nil)
-                Spacer()
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var importResult: some View {
-        switch library.importState {
-        case .finished(let report):
-            VStack(alignment: .leading, spacing: Space.xs) {
-                Text(report.summary).font(.rowBody.weight(.medium))
-                if !report.details.isEmpty { Text(report.details).font(.meta).foregroundStyle(.secondary) }
-                if !report.warnings.isEmpty {
-                    DisclosureGroup("Détails (\(report.warnings.count))") {
-                        VStack(alignment: .leading, spacing: 2) {
-                            ForEach(Array(report.warnings.prefix(60).enumerated()), id: \.offset) { _, warning in
-                                Text(warning).font(.meta).foregroundStyle(.secondary).textSelection(.enabled)
-                            }
-                            if report.warnings.count > 60 {
-                                Text("et \(report.warnings.count - 60) autres").font(.meta).foregroundStyle(.tertiary)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .font(.meta)
-                }
-            }
-        case .failed(let problem):
-            Text(problem).font(.meta).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
-        case .cancelled:
-            Text("Import arrêté : ce qui était déjà importé reste.").font(.meta).foregroundStyle(.secondary)
-        case .idle:
-            if let last = library.lastImport {
-                Text("Dernier import, \(InspirationBrowse.dateText(last.date)) : \(last.summary)").font(.meta).foregroundStyle(.secondary)
-            }
-        case .running:
-            EmptyView()
-        }
-    }
-
     // MARK: - The LinkedIn pages
 
     private var sourcesSection: some View {
         Section {
             if library.sources.isEmpty {
-                Text("Aucune page pour l'instant : l'import reprend celles du coffre.").font(.meta).foregroundStyle(.secondary)
+                Text("Aucune page pour l'instant.").font(.meta).foregroundStyle(.secondary)
             }
             ForEach(library.sources) { source in sourceRow(source) }
             Button { editing = SourceDraft(source: nil) } label: { Label("Ajouter une page LinkedIn", systemImage: "plus") }
