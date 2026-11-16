@@ -3,6 +3,35 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.28.0 — 16 novembre 2026
+
+**Tes agents font presque tout par Polhub, et Polhub ne dépend plus d'Obsidian.**
+
+Ce que tes agents Claude Code savent faire en plus, par le MCP de Polhub :
+
+- **Joindre des fichiers à un brouillon**, seulement quand tu le leur demandes : 10 fichiers et 25 Mo au plus, jamais
+  un fichier caché, un trousseau ni ta Bibliothèque (iCloud Drive et les Drive restent permis). Ils apparaissent
+  dans le brouillon comme ceux que tu joins.
+- **Écrire un brouillon mis en forme** : gras, italique, listes, liens. C'est Polhub qui fabrique le mail, jamais
+  l'agent. Le brouillon l'indique, et « Repasser en texte simple » te le rend modifiable (« Remettre la mise en
+  forme » revient en arrière).
+- **Ranger un fil** dans un projet, Perso, Newsletters, Paiements ou Services, sans rien apprendre de l'expéditeur.
+- **Lire ton agenda** (avec la date de la dernière lecture de tes calendriers) et **créer un rendez-vous**, avec un
+  lieu et un Meet si besoin, marqué « préparé par un agent ». Jamais d'invité : un agent n'invite personne.
+- **Retrouver un contact** : adresses, téléphone, entreprise, projets.
+- **Créer un projet**, changer son client et ses notes (l'ancienne version des notes reste dans le journal du
+  projet), lier ou retirer un contact.
+- **Chercher dans Inspiration** (sites, branding, mock-ups) et voir une fiche avec son image.
+
+Polhub sans Obsidian :
+
+- Les imports du coffre (l'historique, les projets, Inspiration) et le choix du dossier du coffre disparaissent de
+  Réglages : le coffre est supprimé. Rien de ce qui a été importé ne change.
+- Une page de projet ouverte suit les changements faits par un agent pendant qu'elle est à l'écran.
+- La page de confidentialité dit qu'un assistant peut créer un rendez-vous à ta demande.
+
+Les sessions Claude Code déjà ouvertes gardent l'ancien MCP : relance-les (ou `/mcp`, « Reconnect »).
+
 ## 0.27.0 — 16 novembre 2026
 
 **Tes agents lisent les pièces jointes de tes mails.**
