@@ -12,7 +12,9 @@ enum ThumbnailMode: Hashable, Sendable {
     case fill, fit
 }
 
-/// The thumbnails made, by file and size; the oldest go when the memory set aside is full.
+/// The thumbnails made, by file and size; the least recently shown go when the memory set aside is full, all of them
+/// when macOS runs short of memory. Its own cache rather than `NSCache`, which lets go of images whenever it likes:
+/// what it keeps is then known (16/11: the tests failed under load).
 final class InspirationThumbnails: @unchecked Sendable {
     static let shared = InspirationThumbnails()
 
@@ -22,10 +24,52 @@ final class InspirationThumbnails: @unchecked Sendable {
     /// The sizes asked go up by steps: a window resized by a few points reuses the thumbnails made.
     static let step = 128
 
-    private let cache = NSCache<NSString, CGImage>()
+    private let limit: Int
+    private let lock = NSLock()
+    private var entries: [String: (image: CGImage, cost: Int)] = [:]
+    /// The keys, the least recently shown first.
+    private var order: [String] = []
+    private var total = 0
+    private var pressure: (any DispatchSourceMemoryPressure)?
 
     init(memory: Int = InspirationThumbnails.memory) {
-        cache.totalCostLimit = memory
+        limit = memory
+        let source = DispatchSource.makeMemoryPressureSource(eventMask: [.warning, .critical], queue: .global(qos: .utility))
+        source.setEventHandler { [weak self] in self?.purge() }
+        source.resume()
+        pressure = source
+    }
+
+    deinit {
+        pressure?.cancel()
+    }
+
+    private func object(_ key: String) -> CGImage? {
+        lock.withLock {
+            guard let entry = entries[key] else { return nil }
+            if let index = order.firstIndex(of: key) {
+                order.remove(at: index)
+                order.append(key)
+            }
+            return entry.image
+        }
+    }
+
+    private func store(_ image: CGImage, key: String) {
+        let cost = image.bytesPerRow * image.height
+        lock.withLock {
+            if let old = entries[key] {
+                total -= old.cost
+                order.removeAll { $0 == key }
+            }
+            entries[key] = (image, cost)
+            order.append(key)
+            total += cost
+            // The newest always stays, even alone past the limit.
+            while total > limit, order.count > 1 {
+                total -= entries.removeValue(forKey: order.removeFirst())?.cost ?? 0
+            }
+        }
     }
 
     static func key(_ url: URL, pixels: CGSize, mode: ThumbnailMode) -> String {
@@ -40,21 +84,25 @@ final class InspirationThumbnails: @unchecked Sendable {
 
     /// Paul left « Inspiration », or the window closed: the thumbnails go.
     func purge() {
-        cache.removeAllObjects()
+        lock.withLock {
+            entries.removeAll()
+            order.removeAll()
+            total = 0
+        }
     }
 
     func cached(_ url: URL, pixels: CGSize, mode: ThumbnailMode) -> CGImage? {
-        cache.object(forKey: Self.key(url, pixels: Self.bucket(pixels), mode: mode) as NSString)
+        object(Self.key(url, pixels: Self.bucket(pixels), mode: mode))
     }
 
     /// The image of `url` for a box of `pixels`, from memory or made now off the main thread; `nil` when the file
     /// is missing or not an image.
     func image(_ url: URL, pixels: CGSize, mode: ThumbnailMode) async -> CGImage? {
         let box = Self.bucket(pixels)
-        let key = Self.key(url, pixels: box, mode: mode) as NSString
-        if let image = cache.object(forKey: key) { return image }
+        let key = Self.key(url, pixels: box, mode: mode)
+        if let image = object(key) { return image }
         let made = await Self.make(url, pixels: box, mode: mode)
-        if let made { cache.setObject(made, forKey: key, cost: made.bytesPerRow * made.height) }
+        if let made { store(made, key: key) }
         return made
     }
 

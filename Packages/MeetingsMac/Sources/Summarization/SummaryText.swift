@@ -174,6 +174,23 @@ public enum SummaryText {
         return (plain + "\n", html)
     }
 
+    /// The summary as clean Markdown, for a page sent to others (« Exporter », 16/11): its titles at the second
+    /// level, its paragraphs and lists, without the vault's marks nor the « Partiel » line.
+    public static func exportMarkdown(_ markdown: String) -> String {
+        var text = ""
+        var previous: Block.Kind?
+        for block in blocks(markdown) {
+            if previous != nil { text += previous == .item && block.kind == .item ? "\n" : "\n\n" }
+            switch block.kind {
+            case .heading: text += "## " + block.text
+            case .paragraph: text += block.text
+            case .item: text += "- " + block.text
+            }
+            previous = block.kind
+        }
+        return text
+    }
+
     struct Block: Equatable {
         enum Kind { case heading, paragraph, item }
         var kind: Kind

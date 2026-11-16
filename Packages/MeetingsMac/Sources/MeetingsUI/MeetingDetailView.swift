@@ -44,6 +44,7 @@ struct MeetingDetailView: View {
     @State private var summaryJob: SummaryJobRow?
     @State private var actions: [ActionRow] = []
     @State private var participants: [ContactRow] = []
+    @State private var exportError: String?
 
     private var folder: URL { paths.meetingFolder(row.id) }
     private var project: ProjectRow? { row.projectID.flatMap { id in projects.first { $0.id == id } } }
@@ -91,6 +92,11 @@ struct MeetingDetailView: View {
             Button("Annuler", role: .cancel) {}
         } message: {
             Text("L'audio va à la Corbeille, d'où tu peux encore le récupérer.")
+        }
+        .alert("Export impossible", isPresented: Binding(get: { exportError != nil }, set: { if !$0 { exportError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(exportError ?? "")
         }
     }
 
@@ -249,6 +255,10 @@ struct MeetingDetailView: View {
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
+            // The summary and the dialogue in one Markdown page, to send (Paul, 16/11).
+            Button(action: export) { Label("Exporter", systemImage: "square.and.arrow.up") }
+                .help("Exporter le compte rendu et la transcription en Markdown (.md)")
+                .disabled(lines.isEmpty && summary?.isEmpty != false)
             if row.source != .imported {
                 Button { showingDetails = true } label: { Label("Enregistrement", systemImage: "info.circle") }
                     .help("Comment s'est passé l'enregistrement")
@@ -276,6 +286,19 @@ struct MeetingDetailView: View {
             } label: {
                 Label("Plus", systemImage: "ellipsis")
             }
+        }
+    }
+
+    /// « Exporter »: where to save, then the page (« Lundi 16 novembre 2026 à 14:30 · 27 min », the summary, the
+    /// actions, the dialogue).
+    private func export() {
+        let date = row.startedAt.formatted(.dateTime.weekday(.wide).day().month(.wide).year().hour().minute().locale(Locale(identifier: "fr_FR")))
+        let duration = row.status.isUnfinished || row.endedAt == nil ? "" : MeetingListModel.durationText(row, now: .now)
+        let page = MeetingExport.markdown(title: row.title, date: date.prefix(1).uppercased() + date.dropFirst(), duration: duration,
+                                          participants: participants.map(\.name), summary: summary, actions: actions, lines: lines,
+                                          me: MeetingExport.firstName())
+        if case .failure(let error) = MeetingExport.save(page, suggestedName: MeetingExport.fileName(title: row.title, date: row.startedAt)) {
+            exportError = "Le fichier n'a pas pu être écrit : \(error.localizedDescription)"
         }
     }
 

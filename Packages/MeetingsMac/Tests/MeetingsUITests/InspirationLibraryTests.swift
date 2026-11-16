@@ -277,6 +277,27 @@ import Testing
         #expect(thumbnails.cached(url, pixels: CGSize(width: 256, height: 192), mode: .fill) == nil)
     }
 
+    /// Past the memory set aside, the thumbnail shown least recently goes first; one shown again stays.
+    @Test func theLeastRecentlyShownThumbnailGoesFirst() async throws {
+        let world = try InspirationTestWorld()
+        defer { world.clean() }
+        let box = CGSize(width: 256, height: 192)
+        var urls: [URL] = []
+        for (index, file) in ["a.jpg", "b.jpg", "c.jpg"].enumerated() {
+            let name = try world.draw(file, kind: .website, seed: index + 5, size: CGSize(width: 1_200, height: 900))
+            urls.append(world.paths.inspirationImages(.website).appending(path: name))
+        }
+        let one = try #require(await InspirationThumbnails().image(urls[0], pixels: box, mode: .fill))
+        // Room for two.
+        let thumbnails = InspirationThumbnails(memory: one.bytesPerRow * one.height * 2 + 1)
+        for url in urls.prefix(2) { _ = await thumbnails.image(url, pixels: box, mode: .fill) }
+        #expect(thumbnails.cached(urls[0], pixels: box, mode: .fill) != nil)
+        _ = await thumbnails.image(urls[2], pixels: box, mode: .fill)
+        #expect(thumbnails.cached(urls[0], pixels: box, mode: .fill) != nil)
+        #expect(thumbnails.cached(urls[1], pixels: box, mode: .fill) == nil)
+        #expect(thumbnails.cached(urls[2], pixels: box, mode: .fill) != nil)
+    }
+
     /// A meeting that starts stops the import (it decodes images on several cores) and keeps it from starting
     /// until the end; what was imported stays, and the next import goes on (review of 16/11).
     @Test func aMeetingStopsTheImport() async throws {
