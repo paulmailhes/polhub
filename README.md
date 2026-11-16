@@ -21,7 +21,6 @@ usage : il n'est ni configurable pour d'autres navigateurs, ni traduit.
 - **Montre le dialogue** « Moi / Les autres », relié au lecteur. On peut chercher dans toutes les
   réunions et relancer une transcription dans une autre langue.
 - **Range les projets** : un kanban, des vues « À rendre » et « À surveiller », une page par projet.
-  Les projets s'importent d'un coffre Obsidian, lu sans jamais y écrire.
 - **Ouvre les réunions à Claude Code**, en lecture seule, par la commande `polhub` et son
   serveur MCP.
 - **Se met à jour seul** à partir des versions publiées ici, et jamais pendant une réunion.

@@ -249,8 +249,9 @@ Centre de contrôle. La logique vit à part, testée sans écran (`PanelModel`).
 
 ## Inspiration
 
-Les trois bases d'idées de Paul, reprises du coffre Obsidian (dossier `MeetingsUI/Inspiration`, 16/11). La logique
-vit à part, testée sans écran (`InspirationBrowse`, `InspirationLibrary`).
+Les trois bases d'idées de Paul (dossier `MeetingsUI/Inspiration`, 16/11), reprises de son ancien coffre Obsidian,
+puis nourries par la collecte et ses ajouts. La logique vit à part, testée sans écran (`InspirationBrowse`,
+`InspirationLibrary`).
 
 - **Dans la barre latérale** : « Inspiration » (ampoule, jaune), après Contacts, repliable comme Mails, avec ses trois
   pages dessous : « Websites » (globe), « Branding » (palette), « Mock-ups » (cadre). Aucun raccourci ⌘ : ⌘1 à ⌘6 restent
@@ -271,13 +272,13 @@ vit à part, testée sans écran (`InspirationBrowse`, `InspirationLibrary`).
   images d'un post côte à côte, à leurs proportions), les liens en boutons `.glass` (« Ouvrir le site », « Voir sur
   LinkedIn », « Ouvrir le dossier » : le Finder si le dossier est sur le Mac, sinon son lien Nextcloud), les autres
   liens du post, le texte (860 points au plus), polices et client, puis les catégories : un clic sur une famille ouvre
-  le vocabulaire, chaque valeur cochée ou non. Corrigées par Paul, elles sont à lui : ni l'import ni l'IA n'y touchent
-  plus. « Supprimer » est dans « … », avec « Annuler » en bas de la page (⌘Z), comme dans Mails.
-- **Une page vide** : une ligne et « Importer depuis le coffre », qui mène à Réglages › Inspiration.
-- **Réglages › Inspiration** : l'import (le dossier du coffre, celui de Réglages › Projets, et « Ancienne copie
-  (n8n) », facultative), sa progression, puis son rapport en une ligne ; les pages LinkedIn (nom, lien, couleur ;
-  ajouter, modifier, ne plus suivre) avec leur dernière lecture en clair ; « Collecte automatique » et l'état de
-  chaque lieu lu ; « Catégories par l'IA d'Apple ».
+  le vocabulaire, chaque valeur cochée ou non. Corrigées par Paul, elles sont à lui : ni la collecte ni l'IA n'y
+  touchent plus. « Supprimer » est dans « … », avec « Annuler » en bas de la page (⌘Z), comme dans Mails.
+- **Une page vide** : une ligne et le bouton de son « + » (« Ajouter un site », « Ajouter une page LinkedIn »,
+  « Ajouter un mock-up »).
+- **Réglages › Inspiration** : les pages LinkedIn (nom, lien, couleur ; ajouter, modifier, ne plus suivre) avec leur
+  dernière lecture en clair ; « Collecte automatique » et l'état de chaque lieu lu ; « Catégories par l'IA d'Apple ».
+  L'import du coffre est parti avec le coffre (16/11).
 
 ## Les réglages
 
