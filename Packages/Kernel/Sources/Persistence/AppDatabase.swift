@@ -517,6 +517,18 @@ public final class AppDatabase: Sendable {
                 t.column("removedAt", .datetime)
             }
         }
+        // The MCP (16/11): an agent's draft may carry files (copied beside the mails, in the drop's own folder) and a
+        // text in markdown; a draft keeps the HTML the app made of it apart from the message it quotes. A helper of
+        // before writes neither: the defaults say « no file, plain text ».
+        migrator.registerMigration("v14") { db in
+            try db.alter(table: "mail_agent_draft") { t in
+                t.add(column: "files", .text).notNull().defaults(to: "[]")
+                t.add(column: "format", .text).notNull().defaults(to: "plain")
+            }
+            try db.alter(table: "mail_draft") { t in
+                t.add(column: "bodyHTML", .text)
+            }
+        }
         return migrator
     }
 }

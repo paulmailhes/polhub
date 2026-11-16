@@ -285,6 +285,11 @@ public struct MailSenderRow: Codable, Equatable, Sendable, FetchableRecord, Pers
 public struct MailAgentDraftRow: Codable, Equatable, Identifiable, Sendable, FetchableRecord, PersistableRecord {
     public static let databaseTableName = "mail_agent_draft"
 
+    /// How the agent wrote its text (16/11): plain, or the little markdown the app turns into simple HTML.
+    public enum Format: String, Codable, Sendable {
+        case plain, markdown
+    }
+
     public var id: String
     /// `new`, `reply` or `replyAll`.
     public var mode: MailDraftRow.Mode
@@ -295,9 +300,14 @@ public struct MailAgentDraftRow: Codable, Equatable, Identifiable, Sendable, Fet
     public var subject: String
     public var body: String
     public var createdAt: Date
+    /// The files Paul asked the agent to join (16/11), copied by `polhub mcp` into the drop's own folder
+    /// (`MailFiles.agentFolder`); the app moves them into the draft's.
+    public var files: [MailDraftFile]
+    public var format: Format
 
     public init(id: String = UUID().uuidString.lowercased(), mode: MailDraftRow.Mode, account: String? = nil, threadKey: String? = nil,
-                to: [MailAddress] = [], cc: [MailAddress] = [], subject: String = "", body: String, createdAt: Date) {
+                to: [MailAddress] = [], cc: [MailAddress] = [], subject: String = "", body: String, createdAt: Date,
+                files: [MailDraftFile] = [], format: Format = .plain) {
         self.id = id
         self.mode = mode
         self.account = account?.lowercased()
@@ -307,6 +317,8 @@ public struct MailAgentDraftRow: Codable, Equatable, Identifiable, Sendable, Fet
         self.subject = subject
         self.body = body
         self.createdAt = createdAt
+        self.files = files
+        self.format = format
     }
 }
 
@@ -353,6 +365,9 @@ public struct MailDraftRow: Codable, Equatable, Identifiable, Sendable, Fetchabl
     public var subject: String
     /// What Paul writes, as text.
     public var body: String
+    /// An agent's formatted text (16/11), made by the app from its markdown: it leaves instead of the HTML of `body`,
+    /// which stays its plain version (the text part). `nil` for every draft Paul writes.
+    public var bodyHTML: String?
     /// The message answered or forwarded, below Paul's text, as Gmail quotes it.
     public var quoteHTML: String?
     public var quoteText: String?
@@ -386,7 +401,7 @@ public struct MailDraftRow: Codable, Equatable, Identifiable, Sendable, Fetchabl
     }
 
     public init(id: String = UUID().uuidString.lowercased(), account: String, mode: Mode, threadKey: String? = nil, replyToKey: String? = nil,
-                to: [MailAddress] = [], cc: [MailAddress] = [], bcc: [MailAddress] = [], subject: String = "", body: String = "",
+                to: [MailAddress] = [], cc: [MailAddress] = [], bcc: [MailAddress] = [], subject: String = "", body: String = "", bodyHTML: String? = nil,
                 quoteHTML: String? = nil, quoteText: String? = nil, inReplyTo: String? = nil, references: String? = nil, signature: Bool = true,
                 files: [MailDraftFile] = [], gmailDraftID: String? = nil, gmailMessageID: String? = nil, origin: Origin = .paul,
                 pushedAt: Date? = nil, lastError: String? = nil, createdAt: Date, updatedAt: Date? = nil, conflict: Conflict? = nil) {
@@ -400,6 +415,7 @@ public struct MailDraftRow: Codable, Equatable, Identifiable, Sendable, Fetchabl
         self.bcc = bcc
         self.subject = subject
         self.body = body
+        self.bodyHTML = bodyHTML
         self.quoteHTML = quoteHTML
         self.quoteText = quoteText
         self.inReplyTo = inReplyTo
