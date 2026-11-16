@@ -42,8 +42,9 @@ struct DeskFixture {
         try projects.setProject(meetingID: meeting.id, projectID: atelier.id)
     }
 
-    func desk(in folder: String? = nil) -> ProjectDesk {
-        ProjectDesk(projects: projects, meetings: meetings, workingDirectory: folder, now: { [now] in now },
+    /// `root`: the folder of Polhub's data, where Inspiration's images live.
+    func desk(in folder: String? = nil, root: URL? = nil) -> ProjectDesk {
+        ProjectDesk(projects: projects, meetings: meetings, workingDirectory: folder, dataRoot: root, now: { [now] in now },
                     timeZone: TimeZone(identifier: "Europe/Paris")!)
     }
 }
@@ -66,6 +67,107 @@ struct DeskFixture {
         #expect(throws: ToolError.self) { try desk.update("Atelier Nord", status: "urgent", due: nil, todo: nil) }
         #expect(throws: ToolError.self) { try desk.update("Atelier Nord", status: nil, due: "demain", todo: nil) }
         #expect(throws: ToolError.self) { try desk.update("Atelier Nord", status: nil, due: nil, todo: nil) }
+        #expect(throws: ToolError.self) { try desk.update("Atelier Nord", status: nil, due: nil, todo: nil, notes: "", contact: "", removeContact: "") }
+    }
+
+    /// Paul's 7 (16/11): a session creates a project when he asks, with what it was given, at the bottom of its
+    /// column, as the board's « + » does.
+    @Test func aSessionCreatesAProjectWhenPaulAsks() throws {
+        let fixture = try DeskFixture()
+        let desk = fixture.desk()
+        let answer = try desk.create(name: " Refonte Exemple ", status: "priorité 2", client: "Studio Est", due: "2026-12-04",
+                                     folder: "/Users/exemple/Code/refonte/")
+        #expect(answer == "Projet « Refonte Exemple » créé : priorité 2, client « Studio Est », échéance 04/12/2026, dossier /Users/exemple/Code/refonte.")
+        let created = try desk.resolve("Refonte Exemple")
+        #expect(created.status == .priorite2 && created.client == "Studio Est" && created.codeFolder == "/Users/exemple/Code/refonte")
+        #expect(desk.day(try #require(created.dueDate)) == "04/12/2026" && created.createdOn == fixture.now)
+        // The session opened in its folder finds it.
+        #expect(try fixture.desk(in: "/Users/exemple/Code/refonte/front").resolve(nil).id == created.id)
+    }
+
+    @Test func aNewProjectHasDefaultsAndComesLastInItsColumn() throws {
+        let fixture = try DeskFixture()
+        let desk = fixture.desk()
+        #expect(try desk.create(name: "Nouvelle piste", status: nil, client: nil, due: nil, folder: nil) == "Projet « Nouvelle piste » créé : priorité 1.")
+        let created = try desk.resolve("Nouvelle piste")
+        #expect(created.status == .priorite1 && created.client == nil && created.dueDate == nil && created.codeFolder == nil && created.todo == nil)
+        // « Atelier Nord » is first in « priorité 1 »: the new one comes after it.
+        #expect(created.kanbanOrder > fixture.atelier.kanbanOrder)
+        #expect(try desk.list(filter: nil).contains("Nouvelle piste"))
+        _ = try desk.create(name: "Autre piste", status: "", client: "", due: "", folder: "")
+        #expect(try desk.resolve("Autre piste").kanbanOrder > created.kanbanOrder)
+    }
+
+    /// A name that exists is refused (case and accents ignored), and so is what cannot be read: nothing is created.
+    @Test func aNewProjectNeedsANewNameAndReadableFields() throws {
+        let fixture = try DeskFixture()
+        let desk = fixture.desk()
+        do {
+            _ = try desk.create(name: "atelier nörd", status: nil, client: nil, due: nil, folder: nil)
+            Issue.record("« Atelier Nord » existe déjà")
+        } catch let error as ToolError {
+            #expect(error.description.contains("« Atelier Nord »"))
+        }
+        #expect(throws: ToolError.self) { try desk.create(name: "  ", status: nil, client: nil, due: nil, folder: nil) }
+        #expect(throws: ToolError.self) { try desk.create(name: "Piste", status: "urgent", client: nil, due: nil, folder: nil) }
+        #expect(throws: ToolError.self) { try desk.create(name: "Piste", status: nil, client: nil, due: "vendredi", folder: nil) }
+        #expect(throws: ToolError.self) { try desk.create(name: "Piste", status: nil, client: nil, due: nil, folder: "Code/piste") }
+        #expect(try fixture.projects.projects().count == 3)
+    }
+
+    /// The client changes, or goes (empty or « aucun »); the notes are replaced whole, as a session wrote them.
+    @Test func theClientAndTheNotesChange() throws {
+        let fixture = try DeskFixture()
+        let desk = fixture.desk()
+        #expect(try desk.update("Atelier Nord", status: nil, due: nil, todo: nil, client: "Studio Est") == "« Atelier Nord » : client « Studio Est ».")
+        #expect(try fixture.projects.project(id: fixture.atelier.id)?.client == "Studio Est")
+        #expect(try desk.update("Atelier Nord", status: nil, due: nil, todo: nil, client: "aucun") == "« Atelier Nord » : sans client.")
+        #expect(try fixture.projects.project(id: fixture.atelier.id)?.client == nil)
+        _ = try desk.update("Atelier Nord", status: nil, due: nil, todo: nil, client: "Studio Est")
+        #expect(try desk.update("Atelier Nord", status: nil, due: nil, todo: nil, client: "") == "« Atelier Nord » : sans client.")
+        #expect(try desk.update("Atelier Nord", status: nil, due: nil, todo: nil, notes: "- Le client veut une version anglaise.\n\n## Liens\n- https://exemple.fr")
+                == "« Atelier Nord » : notes remplacées.")
+        let changed = try #require(try fixture.projects.project(id: fixture.atelier.id))
+        #expect(changed.notes == "- Le client veut une version anglaise.\n\n## Liens\n- https://exemple.fr")
+        #expect(changed.todo == "Envoyer la maquette" && changed.status == .priorite1)
+        // Empty notes are no notes given: nothing is wiped.
+        #expect(throws: ToolError.self) { try desk.update("Atelier Nord", status: nil, due: nil, todo: nil, notes: "  ") }
+        #expect(try fixture.projects.project(id: fixture.atelier.id)?.notes == changed.notes)
+    }
+
+    /// A contact is linked as Paul links one, by its address or its name, and taken out as Paul takes one out (it
+    /// stays out); an unknown or ambiguous one is refused and nothing changes.
+    @Test func aContactIsLinkedOrTakenOutByAddressOrName() throws {
+        let fixture = try DeskFixture()
+        let desk = fixture.desk()
+        let contacts = ContactStore(fixture.database)
+        let jules = try contacts.upsert(email: "jules@exemple.fr", name: "Jules Roy", company: "Exemple", at: fixture.now)
+        _ = try contacts.upsert(email: "alex.durand@exemple.fr", name: "Alex Durand", company: nil, at: fixture.now)
+        _ = try contacts.upsert(email: "alex.petit@exemple.fr", name: "Alex Petit", company: nil, at: fixture.now)
+        #expect(try desk.update("Atelier Nord", status: nil, due: nil, todo: nil, contact: "JULES@exemple.fr")
+                == "« Atelier Nord » : contact Jules Roy (jules@exemple.fr) lié.")
+        #expect(try contacts.contacts(projectID: fixture.atelier.id).map(\.id) == [jules.id])
+        #expect(try contacts.links().first { $0.contactID == jules.id }?.origin == .paul)
+        #expect(try desk.update("Atelier Nord", status: nil, due: nil, todo: nil, contact: "Jules Roy <jules@exemple.fr>")
+                == "« Atelier Nord » : contact Jules Roy (jules@exemple.fr) déjà lié.")
+        #expect(try desk.update("Atelier Nord", status: nil, due: nil, todo: nil, removeContact: "jules roy")
+                == "« Atelier Nord » : contact Jules Roy (jules@exemple.fr) retiré.")
+        #expect(try contacts.contacts(projectID: fixture.atelier.id).isEmpty)
+        #expect(try contacts.links().first { $0.contactID == jules.id }?.excluded == true)
+        // By a piece of the name, then back in.
+        #expect(try desk.update("Atelier Nord", status: nil, due: nil, todo: nil, contact: "Jules").contains("Jules Roy (jules@exemple.fr) lié"))
+        #expect(try contacts.contacts(projectID: fixture.atelier.id).map(\.id) == [jules.id])
+        // Unknown, ambiguous, not linked: refused, and the status given with it is not changed.
+        #expect(throws: ToolError.self) { try desk.update("Atelier Nord", status: "en pause", due: nil, todo: nil, contact: "inconnu@exemple.fr") }
+        #expect(throws: ToolError.self) { try desk.update("Atelier Nord", status: "en pause", due: nil, todo: nil, contact: "Personne Inconnue") }
+        do {
+            _ = try desk.update("Atelier Nord", status: nil, due: nil, todo: nil, contact: "alex")
+            Issue.record("« alex » est ambigu")
+        } catch let error as ToolError {
+            #expect(error.description.contains("alex.durand@exemple.fr") && error.description.contains("alex.petit@exemple.fr"))
+        }
+        #expect(throws: ToolError.self) { try desk.update("Atelier Nord", status: nil, due: nil, todo: nil, removeContact: "Alex Durand") }
+        #expect(try fixture.projects.project(id: fixture.atelier.id)?.status == .priorite1)
     }
 
     /// An action reworded or removed by its number in `actions`.

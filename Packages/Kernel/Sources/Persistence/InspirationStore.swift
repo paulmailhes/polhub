@@ -14,6 +14,12 @@ public struct InspirationStore: Sendable {
 
     // MARK: - Items
 
+    /// Whether the base has Inspiration's tables (migration `v13`): `polhub mcp` never migrates, and a base the app
+    /// has not opened since its update has not got them yet.
+    public func isAvailable() throws -> Bool {
+        try writer.read { try $0.tableExists("inspiration_item") }
+    }
+
     /// The newest first, without the deleted.
     static func live(_ kind: InspirationKind) -> QueryInterfaceRequest<InspirationItemRow> {
         InspirationItemRow

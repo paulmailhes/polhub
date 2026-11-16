@@ -4,27 +4,38 @@ import Persistence
 
 /// The projects as text, and the writes a session may make: what the project tools of `polhub mcp` answer. Same
 /// vocabulary as the `obsidian` server they replace (13/11). Since 16/11, the status, due date and task of the
-/// moment change too, when Paul asks (`update`), and an action can be reworded or removed (`editAction`).
+/// moment change too, when Paul asks (`update`), and an action can be reworded or removed (`editAction`); a
+/// project is created (`create`), its client, notes and contacts change (`update`).
 public struct ProjectDesk: Sendable {
     public static let briefActions = 15
     /// The order of `projets`, as in the `obsidian` server: priorities first, done last.
     static let listOrder: [ProjectStatus] = ProjectStatus.allCases
+    /// A new project's status when none is given, as on the board.
+    static let newProjectStatus = ProjectStatus.priorite1
     let projects: ProjectStore
     let meetings: MeetingStore
     let reader: MeetingReader
     /// The session's folder: a project whose code folder contains it is the default project.
     let workingDirectory: String?
+    /// The folder of Polhub's data, beside the base (`AppPaths.root`): where Inspiration's images are read.
+    let dataRoot: URL?
     let now: @Sendable () -> Date
     let timeZone: TimeZone
 
-    public init(projects: ProjectStore, meetings: MeetingStore, workingDirectory: String?, now: @escaping @Sendable () -> Date = Date.init,
-                timeZone: TimeZone = .current) {
+    public init(projects: ProjectStore, meetings: MeetingStore, workingDirectory: String?, dataRoot: URL? = nil,
+                now: @escaping @Sendable () -> Date = Date.init, timeZone: TimeZone = .current) {
         self.projects = projects
         self.meetings = meetings
         self.reader = MeetingReader(meetings: meetings, transcripts: TranscriptStore(projects.database), now: now, timeZone: timeZone)
         self.workingDirectory = workingDirectory
+        self.dataRoot = dataRoot
         self.now = now
         self.timeZone = timeZone
+    }
+
+    /// « Inspiration » (sites, branding, mock-ups), read from the same base (16/11).
+    public var inspiration: InspirationDesk {
+        InspirationDesk(store: InspirationStore(projects.database), dataRoot: dataRoot, timeZone: timeZone)
     }
 
     // MARK: - Reading
@@ -210,27 +221,23 @@ public struct ProjectDesk: Sendable {
     /// The status, the due date (« AAAA-MM-JJ », or « aucune »), the task of the moment (empty or « aucune »
     /// clears it), when Paul asks a session (16/11: « il m'a dit qu'il avait pas les droits »). Only the fields
     /// given change; a new status puts the project at the bottom of its column, as on the board.
-    public func update(_ which: String?, status: String?, due: String?, todo: String?) throws -> String {
+    /// Paul's 7 (16/11): the client too (empty or « aucun » clears it), the notes replaced whole (empty notes are no
+    /// notes given: nothing is wiped), a contact linked (`contact`) or taken out (`removeContact`) as Paul does it
+    /// on the project's page. Everything is read before anything is written: a refusal changes nothing.
+    public func update(_ which: String?, status: String?, due: String?, todo: String?, client: String? = nil, notes: String? = nil,
+                       contact: String? = nil, removeContact: String? = nil) throws -> String {
         let project = try resolve(which)
         var said: [String] = []
         var newStatus: ProjectStatus?
-        if let status = status?.trimmingCharacters(in: .whitespacesAndNewlines), !status.isEmpty {
-            guard let value = ProjectStatus.allCases.first(where: { Self.fold($0.rawValue) == Self.fold(status) }) else {
-                throw ToolError("Statut inconnu « \(status) » : " + ProjectStatus.allCases.map(\.rawValue).joined(separator: ", ") + ".")
-            }
+        if let status = Self.given(status) {
+            let value = try Self.status(status)
             newStatus = value
             said.append("statut \(value.label)")
         }
         var edited = project
-        if let due = due?.trimmingCharacters(in: .whitespacesAndNewlines), !due.isEmpty {
-            if ["aucune", "aucun", "sans", "rien"].contains(Self.fold(due)) {
-                edited.dueDate = nil
-                said.append("sans échéance")
-            } else {
-                guard let date = dayStart(due) else { throw ToolError("Échéance illisible « \(due) » : AAAA-MM-JJ, ou « aucune ».") }
-                edited.dueDate = date
-                said.append("échéance \(day(date))")
-            }
+        if let due = Self.given(due) {
+            edited.dueDate = try dueDate(due)
+            said.append(edited.dueDate.map { "échéance \(day($0))" } ?? "sans échéance")
         }
         if let todo {
             let text = todo.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -242,14 +249,132 @@ public struct ProjectDesk: Sendable {
                 said.append("tâche du moment « \(text) »")
             }
         }
-        guard !said.isEmpty else { throw ToolError("Rien à changer : donne « statut », « echeance » ou « tache ».") }
-        if edited.dueDate != project.dueDate || edited.todo != project.todo {
+        if let client {
+            edited.client = Self.clientName(client)
+            said.append(edited.client.map { "client « \($0) »" } ?? "sans client")
+        }
+        let newNotes = Self.given(notes)
+        if newNotes != nil { said.append("notes remplacées") }
+        let contacts = ContactStore(projects.database)
+        let links = try contacts.links().filter { $0.projectID == project.id && !$0.excluded }
+        var toLink: ContactRow?
+        if let contact = Self.given(contact) {
+            let row = try findContact(contact)
+            let linked = links.contains { $0.contactID == row.id }
+            if !linked { toLink = row }
+            said.append("contact \(Self.contactLabel(row)) \(linked ? "déjà lié" : "lié")")
+        }
+        var toRemove: ContactRow?
+        if let removeContact = Self.given(removeContact) {
+            let row = try findContact(removeContact)
+            guard links.contains(where: { $0.contactID == row.id }) else {
+                throw ToolError("\(Self.contactLabel(row)) n'est pas lié à « \(project.name) » : rien à retirer.")
+            }
+            toRemove = row
+            said.append("contact \(Self.contactLabel(row)) retiré")
+        }
+        guard !said.isEmpty else {
+            throw ToolError("Rien à changer : donne « statut », « echeance », « tache », « client », « notes », « contact » ou « retirer_contact ».")
+        }
+        if edited.dueDate != project.dueDate || edited.todo != project.todo || edited.client != project.client {
             try projects.saveChanges(from: project, to: edited, at: now())
         }
+        if let newNotes {
+            // Written by a session, as `note` writes: not a change of Paul's (`lastEditedAt` stays).
+            var notesOnly = project
+            notesOnly.notes = newNotes
+            notesOnly.updatedAt = now()
+            try projects.saveNotes(notesOnly)
+        }
+        if let toLink { try contacts.include(contactID: toLink.id, projectID: project.id, at: now()) }
+        if let toRemove { try contacts.exclude(contactID: toRemove.id, projectID: project.id, at: now()) }
         if let newStatus, newStatus != project.status {
             try projects.move(project.id, to: newStatus, before: nil, at: now())
         }
         return "« \(project.name) » : " + said.joined(separator: ", ") + "."
+    }
+
+    /// Paul's 7 (16/11): a new project, when Paul asks, at the bottom of its column as the board's « + » makes it,
+    /// with what was given. Its name must be new (case and accents ignored); everything is read before it is made.
+    public func create(name: String, status: String?, client: String?, due: String?, folder: String?) throws -> String {
+        let name = try Self.required(name, "nom", "le nom du nouveau projet")
+        if let same = try projects.projects().first(where: { Self.fold($0.name) == Self.fold(name) }) {
+            throw ToolError("Un projet s'appelle déjà « \(same.name) » : choisis un autre nom, ou change celui-ci avec `projet`.")
+        }
+        let column = try Self.given(status).map(Self.status) ?? Self.newProjectStatus
+        let deadline = try Self.given(due).flatMap { try dueDate($0) }
+        let clientName = client.flatMap(Self.clientName)
+        var codeFolder: String?
+        if let folder = Self.given(folder) {
+            let path = Self.normalized(folder)
+            guard path.hasPrefix("/") else { throw ToolError("« dossier » attend le chemin complet d'un dossier du Mac (/Users/…), pas « \(folder) ».") }
+            codeFolder = path
+        }
+        let added = try projects.addProject(name: name, status: column, at: now())
+        var filled = added
+        filled.client = clientName
+        filled.dueDate = deadline
+        filled.codeFolder = codeFolder
+        filled.createdOn = added.createdAt
+        try projects.saveChanges(from: added, to: filled, at: now())
+        var said = [column.label]
+        if let clientName { said.append("client « \(clientName) »") }
+        if let deadline { said.append("échéance \(day(deadline))") }
+        if let codeFolder { said.append("dossier \(codeFolder)") }
+        return "Projet « \(name) » créé : " + said.joined(separator: ", ") + "."
+    }
+
+    /// A contact of the base, by its address (« Nom <adresse> » too) or its name, case and accents ignored; a piece
+    /// of one name will do. Never created here: an unknown one is refused.
+    func findContact(_ text: String) throws -> ContactRow {
+        var key = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let open = key.lastIndex(of: "<"), let close = key.lastIndex(of: ">"), open < close {
+            key = String(key[key.index(after: open)..<close]).trimmingCharacters(in: .whitespaces)
+        }
+        let store = ContactStore(projects.database)
+        if key.contains("@") {
+            guard let found = try store.contact(email: key), found.deletedAt == nil else {
+                throw ToolError("Aucun contact n'a l'adresse « \(key) » : Paul l'ajoute depuis un mail ou un rendez-vous.")
+            }
+            return found
+        }
+        let all = try store.contacts()
+        let exact = all.filter { Self.fold($0.name) == Self.fold(key) }
+        let matches = exact.isEmpty ? all.filter { Self.contains($0.name, key) } : exact
+        if matches.count == 1 { return matches[0] }
+        if matches.isEmpty { throw ToolError("Aucun contact ne s'appelle « \(key) » : donne son adresse, ou cherche-le avec `contacts`.") }
+        throw ToolError("« \(key) » désigne plusieurs contacts : " + matches.map(Self.contactLabel).joined(separator: ", ") + ". Donne son adresse.")
+    }
+
+    /// « Jules Roy (jules@exemple.fr) ».
+    static func contactLabel(_ contact: ContactRow) -> String {
+        contact.email.map { "\(contact.name) (\($0))" } ?? contact.name
+    }
+
+    /// A text argument, `nil` when absent or blank.
+    static func given(_ value: String?) -> String? {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
+        return value
+    }
+
+    static func status(_ text: String) throws -> ProjectStatus {
+        guard let value = ProjectStatus.allCases.first(where: { fold($0.rawValue) == fold(text) }) else {
+            throw ToolError("Statut inconnu « \(text) » : " + ProjectStatus.allCases.map(\.rawValue).joined(separator: ", ") + ".")
+        }
+        return value
+    }
+
+    /// « AAAA-MM-JJ » as the start of that day, or `nil` for « aucune ».
+    func dueDate(_ text: String) throws -> Date? {
+        if ["aucune", "aucun", "sans", "rien"].contains(Self.fold(text)) { return nil }
+        guard let date = dayStart(text) else { throw ToolError("Échéance illisible « \(text) » : AAAA-MM-JJ, ou « aucune ».") }
+        return date
+    }
+
+    /// The client's name, `nil` for empty or « aucun ».
+    static func clientName(_ text: String) -> String? {
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty || ["aucun", "aucune"].contains(fold(text)) ? nil : text
     }
 
     /// An open action reworded, or removed (`remove`), by its number in `actions`.

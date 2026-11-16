@@ -265,27 +265,11 @@ enum InspirationBrowse {
 
     // MARK: - Titles
 
-    /// The title a card shows: a site's name without its page's words (« Adam Exemple - Home » → « Adam Exemple »,
-    /// « Home - ADA » → « ADA »), a post's without the emoji it starts with (« 💥 Café… »). The stored title stays as
-    /// collected (16/11: the vault's titles are the pages' own).
+    /// The title a card shows: a site's name without its page's words, a post's without the emoji it starts with.
+    /// The logic lives in Persistence since 16/11 (`InspirationItemRow.displayTitle`), where the agents' tool
+    /// `inspiration` reads it too.
     static func displayTitle(_ item: InspirationItemRow) -> String {
-        let trimmed = String(item.title.drop { !($0.isLetter || $0.isNumber || "\"«“'(".contains($0)) })
-            .trimmingCharacters(in: .whitespaces)
-        let title = item.kind == .website ? siteName(trimmed) : trimmed
-        return title.isEmpty ? item.title : title
-    }
-
-    static let pageWords: Set<String> = ["home", "homepage", "home page", "accueil", "page d'accueil", "index", "welcome", "bienvenue",
-                                         "official site", "official website", "site officiel"]
-
-    /// The first part of a page's title that is not « Home » or the like, between its separators.
-    static func siteName(_ title: String) -> String {
-        var parts = [title]
-        for separator in [" - ", " | ", " — ", " – ", " · ", " :: "] {
-            parts = parts.flatMap { $0.components(separatedBy: separator) }
-        }
-        let named = parts.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-        return named.first { !pageWords.contains(fold($0)) } ?? named.first ?? title
+        item.displayTitle
     }
 
     /// « Minimaliste » for `minimaliste`, « Business card » for `business card`, « Bas de casse » for

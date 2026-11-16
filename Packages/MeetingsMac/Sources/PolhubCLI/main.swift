@@ -63,7 +63,8 @@ do {
         var desk: ProjectDesk?
         if let tools = try? AppDatabase.forTools(path: basePath), (try? tools.hasProjects()) == true {
             desk = ProjectDesk(projects: ProjectStore(tools), meetings: MeetingStore(tools),
-                               workingDirectory: FileManager.default.currentDirectoryPath)
+                               workingDirectory: FileManager.default.currentDirectoryPath,
+                               dataRoot: URL(fileURLWithPath: basePath).deletingLastPathComponent())
         }
         // The mails (step « Agents »): the copy, read; drafts dropped for the app. No network here.
         var mails: MailDesk?
