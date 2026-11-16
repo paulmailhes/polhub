@@ -133,13 +133,39 @@ struct Fixture {
         let answer = try call(server, #"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#)
         let tools = try #require((answer["result"] as? [String: Any])?["tools"] as? [[String: Any]])
         #expect(tools.compactMap { $0["name"] as? String }
-            == ["projets", "contexte", "actions", "reunions", "reunion", "chercher", "action", "note", "journal", "fait", "projet"])
+            == ["projets", "contexte", "actions", "reunions", "reunion", "chercher", "action", "note", "journal", "fait", "projet",
+                "nouveau_projet", "inspiration"])
         let writing = tools.filter { ($0["annotations"] as? [String: Any])?["readOnlyHint"] as? Bool == false }.compactMap { $0["name"] as? String }
-        #expect(writing == ["action", "note", "journal", "fait", "projet"])
+        #expect(writing == ["action", "note", "journal", "fait", "projet", "nouveau_projet"])
+        // `projet` changes the client, the notes and the contacts too (16/11).
+        let project = try #require(tools.first { $0["name"] as? String == "projet" })
+        let properties = try #require((project["inputSchema"] as? [String: Any])?["properties"] as? [String: Any])
+        #expect(Set(properties.keys) == ["projet", "statut", "echeance", "tache", "client", "notes", "contact", "retirer_contact"])
+        let creation = try #require(tools.first { $0["name"] as? String == "nouveau_projet" })
+        #expect((creation["inputSchema"] as? [String: Any])?["required"] as? [String] == ["nom"])
         // The status, due date and task of the moment change when Paul asks (16/11): said so, never « ne se touchent jamais ».
         let instructions = try call(server, #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#)
         let text = try #require((instructions["result"] as? [String: Any])?["instructions"] as? String)
         #expect(text.contains("`projet`") && !text.contains("ne se touchent jamais"))
+        #expect(text.contains("`nouveau_projet`") && text.contains("`inspiration`"))
+    }
+
+    /// Paul's 7 (16/11): a project created, its client, notes and contacts changed, through the server; each write
+    /// tells the app, a refusal does not.
+    @Test func aSessionCreatesAndChangesAProjectThroughTheServer() throws {
+        let fixture = try DeskFixture()
+        let writes = WriteCounter()
+        let server = MCPServer(reader: try Fixture().reader, desk: fixture.desk(), onWrite: { writes.add() })
+        let created = try call(server, #"{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"nouveau_projet","arguments":{"nom":"Refonte Exemple","client":"Studio Est"}}}"#)
+        #expect(toolText(created) == ("Projet « Refonte Exemple » créé : priorité 1, client « Studio Est ».", false) && writes.count == 1)
+        let twice = try call(server, #"{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"nouveau_projet","arguments":{"nom":"refonte exemple"}}}"#)
+        #expect(toolText(twice).1 && writes.count == 1)
+        try ContactStore(fixture.database).upsert(email: "jules@exemple.fr", name: "Jules Roy", company: nil, at: fixture.now)
+        let changed = try call(server, #"{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"projet","arguments":{"projet":"Refonte Exemple","client":"aucun","notes":"- Une seule note.","contact":"jules@exemple.fr"}}}"#)
+        #expect(toolText(changed) == ("« Refonte Exemple » : sans client, notes remplacées, contact Jules Roy (jules@exemple.fr) lié.", false))
+        #expect(writes.count == 2)
+        let removed = try call(server, #"{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"projet","arguments":{"projet":"Refonte Exemple","retirer_contact":"Jules Roy"}}}"#)
+        #expect(toolText(removed) == ("« Refonte Exemple » : contact Jules Roy (jules@exemple.fr) retiré.", false) && writes.count == 3)
     }
 
     @Test func aWriteToolWritesThenTellsTheApp() throws {
