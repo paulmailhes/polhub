@@ -237,6 +237,17 @@ import Testing
         #expect(InspirationSourceRow.normalizedLink("  https://www.linkedin.com/company/revue-exemple/  ") == "https://www.linkedin.com/company/revue-exemple/")
     }
 
+    /// The clean title lives here since 16/11, for the app's cards and the agents' `inspiration` alike: a site's name
+    /// without its page's words, a post's without its leading emoji; the stored title stays.
+    @Test func anItemsTitleReadsClean() {
+        #expect(site("https://exemple.fr", title: "Home - ADA").displayTitle == "ADA")
+        #expect(site("https://exemple.fr", title: "Studio Exemple | Design graphique").displayTitle == "Studio Exemple")
+        #expect(site("https://exemple.fr", title: "Accueil").displayTitle == "Accueil")
+        let item = post("7300000000000000009", title: "💥 Café Nord - Identité")
+        #expect(item.displayTitle == "Café Nord - Identité" && item.title == "💥 Café Nord - Identité")
+        #expect(post("7300000000000000010", title: "🎨").displayTitle == "🎨")
+    }
+
     @Test func theSourcesAreObserved() async throws {
         let store = try store()
         final class Box: @unchecked Sendable { var names: [String] = [] }
