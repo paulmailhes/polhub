@@ -3,6 +3,21 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.23.0 — 16 novembre 2026
+
+**Inspiration au propre.**
+
+- **Une seule barre de recherche**, en haut à droite de chaque page. Tape « minimal », « tech » ou le nom d'une
+  page LinkedIn suivi d'un espace : ça devient un filtre, posé dans la barre, que tu retires d'un clic. En cours de
+  frappe, la barre propose les catégories qui commencent par ce que tu tapes, avec leur nombre de fiches. Les rangées
+  de pastilles disparaissent.
+- **Des titres propres** : « Adam Bricker - Home » s'affiche « Adam Bricker », « Home - ADA » s'affiche « ADA », et
+  les posts perdent l'emoji de tête. Les titres d'origine restent dans la base.
+- **Awwwards est de nouveau lu** : Polhub se présentait comme Chrome, et le filtre anti-robots d'Awwwards le
+  refusait (erreur 403). Il se présente maintenant comme Safari.
+- **Les catégories de l'IA d'Apple ne s'emballent plus** : une réponse a 45 secondes au plus (le modèle tournait
+  parfois six minutes sur un seul post), dix fiches toutes les cinq minutes, jamais pendant une réunion.
+
 ## 0.22.0 — 16 novembre 2026
 
 **Exporter une réunion en Markdown, pour l'envoyer.**
