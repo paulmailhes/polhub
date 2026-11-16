@@ -172,6 +172,11 @@ struct WindowSnapshotTests {
                                                         paths: AppPaths(root: root, logs: root)) { Text("Le diagnostic de l'app").padding() },
                                          to: output.appending(path: "reglages-\(tab?.rawValue ?? "familles").png"), size: NSSize(width: 1_000, height: 600))
         }
+        // 16/11: Réglages › Projets in the dark too (the vault's folder gone).
+        router.settingsPane = .projects
+        try await LiveWindow.capture(MainWindowView(library: library, projects: projects, updates: updates, router: router,
+                                                    paths: AppPaths(root: root, logs: root)) { EmptyView() },
+                                     to: output.appending(path: "reglages-projects-sombre.png"), size: NSSize(width: 1_000, height: 600), dark: true)
     }
 
     /// Accueil, Calendrier and Contacts, with made-up data (13/11).
@@ -259,11 +264,13 @@ struct WindowSnapshotTests {
         try calendar.setGrantedScopes(email: "moi@exemple.fr", scopes: "openid https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.modify")
         try await Task.sleep(for: .milliseconds(300))
         router.section = .settings
-        for pane in [SettingsPane.accounts, .calendar] {
+        // 16/11: Réglages › Calendrier in the dark too.
+        for (pane, dark) in [(SettingsPane.accounts, false), (.calendar, false), (.calendar, true)] {
             router.settingsPane = pane
             try await LiveWindow.capture(MainWindowView(library: library, projects: projects, agenda: agenda, router: router,
                                                         paths: AppPaths(root: root, logs: root)) { EmptyView() },
-                                         to: output.appending(path: "reglages-\(pane.rawValue).png"), size: NSSize(width: 1_000, height: 860))
+                                         to: output.appending(path: "reglages-\(pane.rawValue)\(dark ? "-sombre" : "").png"),
+                                         size: NSSize(width: 1_000, height: 860), dark: dark)
         }
     }
     /// Contacts (15/11): the list by last exchange, and a contact's page with its projects, mails, events and
