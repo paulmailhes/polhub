@@ -3,6 +3,15 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.24.0 — 16 novembre 2026
+
+**Précédent et Suivant, partout dans la fenêtre.**
+
+- Les boutons latéraux de la souris reviennent en arrière et repartent en avant, comme dans un navigateur : d'une
+  réunion à l'autre, d'un fil de mails à la liste, d'une fiche d'Inspiration à sa page, d'une section à l'autre.
+- Les mêmes gestes au clavier (⌘[ et ⌘], ou ⌘← et ⌘→ quand tu n'écris pas) et au trackpad (balayer entre les pages).
+- Rien de plus à l'écran : pas de bouton, seulement les gestes que tu utilises déjà.
+
 ## 0.23.0 — 16 novembre 2026
 
 **Inspiration au propre.**
