@@ -330,6 +330,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let projects = projects
         let agenda = AgendaLibrary(database: database, vaultPath: { projects?.vaultPath })
         self.agenda = agenda
+        // The events the agents ask for (`rendez_vous`, 16/11), at their signal and at launch.
+        agenda.startAgentEvents(root: paths.root)
         // The mails (14/11): the mailboxes that granted them are followed from the launch, window open or not.
         // The programmed sends live in the Keychain (wave B); the development build never touches it.
         let mails = MailLibrary(agenda: agenda, root: paths.root, schedules: .keychain)

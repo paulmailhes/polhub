@@ -207,6 +207,49 @@ public final class AgendaLibrary: ObservableObject {
         for _ in 0..<300 where syncing { try? await Task.sleep(for: .milliseconds(100)) }
     }
 
+    // MARK: - The agents' events (16/11)
+
+    private var agentEvents: AgentEventMaker?
+    private var agentRequests: ExternalChangeSignal.Listener?
+    private var servingAgents = false
+    private var serveAgentsAgain = false
+
+    /// The events the agents ask for (`rendez_vous`; `polhub mcp` has no network): made at their signal, and those
+    /// left from before at the launch. Réglages › Calendrier gives the default agenda and length.
+    public func startAgentEvents(root: URL, flavor: AppFlavor = .current) {
+        agentEvents = AgentEventMaker(database: database, root: root, flavor: flavor,
+                                      send: { [session] account, build in try await session.send(build, for: account) },
+                                      settings: {
+                                          let settings = Preferences()
+                                          return AgentEventMaker.Settings(defaultAccount: settings.defaultAccount,
+                                                                          lastAccount: UserDefaults.standard.string(forKey: "dernierAgenda"),
+                                                                          minutes: settings.eventMinutes)
+                                      })
+        agentRequests = ExternalChangeSignal.listen(name: AgentEventFiles.signal, queue: .main) { [weak self] in
+            Task { @MainActor in await self?.serveAgentEvents() }
+        }
+        Task { await serveAgentEvents() }
+    }
+
+    /// One pass at a time; a signal during a pass makes it run once more. Paul is told of each event made. No wait for
+    /// a sync under way: the agent waits only 25 s, and a sync keeps what Polhub writes meanwhile (review of 14/11).
+    public func serveAgentEvents() async {
+        guard let agentEvents else { return }
+        if servingAgents {
+            serveAgentsAgain = true
+            return
+        }
+        servingAgents = true
+        defer { servingAgents = false }
+        repeat {
+            serveAgentsAgain = false
+            let made = await agentEvents.serve()
+            guard let last = made.last else { continue }
+            message = "Un agent a créé « \(last.title) » dans ton agenda."
+            await runLinks()
+        } while serveAgentsAgain
+    }
+
     /// The calendar's name for a recording that starts: the event of the same Meet code at that time (14/11).
     public nonisolated static func eventTitle(in database: AppDatabase, code: String?, at date: Date) -> String? {
         guard let code, let events = try? CalendarStore(database).events(meetCode: code) else { return nil }
