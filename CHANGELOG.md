@@ -3,6 +3,16 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.19.0 — 16 novembre 2026
+
+**Coup d'œil allégé : rien n'y est dit deux fois.**
+
+- Deux tuiles au lieu de quatre : Calendrier et Mails. La tuile Réunions redisait la carte du haut, la tuile Projets
+  donnait un nombre qui ne servait à rien.
+- Trois boutons ronds au lieu de quatre : Enregistrer, Nouveau mail, Suspendre. Le bouton Rendez-vous part.
+- « Arrêter » n'est plus que dans la carte du haut, à côté de la réunion ; le bouton rond Enregistrer reste à sa
+  place, grisé pendant une réunion.
+
 ## 0.18.1 — 16 novembre 2026
 
 **Coup d'œil, deux corrections.**
