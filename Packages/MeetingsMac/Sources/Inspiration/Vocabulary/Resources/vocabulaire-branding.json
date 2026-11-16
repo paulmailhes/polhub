@@ -1,0 +1,175 @@
+{
+  "collection": "branding",
+  "dossier": "database/Branding",
+  "version": 1,
+  "familles": [
+    "secteur",
+    "style",
+    "typo",
+    "support"
+  ],
+  "minimum": {
+    "secteur": 1,
+    "style": 1,
+    "typo": 0,
+    "support": 1,
+    "total": 3
+  },
+  "maximum": {
+    "secteur": 2,
+    "style": 3,
+    "typo": 2,
+    "support": 4,
+    "total": 8
+  },
+  "rognage": [
+    "support",
+    "style",
+    "typo",
+    "secteur"
+  ],
+  "texte": {
+    "entete": [
+      [
+        "Brand",
+        "titre"
+      ],
+      [
+        "Studio",
+        "studio"
+      ]
+    ],
+    "ignorer_lignes": [
+      "[Voir sur LinkedIn]"
+    ],
+    "minimum_mots": 40
+  },
+  "ecriture": {
+    "tags_fixes": [
+      "branding"
+    ],
+    "tag_source": "source",
+    "apres": "hashtags"
+  },
+  "prompt": {
+    "objet": "branding case studies (a short post about a visual identity made by a design studio for a client) for a designer's reference library",
+    "regles": [
+      "Tag only what the text states or clearly implies. If the text says nothing about typography, leave \"typo\" empty. Prefer fewer accurate tags over many vague ones."
+    ],
+    "familles": {
+      "secteur": "the client's business — what kind of company or place it is.",
+      "style": "the visual character of the identity.",
+      "typo": "the typography, only when described.",
+      "support": "the deliverables shown or described."
+    },
+    "police": "the exact typeface names quoted in the text (e.g. \"Söhne\", \"GT America\"), else []. Never guess a name.",
+    "client": "a French noun phrase of 3 to 6 words saying what the client is, without the brand name, e.g. \"restaurant de tapas à Séville\", \"brasserie artisanale au Canada\", \"startup de robotique modulaire\". Name a city or country ONLY if the text states it.",
+    "suffixe": "Now return the JSON object. Tag only what this text states or clearly implies. Fill \"typo\" only if the text describes the lettering or typeface (e.g. typewriter, serif, hand-drawn), otherwise leave it empty. List every deliverable the text mentions in \"support\".",
+    "rappel": "REMINDER: your previous answer was not usable. Reply with the JSON object only, with the six keys secteur, style, typo, support, police, client. Tags must come from the lists above, exactly spelled. Give at least 3 tags in total across secteur, style, typo and support, and a non-empty French client phrase."
+  },
+  "secteur": {
+    "restaurant": "restaurant, bar, café, boulangerie, pâtisserie, traiteur, food truck",
+    "boisson": "brasserie, bière, vin, spiritueux, café/thé/matcha vendu en produit, jus, soda, eau",
+    "alimentation": "produits alimentaires, épicerie, snacks, marque de nourriture, agroalimentaire",
+    "hospitalité": "hôtel, auberge, spa, lieu de séjour, coworking, club privé",
+    "immobilier": "promoteur, quartier neuf, résidence, bureaux, aménagement",
+    "mode": "vêtements, chaussures, accessoires, bijoux, lunetterie",
+    "beauté": "cosmétiques, soins, parfum, coiffure, bien-être",
+    "santé": "clinique, pharmacie, médical, thérapie, nutrition, dentaire",
+    "sport": "club, salle de sport, équipement, outdoor, fédération, course",
+    "tech": "logiciel, application, startup, IA, robotique, matériel informatique",
+    "finance": "banque, assurance, fintech, investissement, paiement",
+    "énergie": "électricité, gaz, renouvelable, fournisseur d'énergie",
+    "mobilité": "transport, automobile, vélo, aviation, logistique, ferroviaire",
+    "culture": "musée, galerie, festival, théâtre, musique, cinéma, patrimoine",
+    "éducation": "école, université, formation, bibliothèque, apprentissage",
+    "média": "édition, presse, magazine, podcast, chaîne, contenu",
+    "divertissement": "jeu vidéo, jouet, parc d'attractions, loisirs, streaming",
+    "agence": "studio de design, agence créative, freelance, la marque d'un designer lui-même",
+    "événement": "conférence, salon, exposition temporaire, mariage, cérémonie",
+    "industrie": "construction, ingénierie, manufacture, agriculture, matériaux, B2B industriel",
+    "non-lucratif": "ONG, association, fondation, cause, campagne, service public",
+    "ville": "collectivité, territoire, parc public, quartier, office de tourisme, institution locale",
+    "retail": "boutique, chaîne de magasins, e-commerce, marketplace",
+    "maison": "mobilier, décoration, artisanat domestique, jardin, architecture d'intérieur",
+    "enfants": "jouets, puériculture, famille, petite enfance",
+    "animaux": "animalerie, vétérinaire, nourriture pour animaux",
+    "services": "conseil, juridique, recrutement, comptabilité, services aux entreprises",
+    "autre": "aucun secteur de la liste ne convient"
+  },
+  "style": {
+    "minimal": "épuré, peu d'éléments, beaucoup de blanc, retenue",
+    "moderne": "contemporain, net, actuel",
+    "rétro": "inspiré d'une époque passée, vintage, nostalgie",
+    "héritage": "tradition, patrimoine, marque historique, classique",
+    "ludique": "joueur, humour, décalé, fun",
+    "luxe": "premium, haut de gamme, raffiné, précieux",
+    "élégant": "sobre et soigné, chic, discret",
+    "brut": "cru, industriel, imparfait, rugueux, DIY",
+    "organique": "formes souples, courbes, fluide, inspiré du vivant",
+    "géométrique": "formes simples, grille, angles, modulaire",
+    "artisanal": "fait main, imperfection assumée, texture, savoir-faire",
+    "corporate": "institutionnel, sérieux, B2B, sobre",
+    "éditorial": "mise en page de magazine, grille, hiérarchie typographique",
+    "expérimental": "inattendu, déconstruit, avant-garde",
+    "audacieux": "bold, fort contraste, voyant, expressif",
+    "coloré": "palette vive, multicolore, saturée",
+    "monochrome": "une seule couleur, ou noir et blanc",
+    "pastel": "teintes douces, claires",
+    "sombre": "fond noir, palette foncée, nocturne",
+    "illustratif": "porté par l'illustration ou le dessin",
+    "photographique": "porté par la photographie",
+    "typographique": "la typographie est le cœur de l'identité",
+    "naturel": "matières, tons terreux, végétal, écologique",
+    "urbain": "street, ville, culture urbaine, graffiti",
+    "futuriste": "science-fiction, technologique, néon, 3D",
+    "chaleureux": "humain, convivial, accueillant, intime"
+  },
+  "typo": {
+    "linéale": "sans serif, sans empattement",
+    "empattement": "serif, avec empattements",
+    "mécane": "slab serif, empattements rectangulaires",
+    "script": "cursive, calligraphie, manuscrite",
+    "lettrage": "lettrage dessiné à la main, custom lettering",
+    "police-sur-mesure": "caractère typographique créé pour la marque",
+    "monospace": "chasse fixe, machine à écrire",
+    "display": "caractère de titrage expressif, décoratif",
+    "condensée": "étroite, resserrée",
+    "étendue": "large, extended",
+    "variable": "police variable, axes, graisse animée",
+    "grasse": "très bold, heavy, black",
+    "fine": "light, thin, hairline",
+    "capitales": "tout en majuscules",
+    "bas-de-casse": "tout en minuscules",
+    "italique": "penchée, oblique",
+    "arrondie": "terminaisons rondes, bubble",
+    "gothique": "blackletter, fraktur",
+    "pixel": "bitmap, pixel, 8-bit",
+    "stencil": "pochoir, militaire"
+  },
+  "support": {
+    "logo": "logotype principal, la marque elle-même",
+    "monogramme": "initiales ou lettres combinées",
+    "wordmark": "logo composé du nom seul en lettres",
+    "symbole": "emblème, icône de marque, pictogramme-logo",
+    "mascotte": "personnage de marque",
+    "packaging": "emballage, boîte, bouteille, canette, étiquette produit",
+    "signalétique": "signalisation, wayfinding, panneaux",
+    "enseigne": "façade, devanture, lettres en volume",
+    "motion": "animation, vidéo, logo animé",
+    "site": "site web, interface web",
+    "app": "application mobile, produit numérique, UI",
+    "social": "réseaux sociaux, posts, stories",
+    "affiche": "poster, campagne d'affichage, print grand format",
+    "publication": "brochure, livre, magazine, rapport, brand book",
+    "papeterie": "cartes de visite, papier à en-tête, enveloppes",
+    "illustration": "illustrations de marque, dessins",
+    "pictogrammes": "jeu d'icônes",
+    "motif": "pattern, texture répétée",
+    "photographie": "direction photo, shooting",
+    "merchandising": "t-shirts, tote bags, goodies, uniformes",
+    "espace": "intérieur, boutique, stand, architecture, vitrine",
+    "véhicule": "habillage de véhicule, livrée",
+    "menu": "menu, carte de restaurant"
+  }
+}

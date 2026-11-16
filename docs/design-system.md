@@ -87,7 +87,7 @@ Elle copie Gmail, l'outil que Paul connaît le mieux (Paul, 15/11 : « calque-to
   teinte sa carte (≈ 14 % en clair, 22 % en sombre, un trait plus franc à gauche), et marque son logo, sa
   pastille dans les mails, son point dans Contacts : une seule source, `ProjectViews.tint(_:)`.
 - Chaque **section** a sa couleur, la même dans la barre latérale et dans Réglages : Accueil sarcelle, Projets
-  bleu, Réunions violet, Calendrier orange, Mails rose, Contacts vert, Réglages gris.
+  bleu, Réunions violet, Calendrier orange, Mails rose, Contacts vert, Inspiration jaune, Réglages gris.
 - La couleur d'accent du système reste celle de la sélection et de « Moi » dans les transcriptions.
 - Rouge pour le retard, orange pour aujourd'hui et pour ce qui est à vérifier, jamais pour décorer.
 
@@ -237,6 +237,38 @@ Centre de contrôle. La logique vit à part, testée sans écran (`PanelModel`).
   ni base, ni réseau, ni essai matériel.
 - **Avec « Réduire les animations »**, il ne reste que des fondus.
 
+## Inspiration
+
+Les trois bases d'idées de Paul, reprises du coffre Obsidian (dossier `MeetingsUI/Inspiration`, 16/11). La logique
+vit à part, testée sans écran (`InspirationBrowse`, `InspirationLibrary`).
+
+- **Dans la barre latérale** : « Inspiration » (ampoule, jaune), après Contacts, repliable comme Mails, avec ses trois
+  pages dessous : « Websites » (globe), « Branding » (palette), « Mock-ups » (cadre). Aucun raccourci ⌘ : ⌘1 à ⌘6 restent
+  ceux d'avant.
+- **Une page** : la barre d'outils (titre, nombre de fiches, ou « 4 sites sur 212 » quand un filtre agit ; « + » ;
+  recherche), puis une ligne de pastilles par famille de catégories, le nom de la famille à gauche, « Tout » en
+  premier : une seule valeur à la fois par famille, comme la barre de tags d'Obsidian. Une pastille ne propose que les
+  valeurs qui mènent à des fiches, compte tenu de la recherche et des autres familles ; les plus fréquentes d'abord.
+  Choisie, elle prend l'accent à 16 % (calme : chaque ligne en a une) ; une ligne trop longue défile et s'efface au
+  bord. Branding filtre aussi par page LinkedIn (« Source »), chacune avec son point de couleur.
+- **La grille** : des cartes de 240 points au moins, l'image de couverture en 4:3, recadrée, le titre (`.rowTitle`) et
+  une ligne de détail (`.meta`) : date et adresse du site ; date et studio, avec le point de la page ; types du mock-up.
+  `cardHover` au survol, un léger enfoncement à l'appui, un clic droit pour « Ouvrir », le lien, « Supprimer ».
+- **Les images** ne sont jamais décodées entières pour une carte : une vignette ImageIO aux pixels de la carte, faite
+  hors du fil principal et gardée en mémoire (256 Mo au plus, `InspirationThumbnails`) ; l'image se pose en
+  surimpression, si bien qu'elle ne change jamais la taille de sa carte.
+- **Une fiche ouverte** prend la place de la grille, avec un chevron de retour (comme un projet) : grande image (les
+  images d'un post côte à côte, à leurs proportions), les liens en boutons `.glass` (« Ouvrir le site », « Voir sur
+  LinkedIn », « Ouvrir le dossier » : le Finder si le dossier est sur le Mac, sinon son lien Nextcloud), les autres
+  liens du post, le texte (860 points au plus), polices et client, puis les catégories : un clic sur une famille ouvre
+  le vocabulaire, chaque valeur cochée ou non. Corrigées par Paul, elles sont à lui : ni l'import ni l'IA n'y touchent
+  plus. « Supprimer » est dans « … », avec « Annuler » en bas de la page (⌘Z), comme dans Mails.
+- **Une page vide** : une ligne et « Importer depuis le coffre », qui mène à Réglages › Inspiration.
+- **Réglages › Inspiration** : l'import (le dossier du coffre, celui de Réglages › Projets, et « Ancienne copie
+  (n8n) », facultative), sa progression, puis son rapport en une ligne ; les pages LinkedIn (nom, lien, couleur ;
+  ajouter, modifier, ne plus suivre) avec leur dernière lecture en clair ; « Collecte automatique » et l'état de
+  chaque lieu lu ; « Catégories par l'IA d'Apple ».
+
 ## Les réglages
 
 - Chaque fonction range ses réglages dans **Réglages**, dans sa famille (Calendrier, Projets, Réunions…),
@@ -253,6 +285,7 @@ Les captures hors écran ne dessinent ni le verre ni la barre d'outils. Pour voi
 ```sh
 POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter "WindowSnapshotTests|MailScreenTests/theMailScreens|PeopleScreenTests"
 POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter CoupDoeilScreenTests   # Coup d'œil et le logo
+POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter InspirationScreenTests  # Inspiration, données inventées
 ```
 
 Les fenêtres de test ne deviennent jamais actives (aucune touche ne doit les atteindre) : les boutons

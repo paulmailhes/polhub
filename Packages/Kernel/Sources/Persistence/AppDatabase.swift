@@ -478,6 +478,45 @@ public final class AppDatabase: Sendable {
         migrator.registerMigration("v12") { db in
             try ProjectStatusMigration.run(db)
         }
+        // « Inspiration » (16/11): the sites, the branding and the mock-ups of the vault, and the LinkedIn pages
+        // followed. Lists and families are JSON text; the images are files beside the base.
+        migrator.registerMigration("v13") { db in
+            try db.create(table: "inspiration_item") { t in
+                t.primaryKey("id", .text)
+                t.column("kind", .text).notNull()
+                t.column("key", .text).notNull()
+                t.column("title", .text).notNull()
+                t.column("text", .text).notNull()
+                t.column("url", .text)
+                t.column("links", .text).notNull()
+                t.column("date", .datetime).notNull()
+                t.column("sources", .text).notNull()
+                t.column("studio", .text)
+                t.column("categories", .text).notNull()
+                t.column("categoriesByPaul", .boolean).notNull()
+                t.column("fonts", .text).notNull()
+                t.column("client", .text)
+                t.column("images", .text).notNull()
+                t.column("extra", .text).notNull()
+                t.column("importedFrom", .text)
+                t.column("createdAt", .datetime).notNull()
+                t.column("updatedAt", .datetime).notNull()
+                t.column("deletedAt", .datetime)
+            }
+            try db.create(index: "inspiration_item_on_kind_date", on: "inspiration_item", columns: ["kind", "date"])
+            try db.create(index: "inspiration_item_on_kind_key", on: "inspiration_item", columns: ["kind", "key"], unique: true)
+            try db.create(table: "inspiration_source") { t in
+                t.primaryKey("id", .text)
+                t.column("name", .text).notNull()
+                t.column("link", .text).notNull().unique()
+                t.column("color", .text)
+                t.column("lastReadAt", .datetime)
+                t.column("lastError", .text)
+                t.column("createdAt", .datetime).notNull()
+                // « Ne plus la suivre »: the page is remembered, so that an import does not follow it again.
+                t.column("removedAt", .datetime)
+            }
+        }
         return migrator
     }
 }

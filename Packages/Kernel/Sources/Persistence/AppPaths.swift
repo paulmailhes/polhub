@@ -30,6 +30,13 @@ public struct AppPaths: Sendable, Equatable {
     public var logos: URL { root.appending(path: "Logos", directoryHint: .isDirectory) }
     /// The notifications Polhub sent, as its own list shows them (15/11): a small file, outside the base.
     public var notifications: URL { root.appending(path: "Notifications.json") }
+    /// « Inspiration » (16/11): the images of the sites, the branding and the mock-ups, outside the base (the
+    /// base's copies stay small), and the vocabularies brought from the vault.
+    public var inspiration: URL { root.appending(path: "Inspiration", directoryHint: .isDirectory) }
+
+    public func inspirationImages(_ kind: InspirationKind) -> URL {
+        inspiration.appending(path: kind.folderName, directoryHint: .isDirectory)
+    }
 
     public func meetingFolder(_ id: UUID) -> URL {
         meetings.appending(path: id.uuidString.lowercased(), directoryHint: .isDirectory)

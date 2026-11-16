@@ -18,9 +18,12 @@ public enum AppIcon: String, CaseIterable, Sendable {
     case subscriptions, spam, trash, allMail
     /// « Nouveau mail ».
     case newMail
+    /// « Inspiration » and its three pages (16/11).
+    case inspiration, websites, branding, mockups
 
     /// The Phosphor glyph, shipped as `Icons/<glyph>-duotone.svg`. To change an icon: copy the new SVG from
-    /// `@phosphor-icons/core` (`assets/duotone/`) into Icons/, then change its name here.
+    /// `@phosphor-icons/core` (`assets/duotone/`; those of 16/11 come from version 2.1.1) into Icons/, then change
+    /// its name here.
     public var glyph: String {
         switch self {
         case .home: "house"
@@ -41,6 +44,10 @@ public enum AppIcon: String, CaseIterable, Sendable {
         case .trash: "trash"
         case .allMail: "stack"
         case .newMail: "note-pencil"
+        case .inspiration: "lightbulb"
+        case .websites: "globe"
+        case .branding: "palette"
+        case .mockups: "frame-corners"
         }
     }
 

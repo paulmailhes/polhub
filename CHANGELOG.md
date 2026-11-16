@@ -3,6 +3,23 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.20.0 — 16 novembre 2026
+
+**Inspiration : tes sites, ton branding et tes mock-ups quittent Obsidian.**
+
+- Une nouvelle entrée « Inspiration » dans la barre latérale, avec trois pages : Websites, Branding, Mock-ups. Une
+  grille de cartes, les plus récentes d'abord, une rangée de filtres par famille de catégories et la recherche.
+- Un clic ouvre la fiche : les images, les liens (le site, le post LinkedIn, le dossier du mock-up), le texte, et les
+  catégories, que tu corriges d'un clic. Une catégorie corrigée reste la tienne.
+- **L'import du coffre**, dans Réglages › Inspiration : il lit les fiches, les images et les catégories sans rien
+  changer au coffre, et peut lire aussi l'ancienne copie où n8n écrit encore. Relancé, il n'ajoute que ce qui
+  manque. Les images sont allégées, et il s'arrête avant de dépasser 1 Go.
+- **La collecte se fait dans Polhub**, sans compte ni cookie : le site du jour d'Awwwards toutes les 2 heures de 8 h
+  à 22 h, les pages LinkedIn que tu suis à 9 h, 14 h et 20 h, et au réveil du Mac. Le « + » de chaque page ajoute un
+  site, une page LinkedIn ou un mock-up.
+- Les fiches sans catégories en reçoivent de l'IA d'Apple, sur le Mac, dans le vocabulaire du coffre.
+- Pendant une réunion, rien de tout ça ne tourne : la collecte, les catégories et l'import attendent la fin.
+
 ## 0.19.1 — 16 novembre 2026
 
 **Coup d'œil : le compte rendu se range.**

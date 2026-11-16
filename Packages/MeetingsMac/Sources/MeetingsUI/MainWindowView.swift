@@ -8,7 +8,7 @@ import Updates
 
 /// The sidebar keeps the work; the app's own pages (diagnostic, journal) live in Réglages (Paul, 13/11).
 public enum SidebarItem: String, Hashable, Sendable {
-    case home, projects, meetings, calendar, mails, contacts, settings
+    case home, projects, meetings, calendar, mails, contacts, inspiration, settings
 
     var title: String {
         switch self {
@@ -18,6 +18,7 @@ public enum SidebarItem: String, Hashable, Sendable {
         case .calendar: "Calendrier"
         case .mails: "Mails"
         case .contacts: "Contacts"
+        case .inspiration: "Inspiration"
         case .settings: "Réglages"
         }
     }
@@ -31,6 +32,7 @@ public enum SidebarItem: String, Hashable, Sendable {
         case .calendar: .calendar
         case .mails: .mails
         case .contacts: .contacts
+        case .inspiration: .inspiration
         case .settings: .settings
         }
     }
@@ -43,6 +45,7 @@ public enum SidebarItem: String, Hashable, Sendable {
         case .calendar: "calendar"
         case .mails: "envelope.fill"
         case .contacts: "person.2.fill"
+        case .inspiration: "lightbulb.fill"
         case .settings: "gearshape.fill"
         }
     }
@@ -56,22 +59,23 @@ public enum SidebarItem: String, Hashable, Sendable {
         case .calendar: Palette.orange
         case .mails: Palette.pink
         case .contacts: Palette.green
+        case .inspiration: Palette.yellow
         case .settings: Palette.gray
         }
     }
 
     /// The work; Réglages sits apart, at the bottom of the sidebar (Paul, 14/11). Accueil, Calendrier and
-    /// Contacts need the agenda (13/11).
-    static func visible(hasProjects: Bool, hasAgenda: Bool, hasMails: Bool = false) -> [SidebarItem] {
+    /// Contacts need the agenda (13/11). « Inspiration » comes last, after Contacts (16/11).
+    static func visible(hasProjects: Bool, hasAgenda: Bool, hasMails: Bool = false, hasInspiration: Bool = false) -> [SidebarItem] {
         [hasAgenda ? .home : nil, hasProjects ? .projects : nil, .meetings, hasAgenda ? .calendar : nil, hasMails ? .mails : nil,
-         hasAgenda ? .contacts : nil].compactMap { $0 }
+         hasAgenda ? .contacts : nil, hasInspiration ? .inspiration : nil].compactMap { $0 }
     }
 }
 
 /// The families of Réglages, entered one by one, as in Apple's settings (Paul, 14/11). Every new feature puts
 /// its settings in its family.
 public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
-    case general, notifications, accounts, calendar, mails, projects, meetings, updates, diagnostic, journal
+    case general, notifications, accounts, calendar, mails, projects, meetings, inspiration, updates, diagnostic, journal
 
     public var title: String {
         switch self {
@@ -82,6 +86,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .mails: "Mails"
         case .projects: "Projets"
         case .meetings: "Réunions"
+        case .inspiration: "Inspiration"
         case .updates: "Mises à jour"
         case .diagnostic: "Diagnostic"
         case .journal: "Journal"
@@ -97,6 +102,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .mails: "envelope.fill"
         case .projects: "square.grid.3x2.fill"
         case .meetings: "waveform"
+        case .inspiration: "lightbulb.fill"
         case .updates: "arrow.down.circle.fill"
         case .diagnostic: "stethoscope"
         case .journal: "list.bullet.rectangle.fill"
@@ -112,6 +118,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .mails: Palette.pink
         case .projects: Palette.blue
         case .meetings: Palette.violet
+        case .inspiration: Palette.yellow
         case .updates: Palette.gray
         case .diagnostic: Palette.green
         case .journal: Palette.brown
@@ -127,6 +134,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .mails: "Images distantes"
         case .projects: "Taille des cartes du Kanban"
         case .meetings: "Comptes rendus, langue des transcriptions"
+        case .inspiration: "Import du coffre, pages LinkedIn, collecte, catégories"
         case .updates: "Version installée, installation automatique"
         case .diagnostic: "Autorisations, micro, Dia"
         case .journal: "Ce que l'app a fait et vu"
@@ -134,9 +142,10 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
     }
 
     /// The whole app first, then Paul's tools, then the app's own pages.
-    static func families(hasAgenda: Bool, hasProjects: Bool, hasMails: Bool = false) -> [[SettingsPane]] {
+    static func families(hasAgenda: Bool, hasProjects: Bool, hasMails: Bool = false, hasInspiration: Bool = false) -> [[SettingsPane]] {
         [[.general, .notifications],
-         [hasAgenda ? .accounts : nil, hasAgenda ? .calendar : nil, hasMails ? .mails : nil, hasProjects ? .projects : nil, .meetings].compactMap { $0 },
+         [hasAgenda ? .accounts : nil, hasAgenda ? .calendar : nil, hasMails ? .mails : nil, hasProjects ? .projects : nil, .meetings,
+          hasInspiration ? .inspiration : nil].compactMap { $0 },
          [.updates, .diagnostic, .journal]]
     }
 }
@@ -163,6 +172,9 @@ public final class WindowRouter: ObservableObject {
     @Published public var newEventRequest: UUID?
     /// The notifications' panel asked for: the sidebar's bell opens it once on screen, then clears it.
     @Published public var notificationsRequested = false
+    /// The page of « Inspiration » shown (Websites, Branding, Mock-ups), and the item open over it (16/11).
+    @Published public var inspirationPage: InspirationKind = .website
+    @Published public var inspirationItem: UUID?
 
     public init() {}
 
@@ -179,6 +191,8 @@ public final class WindowRouter: ObservableObject {
         case notifications
         /// Calendrier, with the editor of a new event open.
         case newEvent
+        /// A page of « Inspiration », and one of its items open (16/11).
+        case inspiration(InspirationKind, item: UUID? = nil)
     }
 
     /// Goes there; the app then shows the window.
@@ -191,7 +205,15 @@ public final class WindowRouter: ObservableObject {
         case .settings(let pane): openSettings(pane)
         case .notifications: openNotifications()
         case .newEvent: newEvent()
+        case .inspiration(let kind, let item): openInspiration(kind, item: item)
         }
+    }
+
+    /// A page of « Inspiration », from its grid or on one of its items.
+    public func openInspiration(_ kind: InspirationKind, item: UUID? = nil) {
+        section = .inspiration
+        inspirationPage = kind
+        inspirationItem = item
     }
 
     /// Calendrier, its editor open on a new event.
@@ -259,6 +281,7 @@ public struct MainWindowView<Diagnostic: View>: View {
     let projects: ProjectLibrary?
     let agenda: AgendaLibrary?
     let mails: MailLibrary?
+    let inspiration: InspirationLibrary?
     let updates: UpdateService?
     let notifications: NotificationHub?
     let startup: StartupControl?
@@ -269,8 +292,8 @@ public struct MainWindowView<Diagnostic: View>: View {
 
     public init(
         library: MeetingLibrary, projects: ProjectLibrary? = nil, agenda: AgendaLibrary? = nil, mails: MailLibrary? = nil,
-        updates: UpdateService? = nil, notifications: NotificationHub? = nil, startup: StartupControl? = nil, router: WindowRouter,
-        paths: AppPaths, @ViewBuilder diagnostic: () -> Diagnostic
+        inspiration: InspirationLibrary? = nil, updates: UpdateService? = nil, notifications: NotificationHub? = nil,
+        startup: StartupControl? = nil, router: WindowRouter, paths: AppPaths, @ViewBuilder diagnostic: () -> Diagnostic
     ) {
         self.notifications = notifications
         self.startup = startup
@@ -278,6 +301,7 @@ public struct MainWindowView<Diagnostic: View>: View {
         self.projects = projects
         self.agenda = agenda
         self.mails = mails
+        self.inspiration = inspiration
         self.updates = updates
         self.router = router
         self.paths = paths
@@ -286,8 +310,9 @@ public struct MainWindowView<Diagnostic: View>: View {
 
     public var body: some View {
         NavigationSplitView(columnVisibility: $columns) {
-            Sidebar(router: router, library: library, agenda: agenda, mails: mails,
-                    items: SidebarItem.visible(hasProjects: projects != nil, hasAgenda: agenda != nil, hasMails: mails != nil),
+            Sidebar(router: router, library: library, agenda: agenda, mails: mails, inspiration: inspiration,
+                    items: SidebarItem.visible(hasProjects: projects != nil, hasAgenda: agenda != nil, hasMails: mails != nil,
+                                               hasInspiration: inspiration != nil),
                     inbox: notifications?.inbox)
                 // One width, always: a sidebar free to resize changed size from one section to the next (Paul, 15/11).
                 .navigationSplitViewColumnWidth(Self.sidebarWidth)
@@ -313,6 +338,8 @@ public struct MainWindowView<Diagnostic: View>: View {
                 if let agenda { ContactsView(agenda: agenda, router: router) }
             case .mails:
                 if let mails { MailSectionView(mails: mails, router: router) }
+            case .inspiration:
+                if let inspiration { InspirationSectionView(library: inspiration, router: router) }
             case .projects:
                 if let projects {
                     ProjectsView(library: projects)
@@ -359,8 +386,8 @@ public struct MainWindowView<Diagnostic: View>: View {
                 .windowTitle("Réunions", subtitle: router.selection.flatMap { library.row($0)?.title } ?? "")
                 .searchable(text: $router.query, placement: .toolbar, prompt: "Chercher dans les transcriptions")
             case .settings:
-                SettingsPage(router: router, updates: updates, projects: projects, agenda: agenda, mails: mails, library: library,
-                             notifications: notifications, startup: startup) {
+                SettingsPage(router: router, updates: updates, projects: projects, agenda: agenda, mails: mails, inspiration: inspiration,
+                             library: library, notifications: notifications, startup: startup) {
                     diagnostic
                 } journal: {
                     JournalView(entries: library.journal)

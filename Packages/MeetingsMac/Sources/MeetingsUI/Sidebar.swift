@@ -4,17 +4,21 @@ import Persistence
 import PolhubDesign
 import SwiftUI
 
-/// A row of the sidebar: a section, or one of the mails' folders under « Mails » (Paul, 15/11).
+/// A row of the sidebar: a section, one of the mails' folders under « Mails » (Paul, 15/11), or one of the pages
+/// under « Inspiration » (16/11).
 enum SidebarRow: Hashable {
     case section(SidebarItem)
     case mail(MailFolder)
+    case inspiration(InspirationKind)
 
     /// The row lit in the list of the work: the folder shown under « Mails » open, « Mails » itself when closed;
-    /// none for Réglages, which has its own row at the bottom.
-    static func selected(section: SidebarItem, folder: MailFolder?, mailsOpen: Bool) -> SidebarRow? {
+    /// the same for the pages under « Inspiration »; none for Réglages, which has its own row at the bottom.
+    static func selected(section: SidebarItem, folder: MailFolder?, mailsOpen: Bool,
+                         page: InspirationKind? = nil, inspirationOpen: Bool = true) -> SidebarRow? {
         switch section {
         case .settings: nil
         case .mails: (mailsOpen ? folder : nil).map(SidebarRow.mail) ?? .section(.mails)
+        case .inspiration: (inspirationOpen ? page : nil).map(SidebarRow.inspiration) ?? .section(.inspiration)
         default: .section(section)
         }
     }
@@ -50,10 +54,16 @@ struct Sidebar: View {
     @ObservedObject var library: MeetingLibrary
     let agenda: AgendaLibrary?
     let mails: MailLibrary?
+    /// « Inspiration » and its three pages (16/11), when the app has them.
+    var inspiration: InspirationLibrary? = nil
     let items: [SidebarItem]
     /// The notifications Polhub sent, behind the bell beside Réglages (15/11); none in the development build.
     var inbox: NotificationInbox? = nil
     @AppStorage(Preferences.Key.mailSidebarOpen) private var mailsOpen = true
+    @AppStorage(InspirationLibrary.sidebarOpenKey) private var inspirationOpen = true
+
+    /// The list holds a group that opens: its rows move right by the room of the disclosure arrow.
+    private var hasGroup: Bool { mails != nil || (inspiration != nil && items.contains(.inspiration)) }
 
     var body: some View {
         // Réglages and the bell at the bottom, apart from the work (Paul, 14/11 and 15/11), BELOW the list rather than
@@ -66,7 +76,7 @@ struct Sidebar: View {
                     list(mails: nil)
                 }
             }
-            SidebarFooter(router: router, indent: mails != nil ? SidebarFooterMetrics.outlineIndent : 0) {
+            SidebarFooter(router: router, indent: hasGroup ? SidebarFooterMetrics.outlineIndent : 0) {
                 if let inbox {
                     NotificationBell(inbox: inbox, arrowEdge: .top, request: $router.notificationsRequested) {
                         router.perform($0, agenda: agenda, mails: mails)
@@ -82,6 +92,8 @@ struct Sidebar: View {
             ForEach(items, id: \.self) { item in
                 if item == .mails, let mails {
                     mailsGroup(mails)
+                } else if item == .inspiration, inspiration != nil {
+                    inspirationGroup
                 } else {
                     row(item)
                 }
@@ -91,13 +103,21 @@ struct Sidebar: View {
 
     private func selection(_ mails: MailLibrary?) -> Binding<SidebarRow?> {
         Binding {
-            SidebarRow.selected(section: router.section, folder: mails?.folder, mailsOpen: mailsOpen)
+            SidebarRow.selected(section: router.section, folder: mails?.folder, mailsOpen: mailsOpen,
+                                page: router.inspirationPage, inspirationOpen: inspirationOpen)
         } set: { row in
             switch row {
             case .section(.mails)?:
                 if let mails { show(.inbox, in: mails) } else { router.section = .mails }
+            case .section(.inspiration)?:
+                // The page shown last, from its grid.
+                router.openInspiration(router.inspirationPage)
+                inspirationOpen = true
             case .section(let item)?: router.section = item
             case .mail(let folder)?: if let mails { show(folder, in: mails) }
+            case .inspiration(let kind)?:
+                router.openInspiration(kind)
+                inspirationOpen = true
             case nil: break
             }
         }
@@ -137,6 +157,19 @@ struct Sidebar: View {
             }
         } label: {
             SidebarLabel(item: .mails, count: mailsOpen ? 0 : mails.unreadCount).tag(SidebarRow.section(.mails))
+        }
+    }
+
+    /// « Inspiration » open on its three pages, as Mails on its folders (Paul, 16/11).
+    private var inspirationGroup: some View {
+        DisclosureGroup(isExpanded: $inspirationOpen) {
+            ForEach(InspirationKind.allCases, id: \.self) { kind in
+                AppLabel(kind.title, icon: kind.appIcon)
+                    .listItemTint(.monochrome)
+                    .tag(SidebarRow.inspiration(kind))
+            }
+        } label: {
+            SidebarLabel(item: .inspiration).tag(SidebarRow.section(.inspiration))
         }
     }
 

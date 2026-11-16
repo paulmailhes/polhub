@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import Domain
+import Inspiration
 import MeetingDetection
 import MeetingsUI
 import Observability
@@ -42,6 +43,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     /// Calendars, contacts and the loop of 13/11.
     private var agenda: AgendaLibrary?
     private var mails: MailLibrary?
+    /// « Inspiration » (16/11): the sites, the branding and the mock-ups, and their collection.
+    private var inspiration: InspirationLibrary?
+    private var inspirationAutomation: InspirationAutomation?
+    private var inspirationTimer: Timer?
+    private var wakeObserver: NSObjectProtocol?
     private var agendaTimer: Timer?
     /// The notifications (14/11): reminders, new events, meetings not recorded, summaries ready.
     private var notifications: NotificationHub?
@@ -183,6 +189,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         projects = ProjectLibrary(store: ProjectStore(store.database), meetings: store)
         projectLogos = ProjectLogos(folder: paths.logos, database: store.database)
         startAgenda(database: store.database)
+        startInspiration(database: store.database)
         // Before the diagnostic, which may open the window: the window takes the update service as it is
         // when it opens, and Réglages › Mises à jour needs it (13/11).
         startUpdates(store: store)
@@ -331,6 +338,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         startNotifications(agenda: agenda)
     }
 
+    /// « Inspiration » (16/11): the pages follow the base; the collection runs at its slots (Awwwards every two
+    /// hours from 8 h to 22 h, the LinkedIn pages at 9, 14 and 20 h), looked at a minute after launch, every five
+    /// minutes and at wake; the items without categories are tagged by Apple's model after each pass and after an
+    /// import. Nothing on its own in the development build (no doubled requests to Awwwards and LinkedIn), nor during
+    /// a meeting; the model also waits for the transcriptions and the summaries.
+    private func startInspiration(database: AppDatabase) {
+        let library = InspirationLibrary(database: database, paths: paths)
+        inspiration = library
+        let runLog = CollectionRunLog()
+        // The vocabularies the menus read (Polhub's copy, brought by the import): the app never reads the vault
+        // outside the import.
+        let tagger = InspirationTagger(database: database, paths: paths)
+        let collector = InspirationCollector(database: database, paths: paths, runLog: runLog)
+        let isDevelopment = isDevelopment
+        let conditions = InspirationAutomation.Conditions(
+            mayCollect: { [weak self] in
+                guard !isDevelopment, Preferences().inspirationAutoCollect else { return false }
+                return await self?.inspirationMayRun(computing: false) ?? false
+            },
+            mayTag: { [weak self] in
+                guard !isDevelopment, Preferences().inspirationAICategories else { return false }
+                return await self?.inspirationMayRun(computing: true) ?? false
+            },
+            aiCategories: { Preferences().inspirationAICategories }
+        )
+        let automation = InspirationAutomation(collector: collector, tagger: tagger, runLog: runLog, conditions: conditions)
+        inspirationAutomation = automation
+        library.services = .collection(automation, database: database)
+        guard !isDevelopment else { return }
+        let tick: @Sendable () -> Void = {
+            Task.detached(priority: .utility) { await automation.tick() }
+        }
+        // The first minute belongs to the meeting the app may be resuming after a crash.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 60) { tick() }
+        inspirationTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { _ in tick() }
+        // At wake, once the network is back: a slot missed while the Mac slept is caught up once.
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { _ in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 30) { tick() }
+        }
+    }
+
+    /// No meeting under way, from the prompt to the end; with `computing`, no transcription nor summary either:
+    /// the Mac's power and Apple's model go to them first.
+    private func inspirationMayRun(computing: Bool) async -> Bool {
+        guard !model.meetingUnderWay else { return false }
+        guard computing else { return true }
+        if await transcription?.isRunning ?? false { return false }
+        return !(await summaries?.isRunning ?? false)
+    }
+
     /// Réglages › Notifications (14/11). The development version notifies nothing: no double with the installed one.
     private func startNotifications(agenda: AgendaLibrary) {
         guard !isDevelopment else { return }
@@ -411,6 +470,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         if await transcription?.isRunning ?? false { return false }
         // A mail leaving waits ten seconds in memory: an update now would call it back (14/11).
         if mails?.isSending == true { return false }
+        // The vault's import, a collection or the tagging under way: they finish first (16/11).
+        if inspiration?.importing == true { return false }
+        if await inspirationAutomation?.isRunning ?? false { return false }
         return !(await summaries?.isRunning ?? false)
     }
 
@@ -479,6 +541,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         library?.meetingActive = busy
         Task { await transcription?.meetingActivity(busy) }
         Task { await summaries?.meetingActivity(busy) }
+        // A collection or the tagging under way stops at once; its slot stays due (« Inspiration », 16/11). So does
+        // the vault's import, which decodes images on several cores.
+        if busy { Task { await inspirationAutomation?.stop() } }
+        inspiration?.meetingActivity(busy)
         if status == .idle {
             // The meeting that ended gets its event's project, title and guests now, not at the next sync.
             Task { await agenda?.runLinks() }
@@ -494,8 +560,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         }
         if mainWindow == nil {
             let diagnostic = diagnostic
-            let view = MainWindowView(library: library, projects: projects, agenda: agenda, mails: mails, updates: updates, notifications: notifications,
-                                      startup: startup, router: router, paths: paths) {
+            let view = MainWindowView(library: library, projects: projects, agenda: agenda, mails: mails, inspiration: inspiration,
+                                      updates: updates, notifications: notifications, startup: startup, router: router, paths: paths) {
                 if let diagnostic {
                     DiagnosticView(model: diagnostic) { [weak self] in self?.showProbeWindow() }
                 }

@@ -13,6 +13,7 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
     let projects: ProjectLibrary?
     let agenda: AgendaLibrary?
     let mails: MailLibrary?
+    let inspiration: InspirationLibrary?
     private var hasMails: Bool { mails != nil }
     @ObservedObject var library: MeetingLibrary
     let notifications: NotificationHub?
@@ -20,7 +21,8 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
     let diagnostic: Diagnostic
     let journal: Journal
 
-    init(router: WindowRouter, updates: UpdateService?, projects: ProjectLibrary?, agenda: AgendaLibrary? = nil, mails: MailLibrary? = nil, library: MeetingLibrary,
+    init(router: WindowRouter, updates: UpdateService?, projects: ProjectLibrary?, agenda: AgendaLibrary? = nil, mails: MailLibrary? = nil,
+         inspiration: InspirationLibrary? = nil, library: MeetingLibrary,
          notifications: NotificationHub? = nil, startup: StartupControl? = nil,
          @ViewBuilder diagnostic: () -> Diagnostic, @ViewBuilder journal: () -> Journal) {
         self.notifications = notifications
@@ -30,6 +32,7 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
         self.projects = projects
         self.agenda = agenda
         self.mails = mails
+        self.inspiration = inspiration
         self.library = library
         self.diagnostic = diagnostic()
         self.journal = journal()
@@ -55,7 +58,8 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
 
     private var families: some View {
         Form {
-            ForEach(Array(SettingsPane.families(hasAgenda: agenda != nil, hasProjects: projects != nil, hasMails: hasMails).enumerated()), id: \.offset) { _, group in
+            ForEach(Array(SettingsPane.families(hasAgenda: agenda != nil, hasProjects: projects != nil, hasMails: hasMails,
+                                                             hasInspiration: inspiration != nil).enumerated()), id: \.offset) { _, group in
                 Section {
                     ForEach(group, id: \.self) { pane in
                         Button { router.settingsPane = pane } label: { SettingsRow(pane: pane) }
@@ -86,6 +90,8 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
             ProjectsSettingsPane()
         case .meetings:
             MeetingsSettingsPane(library: library)
+        case .inspiration:
+            if let inspiration { InspirationSettingsPane(library: inspiration, router: router) }
         case .updates:
             if let updates {
                 UpdatesSettingsView(updates: updates)

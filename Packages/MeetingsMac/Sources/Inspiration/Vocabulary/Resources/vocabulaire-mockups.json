@@ -1,0 +1,49 @@
+{
+  "collection": "mockups",
+  "dossier": "database/Mockups",
+  "version": 1,
+  "familles": [
+    "type"
+  ],
+  "minimum": {
+    "type": 1,
+    "total": 1
+  },
+  "maximum": {
+    "type": 4,
+    "total": 4
+  },
+  "rognage": [
+    "type"
+  ],
+  "texte": {
+    "entete": [],
+    "ignorer_lignes": [],
+    "minimum_mots": 0
+  },
+  "ecriture": {
+    "tags_fixes": [
+      "mockup"
+    ],
+    "tag_source": "source",
+    "apres": "tags"
+  },
+  "type": {
+    "affiche": "poster, affiche murale ou d'abribus",
+    "signaletique": "panneaux, signalisation, enseigne, wayfinding",
+    "livre": "livre, couverture, pages intérieures",
+    "magazine": "magazine, revue, brochure",
+    "papeterie": "papier à en-tête, enveloppes, carnet, set de papeterie",
+    "business card": "cartes de visite",
+    "boite": "boîte, packaging en carton",
+    "sac": "sac en papier, sac de boutique",
+    "tote bag": "sac en toile",
+    "boite aux lettres": "boîte aux lettres",
+    "fenetre": "vitrine, vitre, autocollant de fenêtre",
+    "vehicule": "habillage de véhicule",
+    "ecran": "écran, moniteur, affichage numérique",
+    "iphone": "téléphone, application mobile",
+    "macbook": "ordinateur portable, site web",
+    "divers": "aucun type de la liste ne convient"
+  }
+}

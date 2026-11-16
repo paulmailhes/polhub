@@ -1,0 +1,399 @@
+import AppKit
+import Persistence
+import PolhubDesign
+import SwiftUI
+import UniformTypeIdentifiers
+
+/// « Inspiration » (16/11): the page chosen under it in the sidebar, or one of its items open over the page, with a
+/// way back, as a project's page; « Annuler » and the collection's answers at the bottom.
+struct InspirationSectionView: View {
+    @ObservedObject var library: InspirationLibrary
+    @ObservedObject var router: WindowRouter
+
+    var body: some View {
+        Group {
+            if let item = library.item(router.inspirationItem) {
+                InspirationItemPage(item: item, library: library, router: router).id(item.id)
+            } else {
+                InspirationPageView(kind: router.inspirationPage, library: library, router: router).id(router.inspirationPage)
+            }
+        }
+        .overlay(alignment: .bottom) { InspirationMessageBar(library: library) }
+        // Another section, or the window closed: the thumbnails do not stay in memory all day.
+        .onDisappear { InspirationThumbnails.shared.purge() }
+    }
+}
+
+/// A page: its toolbar (title, search, « + »), a row of chips per family, then the grid of cards, newest first.
+struct InspirationPageView: View {
+    let kind: InspirationKind
+    @ObservedObject var library: InspirationLibrary
+    @ObservedObject var router: WindowRouter
+    @State private var addingSite = false
+    @State private var addingPage = false
+    @State private var choosingFolder = false
+
+    /// The narrowest card: three across a 1 080-point page.
+    static let cardMinimumWidth: CGFloat = 240
+
+    var body: some View {
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .windowTitle(kind.title, subtitle: InspirationBrowse.subtitle(kind, shown: library.shown(kind).count, total: library.items(kind).count))
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button(action: add) { Label(kind.addTitle, systemImage: "plus") }
+                        .help(kind.addTitle)
+                        .disabled(library.adding)
+                }
+            }
+            .searchable(text: Binding(get: { library.query(kind) }, set: { library.setQuery($0, for: kind) }),
+                        placement: .toolbar, prompt: kind.searchPrompt)
+            .sheet(isPresented: $addingSite) {
+                InspirationAddSiteSheet(library: library) { id in router.openInspiration(.website, item: id) }
+            }
+            // A LinkedIn page, from the page itself (review of 16/11); Réglages keeps the list to change or remove one.
+            .sheet(isPresented: $addingPage) { InspirationSourceSheet(library: library, source: nil) }
+            .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder]) { result in
+                guard case .success(let folder) = result else { return }
+                Task {
+                    do {
+                        let id = try await library.addMockup(folder: folder)
+                        router.openInspiration(.mockup, item: id)
+                    } catch {
+                        library.message = InspirationLibrary.text(error)
+                    }
+                }
+            }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if !library.loaded.contains(kind) {
+            ProgressView()
+        } else if library.items(kind).isEmpty {
+            InspirationEmptyState(kind: kind) { router.openSettings(.inspiration) }
+        } else {
+            grid
+        }
+    }
+
+    /// Websites: an address; Branding: a LinkedIn page; Mock-ups: a folder.
+    private func add() {
+        switch kind {
+        case .website: addingSite = true
+        case .branding: addingPage = true
+        case .mockup: choosingFolder = true
+        }
+    }
+
+    private var grid: some View {
+        let shown = library.shown(kind)
+        return ScrollView {
+            LazyVStack(alignment: .leading, spacing: Space.l) {
+                let rows = library.chips(kind)
+                if !rows.isEmpty {
+                    VStack(alignment: .leading, spacing: Space.s) {
+                        ForEach(rows) { row in
+                            InspirationFilterRow(row: row) { library.setFilter($0, family: row.family, for: kind) }
+                        }
+                    }
+                    .padding(.bottom, Space.xs)
+                }
+                if shown.isEmpty {
+                    InspirationNoMatch { library.clearFilters(kind) }
+                } else {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: Self.cardMinimumWidth), spacing: Space.l, alignment: .top)],
+                              alignment: .leading, spacing: Space.l) {
+                        ForEach(shown) { item in
+                            InspirationCard(item: item, imageURL: library.imageURL(item), sourceColor: library.sourceColor(item)) {
+                                router.openInspiration(kind, item: item.id)
+                            } delete: {
+                                library.moveToTrash(item)
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, PageMetrics.horizontal)
+            .padding(.top, PageMetrics.top)
+            .padding(.bottom, PageMetrics.bottom + Space.xxl)
+        }
+    }
+}
+
+/// One card: the cover, cropped to 4:3, the title, one line of detail (the page's color dot on Branding).
+struct InspirationCard: View {
+    let item: InspirationItemRow
+    let imageURL: URL?
+    let sourceColor: String?
+    let open: () -> Void
+    let delete: () -> Void
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+        Button(action: open) {
+            VStack(alignment: .leading, spacing: 0) {
+                InspirationImage(url: imageURL, mode: .fill, icon: item.kind.appIcon)
+                    .aspectRatio(4 / 3, contentMode: .fit)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.title).font(.rowTitle.weight(.medium)).lineLimit(1)
+                    HStack(spacing: 6) {
+                        if let sourceColor { ColorDot(Color(hex: sourceColor), size: 8) }
+                        Text(InspirationBrowse.meta(item)).font(.meta).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                }
+                .padding(.horizontal, Space.m)
+                .padding(.top, Space.s + 2)
+                .padding(.bottom, Space.m)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .background(Surface.fill)
+            .clipShape(shape)
+            .contentShape(shape)
+        }
+        .buttonStyle(InspirationCardButtonStyle())
+        .cardHover()
+        .help(item.title)
+        .contextMenu {
+            Button("Ouvrir", action: open)
+            ForEach(InspirationBrowse.links(item)) { link in
+                Button(link.title) { InspirationActions.open(link.target) }
+            }
+            Divider()
+            Button("Supprimer", role: .destructive, action: delete)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+    }
+}
+
+/// A card pressed sinks a little; `cardHover` does the rest.
+struct InspirationCardButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.985 : 1)
+            .opacity(configuration.isPressed ? 0.9 : 1)
+            .animation(Motion.quick, value: configuration.isPressed)
+    }
+}
+
+/// A family's row: its name, then « Tout » and its most used values, one at a time, as the vault's tag bar; the
+/// others behind « +N », in a menu (review of 16/11: a scrolling row hid them from a mouse wheel).
+struct InspirationFilterRow: View {
+    let row: InspirationBrowse.ChipRow
+    let choose: (String?) -> Void
+
+    static let titleWidth: CGFloat = 64
+    /// The values a row shows before « +N »: about one line of a 1 080-point page.
+    static let chipLimit = 9
+
+    var body: some View {
+        let split = InspirationBrowse.visibleChips(row, limit: Self.chipLimit)
+        HStack(alignment: .top, spacing: Space.m) {
+            Text(row.title)
+                .font(.meta.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: Self.titleWidth, alignment: .leading)
+                .padding(.top, 4)
+            FlowLayout(spacing: Space.xs + 2) {
+                InspirationFilterChip(title: "Tout", selected: row.selected == nil) { choose(nil) }
+                ForEach(split.shown) { value in
+                    let selected = isSelected(value)
+                    InspirationFilterChip(title: value.label, color: value.color, selected: selected) {
+                        choose(selected ? nil : value.value)
+                    }
+                }
+                if !split.more.isEmpty {
+                    Menu {
+                        ForEach(split.more) { value in
+                            Button("\(value.label) (\(value.count))") { choose(value.value) }
+                        }
+                    } label: {
+                        Text("+\(split.more.count)")
+                            .font(.meta)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .foregroundStyle(Color.primary.opacity(0.8))
+                            .background(Surface.fill, in: Capsule())
+                    }
+                    .menuStyle(.button)
+                    .buttonStyle(.hover(.capsule))
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .help("Les autres valeurs de \(row.title.lowercased())")
+                }
+            }
+        }
+    }
+
+    private func isSelected(_ value: InspirationBrowse.ChipValue) -> Bool {
+        row.selected.map { InspirationBrowse.fold($0) == InspirationBrowse.fold(value.value) } ?? false
+    }
+}
+
+/// A chip to click: grey at rest, tinted with the accent once chosen (calm: every row has one, « Tout » at rest);
+/// its fill under the pointer.
+struct InspirationFilterChip: View {
+    let title: String
+    var color: String? = nil
+    let selected: Bool
+    let action: () -> Void
+    @Environment(\.self) private var environment
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                if let color { ColorDot(Color(hex: color), size: 7) }
+                Text(title).lineLimit(1)
+            }
+            .font(.meta.weight(selected ? .semibold : .regular))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .foregroundStyle(selected ? Color.accentColor.readable(in: environment) : Color.primary.opacity(0.8))
+            .background(selected ? Color.accentColor.opacity(0.16) : Surface.fill, in: Capsule())
+            .overlay(Capsule().strokeBorder(selected ? Color.accentColor.opacity(0.35) : .clear))
+        }
+        .buttonStyle(.hover(.capsule))
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+/// A page before any import: one line, and the way to the import.
+struct InspirationEmptyState: View {
+    let kind: InspirationKind
+    let importFromVault: () -> Void
+
+    var body: some View {
+        ContentUnavailableView {
+            Label {
+                Text(kind.emptyTitle)
+            } icon: {
+                AppIconImage(kind.appIcon, size: 44).foregroundStyle(.secondary)
+            }
+        } description: {
+            Text(kind.emptyText)
+        } actions: {
+            Button("Importer depuis le coffre", action: importFromVault)
+                .buttonStyle(.glassProminent)
+                .controlSize(.large)
+        }
+    }
+}
+
+/// The search and the filters leave nothing.
+struct InspirationNoMatch: View {
+    let showAll: () -> Void
+
+    var body: some View {
+        ContentUnavailableView {
+            Label("Aucune fiche", systemImage: "magnifyingglass")
+        } description: {
+            Text("Rien ne répond à cette recherche et à ces filtres.")
+        } actions: {
+            Button("Tout afficher", action: showAll).buttonStyle(.glass)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, Space.xxl)
+    }
+}
+
+/// « Annuler » after « Supprimer », or what an addition answered: a capsule of glass at the bottom, as in Mails.
+struct InspirationMessageBar: View {
+    @ObservedObject var library: InspirationLibrary
+
+    private var visible: Bool { library.undoable != nil || library.message != nil }
+
+    var body: some View {
+        Group {
+            if let undo = library.undoable {
+                HStack(spacing: Space.m) {
+                    Text(undo.text).lineLimit(1)
+                    Button { library.undo() } label: {
+                        Text("Annuler").fontWeight(.semibold).padding(.horizontal, Space.s).padding(.vertical, Space.xs)
+                    }
+                    .buttonStyle(.hover(.capsule))
+                    .foregroundStyle(Color.accentColor)
+                    .keyboardShortcut("z", modifiers: .command)
+                }
+            } else if let message = library.message {
+                HStack(spacing: Space.m) {
+                    Text(message).fixedSize(horizontal: false, vertical: true)
+                    IconButton("xmark", help: "Fermer", size: 13) { library.message = nil }
+                }
+            }
+        }
+        .font(.rowBody)
+        .padding(.horizontal, Space.xl)
+        .padding(.vertical, Space.m)
+        .glassEffect(.regular, in: Capsule())
+        .padding(.bottom, Space.l)
+        .opacity(visible ? 1 : 0)
+        .allowsHitTesting(visible)
+        .animation(.snappy, value: library.undoable)
+        .animation(.snappy, value: library.message)
+    }
+}
+
+/// « Ajouter un site »: its address; Polhub reads the rest.
+struct InspirationAddSiteSheet: View {
+    @ObservedObject var library: InspirationLibrary
+    let added: (UUID) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var address = ""
+    @State private var problem: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.l) {
+            Text("Ajouter un site").font(.title2.weight(.bold))
+            VStack(alignment: .leading, spacing: Space.s) {
+                TextField("Adresse du site", text: $address, prompt: Text("exemple.fr"))
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(add)
+                Text(problem ?? "Polhub lit son titre, sa description et son image.")
+                    .font(.meta)
+                    .foregroundStyle(problem == nil ? Color.secondary : .orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack {
+                if library.adding { ProgressView().controlSize(.small) }
+                Spacer()
+                Button("Annuler", role: .cancel) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button("Ajouter", action: add)
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.glassProminent)
+                    .disabled(InspirationLibrary.siteURL(address) == nil || library.adding)
+            }
+        }
+        .padding(Space.xl)
+        .frame(width: 440)
+    }
+
+    private func add() {
+        guard InspirationLibrary.siteURL(address) != nil, !library.adding else { return }
+        problem = nil
+        Task {
+            do {
+                let id = try await library.addSite(address)
+                dismiss()
+                added(id)
+            } catch {
+                problem = InspirationLibrary.text(error)
+            }
+        }
+    }
+}
+
+/// What a link of an item does.
+@MainActor
+enum InspirationActions {
+    static func open(_ target: InspirationBrowse.Link.Target) {
+        switch target {
+        case .web(let url): NSWorkspace.shared.open(url)
+        case .finder(let folder): NSWorkspace.shared.activateFileViewerSelecting([folder])
+        }
+    }
+}

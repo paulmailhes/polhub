@@ -127,6 +127,12 @@ public struct Preferences: @unchecked Sendable {
         public static let floatingPages = "general.fenetreFlottante"
         /// Réglages › Général (15/11): « 8 min » beside the logo in the quarter of an hour before a Meet.
         public static let menuBarMeetMinutes = "general.minutesAvantUnMeet"
+        /// Réglages › Inspiration (16/11): the automatic collection (Awwwards, LinkedIn), the categories by Apple's
+        /// AI, and the optional second folder of the vault's import (« Ancienne copie (n8n) »). The vault's folder
+        /// itself is the one of Réglages › Projets (`vaultPath`).
+        public static let inspirationAutoCollect = "inspiration.collecteAuto"
+        public static let inspirationAICategories = "inspiration.categoriesIA"
+        public static let inspirationOldCopyFolder = "inspiration.dossierAncienneCopie"
     }
 
     public enum Default {
@@ -177,6 +183,15 @@ public struct Preferences: @unchecked Sendable {
     public var mailAfterGesture: MailAfterGesture { MailAfterGesture(rawValue: defaults.string(forKey: Key.mailAfterGesture) ?? "") ?? .suivant }
     /// The minutes before a Meet in the menu bar (Paul, 15/11: on by default).
     public var menuBarMeetMinutes: Bool { flag(Key.menuBarMeetMinutes) }
+    /// Polhub collects the new sites and posts by itself (on by default; never in the development build, which
+    /// the scheduler decides).
+    public var inspirationAutoCollect: Bool { flag(Key.inspirationAutoCollect) }
+    /// Apple's on-device model proposes the categories of a new item (on by default).
+    public var inspirationAICategories: Bool { flag(Key.inspirationAICategories) }
+    /// The old copy of the vault the import also reads; `nil` when none is chosen.
+    public var inspirationOldCopyFolder: String? {
+        defaults.string(forKey: Key.inspirationOldCopyFolder).flatMap { $0.isEmpty ? nil : $0 }
+    }
 
     private func flag(_ key: String) -> Bool { (defaults.object(forKey: key) as? Bool) ?? true }
 

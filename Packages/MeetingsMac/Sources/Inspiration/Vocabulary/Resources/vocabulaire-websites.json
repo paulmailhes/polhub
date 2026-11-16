@@ -1,0 +1,173 @@
+{
+  "collection": "websites",
+  "dossier": "database/Websites",
+  "version": 1,
+  "familles": [
+    "secteur",
+    "style",
+    "techno",
+    "typo",
+    "support"
+  ],
+  "minimum": {
+    "secteur": 1,
+    "style": 0,
+    "techno": 0,
+    "typo": 0,
+    "support": 1,
+    "total": 2
+  },
+  "maximum": {
+    "secteur": 2,
+    "style": 3,
+    "techno": 3,
+    "typo": 2,
+    "support": 2,
+    "total": 8
+  },
+  "rognage": [
+    "techno",
+    "style",
+    "typo",
+    "support",
+    "secteur"
+  ],
+  "texte": {
+    "entete": [
+      [
+        "Title",
+        "file.name"
+      ],
+      [
+        "Site",
+        "site"
+      ]
+    ],
+    "ignorer_lignes": [],
+    "minimum_mots": 8
+  },
+  "ecriture": {
+    "tags_fixes": [
+      "site"
+    ],
+    "tag_source": "",
+    "apres": "tags"
+  },
+  "prompt": {
+    "objet": "reference websites (the page title, its URL and a short OpenGraph description) for a web designer's inspiration library",
+    "regles": [
+      "Tag only what the text states or clearly implies. Leave \"style\", \"techno\" and \"typo\" empty when the text says nothing about the look or the build. Prefer fewer accurate tags over many vague ones.",
+      "The text is short: a title, a URL and one or two sentences. Do not extrapolate from the domain name alone."
+    ],
+    "familles": {
+      "secteur": "what the site is for — the business or purpose behind it.",
+      "style": "the visual character of the site.",
+      "techno": "the technique, effects or interaction the text describes.",
+      "typo": "the typography, only when described.",
+      "support": "the kind of site or page."
+    },
+    "police": "the exact typeface names quoted in the text (e.g. \"Söhne\", \"GT America\"), else []. Never guess a name.",
+    "client": "a French noun phrase of 3 to 6 words saying what the site or its owner is, without the brand name, e.g. \"studio de design à Lisbonne\", \"marque de café de spécialité\", \"portfolio d'un développeur créatif\". Name a city or country ONLY if the text states it.",
+    "suffixe": "Now return the JSON object. Tag only what this text states or clearly implies. Fill \"style\", \"techno\" and \"typo\" only when the text describes the look, the effects or the lettering, otherwise leave them empty.",
+    "rappel": "REMINDER: your previous answer was not usable. Reply with the JSON object only, with the seven keys secteur, style, techno, typo, support, police, client. Tags must come from the lists above, exactly spelled. Give at least 2 tags in total across the five families, and a non-empty French client phrase."
+  },
+  "secteur": {
+    "agence": "studio de design, agence créative, collectif",
+    "portfolio": "site personnel d'un designer, développeur, photographe, artiste",
+    "produit": "produit numérique, SaaS, application, outil en ligne",
+    "tech": "startup, IA, matériel, infrastructure, développeur",
+    "mode": "vêtements, chaussures, accessoires, bijoux, lunetterie",
+    "beauté": "cosmétiques, soins, parfum, bien-être",
+    "alimentation": "restaurant, café, marque de nourriture ou de boisson",
+    "culture": "musée, festival, théâtre, musique, cinéma, édition, magazine",
+    "immobilier": "promoteur, architecture, aménagement, résidence",
+    "maison": "mobilier, décoration, objets, artisanat",
+    "finance": "banque, fintech, assurance, investissement, crypto",
+    "santé": "médical, clinique, thérapie, nutrition, sport",
+    "éducation": "école, formation, cours en ligne, documentation",
+    "événement": "conférence, salon, lancement, exposition, campagne temporaire",
+    "non-lucratif": "ONG, association, fondation, cause, service public",
+    "mobilité": "transport, automobile, vélo, voyage, tourisme",
+    "divertissement": "jeu, expérience interactive, streaming, loisirs",
+    "retail": "boutique en ligne, marketplace, marque grand public",
+    "autre": "aucun secteur de la liste ne convient"
+  },
+  "style": {
+    "minimal": "épuré, beaucoup de blanc, peu d'éléments",
+    "brutaliste": "brut, cru, grille apparente, anti-design assumé",
+    "éditorial": "mise en page de magazine, grille, hiérarchie typographique",
+    "immersif": "plein écran, expérience, narration, ambiance",
+    "ludique": "joueur, humour, décalé, fun",
+    "luxe": "premium, haut de gamme, raffiné",
+    "rétro": "inspiré d'une époque passée, vintage, nostalgie",
+    "futuriste": "science-fiction, néon, technologique",
+    "coloré": "palette vive, multicolore, saturée",
+    "monochrome": "une seule couleur, ou noir et blanc",
+    "sombre": "fond noir, palette foncée",
+    "pastel": "teintes douces, claires",
+    "illustratif": "porté par l'illustration",
+    "photographique": "porté par la photographie",
+    "typographique": "la typographie est le cœur de la page",
+    "organique": "formes souples, courbes, fluide",
+    "géométrique": "formes simples, grille, modulaire",
+    "corporate": "institutionnel, sérieux, sobre",
+    "artisanal": "fait main, texture, imperfection assumée",
+    "expérimental": "inattendu, déconstruit, avant-garde",
+    "clair": "fond clair ou blanc dominant, l’inverse de « sombre »",
+    "bento": "grille de cartes de tailles inégales, à la manière d’une boîte à bento",
+    "arrondi": "coins et formes très arrondis, rondeur assumée",
+    "dégradé": "dégradés de couleur comme motif principal",
+    "contour": "formes et lettres en contour, sans remplissage"
+  },
+  "techno": {
+    "3d": "scène ou objets 3D, WebGL, Three.js, Spline",
+    "shaders": "effets de matière, distorsion, bruit, liquide",
+    "scroll": "animation au défilement, scrollytelling, sections épinglées",
+    "parallaxe": "plans qui se décalent au défilement",
+    "curseur": "curseur personnalisé, effets qui suivent la souris",
+    "transitions": "transitions de page, morphing, animations d'entrée soignées",
+    "vidéo": "vidéo en fond ou au cœur de la page",
+    "motion": "animations de texte, micro-interactions, logo animé",
+    "grille": "grille apparente, layout modulaire, bento",
+    "horizontal": "défilement horizontal",
+    "interactif": "manipulation directe, glisser, jeu, générateur",
+    "génératif": "visuels générés, procéduraux, aléatoires",
+    "audio": "son ou musique dans l'expérience",
+    "sombre-clair": "bascule clair / sombre mise en scène",
+    "webflow": "construit avec Webflow (mentionné)",
+    "framer": "construit avec Framer (mentionné)",
+    "react": "React, Next.js, Nuxt, Svelte ou équivalent (mentionné)",
+    "gsap": "GSAP, Lenis, Locomotive Scroll (mentionné)",
+    "accessibilité": "accessibilité mise en avant",
+    "performance": "vitesse, légèreté, sobriété mises en avant"
+  },
+  "typo": {
+    "linéale": "sans serif, sans empattement",
+    "empattement": "serif, avec empattements",
+    "mécane": "slab serif",
+    "script": "cursive, manuscrite",
+    "monospace": "chasse fixe, machine à écrire",
+    "display": "caractère de titrage expressif",
+    "condensée": "étroite, resserrée",
+    "étendue": "large, extended",
+    "variable": "police variable, axes animés",
+    "grasse": "très bold, heavy",
+    "fine": "light, thin",
+    "capitales": "tout en majuscules",
+    "géante": "titres immenses, typographie hors d'échelle",
+    "gothique": "blackletter",
+    "pixel": "bitmap, pixel"
+  },
+  "support": {
+    "vitrine": "site de présentation d'une marque ou d'une entreprise",
+    "portfolio": "galerie de travaux, projets, études de cas",
+    "landing": "page unique de lancement ou de produit",
+    "e-commerce": "boutique, catalogue, panier",
+    "produit": "site d'une application ou d'un service numérique",
+    "éditorial": "magazine, blog, publication, documentation",
+    "campagne": "site temporaire d'événement ou d'opération",
+    "expérience": "site expérimental, jeu, installation interactive",
+    "outil": "générateur, utilitaire, ressource en ligne",
+    "app": "application web utilisable directement"
+  }
+}
