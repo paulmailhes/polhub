@@ -3,6 +3,31 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.18.0 — 16 novembre 2026
+
+**Coup d'œil : le menu de la barre des menus devient un vrai panneau.**
+
+- Un clic sur le logo ouvre un panneau en verre, construit comme le Centre de contrôle, qui dit d'un regard où
+  tu en es :
+  - **en haut, la situation du moment** : réunion détectée (avec le même décompte que la petite fenêtre),
+    enregistrement en cours et son horloge, fin présumée, rendez-vous dans le quart d'heure avec « Rejoindre »,
+    détection suspendue, compte rendu en préparation ou prêt, sinon ta journée (« Libre jusqu'à 16:30 ») ;
+  - **quatre tuiles** : Calendrier, Mails, Réunions, Projets ; un clic ouvre la page dans Polhub ;
+  - **les nouveaux mails** : les non-lus de la Boîte de réception, ceux de tes projets d'abord, trois au plus,
+    à marquer comme lus au survol ; cachés pendant une réunion ;
+  - **quatre boutons ronds** : Enregistrer ou Arrêter, Nouveau mail, Rendez-vous, Suspendre ou Reprendre ;
+  - **« À régler »**, seulement quand quelque chose menace un enregistrement ou demande ton geste (onglets de Dia
+    illisibles, disque presque plein, compte Google à reconnecter…) ;
+  - en bas : Ouvrir Polhub, la cloche des notifications, Réglages et « ⋯ ».
+- Au clavier : ↩ pour l'action principale, J pour rejoindre le Meet, ⌘N pour un nouveau mail, ⌘1 à ⌘6 pour les
+  pages. Arrêter un enregistrement se fait toujours au clic.
+- **Le logo est plein** : plein, Polhub guette tes réunions ; en contour, la détection est suspendue ; rouge, il
+  enregistre.
+  - « 8 min » s'affiche à côté du logo dans le quart d'heure avant un Meet (à couper dans Réglages › Général).
+  - Une pastille sur le coin signale un enregistrement menacé, et part seule quand la cause disparaît.
+- L'alerte de disque presque plein suit l'espace libre pendant une réunion, et revient si le disque se remplit
+  de nouveau.
+
 ## 0.17.2 — 15 novembre 2026
 
 **Le bas de la barre latérale, plus propre.**
