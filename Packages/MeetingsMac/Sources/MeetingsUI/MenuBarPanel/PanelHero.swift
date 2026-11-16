@@ -323,6 +323,7 @@ struct PanelHero: View {
             }
             .padding(Space.l)
             .frame(maxWidth: .infinity, minHeight: HeroMetrics.minHeight, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
             .background(PanelSurface.card, in: RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
             .contentShape(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
         }
@@ -370,6 +371,8 @@ private struct HeroCard<Content: View>: View {
         VStack(alignment: .leading, spacing: Space.xs) { content }
             .padding(HeroMetrics.padding)
             .frame(maxWidth: .infinity, minHeight: HeroMetrics.minHeight, alignment: .topLeading)
+            // Never squeezed under its content: short of room, its buttons spilled over the tiles (16/11).
+            .fixedSize(horizontal: false, vertical: true)
             .background(PanelTint.fill(tint, dark: scheme == .dark), in: shape)
             .overlay(shape.strokeBorder(PanelTint.edge(tint, dark: scheme == .dark)))
     }

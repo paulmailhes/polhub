@@ -318,6 +318,14 @@ import Updates
         #expect(PanelModel.firstName("Camille Martin") == "Camille" && PanelModel.firstName("\"Léa\"") == "Léa")
     }
 
+    /// A name written « Nom, Prénom » gave « Müller, » in the Mails tile, with its comma (Paul's capture, 16/11).
+    @Test func aNameWrittenLastNameFirstGivesTheFirstName() {
+        #expect(PanelModel.firstName("Bernard, Léa") == "Léa")
+        #expect(PanelModel.firstName("\"Roche, Nina\"") == "Nina")
+        #expect(PanelModel.firstName("Hugo Petit, Atelier Nord") == "Hugo")
+        #expect(PanelModel.firstName("Bernard,") == "Bernard")
+    }
+
     /// Under the cap of 640 points, only the mails' card gives way, by whole rows (finding of 16/11: a row cut through
     /// its subject): the rows that fit, then only its header and « Voir les N nouveaux »; the card goes only when not
     /// even that fits.

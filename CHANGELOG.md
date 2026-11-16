@@ -3,6 +3,14 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.18.1 — 16 novembre 2026
+
+**Coup d'œil, deux corrections.**
+
+- La carte du haut ne déborde plus sur les tuiles : pendant un enregistrement, « Voir la réunion » et « Arrêter »
+  passaient sur le Calendrier et les Mails. Le panneau prend toujours sa hauteur entière.
+- Un expéditeur écrit « Nom, Prénom » apparaît par son prénom dans la tuile Mails, sans virgule en trop.
+
 ## 0.18.0 — 16 novembre 2026
 
 **Coup d'œil : le menu de la barre des menus devient un vrai panneau.**

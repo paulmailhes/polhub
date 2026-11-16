@@ -51,6 +51,9 @@ public struct MenuBarPanel: View {
             }
         }
         .frame(width: Self.width)
+        // Its own height, never less: the window under the logo grows to it. Flexible, the panel let that window keep
+        // an older, shorter height, and squeezed the hero (Paul's capture, 16/11, during a recording).
+        .fixedSize(horizontal: false, vertical: true)
         .environment(\.projectLogos, context.projectLogos)
     }
 

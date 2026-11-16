@@ -54,4 +54,30 @@ import Testing
             #expect(range.contains(height), "\(name) : \(height) pt")
         }
     }
+
+    /// Paul's capture of 16/11, during a real recording: the menu bar's window was shorter than the panel, the hero
+    /// gave up its height down to its 90 points and its buttons spilled over the tiles. Offered less room, a hero keeps
+    /// its whole height.
+    @Test func aHeroNeverGivesUpItsHeight() {
+        _ = NSApplication.shared
+        let context = CoupDoeilContext(app: AppModel(), router: WindowRouter())
+        for (name, hero) in heroes {
+            let host = NSHostingController(rootView: PanelHero(hero: hero, now: now, context: context, agenda: nil, library: nil).frame(width: Self.width))
+            let whole = host.sizeThatFits(in: CGSize(width: Self.width, height: 10_000)).height
+            let squeezed = host.sizeThatFits(in: CGSize(width: Self.width, height: 40)).height
+            #expect(abs(squeezed - whole) < 0.5, "\(name) : \(squeezed) pt au lieu de \(whole)")
+        }
+    }
+
+    /// The whole panel, while a meeting records: it never takes less than its own height, so the window under the logo
+    /// grows to it instead of squeezing the hero.
+    @Test func thePanelNeverTakesLessThanItsHeight() {
+        _ = NSApplication.shared
+        let app = AppModel()
+        app.status = .recording(title: "Revue de maquettes", since: now.addingTimeInterval(-57))
+        let host = NSHostingController(rootView: MenuBarPanel(context: CoupDoeilContext(app: app, router: WindowRouter())).environment(\.panelNow, now))
+        let whole = host.sizeThatFits(in: CGSize(width: MenuBarPanel.width, height: 10_000)).height
+        let squeezed = host.sizeThatFits(in: CGSize(width: MenuBarPanel.width, height: 120)).height
+        #expect(whole > 200 && abs(squeezed - whole) < 0.5, "\(squeezed) pt au lieu de \(whole)")
+    }
 }

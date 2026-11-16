@@ -580,11 +580,14 @@ enum PanelModel {
         return thread.senders.last?.display ?? "?"
     }
 
-    /// « Camille » for « Camille Martin », « camille.martin » for an address alone.
+    /// « Camille » for « Camille Martin » as for « Martin, Camille », « camille.martin » for an address alone.
     static func firstName(_ display: String) -> String {
         let name = display.trimmingCharacters(in: CharacterSet(charactersIn: "\"' "))
         if name.contains("@") { return String(name.split(separator: "@").first ?? Substring(name)) }
-        return String(name.split(separator: " ").first ?? Substring(name))
+        let parts = name.split(separator: ",", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+        // « Martin, Camille »: one word before the comma, the first name after it.
+        let given = parts.count == 2 && !parts[0].contains(" ") && !parts[1].isEmpty ? parts[1] : parts.first ?? name
+        return String(given.split(separator: " ").first ?? Substring(given))
     }
 
     /// « 10:42 » today, « hier », « lun. » this week, else « 12 nov. ».
