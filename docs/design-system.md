@@ -80,10 +80,15 @@ Elle copie Gmail, l'outil que Paul connaît le mieux (Paul, 15/11 : « calque-to
   l'autre.
 
 **Le texte d'un brouillon** s'écrit mis en forme, comme dans Gmail (Paul, 17/11) : `RichTextEditor`, une vue web à
-sa page, qui ne charge rien ni ne suit aucun lien, sous une barre de boutons ronds (`FormatBar` : gras ⌘B, italique
-⌘I, souligné ⌘U, listes à puces et numérotée, lien ⌘K, effacer la mise en forme). Il grandit avec son texte (180
-points au moins), prend la police et les couleurs du système, et ce qu'il donne ne garde que la mise en forme simple
-(`MailRichText.clean`) : un brouillon d'agent mis en forme s'y ouvre tel qu'il partira.
+sa page, qui ne charge rien ni ne suit aucun lien. Il grandit avec son texte (180 points au moins) et ne défile
+jamais lui-même : la molette fait défiler la page autour, qui garde la ligne tapée en vue. Il prend la police et les
+couleurs du système, et ce qu'il donne ne garde que la mise en forme simple (`MailRichText.clean`) : un brouillon
+d'agent mis en forme s'y ouvre tel qu'il partira.
+
+**La barre d'un brouillon** (`ComposeBar`, dans un `FloatingBar`) reste en bas du panneau « Nouveau mail » ou de la
+page du fil, quelle que soit la longueur du mail (Paul, 17/11) : « Envoyer » et sa flèche de programmation,
+« Joindre », la mise en forme (gras ⌘B, italique ⌘I, souligné ⌘U, listes à puces et numérotée, lien ⌘K, effacer la
+mise en forme), où en est le brouillon, la corbeille. Le texte et sa barre partagent une `ComposeSession`.
 
 ## Les couleurs
 

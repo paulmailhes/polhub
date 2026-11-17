@@ -3,6 +3,16 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.30.0 — 17 novembre 2026
+
+**Écrire un long mail : la page défile, la barre reste en bas.**
+
+- La molette fait de nouveau défiler la page quand le pointeur est sur le texte d'un mail : nouveau mail, brouillon,
+  réponse.
+- « Envoyer », « Joindre » et la mise en forme sont réunis dans une barre fixe en bas du panneau ou de la page du fil.
+  Elle reste à portée de main même tout en bas d'un long mail.
+- Quand tu tapes en bas d'un long mail, la page suit : la ligne en cours reste visible au-dessus de la barre.
+
 ## 0.29.0 — 17 novembre 2026
 
 **Écrire un mail mis en forme, comme dans Gmail.**

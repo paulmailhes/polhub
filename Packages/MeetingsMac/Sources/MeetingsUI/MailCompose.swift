@@ -116,31 +116,25 @@ struct RecipientField: View {
 struct ComposeView: View {
     let draftID: String
     @ObservedObject var mails: MailLibrary
+    /// Shared with the draft's bar, fixed at the bottom of the page (17/11): the editor, the addresses being typed.
+    @ObservedObject var session: ComposeSession
     @State private var showCc = false
     @State private var showBcc = false
     @State private var showQuote = false
     @State private var dropping = false
-    @State private var confirmingDiscard = false
     /// The subject as typed, kept here: a late reading of the base never takes a keystroke back (review of 14/11).
     /// The text lives in the editor, which reads the draft once.
     @State private var subject = ""
-    @StateObject private var editor = RichTextController()
     @State private var editorHeight = RichTextEditor.minimumHeight
     @State private var loaded = false
-    @State private var pendingTo = ""
-    @State private var pendingCc = ""
-    @State private var pendingBcc = ""
     @State private var recipientsFocused = false
     /// The project of the thread a reply answers: its people come first among the suggestions (15/11).
     @State private var threadProject: UUID?
-    /// « Choisir une date et une heure… » is open (wave B).
-    @State private var choosingDate = false
     @FocusState private var focus: Field?
 
     enum Field { case body, subject }
 
-    /// ⌘↩ belongs to the draft being written, never to another on the same screen.
-    private var isActive: Bool { focus != nil || recipientsFocused || editor.isFocused }
+    private var editor: RichTextController { session.editor }
 
     private var draft: MailDraftRow? { mails.drafts.first { $0.id == draftID } }
 
@@ -171,21 +165,13 @@ struct ComposeView: View {
                         .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
                 }
                 // The text, written with formatting as in Gmail (17/11); an agent's formatted draft opens as it leaves.
-                VStack(alignment: .leading, spacing: Space.xs) {
-                    FormatBar(editor: editor).disabled(planned != nil)
-                    RichTextEditor(initialHTML: draft.editorHTML, placeholder: draft.mode == .new ? "Écris ton mail…" : "Écris ta réponse…",
-                                   isEditable: planned == nil, focusOnStart: draft.mode != .new, controller: editor, height: $editorHeight) { html in
-                        mails.edit(draftID) { $0.write(html: html) }
-                    }
-                    .frame(height: max(RichTextEditor.minimumHeight, editorHeight))
-                    .opacity(planned != nil ? 0.75 : 1)
-                    .popover(isPresented: $editor.askingLink, arrowEdge: .bottom) {
-                        LinkPrompt { address in
-                            editor.askingLink = false
-                            if let address { editor.link(address) }
-                        }
-                    }
+                // Its buttons are in the bar fixed at the bottom of the page, in reach wherever the text is scrolled.
+                RichTextEditor(initialHTML: draft.editorHTML, placeholder: draft.mode == .new ? "Écris ton mail…" : "Écris ta réponse…",
+                               isEditable: planned == nil, focusOnStart: draft.mode != .new, controller: editor, height: $editorHeight) { html in
+                    mails.edit(draftID) { $0.write(html: html) }
                 }
+                .frame(height: max(RichTextEditor.minimumHeight, editorHeight))
+                .opacity(planned != nil ? 0.75 : 1)
                 if !draft.files.isEmpty { files(draft).disabled(planned != nil) }
                 if let signature = mails.signature(of: draft.account) {
                     Toggle(isOn: binding(\.signature, default: true)) {
@@ -212,7 +198,6 @@ struct ComposeView: View {
                         Text(draft.mode == .forward ? "Message transféré" : "Message cité").font(.meta).foregroundStyle(.secondary)
                     }
                 }
-                footer(draft, leaving: leaving, planned: planned)
             }
             .animation(Motion.standard, value: planned?.state)
             .padding(Space.xl)
@@ -247,11 +232,8 @@ struct ComposeView: View {
                     threadProject = mails.filing(of: thread)?.filing.projectID
                 }
             }
-            .confirmationDialog("Supprimer ce brouillon ?", isPresented: $confirmingDiscard) {
-                Button("Supprimer", role: .destructive) { mails.discard(draftID) }
-            } message: {
-                Text("Il disparaît aussi des brouillons de Gmail.")
-            }
+            .onChange(of: focus) { _, field in session.fieldsFocused = field != nil || recipientsFocused }
+            .onChange(of: recipientsFocused) { _, on in session.fieldsFocused = focus != nil || on }
         }
     }
 
@@ -278,7 +260,7 @@ struct ComposeView: View {
                 }
                 Spacer()
             }
-            RecipientField(label: "À", addresses: binding(\.to, default: []), text: $pendingTo, suggest: suggest, isKnown: mails.isKnown,
+            RecipientField(label: "À", addresses: binding(\.to, default: []), text: $session.pendingTo, suggest: suggest, isKnown: mails.isKnown,
                            project: suggestedProject, trailing: AnyView(
                 HStack(spacing: Space.s) {
                     // Small words that answer under the pointer and when pressed (correctifs, 15/11).
@@ -288,11 +270,11 @@ struct ComposeView: View {
                 .font(.meta)
             ), onFocus: { recipientsFocused = $0 })
             if showCc {
-                RecipientField(label: "Cc", addresses: binding(\.cc, default: []), text: $pendingCc, suggest: suggest, isKnown: mails.isKnown,
+                RecipientField(label: "Cc", addresses: binding(\.cc, default: []), text: $session.pendingCc, suggest: suggest, isKnown: mails.isKnown,
                                project: suggestedProject, onFocus: { recipientsFocused = $0 })
             }
             if showBcc {
-                RecipientField(label: "Cci", addresses: binding(\.bcc, default: []), text: $pendingBcc, suggest: suggest, isKnown: mails.isKnown,
+                RecipientField(label: "Cci", addresses: binding(\.bcc, default: []), text: $session.pendingBcc, suggest: suggest, isKnown: mails.isKnown,
                                project: suggestedProject, onFocus: { recipientsFocused = $0 })
             }
             HStack(spacing: Space.s) {
@@ -352,79 +334,6 @@ struct ComposeView: View {
         }
     }
 
-    /// « Envoyer » and, next to it, the arrow of « Programmer l'envoi » (wave B): one prominent glass control.
-    private func footer(_ draft: MailDraftRow, leaving: Bool, planned: ScheduledSend?) -> some View {
-        let problem = mails.sendProblem(draft)
-        let blocked = problem != nil || mails.sending != nil || planned != nil
-        let delay = Preferences(defaults: .standard).mailUndoSeconds
-        return HStack(spacing: Space.m) {
-            GlassEffectContainer(spacing: 2) {
-                HStack(spacing: 2) {
-                    Button(action: sendNow) { Label("Envoyer", systemImage: "paperplane.fill") }
-                        .buttonStyle(.glassProminent)
-                        .keyboardShortcut(isActive && planned == nil ? KeyboardShortcut(.return, modifiers: .command) : nil)
-                        .disabled(blocked)
-                        .help(problem ?? (planned != nil ? "Programmé : annule l'envoi programmé pour le modifier ou l'envoyer"
-                                                         : "Envoyer (⌘↩) : tu as \(delay) secondes pour l'annuler"))
-                    ScheduleMenu(pick: { scheduleNow(at: $0) }) { choosingDate = true }
-                        .disabled(blocked)
-                        .popover(isPresented: $choosingDate, arrowEdge: .top) {
-                            SchedulePicker { date in
-                                choosingDate = false
-                                if let date { scheduleNow(at: date) }
-                            }
-                        }
-                }
-            }
-            Button {
-                let panel = NSOpenPanel()
-                panel.allowsMultipleSelection = true
-                panel.canChooseDirectories = false
-                panel.prompt = "Joindre"
-                if panel.runModal() == .OK { mails.attach(panel.urls, to: draftID) }
-            } label: { Label("Joindre", systemImage: "paperclip") }
-                .buttonStyle(.glass)
-                .help("Joindre des fichiers (ou les glisser ici)")
-                .disabled(planned != nil)
-            status(draft, leaving: leaving, planned: planned)
-            Spacer()
-            IconButton("trash", help: "Supprimer le brouillon") { confirmingDiscard = true }
-                .disabled(planned?.state == .leaving)
-        }
-        .controlSize(.large)
-    }
-
-    /// The addresses typed and not yet chips go with the mail; an incomplete one stops it.
-    private func commitPending() -> Bool {
-        let pending = [(RecipientField.parse(pendingTo), \MailDraftRow.to), (RecipientField.parse(pendingCc), \MailDraftRow.cc),
-                       (RecipientField.parse(pendingBcc), \MailDraftRow.bcc)]
-        if let bad = pending.flatMap(\.0).first(where: { !MIMEBuilder.isValid($0.email) }) {
-            mails.message = "L'adresse « \(bad.email) » n'est pas complète : corrige-la avant d'envoyer."
-            return false
-        }
-        if pending.contains(where: { !$0.0.isEmpty }) {
-            mails.edit(draftID) { draft in
-                for (addresses, path) in pending {
-                    for address in addresses where !draft[keyPath: path].contains(where: { $0.email == address.email }) { draft[keyPath: path].append(address) }
-                }
-            }
-            pendingTo = ""
-            pendingCc = ""
-            pendingBcc = ""
-        }
-        return true
-    }
-
-    private func sendNow() {
-        guard commitPending() else { return }
-        mails.send(draftID)
-    }
-
-    private func scheduleNow(at date: Date) {
-        guard commitPending() else { return }
-        mails.schedule(draftID, at: date)
-    }
-
     /// Gmail's copy went its own way: Paul chooses which version lives on.
     private func conflictBanner(_ conflict: MailDraftRow.Conflict) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: Space.m) {
@@ -448,33 +357,13 @@ struct ComposeView: View {
         .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
     }
 
-    @ViewBuilder
-    private func status(_ draft: MailDraftRow, leaving: Bool, planned: ScheduledSend?) -> some View {
-        Group {
-            if let planned {
-                Label(planned.state == .held ? "En retard" : "Programmé · \(MailText.scheduledShort(planned.sendAt))", systemImage: "clock")
-                    .foregroundStyle(planned.state == .held ? Color.red : Color.secondary)
-            } else if leaving {
-                Text("Envoi en cours…")
-            } else if draft.conflict != nil {
-                Text("En attente de ton choix")
-            } else if let error = draft.lastError {
-                Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange).lineLimit(2)
-            } else if draft.gmailDraftID != nil, !draft.needsPush {
-                Text("Enregistré dans Gmail")
-            } else {
-                Text("Enregistré sur le Mac")
-            }
-        }
-        .font(.meta)
-        .foregroundStyle(.secondary)
-    }
 }
 
 /// A new mail, over the list: the composer in a floating panel.
 struct NewMailPanel: View {
     let draftID: String
     @ObservedObject var mails: MailLibrary
+    @StateObject private var session = ComposeSession()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -488,8 +377,14 @@ struct NewMailPanel: View {
             .padding(.horizontal, Space.xl).padding(.vertical, Space.l)
             Divider()
             ScrollView {
-                ComposeView(draftID: draftID, mails: mails)
+                ComposeView(draftID: draftID, mails: mails, session: session)
                     .padding(Space.xl)
+                    .frame(maxWidth: PageMetrics.readingWidth)
+                    .frame(maxWidth: .infinity)
+            }
+            // The bar stays at the bottom of the panel, however long the mail (17/11).
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                FloatingBar { ComposeBar(draftID: draftID, mails: mails, session: session) }
                     .frame(maxWidth: PageMetrics.readingWidth)
                     .frame(maxWidth: .infinity)
             }
@@ -595,26 +490,6 @@ extension MailDraftRow {
         let words = MailRichText.plain(cleaned)
         bodyHTML = words.isEmpty ? nil : cleaned
         body = words
-    }
-}
-
-/// The formatting buttons above the text: the commands Gmail has, with their shortcuts.
-struct FormatBar: View {
-    @ObservedObject var editor: RichTextController
-
-    var body: some View {
-        HStack(spacing: 2) {
-            IconButton("bold", help: "Gras (⌘B)", size: 13) { editor.bold() }
-            IconButton("italic", help: "Italique (⌘I)", size: 13) { editor.italic() }
-            IconButton("underline", help: "Souligné (⌘U)", size: 13) { editor.underline() }
-            Divider().frame(height: 16).padding(.horizontal, Space.xs)
-            IconButton("list.bullet", help: "Liste à puces", size: 13) { editor.bulletList() }
-            IconButton("list.number", help: "Liste numérotée", size: 13) { editor.numberedList() }
-            Divider().frame(height: 16).padding(.horizontal, Space.xs)
-            IconButton("link", help: "Lien (⌘K)", size: 13) { editor.askingLink = true }
-            IconButton("textformat", help: "Effacer la mise en forme", size: 13) { editor.removeFormat() }
-        }
-        .padding(.horizontal, -Space.xs)
     }
 }
 

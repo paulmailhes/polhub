@@ -120,12 +120,22 @@ struct RichTextEditor: NSViewRepresentable {
             }
         }
 
+        /// The line being typed stays in sight, above the draft's bar fixed at the bottom of the page: the editor
+        /// never scrolls itself, the page around it does (17/11).
+        private func follow(caretBottom: CGFloat) {
+            guard let view else { return }
+            let y = view.isFlipped ? caretBottom : view.bounds.height - caretBottom
+            let margin: CGFloat = 96
+            view.scrollToVisible(NSRect(x: 0, y: view.isFlipped ? y - 28 : y - margin, width: 1, height: 28 + margin))
+        }
+
         func received(_ message: [String: Any]) {
             switch message["type"] as? String {
             case "change": if let html = message["html"] as? String { parent.onChange(html) }
             case "height": if let value = message["value"] as? Double { parent.height = CGFloat(value) }
             case "focus": parent.controller.isFocused = message["value"] as? Bool ?? false
             case "link": parent.controller.askingLink = true
+            case "caret": if let bottom = message["bottom"] as? Double { follow(caretBottom: CGFloat(bottom)) }
             default: break
             }
         }
@@ -142,9 +152,11 @@ struct RichTextEditor: NSViewRepresentable {
         }
     }
 
-    /// A first click in the editor places the caret even when Polhub is not in front.
+    /// A first click in the editor places the caret even when Polhub is not in front. The wheel goes to the page
+    /// around it: the editor grows with its text and has nothing to scroll (Paul, 17/11: « je ne peux plus scroll »).
     final class EditorWebView: WKWebView {
         override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+        override func scrollWheel(with event: NSEvent) { nextResponder?.scrollWheel(with: event) }
     }
 
     /// The editor's page: no request of any kind (its policy), a block that edits, the system's font and colours.
@@ -169,7 +181,19 @@ struct RichTextEditor: NSViewRepresentable {
       let timer = null, saved = null;
       const size = () => post({ type: 'height', value: Math.ceil(document.documentElement.scrollHeight) });
       const flush = () => { clearTimeout(timer); timer = null; post({ type: 'change', html: texte.innerHTML }); };
-      const changed = () => { clearTimeout(timer); timer = setTimeout(flush, 250); size(); };
+      const caret = () => {
+        const chosen = window.getSelection();
+        if (!chosen || chosen.rangeCount === 0 || !texte.contains(chosen.focusNode)) return;
+        const range = chosen.getRangeAt(0).cloneRange();
+        range.collapse(false);
+        let box = range.getBoundingClientRect();
+        if (box.bottom === 0 && box.top === 0) {
+          const node = chosen.focusNode.nodeType === 1 ? chosen.focusNode : chosen.focusNode.parentElement;
+          box = node.getBoundingClientRect();
+        }
+        post({ type: 'caret', bottom: box.bottom });
+      };
+      const changed = () => { clearTimeout(timer); timer = setTimeout(flush, 250); size(); caret(); };
       const keep = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'A', 'UL', 'OL', 'LI', 'P', 'DIV', 'BR', 'BLOCKQUOTE']);
       const drop = new Set(['SCRIPT', 'STYLE', 'META', 'LINK', 'TITLE', 'IFRAME', 'OBJECT', 'EMBED', 'IMG', 'SVG', 'VIDEO', 'AUDIO', 'FORM', 'INPUT', 'BUTTON', 'TEMPLATE']);
       function clean(html) {
@@ -207,6 +231,7 @@ struct RichTextEditor: NSViewRepresentable {
       texte.addEventListener('input', changed);
       texte.addEventListener('focus', () => post({ type: 'focus', value: true }));
       texte.addEventListener('blur', () => { saved = selection(); if (timer) flush(); post({ type: 'focus', value: false }); });
+      texte.addEventListener('keyup', (event) => { if (event.key.startsWith('Arrow') || event.key.startsWith('Page')) caret(); });
       texte.addEventListener('keydown', (event) => {
         if (!event.metaKey || event.altKey || event.ctrlKey) return;
         const key = event.key.toLowerCase();

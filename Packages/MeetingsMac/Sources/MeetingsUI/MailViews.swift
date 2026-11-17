@@ -451,6 +451,8 @@ struct MailThreadView: View {
     @State private var replying: String?
     /// A reply below has the keyboard.
     @FocusedValue(\.writingMail) private var writing
+    /// The replies being written below, each with its editor and its bar.
+    @State private var sessions = ComposeSessions()
 
     init(key: String, mails: MailLibrary, router: WindowRouter, close: (() -> Void)?) {
         self.key = key
@@ -500,8 +502,15 @@ struct MailThreadView: View {
     /// In the trash or the spam: a banner says so, and only the way back is offered (wave B).
     private var aside: MailAside? { model.aside }
 
+    /// The replies written below: nothing is written from the trash or the spam; a reply programmed before the
+    /// thread went there still shows, locked, with its way back (wave B review): it would leave otherwise unseen.
+    private var drafts: [MailDraftRow] {
+        mails.drafts.filter { $0.threadKey == key && (aside == nil || mails.scheduled[$0.id] != nil) }
+    }
+
     var body: some View {
         let mine = Set(mails.agenda.accounts.map(\.email))
+        let drafts = drafts
         VStack(spacing: 0) {
             header
             Divider()
@@ -529,12 +538,17 @@ struct MailThreadView: View {
                         }
                         Divider()
                     }
-                    // Nothing is written from the trash or the spam; a reply programmed before the thread went there
-                    // still shows, locked, with its way back (wave B review): it would leave otherwise unseen.
-                    ForEach(mails.drafts.filter { $0.threadKey == key && (aside == nil || mails.scheduled[$0.id] != nil) }) { draft in
-                        ComposeView(draftID: draft.id, mails: mails)
-                            .padding(.top, Space.l)
-                            .id(draft.id)
+                    ForEach(drafts) { draft in
+                        VStack(alignment: .leading, spacing: Space.s) {
+                            ComposeView(draftID: draft.id, mails: mails, session: sessions(draft.id))
+                            // The last reply has its bar fixed at the bottom of the page; another, rare, keeps it under it.
+                            if draft.id != drafts.last?.id {
+                                ComposeBar(draftID: draft.id, mails: mails, session: sessions(draft.id))
+                                    .padding(.horizontal, Space.l)
+                            }
+                        }
+                        .padding(.top, Space.l)
+                        .id(draft.id)
                     }
                     if thread != nil, last != nil, aside == nil {
                         HStack(spacing: Space.s) {
@@ -556,6 +570,16 @@ struct MailThreadView: View {
                 .padding(.bottom, PageMetrics.bottom + 40)
                 .frame(maxWidth: PageMetrics.readingWidth, alignment: .leading)
                 .frame(maxWidth: .infinity)
+            }
+            // The bar of the reply being written stays at the bottom of the page, wherever the thread is scrolled (17/11).
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if let draft = drafts.last {
+                    FloatingBar { ComposeBar(draftID: draft.id, mails: mails, session: sessions(draft.id)) }
+                        .padding(.horizontal, PageMetrics.horizontal - Space.xl)
+                        .frame(maxWidth: PageMetrics.readingWidth)
+                        .frame(maxWidth: .infinity)
+                        .id(draft.id)
+                }
             }
             .onChange(of: replying) { _, id in
                 guard let id else { return }
