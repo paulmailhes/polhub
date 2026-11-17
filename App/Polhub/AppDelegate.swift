@@ -33,6 +33,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         quit: { NSApp.terminate(nil) }
     ))
     let runner = ProbeRunner()
+    /// The probe of Colin on the Diagnostic page (17/11): never during a meeting, and stopped when one begins.
+    private(set) lazy var colinProbe = ColinProbeControl(
+        isQuiet: { [weak self] in !(await self?.meetingUnderWay() ?? false) },
+        start: { [weak self] account, onFinish in
+            self?.runner.start(ProbeRequest(probe: .colin, variant: account), onFinish: onFinish) ?? false
+        },
+        stop: { [weak self] in self?.runner.stop() },
+        verdict: { [weak self] in self?.runner.lastDirectory.flatMap { ColinProbe.verdict(in: $0) } }
+    )
     private var probeWindow: NSWindow?
     private var mainWindow: NSWindow?
     private var library: MeetingLibrary?
@@ -481,13 +490,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         if router.perform(action, agenda: agenda, mails: mails) { showMainWindow() }
     }
 
-    /// No meeting (from the pop-up to the end) and no transcription under way.
-    private func isQuiet() async -> Bool {
+    /// A meeting (from the pop-up to the end) or a transcription: nothing heavy runs meanwhile.
+    private func meetingUnderWay() async -> Bool {
         switch model.status {
-        case .prompting, .recording, .presumedEnded: return false
+        case .prompting, .recording, .presumedEnded: return true
         case .idle, .paused: break
         }
-        if await transcription?.isRunning ?? false { return false }
+        return await transcription?.isRunning ?? false
+    }
+
+    /// No meeting (from the pop-up to the end) and no transcription under way.
+    private func isQuiet() async -> Bool {
+        if await meetingUnderWay() { return false }
         // A mail leaving waits ten seconds in memory: an update now would call it back (14/11).
         if mails?.isSending == true { return false }
         // A collection or the tagging under way: they finish first (16/11).
@@ -577,10 +591,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         }
         if mainWindow == nil {
             let diagnostic = diagnostic
+            let colin = colinProbe
             let view = MainWindowView(library: library, projects: projects, agenda: agenda, mails: mails, inspiration: inspiration,
                                       updates: updates, notifications: notifications, startup: startup, router: router, paths: paths) {
                 if let diagnostic {
-                    DiagnosticView(model: diagnostic) { [weak self] in self?.showProbeWindow() }
+                    DiagnosticView(model: diagnostic, colin: colin) { [weak self] in self?.showProbeWindow() }
                 }
             }
             // Every logo of a project reads it there; without it, initials (15/11).

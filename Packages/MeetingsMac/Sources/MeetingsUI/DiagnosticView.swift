@@ -149,10 +149,13 @@ public final class DiagnosticModel: ObservableObject {
 /// The Diagnostic page: each permission, its state, and how to fix it.
 public struct DiagnosticView: View {
     @ObservedObject var model: DiagnosticModel
+    let colin: ColinProbeControl?
     let openProbes: () -> Void
 
-    public init(model: DiagnosticModel, openProbes: @escaping () -> Void) {
+    /// `colin`: the probe of Colin, shown under the checks when the app gives it.
+    public init(model: DiagnosticModel, colin: ColinProbeControl? = nil, openProbes: @escaping () -> Void) {
         self.model = model
+        self.colin = colin
         self.openProbes = openProbes
     }
 
@@ -174,6 +177,11 @@ public struct DiagnosticView: View {
                     Button("Tout revérifier") { Task { await model.testAll(prompt: false) } }
                     Spacer()
                     Button("Sondes de mesure…", action: openProbes).buttonStyle(.link)
+                }
+
+                if let colin {
+                    Divider()
+                    ColinProbeSection(control: colin)
                 }
             }
             .padding(24)
