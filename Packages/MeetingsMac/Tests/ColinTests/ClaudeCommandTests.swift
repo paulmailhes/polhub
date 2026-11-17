@@ -52,6 +52,24 @@ import Testing
                                 "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"])
     }
 
+    /// The rule, not three names: nothing of Anthropic's nor of Claude Code's is ever let through.
+    @Test func nothingOfAnthropicNorOfClaudeCodeCanBeInherited() {
+        #expect(ClaudeCommand.inherited.allSatisfy { !$0.uppercased().hasPrefix("ANTHROPIC") && !$0.uppercased().hasPrefix("CLAUDE") })
+        var loud = base
+        for name in ["ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_SIMPLE", "CLAUDECODE"] { loud[name] = "x" }
+        let environment = ClaudeCommand(model: "haiku", systemPrompt: "x", prompt: "y").environment(from: loud)
+        #expect(Set(environment.keys) == ["HOME", "PATH", "ENABLE_CLAUDEAI_MCP_SERVERS", "CLAUDE_CODE_DISABLE_AUTO_MEMORY"])
+    }
+
+    /// A folder written from the user's own (« ~/… ») is read from it, not from wherever the app runs.
+    @Test func aFolderWrittenWithATildeIsReadFromTheUsersFolder() {
+        let home = URL(fileURLWithPath: "/Users/essai")
+        #expect(ClaudeCommand.account(folder: "~/.claude", home: home) == nil)
+        #expect(ClaudeCommand.account(folder: "~/.claude/", home: home) == nil)
+        #expect(ClaudeCommand.account(folder: "~/comptes/second", home: home)?.path(percentEncoded: false).hasPrefix("/Users/essai/comptes/second") == true)
+        #expect(ClaudeCommand.account(folder: "~", home: home)?.standardizedFileURL.path(percentEncoded: false).hasPrefix("/Users/essai") == true)
+    }
+
     @Test func theAccountFolderBecomesClaudeConfigDir() {
         let command = ClaudeCommand(model: "haiku", systemPrompt: "x", prompt: "y", configDirectory: URL(fileURLWithPath: "/Users/essai/comptes/second"))
         #expect(command.environment(from: base)["CLAUDE_CONFIG_DIR"] == "/Users/essai/comptes/second")

@@ -40,6 +40,40 @@ import Testing
             == .initialized(ClaudeInit(missing: ["plugins"])))
     }
 
+    /// Each list in a shape that is not its own: none of them reads as empty.
+    @Test func aListOfAnotherShapeIsToldMissing() {
+        func initial(_ change: String) -> ClaudeEvent? {
+            var lists = ["tools": "[]", "mcp_servers": "[]", "plugins": "[]", "skills": "[]", "slash_commands": "[]", "additional_directories": "[]"]
+            let parts = change.split(separator: "=", maxSplits: 1).map(String.init)
+            lists[parts[0]] = parts[1]
+            let body = lists.sorted { $0.key < $1.key }.map { #""\#($0.key)":\#($0.value)"# }.joined(separator: ",")
+            return event(#"{"type":"system","subtype":"init",\#(body)}"#)
+        }
+        #expect(initial(#"tools=[{"name":"Bash"}]"#) == .initialized(ClaudeInit(missing: ["tools"])))
+        #expect(initial(#"mcp_servers=["polhub"]"#) == .initialized(ClaudeInit(missing: ["mcp_servers"])))
+        #expect(initial(#"skills={"un":"objet"}"#) == .initialized(ClaudeInit(missing: ["skills"])))
+        #expect(initial("slash_commands=null") == .initialized(ClaudeInit(missing: ["slash_commands"])))
+        #expect(initial(#"additional_directories="/x""#) == .initialized(ClaudeInit(missing: ["additional_directories"])))
+        // A server that does not say its name cannot be counted: the list is not taken for empty.
+        #expect(initial(#"mcp_servers=[{"status":"pending"}]"#) == .initialized(ClaudeInit(missing: ["mcp_servers"])))
+        #expect(initial(#"mcp_servers=[{"name":"polhub","status":"connected"},{"statut":"x"}]"#)
+            == .initialized(ClaudeInit(servers: ["polhub": "connected"], missing: ["mcp_servers"])))
+    }
+
+    /// Numbers nobody would write, and values of the wrong kind: read as they can be, never a crash.
+    @Test func hostileNumbersAreSurvived() {
+        let huge = event(#"{"type":"result","subtype":"success","usage":{"input_tokens":9223372036854775807,"cache_creation_input_tokens":9223372036854775807,"cache_read_input_tokens":1,"output_tokens":-5},"duration_ms":1e300,"num_turns":"beaucoup","total_cost_usd":"cher"}"#)
+        guard case .result(let result) = huge else { Issue.record("\(String(describing: huge))"); return }
+        #expect(result.inputTokens == 2_000_000_001)
+        #expect(result.outputTokens == 0)
+        #expect(result.numTurns == 0 && result.costUSD == 0)
+        #expect(event(#"{"type":"result","subtype":"success","usage":"aucun","permission_denials":"aucun","is_error":"oui","api_error_status":"x","result":12}"#)
+            == .result(ClaudeResult(subtype: "success")))
+        #expect(event(#"{"type":"rate_limit_event","rate_limit_info":{"status":3,"rateLimitType":null,"utilization":"x","resetsAt":"demain","unifiedWindows":[1]}}"#)
+            == .rateLimit(ClaudeRateLimit()))
+        #expect(event(#"{"type":"rate_limit_event","rate_limit_info":null}"#) == .rateLimit(ClaudeRateLimit()))
+    }
+
     /// The memory, as Claude Code 2.1.304 says it (measured on 17/11): nothing at all when it is off, an object
     /// with one key by kind when it is on. Any other shape is a memory too: it is there, whatever it holds.
     @Test func theMemoryIsCountedWhateverItsShape() {
@@ -83,6 +117,8 @@ import Testing
         // The mark and nothing else: a text that only begins like it, or the mark with something more, is a message.
         #expect(event(#"{"type":"user","message":{"role":"user","content":[{"type":"text","text":"[Request interrupted by user] puis fais ceci"}]}}"#) == .other("user"))
         #expect(event(#"{"type":"user","message":{"role":"user","content":[{"type":"text","text":"[Request interrupted by user]"},{"type":"text","text":"autre chose"}]}}"#) == .other("user"))
+        // The mark's words in a block that is not a text: not the mark.
+        #expect(event(#"{"type":"user","message":{"role":"user","content":[{"type":"image","text":"[Request interrupted by user]"}]}}"#) == .other("user"))
     }
 
     @Test func aRateLimitGivesBothWindows() {

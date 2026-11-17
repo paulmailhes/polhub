@@ -31,6 +31,7 @@ public final class ColinProbeControl: ObservableObject {
     private let folderExists: (String) -> Bool
     private let isAccount: (String) -> Bool
     private let uptime: () -> TimeInterval
+    private let lastWake: () -> Date?
     private let watchEvery: Duration
     private let settleAfterWake: Duration
     private let restAfterFinish: Duration
@@ -54,6 +55,7 @@ public final class ColinProbeControl: ObservableObject {
     ///   - report: what the last probe concluded, and why it stopped early when it knows; `nil` without a report.
     ///   - isAccount: the folder holds a Claude account (Claude Code keeps a `.claude.json` in each).
     ///   - uptime: seconds since the Mac started.
+    ///   - lastWake: when the Mac last woke, as the system says it; `nil`: it has not slept since it started.
     ///   - watchEvery: how often a probe under way looks for a meeting or a transcription that begins.
     ///   - settleAfterWake: how long nothing is launched after the Mac starts or wakes.
     ///   - restAfterFinish: how long a click is ignored after a probe ends.
@@ -64,7 +66,9 @@ public final class ColinProbeControl: ObservableObject {
                 folderExists: @escaping (String) -> Bool = { FileManager.default.fileExists(atPath: $0) },
                 isAccount: @escaping (String) -> Bool = { FileManager.default.fileExists(atPath: $0 + "/.claude.json") },
                 uptime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
-                watchEvery: Duration = .seconds(3), settleAfterWake: Duration = .seconds(300), restAfterFinish: Duration = .seconds(1)) {
+                lastWake: @escaping () -> Date? = { ColinProbeControl.systemLastWake() },
+                watchEvery: Duration = ColinProbeControl.watchPace, settleAfterWake: Duration = ColinProbeControl.settling,
+                restAfterFinish: Duration = ColinProbeControl.rest) {
         self.defaults = defaults
         self.home = home
         self.isQuiet = isQuiet
@@ -74,10 +78,27 @@ public final class ColinProbeControl: ObservableObject {
         self.folderExists = folderExists
         self.isAccount = isAccount
         self.uptime = uptime
+        self.lastWake = lastWake
         self.watchEvery = watchEvery
         self.settleAfterWake = settleAfterWake
         self.restAfterFinish = restAfterFinish
         accountFolder = defaults.string(forKey: Preferences.Key.colinAccount) ?? ""
+    }
+
+    /// A probe under way looks this often for a meeting or a transcription that begins.
+    public nonisolated static let watchPace: Duration = .seconds(3)
+    /// Nothing is launched for this long after the Mac starts or wakes (the design of 17/11: five minutes).
+    public nonisolated static let settling: Duration = .seconds(300)
+    /// A click is ignored for this long after a probe ends.
+    public nonisolated static let rest: Duration = .seconds(1)
+
+    /// When the Mac last woke, as the system keeps it. A Polhub opened after the wake, or relaunched by its own
+    /// update, did not see it happen: the system did. `nil`: the Mac has not slept since it started.
+    public nonisolated static func systemLastWake() -> Date? {
+        var time = timeval()
+        var size = MemoryLayout<timeval>.stride
+        guard sysctlbyname("kern.waketime", &time, &size, nil, 0) == 0, time.tv_sec > 0 else { return nil }
+        return Date(timeIntervalSince1970: Double(time.tv_sec) + Double(time.tv_usec) / 1_000_000)
     }
 
     /// « comptes/second »: the end of the folder's path, enough to know it.
@@ -133,7 +154,9 @@ public final class ColinProbeControl: ObservableObject {
     private var settled: Bool {
         let wait = Double(settleAfterWake.components.seconds) + Double(settleAfterWake.components.attoseconds) / 1e18
         if uptime() < wait { return false }
+        // The wake this copy saw, and the one the system remembers when this copy was not there to see it.
         if let wokeAt, clock.now - wokeAt < settleAfterWake { return false }
+        if let woke = lastWake(), Date().timeIntervalSince(woke) < wait { return false }
         return true
     }
 
@@ -244,15 +267,17 @@ public final class ColinProbeControl: ObservableObject {
         }
     }
 
-    /// Why the probe stopped early, in words; `nil` for a reason this version does not know.
+    /// Why the probe stopped early, in words that follow « Terminé : »; `nil` for a reason this version does not
+    /// know.
     static func sentence(_ reason: String?) -> String? {
         switch reason {
         case "introuvable": "Claude Code est introuvable sur ce Mac."
         case "pas-connecte": "Claude Code n'est pas connecté sur ce compte."
-        case "limite-atteinte": "Ton compte Claude a atteint sa limite."
+        case "limite-atteinte": "ton compte Claude a atteint sa limite."
         case "sans-reponse": "Claude Code n'a pas répondu."
         case "lancement-impossible": "Claude Code n'a pas pu se lancer."
         case "isolation": "Claude Code a chargé plus que ce que Polhub lui demande."
+        case "isolation-inconnue": "Polhub n'a pas pu vérifier ce que Claude Code a chargé."
         case "erreur": "Claude Code a répondu par une erreur dès le premier lancement."
         default: nil
         }

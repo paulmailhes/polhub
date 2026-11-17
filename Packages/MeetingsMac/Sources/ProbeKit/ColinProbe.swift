@@ -70,8 +70,32 @@ public struct ColinProbe: Probe {
 
     /// `request.variant`: the folder of the Claude account; empty, absent, or Claude Code's own folder: its own account.
     public func run(_ request: ProbeRequest, trace: TraceWriter, directory: URL) async {
+        Self.runs.begin()
+        defer { Self.runs.end() }
         var run = Run(probe: self, account: ClaudeCommand.account(folder: request.variant, home: home), trace: trace, directory: directory)
         await run.go()
+    }
+
+    static let runs = Runs()
+
+    /// The app is going and has stopped every Claude Code: the runs under way are given this long to end their own
+    /// way (a last line in their trace, their folder removed). It returns as soon as none is left.
+    public static func waitUntilDone(within seconds: Double) {
+        runs.wait(within: seconds)
+    }
+
+    /// The runs under way, counted from whatever thread.
+    final class Runs: @unchecked Sendable {
+        private let lock = NSLock()
+        private var count = 0
+
+        func begin() { lock.withLock { count += 1 } }
+        func end() { lock.withLock { count -= 1 } }
+
+        func wait(within seconds: Double) {
+            let deadline = Date().addingTimeInterval(seconds)
+            while lock.withLock({ count }) > 0, Date() < deadline { usleep(20_000) }
+        }
     }
 
     /// `<directory>/bilan.json`; `nil`: no report (the probe was stopped before its end).
@@ -80,7 +104,8 @@ public struct ColinProbe: Probe {
     }
 
     /// Why the probe stopped early, when it knows: « introuvable », « pas-connecte », « limite-atteinte »,
-    /// « sans-reponse », « lancement-impossible », « isolation », « erreur ».
+    /// « sans-reponse », « lancement-impossible », « isolation » (Claude Code loaded more than what was asked),
+    /// « isolation-inconnue » (nothing says what it loaded), « erreur ».
     public static func reason(in directory: URL) -> String? {
         report(in: directory)?["raison"] as? String
     }
@@ -191,21 +216,22 @@ private struct Run {
     typealias Texts = ColinProbeTexts
     static let allowed = "mcp__polhub__projets"
     /// What the first launch may read, in tokens. Measured on 17/11 with Claude Code 2.1.304: 620 to 660 with
-    /// nothing of the user's. Instructions of his own, or a memory, weigh more than the margin left here.
+    /// nothing of the user's. It catches what is large (long instructions of the account, a memory); a file
+    /// shorter than the margin would pass, and only the word of the planted file proves the folder's own.
     static let contextCeiling = 1_000.0
 
     let probe: ColinProbe
     let account: URL?
     let trace: TraceWriter
     let directory: URL
-    /// The name of the run's own folders. Claude Code would name a conversation's folder after the first one.
+    /// The name of the run's own folder. Claude Code would name a conversation's folder after it.
     let token: String
-    /// Where the launches run: an empty folder among the temporary ones, whose path says nothing of the user
-    /// (Claude Code may tell the model where it runs).
-    let work: URL
-    /// The run's own folder in the measure's: the base of the tools and the empty account. Only these two folders
-    /// are removed at the end.
-    let scratch: URL
+    /// The run's own folder, among the temporary ones: everything it makes lives there and goes with it at the
+    /// end, and nothing else is touched. Its path says nothing of the user: Claude Code tells the model where it
+    /// runs (measured on 17/11), and gives the base's path to the server of the tools.
+    let root: URL
+    /// The folder was made by this run: only then is it removed.
+    var ownsRoot = false
     let clock = ContinuousClock()
     let began: ContinuousClock.Instant
     var measures: [ColinMeasure] = []
@@ -221,8 +247,7 @@ private struct Run {
         self.trace = trace
         self.directory = directory
         token = "colin-sonde-" + UUID().uuidString.prefix(8).lowercased()
-        work = FileManager.default.temporaryDirectory.appending(path: token, directoryHint: .isDirectory)
-        scratch = directory.appending(path: token, directoryHint: .isDirectory)
+        root = FileManager.default.temporaryDirectory.appending(path: token, directoryHint: .isDirectory)
         began = clock.now
     }
 
@@ -234,14 +259,32 @@ private struct Run {
         ClaudeCommand(model: "haiku", systemPrompt: Texts.system, prompt: Texts.ping, maxTurns: 1, configDirectory: account)
     }
 
-    private var base: URL { scratch.appending(path: "base", directoryHint: .isDirectory) }
-    private var emptyAccount: URL { scratch.appending(path: "compte-vide", directoryHint: .isDirectory) }
+    /// Where the launches run.
+    private var work: URL { root.appending(path: "travail", directoryHint: .isDirectory) }
+    private var base: URL { root.appending(path: "base", directoryHint: .isDirectory) }
+    private var emptyAccount: URL { root.appending(path: "compte-vide", directoryHint: .isDirectory) }
 
     mutating func go() async {
         let end = await steps()
         await close(end)
-        // Nothing of the run stays but its trace and its report: its two folders go, and nothing else is touched.
-        for folder in [work, scratch] { try? FileManager.default.removeItem(at: folder) }
+        // Nothing of the run stays but its trace and its report.
+        if ownsRoot { try? FileManager.default.removeItem(at: root) }
+    }
+
+    /// The run's folders, made by it and by nobody else: a path that already stands is refused, never adopted.
+    /// A file of instructions waits in the launches' folder, on purpose: closed on itself, Claude Code does not
+    /// read it, and the first launch asks for its word.
+    private mutating func prepare() -> Bool {
+        let manager = FileManager.default
+        do {
+            try manager.createDirectory(at: root, withIntermediateDirectories: false)
+            ownsRoot = true
+            for folder in [work, base, emptyAccount] { try manager.createDirectory(at: folder, withIntermediateDirectories: false) }
+            try Data(Texts.memoryFile.utf8).write(to: work.appending(path: "CLAUDE.md"))
+            return true
+        } catch {
+            return false
+        }
     }
 
     private mutating func note(_ step: String, ok: Bool, _ numbers: [String: Double] = [:], _ labels: [String: String] = [:]) async {
@@ -278,10 +321,13 @@ private struct Run {
             return .arretee
         }
 
-        // The connection, and what Claude Code loaded. A file of instructions waits in the launches' folder, on
-        // purpose: the first launch asks for its word, which a Claude closed on itself does not know.
-        try? FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
-        let planted = (try? Data(Texts.memoryFile.utf8).write(to: work.appending(path: "CLAUDE.md"))) != nil
+        guard prepare() else {
+            await note("dossier", ok: false)
+            reason = "lancement-impossible"
+            return .arretee
+        }
+        // The connection, and what Claude Code loaded. The first launch asks for the word of the instructions left
+        // in its folder, which a Claude closed on itself does not know.
         var asking = ping
         asking.prompt = Texts.memoryRequest
         let first = await launch(asking, binary)
@@ -319,15 +365,14 @@ private struct Run {
         let hooks = first.unexpected.filter { $0.hasPrefix(hookLines) }.count
         let seen: [String: Double] = ["hooks": Double(hooks), "consigneLue": read ? 1 : 0, "contexte": context]
         let missing = start?.missing ?? []
-        let isolated = loaded.values.allSatisfy { $0 == 0 } && missing.isEmpty && hooks == 0 && planted && !read
-            && (1...Self.contextCeiling).contains(context)
-        var gaps: [String: String] = [:]
-        if !missing.isEmpty { gaps["champsAbsents"] = missing.map { word($0) }.joined(separator: ",") }
-        if !planted { gaps["consigne"] = "non posée" }
-        await note("isolation", ok: isolated, loaded.merging(told) { first, _ in first }.merging(seen) { first, _ in first }, gaps)
-        // More than what was asked, or no way to know: this Claude Code is given nothing more.
-        guard isolated else {
-            reason = "isolation"
+        // « It loaded more » and « nothing says what it loaded » are two things to read, and two reasons.
+        let leaked = loaded.values.contains { $0 > 0 } || hooks > 0 || read || context > Self.contextCeiling
+        let unknown = loaded.values.contains { $0 < 0 } || !missing.isEmpty || context < 1
+        await note("isolation", ok: !leaked && !unknown, loaded.merging(told) { first, _ in first }.merging(seen) { first, _ in first },
+                   missing.isEmpty ? [:] : ["champsAbsents": missing.map { word($0) }.joined(separator: ",")])
+        // Either way, this Claude Code is given nothing more.
+        guard !leaked, !unknown else {
+            reason = leaked ? "isolation" : "isolation-inconnue"
             return .arretee
         }
 
@@ -371,7 +416,6 @@ private struct Run {
         if let helper = probe.helper {
             let file = base.appending(path: "Polhub.sqlite")
             do {
-                try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
                 let store = ProjectStore(try AppDatabase(path: file.path(percentEncoded: false)))
                 let project = try store.addProject(name: "Projet d'essai", status: .priorite2, at: Date())
                 let config = ClaudeCommand.mcpConfig(helper: helper, base: file)
@@ -424,7 +468,6 @@ private struct Run {
 
         // An account that is not connected, on purpose (an empty folder): how does it show? Not a new try: another
         // account. It must say so itself, and quickly: a silence is no signal.
-        try? FileManager.default.createDirectory(at: emptyAccount, withIntermediateDirectories: true)
         var lost = ping
         lost.configDirectory = emptyAccount
         let unconnected = await launch(lost, binary)
@@ -562,6 +605,9 @@ private struct Run {
                 case .rateLimit(let limit):
                     outcome.limits.append(limit)
                 case .result(let result):
+                    // Stopped, Claude Code ends its turn in error before it leaves (measured on 17/11): the end of
+                    // an interrupted turn, not an answer.
+                    if stopped.isRaised { break }
                     outcome.result = result
                     outcome.totalMs = milliseconds(clock.now - start)
                 case .other(let name):
@@ -638,13 +684,18 @@ private struct Run {
         do {
             session = try probe.launcher.start(command, binary: binary, directory: work)
         } catch {
+            // The probe was stopped at that very moment (the app is going, and launches nothing more): no breakdown.
+            if Task.isCancelled { return nil }
             await note("conversation", ok: false, [:], ["raison": "lancement impossible"])
             await note("panne", ok: false, [:], ["categorie": "lancement-impossible", "sousType": ""])
             return "lancement-impossible"
         }
         let tool = probe.tool
+        // Raised when the probe stops the process, by its delay or with the probe itself: what Claude Code writes
+        // after that is the end of an interrupted turn.
+        let stopped = Flag()
         let conversation = Conversation(session: session, turns: Texts.turns, timeout: probe.timeout, initWait: probe.initWait,
-                                        interruptDelay: probe.interruptDelay) {
+                                        interruptDelay: probe.interruptDelay, stopped: stopped) {
             guard let answer = await tool(URL(fileURLWithPath: "/bin/ps"), ["-o", "time=,rss=", "-p", String(session.pid)], [:]) else { return nil }
             return Conversation.usage(answer.output)
         }
@@ -656,6 +707,7 @@ private struct Run {
         await withTaskCancellationHandler {
             await reader.value
         } onCancel: {
+            stopped.raise()
             session.stop()
         }
         let summary = await conversation.summary()
@@ -690,6 +742,8 @@ private actor Conversation {
     private let initWait: Double
     private let interruptDelay: Double
     private let sample: Sample
+    /// The probe stopped the process, by a delay of the conversation or with the probe itself.
+    private let stopped: Flag
     private let clock = ContinuousClock()
     private let started: ContinuousClock.Instant
     private var numbers: [String: Double] = ["appels2": 0, "interruptionRecue": 0, "inattendus": 0]
@@ -709,12 +763,14 @@ private actor Conversation {
     private var over = false
     /// The account said its limit is reached.
     private var refused = false
-    /// Claude Code is about to write its mark of an interruption: the probe just interrupted or stopped it.
+    /// Claude Code is about to write its mark of an interruption: the probe just interrupted its turn.
     private var awaitingMark = false
     /// Why the probe must stop, once known.
     private var cause: String?
 
-    init(session: any ClaudeSession, turns: [String], timeout: Double, initWait: Double, interruptDelay: Double, sample: @escaping Sample) {
+    init(session: any ClaudeSession, turns: [String], timeout: Double, initWait: Double, interruptDelay: Double, stopped: Flag,
+         sample: @escaping Sample) {
+        self.stopped = stopped
         self.session = session
         self.turns = turns
         self.timeout = timeout
@@ -766,12 +822,21 @@ private actor Conversation {
             limits.append(limit)
             if limit.status == "rejected" { refused = true }
         case .result(let result):
-            // Once the input is closed, no answer is waited for: a late one changes nothing.
-            guard closedAt == nil, (1...turns.count).contains(turn), let turnStart else { return }
+            // Once the input is closed, no answer is waited for; and what Claude Code writes after the probe stopped
+            // it is the end of an interrupted turn. Neither is an answer.
+            guard closedAt == nil, !stopped.isRaised else { return }
+            let succeeded = result.subtype == "success" && !result.isError
+            guard (1...turns.count).contains(turn), let turnStart else {
+                // Before any message: nobody asked. In error, it says why Claude Code will not answer.
+                if !succeeded {
+                    blame(result)
+                    end()
+                }
+                return
+            }
             numbers["tour\(turn)Ms"] = milliseconds(clock.now - turnStart)
             numbers["cout\(turn)"] = result.costUSD
             costs.append(result.costUSD)
-            let succeeded = result.subtype == "success" && !result.isError
             if turn == 3 {
                 labels["finInterrompue"] = word(result.subtype)
                 if let interruptedAt { numbers["interruptionMs"] = milliseconds(clock.now - interruptedAt) }
@@ -781,20 +846,20 @@ private actor Conversation {
             // more is said to a Claude that fails.
             if !succeeded, !(turn == 3 && interruptedAt != nil) {
                 labels["arret"] = "tour \(turn)"
-                if refused || result.apiErrorStatus == 429 {
-                    cause = "limite-atteinte"
-                } else if result.apiErrorStatus == 401 || saysNotConnected(result.text) {
-                    cause = "pas-connecte"
-                }
+                blame(result)
                 end()
                 return
             }
             await next()
         case .other(let name):
-            // Claude Code's own mark, right after the probe's interruption: expected once, there and nowhere else.
-            if name == interruptionMark, awaitingMark {
-                awaitingMark = false
-                return
+            // Claude Code's own mark: expected once right after the probe's interruption, and after the probe
+            // stopped the process; nowhere else.
+            if name == interruptionMark {
+                if awaitingMark {
+                    awaitingMark = false
+                    return
+                }
+                if stopped.isRaised { return }
             }
             guard !isExpected(name) else { return }
             numbers["inattendus", default: 0] += 1
@@ -806,11 +871,24 @@ private actor Conversation {
             if let closedAt {
                 numbers["sortieMs"] = milliseconds(clock.now - closedAt)
             } else if cause == nil {
-                // Gone before the probe closed its input: it died. Before its first line, it never really started.
-                cause = saysNotConnected(errors) ? "pas-connecte" : (sawInit ? "sans-reponse" : "lancement-impossible")
+                // Gone before the probe closed its input: it died. After a limit refused, that is why; before its
+                // first line, it never really started.
+                cause = refused ? "limite-atteinte"
+                    : (saysNotConnected(errors) ? "pas-connecte" : (sawInit ? "sans-reponse" : "lancement-impossible"))
             }
         default:
             break
+        }
+    }
+
+    /// An answer in error that tells why Claude Code will go on failing: its limit, or its connection. Any other
+    /// error is the turn's own, and names nothing.
+    private func blame(_ result: ClaudeResult) {
+        guard cause == nil else { return }
+        if refused || result.apiErrorStatus == 429 {
+            cause = "limite-atteinte"
+        } else if result.apiErrorStatus == 401 || saysNotConnected(result.text) {
+            cause = "pas-connecte"
         }
     }
 
@@ -862,7 +940,7 @@ private actor Conversation {
         } else {
             labels["delai"] = "fermeture"
         }
-        awaitingMark = true
+        stopped.raise()
         session.stop()
     }
 

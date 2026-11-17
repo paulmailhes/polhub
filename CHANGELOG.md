@@ -3,7 +3,7 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
-## 0.31.1 — 17 novembre 2026
+## 0.31.1 — 18 novembre 2026
 
 **Une sonde pour préparer Colin, l'agent qui arrive sur l'Accueil.**
 
@@ -15,8 +15,8 @@ GitHub, et l'app la montre dans Réglages › Mises à jour.
 - Elle n'envoie que des textes inventés, jamais un de tes mails ni une de tes réunions, et utilise un peu de ton
   abonnement : l'équivalent d'une dizaine de centimes. Son relevé ne garde que des nombres et des mots techniques.
 - Elle vérifie que Claude Code ne lit rien de toi : ni tes réglages, ni tes consignes, ni sa propre mémoire.
-- Si Claude Code n'est pas connecté sur ce compte, a atteint sa limite, ne répond pas, est introuvable ou a chargé
-  plus que prévu, elle s'arrête tout de suite, sans nouvel essai, et te dit pourquoi.
+- Si Claude Code n'est pas connecté sur ce compte, a atteint sa limite, ne répond pas, est introuvable, a chargé
+  plus que prévu ou ne dit pas ce qu'il a chargé, elle s'arrête tout de suite, sans nouvel essai, et te dit pourquoi.
 - Elle ne se lance pas pendant une réunion ou une transcription, ni dans les minutes qui suivent le démarrage ou le
   réveil du Mac. Elle s'arrête si une réunion commence, si le Mac se met en veille ou si Polhub quitte. Polhub ne se
   met pas à jour pendant qu'elle tourne.

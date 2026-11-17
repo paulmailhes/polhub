@@ -544,11 +544,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         ]
     }
 
-    /// The app is going, by whatever way: the probe under way stops, and every Claude Code that Polhub launched is
-    /// asked to stop, then killed if it stays. It returns once they are gone (two seconds at most).
+    /// The app is going, by whatever way: the probe under way stops, and every Claude Code that Polhub launched
+    /// with it.
     func stopClaude() {
-        runner.stop()
-        ClaudeProcesses.shared.stopAll()
+        runner.stopForExit()
     }
 
     /// Reads Dia and feeds the coordinator, or stops doing so.

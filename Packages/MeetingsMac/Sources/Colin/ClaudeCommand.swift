@@ -9,7 +9,9 @@ public struct ClaudeCommand: Equatable, Sendable {
     /// It replaces Claude Code's own instructions.
     public var systemPrompt: String
     /// The one request of a launch that answers once and ends. `nil`: a conversation, whose messages come on the
-    /// standard input (`userLine`), and whose answer comes word by word.
+    /// standard input (`userLine`), and whose answer comes word by word. It travels as an argument of the command:
+    /// it must not begin with a dash, and the words of a third party (a mail, a meeting) never go this way, since
+    /// any process of the Mac can read the arguments of another. Those go by the standard input.
     public var prompt: String?
     /// The JSON given to `--mcp-config` (`mcpConfig(helper:base:)`); `nil`: no server at all.
     public var mcpConfig: String?
@@ -88,7 +90,9 @@ public struct ClaudeCommand: Equatable, Sendable {
     /// variable at all. Given as a variable, even its own folder is « not logged in » (measured on 17/11 with
     /// Claude Code 2.1.304).
     public static func account(folder: String?, home: URL) -> URL? {
-        guard let folder, !folder.isEmpty else { return nil }
+        guard var folder, !folder.isEmpty else { return nil }
+        // « ~ » is the user's own folder, wherever the app itself runs.
+        if folder == "~" || folder.hasPrefix("~/") { folder = plain(home) + folder.dropFirst() }
         let chosen = URL(fileURLWithPath: folder, isDirectory: true).standardizedFileURL
         let own = home.appending(path: ".claude", directoryHint: .isDirectory).standardizedFileURL
         if plain(chosen) == plain(own) { return nil }

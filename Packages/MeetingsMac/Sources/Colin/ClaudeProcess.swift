@@ -145,8 +145,10 @@ final class LiveClaudeSession: ClaudeSession, @unchecked Sendable {
         read(errorOutput.fileHandleForReading) { [self] in keep($0) }
     }
 
+    /// On a thread of its own, not one of the shared pool: what the process wrote last must be read within the half
+    /// second that follows its end, even when every thread of the pool is taken.
     private func read(_ handle: FileHandle, _ take: @escaping @Sendable (Data) -> Void) {
-        DispatchQueue.global(qos: .utility).async { [readers] in
+        let thread = Thread { [readers] in
             while true {
                 let data = handle.availableData
                 if data.isEmpty { break }
@@ -154,6 +156,8 @@ final class LiveClaudeSession: ClaudeSession, @unchecked Sendable {
             }
             readers.leave()
         }
+        thread.qualityOfService = .utility
+        thread.start()
     }
 
     private func receive(_ data: Data) {
@@ -289,7 +293,7 @@ public enum ClaudeTool {
             // open does not hold the answer for more than half a second.
             let printed = Printed()
             let handle = output.fileHandleForReading
-            DispatchQueue.global(qos: .utility).async {
+            let reader = Thread {
                 while true {
                     let data = handle.availableData
                     if data.isEmpty { break }
@@ -297,6 +301,8 @@ public enum ClaudeTool {
                 }
                 printed.finish()
             }
+            reader.qualityOfService = .utility
+            reader.start()
             process.waitUntilExit()
             deadline.cancel()
             processes.ended(process.processIdentifier)

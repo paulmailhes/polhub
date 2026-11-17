@@ -1,4 +1,5 @@
 import AppKit
+import Colin
 import Combine
 import Domain
 import MeetingsUI
@@ -68,5 +69,14 @@ final class ProbeRunner: ObservableObject {
 
     func stop() {
         task?.cancel()
+    }
+
+    /// The app is going, by whatever way: the probe under way stops, every Claude Code that Polhub launched is
+    /// asked to stop, then killed if it stays, and the probe is left a moment to end its own way (its last line,
+    /// its folder removed). It returns once all are gone: three seconds at most, at once when nothing runs.
+    func stopForExit() {
+        stop()
+        ClaudeProcesses.shared.stopAll()
+        ColinProbe.waitUntilDone(within: 1)
     }
 }

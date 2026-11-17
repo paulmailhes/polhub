@@ -31,6 +31,8 @@ import Testing
         /// The report the probe leaves; `nil`: none (it was stopped before its end).
         var verdict: Bool? = true
         var reason: String?
+        /// Whether all was quiet at the very moment the probe was started.
+        var quietAtStart: Bool?
     }
 
     static let home = URL(fileURLWithPath: "/Users/essai", isDirectory: true)
@@ -43,7 +45,7 @@ import Testing
     }
 
     func control(_ runner: Runner, defaults: UserDefaults? = nil, verdict: Bool? = true, reason: String? = nil,
-                 exists: Bool = true, isAccount: Bool = true, uptime: TimeInterval = 86_400,
+                 exists: Bool = true, isAccount: Bool = true, uptime: TimeInterval = 86_400, lastWake: Date? = nil,
                  settle: Duration = .seconds(300), rest: Duration = .zero) -> ColinProbeControl {
         runner.verdict = verdict
         runner.reason = reason
@@ -52,11 +54,12 @@ import Testing
             return runner.quiet
         }, start: { account, onFinish in
             if let refusal = runner.refusal { return refusal }
+            runner.quietAtStart = runner.quiet
             runner.accounts.append(account)
             runner.finish = onFinish
             return nil
         }, stop: { runner.stops += 1 }, report: { runner.verdict.map { (ok: $0, reason: runner.reason) } },
-        folderExists: { _ in exists }, isAccount: { _ in isAccount }, uptime: { uptime },
+        folderExists: { _ in exists }, isAccount: { _ in isAccount }, uptime: { uptime }, lastWake: { lastWake },
         watchEvery: .milliseconds(20), settleAfterWake: settle, restAfterFinish: rest)
     }
 
@@ -125,10 +128,11 @@ import Testing
         let sentences = [
             "introuvable": "Terminé : Claude Code est introuvable sur ce Mac. Le relevé est enregistré.",
             "pas-connecte": "Terminé : Claude Code n'est pas connecté sur ce compte. Le relevé est enregistré.",
-            "limite-atteinte": "Terminé : Ton compte Claude a atteint sa limite. Le relevé est enregistré.",
+            "limite-atteinte": "Terminé : ton compte Claude a atteint sa limite. Le relevé est enregistré.",
             "sans-reponse": "Terminé : Claude Code n'a pas répondu. Le relevé est enregistré.",
             "lancement-impossible": "Terminé : Claude Code n'a pas pu se lancer. Le relevé est enregistré.",
             "isolation": "Terminé : Claude Code a chargé plus que ce que Polhub lui demande. Le relevé est enregistré.",
+            "isolation-inconnue": "Terminé : Polhub n'a pas pu vérifier ce que Claude Code a chargé. Le relevé est enregistré.",
             "erreur": "Terminé : Claude Code a répondu par une erreur dès le premier lancement. Le relevé est enregistré.",
             "une-raison-inconnue": "Terminé : un point est à regarder. Le relevé est enregistré.",
         ]
@@ -266,6 +270,40 @@ import Testing
         #expect(control.message == "Arrêtée.")
     }
 
+    @Test func theFirstReasonOfAStopIsTheOneSaid() async {
+        // « Arrêter », then a meeting begins before the probe has ended: it was stopped by hand.
+        let runner = Runner()
+        let control = control(runner, verdict: nil)
+        await control.launch()
+        control.stopByHand()
+        control.meetingBegan()
+        control.macWillSleep()
+        #expect(runner.stops == 1)
+        runner.finish?(nil)
+        #expect(control.message == "Arrêtée.")
+    }
+
+    @Test func nothingWaitsBetweenTheCheckAndTheStart() async {
+        // A meeting that begins right after the check must find the probe started, and stop it: it cannot slip in
+        // between. The start follows the check with nothing awaited.
+        let runner = Runner()
+        runner.gate = nil
+        let control = ColinProbeControl(defaults: defaults(), home: Self.home, isQuiet: {
+            // The meeting begins as soon as anything else gets to run.
+            Task { @MainActor in runner.quiet = false }
+            return runner.quiet
+        }, start: { _, onFinish in
+            runner.quietAtStart = runner.quiet
+            runner.finish = onFinish
+            return nil
+        }, stop: { runner.stops += 1 }, report: { nil }, folderExists: { _ in true }, isAccount: { _ in true },
+        uptime: { 86_400 }, lastWake: { nil }, watchEvery: .seconds(30))
+        control.choose("/Users/essai/comptes/second")
+        await control.launch()
+        #expect(runner.quietAtStart == true)
+        #expect(control.phase == .running)
+    }
+
     @Test func aMacThatGoesToSleepStopsTheProbe() async {
         let runner = Runner()
         let control = control(runner, verdict: nil)
@@ -323,6 +361,37 @@ import Testing
         try await Task.sleep(for: .milliseconds(200))
         await control.launch()
         #expect(control.phase == .running)
+    }
+
+    @Test func aPolhubOpenedAfterTheMacWokeStillWaits() async {
+        // Opened, or updated and relaunched, after the wake: it did not see the wake happen. The system says when.
+        let runner = Runner()
+        let fresh = control(runner, lastWake: Date().addingTimeInterval(-60))
+        await fresh.launch()
+        #expect(fresh.phase == .refused(Self.unsettled))
+        #expect(runner.accounts.isEmpty)
+        // An hour after the wake, or on a Mac that has not slept since it started: it runs.
+        let later = control(runner, lastWake: Date().addingTimeInterval(-3_600))
+        await later.launch()
+        #expect(later.phase == .running)
+        let never = control(Runner(), lastWake: nil)
+        await never.launch()
+        #expect(never.phase == .running)
+    }
+
+    @Test func theSystemTellsWhenTheMacLastWoke() {
+        // When the Mac has slept since it started, its last wake is in the past, and no older than its uptime.
+        guard let wake = ColinProbeControl.systemLastWake() else { return }
+        let since = Date().timeIntervalSince(wake)
+        #expect(since >= 0)
+        #expect(since <= ProcessInfo.processInfo.systemUptime + 60)
+    }
+
+    @Test func theDelaysAreTheOnesOfTheDesign() {
+        // Five minutes after a start or a wake; a look every three seconds; a second of rest after the end.
+        #expect(ColinProbeControl.settling == .seconds(300))
+        #expect(ColinProbeControl.watchPace == .seconds(3))
+        #expect(ColinProbeControl.rest == .seconds(1))
     }
 
     @Test func rightAfterTheMacStartsNothingIsLaunched() async {
@@ -388,6 +457,17 @@ import Testing
         #expect(runner.accounts.isEmpty)
     }
 
+    @Test func theAccountDoesNotChangeUnderAProbeThatRuns() async {
+        let runner = Runner()
+        let control = control(runner)
+        control.choose("/Users/essai/comptes/second")
+        await control.launch()
+        control.choose("/Users/essai/comptes/troisieme")
+        control.choose(nil)
+        #expect(control.accountFolder == "/Users/essai/comptes/second")
+        #expect(control.phase == .running)
+    }
+
     @Test func choosingAnAccountClearsWhatWasSaid() async {
         let runner = Runner()
         runner.quiet = false
@@ -418,12 +498,28 @@ import Testing
             runner.accounts.append(account)
             runner.finish = onFinish
             return nil
-        }, stop: {}, report: { (ok: true, reason: nil) }, uptime: { 86_400 }, restAfterFinish: .zero)
+        }, stop: {}, report: { (ok: true, reason: nil) }, uptime: { 86_400 }, lastWake: { nil }, restAfterFinish: .zero)
 
         control.choose(home.path(percentEncoded: false))
         #expect(control.phase == .refused("Choisis le dossier d'un compte Claude, pas ton dossier personnel."))
         control.choose(link.path(percentEncoded: false))
         #expect(control.accountFolder.isEmpty)
+        // A link to the user's own folder is his folder all the same: at the choice, and for one kept from before.
+        let toHome = manager.temporaryDirectory.appending(path: "sonde-colin-lien-\(UUID().uuidString)")
+        try manager.createSymbolicLink(at: toHome, withDestinationURL: home)
+        defer { try? manager.removeItem(at: toHome) }
+        control.choose(toHome.path(percentEncoded: false))
+        #expect(control.phase == .refused("Choisis le dossier d'un compte Claude, pas ton dossier personnel."))
+        #expect(control.accountFolder.isEmpty)
+        let kept = defaults()
+        kept.set(toHome.path(percentEncoded: false), forKey: Preferences.Key.colinAccount)
+        let old = ColinProbeControl(defaults: kept, home: home, isQuiet: { true }, start: { account, _ in
+            runner.accounts.append(account)
+            return nil
+        }, stop: {}, report: { nil }, uptime: { 86_400 }, lastWake: { nil })
+        await old.launch()
+        #expect(old.phase == .refused("Choisis le dossier d'un compte Claude, pas ton dossier personnel."))
+        #expect(runner.accounts.isEmpty)
 
         control.choose(plain.path(percentEncoded: false))
         await control.launch()

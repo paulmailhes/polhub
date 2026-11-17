@@ -176,14 +176,20 @@ public enum ClaudeStream {
     }
 
     private static func int(_ value: Any?) -> Int { (value as? NSNumber)?.intValue ?? 0 }
+    /// A count of tokens, kept between nothing and a billion: three of them are added, and an absurd number must
+    /// not end the app.
+    private static func tokens(_ value: Any?) -> Int { min(max(int(value), 0), 1_000_000_000) }
     private static func double(_ value: Any?) -> Double? { (value as? NSNumber)?.doubleValue }
     private static func strings(_ value: Any?) -> [String] { value as? [String] ?? [] }
     private static func count(_ value: Any?) -> Int { (value as? [Any])?.count ?? 0 }
 
     private static func initialization(_ object: [String: Any]) -> ClaudeInit {
         var servers: [String: String] = [:]
-        for server in object["mcp_servers"] as? [[String: Any]] ?? [] {
-            if let name = server["name"] as? String { servers[name] = server["status"] as? String ?? "" }
+        let entries = object["mcp_servers"] as? [[String: Any]]
+        // A server that does not say its name cannot be counted: the list is then told missing, not taken as read.
+        var nameless = false
+        for server in entries ?? [] {
+            if let name = server["name"] as? String { servers[name] = server["status"] as? String ?? "" } else { nameless = true }
         }
         let plugins = object["plugins"] as? [[String: Any]] ?? []
         // Claude Code's own are the ones it places at « builtin »; a name that ends like theirs is not enough.
@@ -192,7 +198,7 @@ public enum ClaudeStream {
         // « nothing loaded » for checked.
         var missing: [String] = []
         if object["tools"] as? [String] == nil { missing.append("tools") }
-        if object["mcp_servers"] as? [[String: Any]] == nil { missing.append("mcp_servers") }
+        if entries == nil || nameless { missing.append("mcp_servers") }
         if object["plugins"] as? [[String: Any]] == nil { missing.append("plugins") }
         for list in ["skills", "slash_commands", "additional_directories"] where object[list] as? [Any] == nil {
             missing.append(list)
@@ -234,8 +240,8 @@ public enum ClaudeStream {
         return ClaudeResult(
             subtype: subtype, isError: object["is_error"] as? Bool ?? false, durationMs: int(object["duration_ms"]), numTurns: int(object["num_turns"]),
             costUSD: double(object["total_cost_usd"]) ?? 0,
-            inputTokens: int(usage["input_tokens"]) + int(usage["cache_creation_input_tokens"]) + int(usage["cache_read_input_tokens"]),
-            outputTokens: int(usage["output_tokens"]), denied: denials.compactMap { $0["tool_name"] as? String },
+            inputTokens: tokens(usage["input_tokens"]) + tokens(usage["cache_creation_input_tokens"]) + tokens(usage["cache_read_input_tokens"]),
+            outputTokens: tokens(usage["output_tokens"]), denied: denials.compactMap { $0["tool_name"] as? String },
             apiErrorStatus: (object["api_error_status"] as? NSNumber)?.intValue,
             text: object["result"] as? String ?? strings(object["errors"]).joined(separator: "\n"))
     }
