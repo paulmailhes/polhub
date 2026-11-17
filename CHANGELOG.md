@@ -3,6 +3,20 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.31.1 — 17 novembre 2026
+
+**Une sonde pour préparer Colin, l'agent qui arrive sur l'Accueil.**
+
+- Réglages › Diagnostic a une nouvelle section, « Sonde de Colin ». Elle mesure si le Claude Code de ton Mac répond
+  bien quand c'est Polhub qui le lance : la connexion, ce qu'il charge, un outil permis et un outil refusé, une
+  petite conversation avec une interruption, le temps du premier mot, le coût.
+- Tu choisis le compte Claude à utiliser (par défaut celui de Claude Code), puis tu cliques sur « Lancer la sonde de
+  Colin ». Elle dure deux à trois minutes, et tu peux continuer à travailler.
+- Elle n'envoie que des textes inventés, jamais un de tes mails ni une de tes réunions, et dépense quelques centimes
+  de ton abonnement. Son relevé ne garde que des nombres.
+- Elle ne se lance pas pendant une réunion ou une transcription, et s'arrête si une réunion commence.
+- Rien d'autre ne change : Colin n'est pas encore dans l'app.
+
 ## 0.31.0 — 17 novembre 2026
 
 **Tes agents corrigent le brouillon qu'ils ont préparé, au lieu d'en refaire un.**
