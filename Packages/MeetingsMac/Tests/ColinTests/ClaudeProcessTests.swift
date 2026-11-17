@@ -1,0 +1,143 @@
+import Foundation
+import Testing
+@testable import Colin
+
+/// The real launcher, with small scripts standing for Claude Code.
+@Suite struct ClaudeProcessTests {
+    let folder: URL
+    let oneShot = ClaudeCommand(model: "haiku", systemPrompt: "x", prompt: "y")
+    let streaming = ClaudeCommand(model: "opus", systemPrompt: "x")
+
+    init() throws {
+        folder = FileManager.default.temporaryDirectory.appending(path: "colin-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    }
+
+    func script(_ body: String) throws -> URL {
+        let url = folder.appending(path: "claude-\(UUID().uuidString).sh")
+        try ("#!/bin/sh\n" + body + "\n").write(to: url, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path(percentEncoded: false))
+        return url
+    }
+
+    func collect(_ session: any ClaudeSession) async -> [ClaudeEvent] {
+        var all: [ClaudeEvent] = []
+        for await event in session.events { all.append(event) }
+        return all
+    }
+
+    func start(_ body: String, _ command: ClaudeCommand, environment: [String: String] = ["PATH": "/usr/bin:/bin"]) throws -> any ClaudeSession {
+        try LiveClaudeLauncher(environment: environment).start(command, binary: try script(body), directory: folder)
+    }
+
+    var note: URL { folder.appending(path: "note.txt") }
+    func noted() -> String { (try? String(contentsOf: note, encoding: .utf8)) ?? "" }
+
+    @Test func aOneShotProcessGivesItsEventsThenItsExit() async throws {
+        let session = try start(#"echo '{"type":"result","subtype":"success","result":"ok"}'; echo "bruit" >&2; exit 0"#, oneShot)
+        let events = await collect(session)
+        #expect(events == [.result(ClaudeResult(subtype: "success", text: "ok")), .exited(code: 0, errors: "bruit\n")], "\(events)")
+    }
+
+    @Test func aLineCutInTwoWritesIsOneEvent() async throws {
+        let session = try start(#"printf '{"type":"result","subtype":"suc'; sleep 0.2; printf 'cess","result":"ok"}\n'"#, oneShot)
+        let events = await collect(session)
+        #expect(events == [.result(ClaudeResult(subtype: "success", text: "ok")), .exited(code: 0, errors: "")], "\(events)")
+    }
+
+    @Test func aLastLineWithoutItsEndStillCounts() async throws {
+        let session = try start(#"printf '{"type":"result","subtype":"success"}'; exit 2"#, oneShot)
+        let events = await collect(session)
+        #expect(events == [.result(ClaudeResult(subtype: "success")), .exited(code: 2, errors: "")], "\(events)")
+    }
+
+    @Test func whatIsSentReachesTheStandardInput() async throws {
+        let session = try start(#"while IFS= read -r line; do printf '%s\n' "$line" >> "\#(note.path(percentEncoded: false))"; done"#, streaming)
+        session.send("Bonjour")
+        session.interrupt("r1")
+        session.closeInput()
+        let events = await collect(session)
+        #expect(events == [.exited(code: 0, errors: "")], "\(events)")
+        #expect(noted() == ClaudeCommand.userLine("Bonjour") + "\n" + ClaudeCommand.interruptLine("r1") + "\n")
+    }
+
+    @Test func theArgumentsAndTheEnvironmentAreTheCommands() async throws {
+        var command = oneShot
+        command.configDirectory = URL(fileURLWithPath: "/tmp/compte")
+        let session = try start(#"printf '%s|%s|%s|%s' "$1" "$2" "$CLAUDE_CONFIG_DIR" "$ANTHROPIC_API_KEY" > "\#(note.path(percentEncoded: false))""#, command,
+                                environment: ["ANTHROPIC_API_KEY": "sk-x", "PATH": "/usr/bin:/bin"])
+        _ = await collect(session)
+        #expect(noted() == "-p|y|/tmp/compte|")
+    }
+
+    @Test func theWorkingDirectoryIsTheOneGiven() async throws {
+        let session = try start(#"/bin/pwd -P > "\#(note.path(percentEncoded: false))""#, oneShot)
+        _ = await collect(session)
+        // `pwd -P` says « /private/var/… » where the folder's own path says « /var/… »: the same place.
+        let said = noted().trimmingCharacters(in: .whitespacesAndNewlines)
+        #expect(said.hasSuffix(folder.path(percentEncoded: false).trimmingSuffix("/")), "\(said)")
+    }
+
+    @Test func stopEndsItWithinSeconds() async throws {
+        let session = try start("trap '' INT TERM; exec sleep 30", oneShot)
+        try await Task.sleep(for: .milliseconds(200))
+        let began = Date()
+        session.stop()
+        let events = await collect(session)
+        #expect(Date().timeIntervalSince(began) < 3)
+        #expect(events.count == 1)
+        guard case .exited = events.last else { Issue.record("\(events)"); return }
+    }
+
+    @Test func aChildHoldingTheOutputDoesNotHoldTheEnd() async throws {
+        // The shell dies, its `sleep` keeps the pipe open: the end is told all the same.
+        let session = try start("trap '' INT TERM; sleep 30", oneShot)
+        try await Task.sleep(for: .milliseconds(200))
+        let began = Date()
+        session.stop()
+        let events = await collect(session)
+        #expect(Date().timeIntervalSince(began) < 3)
+        guard case .exited = events.last else { Issue.record("\(events)"); return }
+    }
+
+    @Test func writingToAProcessThatHasEndedDoesNotKillTheApp() async throws {
+        let session = try start("exit 0", streaming)
+        let events = await collect(session)
+        #expect(events == [.exited(code: 0, errors: "")])
+        session.send("trop tard")
+        session.interrupt("r1")
+        session.closeInput()
+        session.stop()
+    }
+
+    @Test func theProcessHasAnIdentifier() async throws {
+        let session = try start("exit 0", oneShot)
+        #expect(session.pid > 0)
+        _ = await collect(session)
+    }
+
+    @Test func aShortToolGivesItsCodeAndItsOutput() async throws {
+        let version = try script("echo '2.1.304 (Claude Code)'; exit 0")
+        let answer = await ClaudeTool.run(version, arguments: ["--version"], environment: ["PATH": "/usr/bin:/bin"], timeout: 5)
+        #expect(answer?.code == 0)
+        #expect(answer?.output == "2.1.304 (Claude Code)\n")
+        let failing = try script("echo non; exit 3")
+        #expect(await ClaudeTool.run(failing, arguments: [], environment: [:], timeout: 5)?.code == 3)
+    }
+
+    @Test func aToolThatNeverEndsIsGivenUp() async throws {
+        let slow = try script("exec sleep 30")
+        let began = Date()
+        let answer = await ClaudeTool.run(slow, arguments: [], environment: ["PATH": "/usr/bin:/bin"], timeout: 0.3)
+        #expect(answer == nil)
+        #expect(Date().timeIntervalSince(began) < 3)
+    }
+
+    @Test func aToolThatDoesNotExistIsNil() async {
+        #expect(await ClaudeTool.run(URL(fileURLWithPath: "/nulle/part/claude"), arguments: [], environment: [:], timeout: 1) == nil)
+    }
+}
+
+private extension String {
+    func trimmingSuffix(_ suffix: String) -> String { hasSuffix(suffix) && count > 1 ? String(dropLast(suffix.count)) : self }
+}
