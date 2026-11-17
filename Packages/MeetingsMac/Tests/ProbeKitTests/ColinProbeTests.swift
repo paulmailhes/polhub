@@ -212,7 +212,7 @@ final class Calls: @unchecked Sendable {
         #expect(step("connexion", measures)?.numbers["premierMotMs"] != nil)
         // Claude Code's own plugins and agents are told, and are no fault.
         #expect(step("isolation", measures)?.numbers == ["outils": 0, "serveurs": 0, "plugins": 0, "pluginsIntegres": 3, "skills": 0, "commandes": 0,
-                                                         "memoires": 0, "dossiers": 0, "agents": 2, "messagerie": 0, "consigneLue": 0, "contexte": 900])
+                                                         "memoires": 0, "dossiers": 0, "agents": 2, "messagerie": 0, "hooks": 0, "consigneLue": 0, "contexte": 900])
         #expect(step("isolation", measures)?.labels == [:])
         // A file of instructions waited in the folder of every launch, and the first one asked for its word.
         #expect(launcher.started.first?.prompt == ColinProbeTexts.memoryRequest)
@@ -307,6 +307,29 @@ final class Calls: @unchecked Sendable {
             #expect(launcher.started.count == 1, "\(tokens)")
             #expect(ColinProbe.reason(in: directory) == "isolation", "\(tokens)")
         }
+    }
+
+    @Test func aHookThatRanIsNotIsolated() async throws {
+        // A hook of the user's ran in the launch: Claude Code read his settings, whatever its first line says.
+        let hooked = FakeSession([.initialized(Self.loaded), .other("system/hook_started"), .other("system/hook_response"), Self.done()], code: 0)
+        let launcher = Self.healthy { _, index in index == 0 ? hooked : nil }
+        let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper))
+        #expect(step("isolation", measures)?.ok == false)
+        #expect(step("isolation", measures)?.numbers["hooks"] == 2)
+        #expect(launcher.started.count == 1)
+        #expect(ColinProbe.reason(in: directory) == "isolation")
+        #expect(step("bilan", measures)?.labels["inattendus"] == "system/hook_response,system/hook_started")
+    }
+
+    @Test func aHookInALaterLaunchIsCountedAndNamed() async throws {
+        // Claude Code's own notices are expected; a hook is not one of them, in whatever launch.
+        let launcher = Self.healthy { command, _ in
+            command.prompt == "Dis bonjour en une phrase." && command.model == "sonnet"
+                ? FakeSession([.initialized(Self.loaded), .other("system/status"), .other("system/hook_started"), Self.done()], code: 0) : nil
+        }
+        let measures = try await run(probe(launcher, binary: binary, helper: helper)).measures
+        #expect(step("bilan", measures)?.numbers["inattendus"] == 2)
+        #expect(step("bilan", measures)?.labels["inattendus"] == "system/hook_started,un_message_inconnu")
     }
 
     @Test func theConversationSaysItsFourMessagesAndInterruptsTheThird() async throws {

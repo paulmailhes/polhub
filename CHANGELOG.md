@@ -11,13 +11,15 @@ GitHub, et l'app la montre dans Réglages › Mises à jour.
   bien quand c'est Polhub qui le lance : la connexion, ce qu'il charge, un outil permis et un outil refusé, une
   petite conversation avec une interruption, le temps du premier mot, le coût.
 - Tu choisis le compte Claude à utiliser (par défaut celui de Claude Code), puis tu cliques sur « Lancer la sonde de
-  Colin ». Elle dure deux à trois minutes, et tu peux continuer à travailler.
-- Elle n'envoie que des textes inventés, jamais un de tes mails ni une de tes réunions, et dépense quelques centimes
-  de ton abonnement. Son relevé ne garde que des nombres.
-- Si Claude Code n'est pas connecté sur ce compte, ne répond pas ou est introuvable, elle s'arrête tout de suite, sans
-  nouvel essai, et te dit pourquoi.
-- Elle ne se lance pas pendant une réunion ou une transcription, et s'arrête si une réunion commence ou si Polhub
-  quitte. Polhub ne se met pas à jour pendant qu'elle tourne.
+  Colin ». Elle dure environ deux minutes, et tu peux continuer à travailler. Un bouton « Arrêter » l'arrête.
+- Elle n'envoie que des textes inventés, jamais un de tes mails ni une de tes réunions, et utilise un peu de ton
+  abonnement : l'équivalent d'une dizaine de centimes. Son relevé ne garde que des nombres et des mots techniques.
+- Elle vérifie que Claude Code ne lit rien de toi : ni tes réglages, ni tes consignes, ni sa propre mémoire.
+- Si Claude Code n'est pas connecté sur ce compte, a atteint sa limite, ne répond pas, est introuvable ou a chargé
+  plus que prévu, elle s'arrête tout de suite, sans nouvel essai, et te dit pourquoi.
+- Elle ne se lance pas pendant une réunion ou une transcription, ni dans les minutes qui suivent le démarrage ou le
+  réveil du Mac. Elle s'arrête si une réunion commence, si le Mac se met en veille ou si Polhub quitte. Polhub ne se
+  met pas à jour pendant qu'elle tourne.
 - Rien d'autre ne change : Colin n'est pas encore dans l'app.
 
 ## 0.31.0 — 17 novembre 2026

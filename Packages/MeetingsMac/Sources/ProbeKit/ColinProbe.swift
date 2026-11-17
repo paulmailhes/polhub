@@ -165,11 +165,15 @@ private func lineName(_ name: String) -> String {
 }
 
 /// The partial messages and Claude Code's own notices are expected; any other line nobody asked for is counted and
-/// named: it may be a message of another session. The mark of an interruption is expected only where the probe
-/// itself interrupted or stopped Claude Code.
+/// named: it may be a message of another session. A hook that runs is one of the user's settings at work: never
+/// expected. The mark of an interruption is expected only where the probe itself interrupted or stopped Claude Code.
 private func isExpected(_ name: String) -> Bool {
-    name.hasPrefix("stream_event/") || name.hasPrefix("system/") || name == "keep_alive"
+    if name.hasPrefix(hookLines) { return false }
+    return name.hasPrefix("stream_event/") || name.hasPrefix("system/") || name == "keep_alive"
 }
+
+/// « system/hook_started », « system/hook_response »…: what Claude Code writes when a hook runs.
+private let hookLines = "system/hook"
 
 private let interruptionMark = "user/interruption"
 
@@ -311,9 +315,12 @@ private struct Run {
         ]
         let read = first.result?.text.contains(Texts.memoryWord) ?? false
         let context = Double(first.result?.inputTokens ?? 0)
-        let seen: [String: Double] = ["consigneLue": read ? 1 : 0, "contexte": context]
+        // A hook that ran during the launch: the user's settings were read after all.
+        let hooks = first.unexpected.filter { $0.hasPrefix(hookLines) }.count
+        let seen: [String: Double] = ["hooks": Double(hooks), "consigneLue": read ? 1 : 0, "contexte": context]
         let missing = start?.missing ?? []
-        let isolated = loaded.values.allSatisfy { $0 == 0 } && missing.isEmpty && planted && !read && (1...Self.contextCeiling).contains(context)
+        let isolated = loaded.values.allSatisfy { $0 == 0 } && missing.isEmpty && hooks == 0 && planted && !read
+            && (1...Self.contextCeiling).contains(context)
         var gaps: [String: String] = [:]
         if !missing.isEmpty { gaps["champsAbsents"] = missing.map { word($0) }.joined(separator: ",") }
         if !planted { gaps["consigne"] = "non posée" }
