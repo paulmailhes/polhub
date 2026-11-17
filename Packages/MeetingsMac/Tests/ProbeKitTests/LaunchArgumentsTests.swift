@@ -18,6 +18,10 @@ import Testing
 
     @Test func everyProbeHasAFrenchTitle() {
         #expect(ProbeID.allCases.count == 11)
+        // The probe of Colin has its own button on the Diagnostic page, with its account and its guards: it is not
+        // offered in the window of the probes.
+        #expect(ProbeID.listed.count == 10)
+        #expect(!ProbeID.listed.contains(.colin))
         #expect(ProbeID.tabs.title == "Onglets de Dia")
         #expect(ProbeID.crashWriter.rawValue == "crash-writer")
         #expect(ProbeID.allCases.allSatisfy { !$0.title.isEmpty })

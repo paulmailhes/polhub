@@ -198,10 +198,22 @@ public enum ClaudeTool {
             kill(pid, SIGKILL)
         }
         DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: deadline)
-        let data = output.fileHandleForReading.readDataToEndOfFile()
+        // Read on a thread of its own: the end is the program's, not its output's. A child that keeps the output
+        // open does not hold the answer for more than half a second.
+        let printed = Printed()
+        let handle = output.fileHandleForReading
+        DispatchQueue.global(qos: .utility).async {
+            while true {
+                let data = handle.availableData
+                if data.isEmpty { break }
+                printed.add(data)
+            }
+            printed.finish()
+        }
         process.waitUntilExit()
         deadline.cancel()
-        return gaveUp.isRaised ? nil : (process.terminationStatus, String(decoding: data, as: UTF8.self))
+        printed.wait(0.5)
+        return gaveUp.isRaised ? nil : (process.terminationStatus, String(decoding: printed.all, as: UTF8.self))
     }
 
     private final class Flag: @unchecked Sendable {
@@ -209,5 +221,16 @@ public enum ClaudeTool {
         private var raised = false
         var isRaised: Bool { lock.withLock { raised } }
         func raise() { lock.withLock { raised = true } }
+    }
+
+    /// What a program printed, as it comes.
+    private final class Printed: @unchecked Sendable {
+        private let lock = NSLock()
+        private let ended = DispatchSemaphore(value: 0)
+        private var data = Data()
+        var all: Data { lock.withLock { data } }
+        func add(_ more: Data) { lock.withLock { data.append(more) } }
+        func finish() { ended.signal() }
+        func wait(_ seconds: Double) { _ = ended.wait(timeout: .now() + seconds) }
     }
 }

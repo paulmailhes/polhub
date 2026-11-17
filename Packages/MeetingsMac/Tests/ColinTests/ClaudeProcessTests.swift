@@ -133,6 +133,22 @@ import Testing
         #expect(Date().timeIntervalSince(began) < 3)
     }
 
+    @Test func aToolWhoseChildKeepsTheOutputStillAnswers() async throws {
+        // The tool ends, a child of its own keeps its output open: what it printed is given without waiting for the child.
+        let tool = try script("sleep 8 &\necho fait")
+        let began = Date()
+        let answer = await ClaudeTool.run(tool, arguments: [], environment: ["PATH": "/usr/bin:/bin"], timeout: 5)
+        #expect(answer?.code == 0)
+        #expect(answer?.output == "fait\n")
+        #expect(Date().timeIntervalSince(began) < 3)
+    }
+
+    @Test func aBinaryThatDoesNotExistCannotStart() {
+        #expect(throws: (any Error).self) {
+            _ = try LiveClaudeLauncher(environment: [:]).start(oneShot, binary: URL(fileURLWithPath: "/nulle/part/claude"), directory: folder)
+        }
+    }
+
     @Test func aToolThatDoesNotExistIsNil() async {
         #expect(await ClaudeTool.run(URL(fileURLWithPath: "/nulle/part/claude"), arguments: [], environment: [:], timeout: 1) == nil)
     }

@@ -35,12 +35,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     let runner = ProbeRunner()
     /// The probe of Colin on the Diagnostic page (17/11): never during a meeting, and stopped when one begins.
     private(set) lazy var colinProbe = ColinProbeControl(
-        isQuiet: { [weak self] in !(await self?.meetingUnderWay() ?? false) },
+        isQuiet: { [weak self] in !(await self?.recordingOrTranscribing() ?? false) },
         start: { [weak self] account, onFinish in
             self?.runner.start(ProbeRequest(probe: .colin, variant: account), onFinish: onFinish) ?? false
         },
         stop: { [weak self] in self?.runner.stop() },
-        verdict: { [weak self] in self?.runner.lastDirectory.flatMap { ColinProbe.verdict(in: $0) } }
+        report: { [weak self] in
+            guard let directory = self?.runner.lastDirectory, let ok = ColinProbe.verdict(in: directory) else { return nil }
+            return (ok, ColinProbe.reason(in: directory))
+        }
     )
     private var probeWindow: NSWindow?
     private var mainWindow: NSWindow?
@@ -491,7 +494,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     }
 
     /// A meeting (from the pop-up to the end) or a transcription: nothing heavy runs meanwhile.
-    private func meetingUnderWay() async -> Bool {
+    private func recordingOrTranscribing() async -> Bool {
         switch model.status {
         case .prompting, .recording, .presumedEnded: return true
         case .idle, .paused: break
@@ -501,7 +504,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
     /// No meeting (from the pop-up to the end) and no transcription under way.
     private func isQuiet() async -> Bool {
-        if await meetingUnderWay() { return false }
+        if await recordingOrTranscribing() { return false }
+        // A probe under way finishes first: an update now would cut it, and leave its Claude Code behind (17/11).
+        if runner.running != nil { return false }
         // A mail leaving waits ten seconds in memory: an update now would call it back (14/11).
         if mails?.isSending == true { return false }
         // A collection or the tagging under way: they finish first (16/11).
@@ -576,6 +581,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         Task { await summaries?.meetingActivity(busy) }
         // A collection or the tagging under way stops at once; its slot stays due (« Inspiration », 16/11).
         if busy { Task { await inspirationAutomation?.stop() } }
+        // So does the probe of Colin, and the Claude Code it launched (17/11).
+        if busy { colinProbe.meetingBegan() }
         if status == .idle {
             // The meeting that ended gets its event's project, title and guests now, not at the next sync.
             Task { await agenda?.runLinks() }
@@ -776,11 +783,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         if others.isEmpty { NSApp.setActivationPolicy(.accessory) }
     }
 
+    /// A probe under way ends with the app: the Claude Code it launched is told at once, never left behind (17/11).
+    func applicationWillTerminate(_ notification: Notification) {
+        runner.stop()
+    }
+
     /// The relaunch agent restarts the app after an abnormal exit only: a plain `kill` must end with code 0.
     private func exitCleanlyOnSIGTERM() {
         signal(SIGTERM, SIG_IGN)
         let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
-        source.setEventHandler { exit(0) }
+        source.setEventHandler { [weak self] in
+            // The handler runs on the main queue: a probe under way stops its Claude Code before the app goes.
+            MainActor.assumeIsolated { self?.runner.stop() }
+            exit(0)
+        }
         source.resume()
         terminationSource = source
     }

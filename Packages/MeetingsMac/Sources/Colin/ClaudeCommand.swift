@@ -71,14 +71,27 @@ public struct ClaudeCommand: Equatable, Sendable {
     public func environment(from base: [String: String]) -> [String: String] {
         var environment = base.filter { Self.inherited.contains($0.key) }
         environment["ENABLE_CLAUDEAI_MCP_SERVERS"] = "false"
-        if let configDirectory {
-            // Written as the user's own launches write it, with no slash at the end: Claude Code names the account's
-            // entry in the Keychain after this very text.
-            var path = configDirectory.path(percentEncoded: false)
-            while path.count > 1, path.hasSuffix("/") { path.removeLast() }
-            environment["CLAUDE_CONFIG_DIR"] = path
-        }
+        // Written as the user's own launches write it, with no slash at its end: with one more, Claude Code no longer
+        // finds the account's connection (measured on 17/11 with Claude Code 2.1.304).
+        if let configDirectory { environment["CLAUDE_CONFIG_DIR"] = Self.plain(configDirectory) }
         return environment
+    }
+
+    /// The folder to give for an account chosen by hand. Claude Code's own folder, or none, is its own account: no
+    /// variable at all. Given as a variable, even its own folder is « not logged in » (measured on 17/11 with
+    /// Claude Code 2.1.304).
+    public static func account(folder: String?, home: URL) -> URL? {
+        guard let folder, !folder.isEmpty else { return nil }
+        let chosen = URL(fileURLWithPath: folder, isDirectory: true).standardizedFileURL
+        let own = home.appending(path: ".claude", directoryHint: .isDirectory).standardizedFileURL
+        return plain(chosen) == plain(own) ? nil : chosen
+    }
+
+    /// A folder's path with no slash at its end.
+    static func plain(_ url: URL) -> String {
+        var path = url.path(percentEncoded: false)
+        while path.count > 1, path.hasSuffix("/") { path.removeLast() }
+        return path
     }
 
     /// Polhub's own server and nothing else, on the base given.

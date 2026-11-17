@@ -62,6 +62,19 @@ import Testing
         #expect(command.environment(from: base)["CLAUDE_CONFIG_DIR"] == "/Users/essai/comptes/second")
     }
 
+    /// Measured on 17/11 with Claude Code 2.1.304: given as a variable, even its own folder is « not logged in ».
+    @Test func claudeCodesOwnFolderIsNeverGivenAsAVariable() {
+        let home = URL(fileURLWithPath: "/Users/essai")
+        #expect(ClaudeCommand.account(folder: nil, home: home) == nil)
+        #expect(ClaudeCommand.account(folder: "", home: home) == nil)
+        #expect(ClaudeCommand.account(folder: "/Users/essai/.claude", home: home) == nil)
+        #expect(ClaudeCommand.account(folder: "/Users/essai/.claude/", home: home) == nil)
+        let second = ClaudeCommand.account(folder: "/Users/essai/comptes/second/", home: home)
+        #expect(second != nil)
+        let command = ClaudeCommand(model: "haiku", systemPrompt: "x", prompt: "y", configDirectory: second)
+        #expect(command.environment(from: base)["CLAUDE_CONFIG_DIR"] == "/Users/essai/comptes/second")
+    }
+
     @Test func theServerConfigNamesTheHelperAndItsBase() {
         let json = ClaudeCommand.mcpConfig(helper: URL(fileURLWithPath: "/Applications/Polhub.app/Contents/Helpers/polhub"),
                                            base: URL(fileURLWithPath: "/tmp/essai/Polhub.sqlite"))

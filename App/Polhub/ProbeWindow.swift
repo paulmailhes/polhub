@@ -27,7 +27,7 @@ struct ProbeWindow: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            ForEach(ProbeID.allCases, id: \.self) { id in
+            ForEach(ProbeID.listed, id: \.self) { id in
                 HStack {
                     Text(id.title)
                     Spacer()

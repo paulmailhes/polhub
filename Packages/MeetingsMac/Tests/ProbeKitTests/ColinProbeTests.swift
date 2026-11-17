@@ -64,19 +64,35 @@ final class FakeLauncher: ClaudeLaunching, @unchecked Sendable {
     private let lock = NSLock()
     private var commands: [ClaudeCommand] = []
     private var sessions: [FakeSession] = []
+    private let failing: Set<Int>
     private let respond: @Sendable (ClaudeCommand, Int) -> FakeSession
 
-    init(_ respond: @escaping @Sendable (ClaudeCommand, Int) -> FakeSession) { self.respond = respond }
+    /// `failing`: the launches, by their rank, that cannot start at all.
+    init(failing: Set<Int> = [], _ respond: @escaping @Sendable (ClaudeCommand, Int) -> FakeSession) {
+        self.failing = failing
+        self.respond = respond
+    }
 
     var started: [ClaudeCommand] { lock.withLock { commands } }
     var all: [FakeSession] { lock.withLock { sessions } }
 
     func start(_ command: ClaudeCommand, binary: URL, directory: URL) throws -> any ClaudeSession {
         let index = lock.withLock { commands.count }
+        if failing.contains(index) {
+            lock.withLock { commands.append(command) }
+            throw CocoaError(.fileNoSuchFile)
+        }
         let session = respond(command, index)
         lock.withLock { commands.append(command); sessions.append(session) }
         return session
     }
+}
+
+/// Counts the calls of a closure that several tasks may make.
+final class Calls: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+    func next() -> Int { lock.withLock { count += 1; return count } }
 }
 
 @Suite struct ColinProbeTests {
@@ -108,16 +124,19 @@ final class FakeLauncher: ClaudeLaunching, @unchecked Sendable {
                      .result(ClaudeResult(subtype: "success", numTurns: 3, costUSD: 0.001, inputTokens: 2_000, outputTokens: 40, denied: denied, text: "fini"))], code: 0)
     }
 
-    static func conversation(initFirst: Bool = true) -> FakeSession {
-        FakeSession(initFirst ? [.initialized(withServer)] : [], onSend: { _, turn in
+    /// `second`: what the second message gets (a tool call and its answer when nothing is said).
+    static func conversation(initFirst: Bool = true, endsWhenClosed: Bool = true, second: [ClaudeEvent]? = nil) -> FakeSession {
+        FakeSession(initFirst ? [.initialized(withServer)] : [], endsWhenClosed: endsWhenClosed, onSend: { _, turn in
             let late: [ClaudeEvent] = !initFirst && turn == 1 ? [.initialized(withServer)] : []
             switch turn {
-            case 2: return [.textDelta("Deux"), .assistant(text: secret, tools: ["mcp__polhub__projets"]), .toolResult(isError: false), done(0.03)]
+            case 2: return second ?? [.textDelta("Deux"), .assistant(text: secret, tools: ["mcp__polhub__projets"]), .toolResult(isError: false), done(0.03)]
             case 3: return [.textDelta("1"), .other("stream_event/message_delta"), .other("un_message_inconnu")]
             default: return late + [.textDelta("Bon"), .assistant(text: secret, tools: []), done(Double(turn) * 0.01)]
             }
         }, onInterrupt: { id in
-            [.controlResponse(requestID: id, success: true), .result(ClaudeResult(subtype: "error_during_execution", isError: true, costUSD: 0.04))]
+            // As Claude Code does: its answer, its own mark of the interruption, then the turn's end in error.
+            [.controlResponse(requestID: id, success: true), .other("user/interruption"),
+             .result(ClaudeResult(subtype: "error_during_execution", isError: true, costUSD: 0.04))]
         })
     }
 
@@ -141,7 +160,7 @@ final class FakeLauncher: ClaudeLaunching, @unchecked Sendable {
 
     func probe(_ launcher: FakeLauncher, binary: URL?, helper: URL?, pings: Int = 3, timeout: Double = 5, tool: @escaping ColinProbe.Tool = answers) -> ColinProbe {
         ColinProbe(launcher: launcher, binary: binary, helper: helper, home: Self.home, environment: ["HOME": Self.home.path, "PATH": "/usr/bin:/bin"],
-                   pings: pings, pause: 0, timeout: timeout, initWait: 0.5, interruptDelay: 0, tool: tool)
+                   pings: pings, pause: 0, timeout: timeout, initWait: 0.5, interruptDelay: 0, tool: tool, busySessions: { _ in 2 })
     }
 
     func folder() -> URL {
@@ -184,7 +203,7 @@ final class FakeLauncher: ClaudeLaunching, @unchecked Sendable {
         #expect(step("connexion", measures)?.numbers["premierMotMs"] != nil)
         // Claude Code's own plugins and agents are told, and are no fault.
         #expect(step("isolation", measures)?.numbers == ["outils": 0, "serveurs": 0, "plugins": 0, "pluginsIntegres": 3, "skills": 0, "commandes": 0,
-                                                         "memoires": 0, "dossiers": 0, "agents": 2])
+                                                         "memoires": 0, "dossiers": 0, "agents": 2, "messagerie": 0])
         #expect(step("connexions", measures)?.numbers["lancements"] == 3)
         #expect(step("connexions", measures)?.numbers["reussis"] == 3)
         #expect(step("connexions", measures)?.numbers["connecteApres"] == 1)
@@ -205,9 +224,17 @@ final class FakeLauncher: ClaudeLaunching, @unchecked Sendable {
         #expect(step("panne", measures)?.labels["categorie"] == "pas-connecte")
         #expect(step("limites", measures)?.numbers["cinqHeuresAvant"] == 42)
         #expect(step("limites", measures)?.numbers["semaineApres"] == 11)
+        #expect(step("limites", measures)?.numbers["conversationsAuTravailAvant"] == 2)
+        #expect(step("limites", measures)?.numbers["conversationsAuTravailApres"] == 2)
         #expect(step("bilan", measures)?.labels["fin"] == "complete")
         #expect(step("bilan", measures)?.numbers["echecs"] == 0)
+        // The one line nobody expected, in the conversation, is counted for the whole run and named.
+        #expect(step("bilan", measures)?.numbers["inattendus"] == 1)
+        #expect(step("bilan", measures)?.labels["inattendus"] == "un_message_inconnu")
         #expect(ColinProbe.verdict(in: directory) == true)
+        #expect(ColinProbe.reason(in: directory) == nil)
+        // Nothing of the run stays but its trace and its report.
+        #expect(try FileManager.default.contentsOfDirectory(atPath: directory.path(percentEncoded: false)).sorted() == ["bilan.json", "trace.jsonl"])
         // 3 pings, the tools, the conversation, 4 first words, 3 scenes, the empty account.
         #expect(launcher.started.count == 13)
         #expect(launcher.all.allSatisfy { !$0.stopped })
@@ -250,6 +277,137 @@ final class FakeLauncher: ClaudeLaunching, @unchecked Sendable {
         #expect(step("bilan", measures)?.ok == false)
         #expect(step("bilan", measures)?.labels["fin"] == "arretee")
         #expect(ColinProbe.verdict(in: directory) == false)
+        #expect(ColinProbe.reason(in: directory) == "pas-connecte")
+    }
+
+    // MARK: - A breakdown at any launch stops the probe
+
+    @Test func aClaudeThatDisconnectsMidwayStopsTheProbe() async throws {
+        // The third launch in a row says « not connected »: nothing is launched after it.
+        let launcher = Self.healthy { _, index in index == 2 ? Self.notConnected() : nil }
+        let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper, pings: 5))
+        #expect(launcher.started.count == 3)
+        #expect(measures.map(\.step) == ["binaire", "compte", "connexion", "isolation", "connexions", "panne", "bilan"], "\(measures.map(\.step))")
+        #expect(step("connexions", measures)?.numbers["lancements"] == 3)
+        #expect(step("connexions", measures)?.numbers["reussis"] == 2)
+        #expect(step("panne", measures)?.labels["categorie"] == "pas-connecte")
+        #expect(step("bilan", measures)?.labels["fin"] == "arretee")
+        #expect(ColinProbe.reason(in: directory) == "pas-connecte")
+    }
+
+    @Test func aClaudeThatGoesSilentMidwayStopsTheProbe() async throws {
+        let launcher = Self.healthy { _, index in index == 2 ? FakeSession(endsWhenClosed: false) : nil }
+        let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper, pings: 5, timeout: 0.3))
+        #expect(launcher.started.count == 3)
+        #expect(launcher.all[2].stopped)
+        #expect(step("panne", measures)?.labels["categorie"] == "sans-reponse")
+        #expect(measures.last?.labels["fin"] == "arretee")
+        #expect(ColinProbe.reason(in: directory) == "sans-reponse")
+    }
+
+    @Test func anAccountNoLongerConnectedAfterTheLaunchesStopsTheProbe() async throws {
+        let calls = Calls()
+        let tool: ColinProbe.Tool = { url, arguments, environment in
+            if arguments.first == "auth" { return (0, calls.next() == 1 ? #"{"loggedIn":true}"# : #"{"loggedIn":false}"#) }
+            return await Self.answers(url, arguments, environment)
+        }
+        let launcher = Self.healthy()
+        let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper, tool: tool))
+        #expect(launcher.started.count == 3)
+        #expect(step("connexions", measures)?.numbers["connecteApres"] == 0)
+        #expect(Array(measures.map(\.step).suffix(2)) == ["connexions", "bilan"])
+        #expect(ColinProbe.reason(in: directory) == "pas-connecte")
+    }
+
+    @Test func anAccountNotConnectedLaunchesNothing() async throws {
+        let tool: ColinProbe.Tool = { url, arguments, environment in
+            if arguments.first == "auth" { return (0, #"{"loggedIn":false,"authMethod":"none"}"#) }
+            return await Self.answers(url, arguments, environment)
+        }
+        let launcher = Self.healthy()
+        let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper, tool: tool))
+        #expect(launcher.started.isEmpty)
+        #expect(measures.map(\.step) == ["binaire", "compte", "bilan"])
+        #expect(ColinProbe.reason(in: directory) == "pas-connecte")
+    }
+
+    @Test func aLaterLaunchThatBreaksStopsTheProbeToo() async throws {
+        // The launch of the tools is the fourth: not connected there, and neither the conversation nor the scenes run.
+        let launcher = Self.healthy { command, _ in command.prompt?.hasPrefix("Appelle l'outil projets") == true ? Self.notConnected() : nil }
+        let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper))
+        #expect(launcher.started.count == 4)
+        #expect(Array(measures.map(\.step).suffix(3)) == ["outils", "panne", "bilan"])
+        #expect(ColinProbe.reason(in: directory) == "pas-connecte")
+    }
+
+    @Test func aClaudeThatCannotStartIsToldSo() async throws {
+        let launcher = FakeLauncher(failing: [0]) { _, _ in Self.ping() }
+        let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper))
+        #expect(launcher.started.count == 1)
+        #expect(step("connexion", measures)?.ok == false)
+        #expect(step("panne", measures)?.labels["categorie"] == "lancement-impossible")
+        #expect(ColinProbe.reason(in: directory) == "lancement-impossible")
+    }
+
+    @Test func aTurnThatNeverAnswersIsKilled() async throws {
+        // The second message of the conversation gets no answer: the process is stopped, and the probe with it.
+        let launcher = Self.healthy { command, _ in command.prompt == nil ? Self.conversation(endsWhenClosed: false, second: []) : nil }
+        let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper, timeout: 0.3))
+        let index = try #require(launcher.started.firstIndex { $0.prompt == nil })
+        #expect(launcher.all[index].stopped)
+        #expect(launcher.all[index].sent.count == 2)
+        #expect(step("conversation", measures)?.ok == false)
+        #expect(step("conversation", measures)?.labels["delai"] == "tour 2")
+        #expect(Array(measures.map(\.step).suffix(3)) == ["conversation", "panne", "bilan"])
+        #expect(ColinProbe.reason(in: directory) == "sans-reponse")
+    }
+
+    @Test func aTurnInErrorEndsTheConversation() async throws {
+        let refused: [ClaudeEvent] = [.result(ClaudeResult(subtype: "success", isError: true, apiErrorStatus: 401, text: "Please run /login"))]
+        let launcher = Self.healthy { command, _ in command.prompt == nil ? Self.conversation(second: refused) : nil }
+        let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper))
+        let index = try #require(launcher.started.firstIndex { $0.prompt == nil })
+        // No third message after a turn in error.
+        #expect(launcher.all[index].sent.count == 2)
+        #expect(step("conversation", measures)?.ok == false)
+        #expect(measures.last?.labels["fin"] == "arretee")
+        #expect(ColinProbe.reason(in: directory) == "pas-connecte")
+    }
+
+    @Test func aConversationCancelledMidwayStopsItsProcess() async throws {
+        // The first message never gets its answer; the probe is stopped meanwhile.
+        let silent = FakeSession([.initialized(Self.withServer)], endsWhenClosed: false)
+        let launcher = Self.healthy { command, _ in command.prompt == nil ? silent : nil }
+        let directory = folder()
+        let probe = probe(launcher, binary: binary, helper: helper, timeout: 30)
+        let task = Task { try await run(probe, in: directory).measures }
+        for _ in 0..<500 where silent.sent.isEmpty { try await Task.sleep(for: .milliseconds(10)) }
+        task.cancel()
+        let measures = try await task.value
+        #expect(silent.stopped)
+        #expect(measures.last?.labels["fin"] == "interrompue")
+        #expect(ColinProbe.verdict(in: directory) == nil)
+    }
+
+    @Test func aMessageNobodySentIsCountedInAnyLaunch() async throws {
+        // A line of the user's kind that the probe did not write, in a launch that answers once: it could come from
+        // another session, and is counted for the whole run.
+        let launcher = Self.healthy { command, _ in
+            command.prompt == "Dis bonjour en une phrase." && command.model == "sonnet"
+                ? FakeSession([.initialized(Self.loaded), .other("user"), Self.done()], code: 0) : nil
+        }
+        let measures = try await run(probe(launcher, binary: binary, helper: helper)).measures
+        #expect(step("bilan", measures)?.numbers["inattendus"] == 2)
+        #expect(step("bilan", measures)?.labels["inattendus"] == "un_message_inconnu,user")
+    }
+
+    @Test func aVersionThatDoesNotLookLikeOneIsNotKept() async throws {
+        let tool: ColinProbe.Tool = { url, arguments, environment in
+            if arguments == ["--version"] { return (0, "/Users/essai-de-sonde/bizarre: commande inconnue\n") }
+            return await Self.answers(url, arguments, environment)
+        }
+        let measures = try await run(probe(Self.healthy(), binary: binary, helper: helper, tool: tool)).measures
+        #expect(step("binaire", measures)?.labels["version"] == "")
     }
 
     @Test func aToolOutsideTheProfileMustBeDenied() async throws {
@@ -284,6 +442,7 @@ final class FakeLauncher: ClaudeLaunching, @unchecked Sendable {
         #expect(measures.map(\.step) == ["binaire", "bilan"])
         #expect(step("binaire", measures)?.ok == false)
         #expect(ColinProbe.verdict(in: directory) == false)
+        #expect(ColinProbe.reason(in: directory) == "introuvable")
     }
 
     @Test func aSilentClaudeIsKilledAfterTheDelay() async throws {
@@ -304,7 +463,7 @@ final class FakeLauncher: ClaudeLaunching, @unchecked Sendable {
         let directory = folder()
         let probe = probe(launcher, binary: binary, helper: helper, timeout: 30)
         let task = Task { try await run(probe, in: directory).measures }
-        while launcher.started.count < 2 { try await Task.sleep(for: .milliseconds(20)) }
+        for _ in 0..<500 where launcher.started.count < 2 { try await Task.sleep(for: .milliseconds(10)) }
         task.cancel()
         let measures = try await task.value
         #expect(launcher.all[1].stopped)

@@ -14,7 +14,10 @@ GitHub, et l'app la montre dans Réglages › Mises à jour.
   Colin ». Elle dure deux à trois minutes, et tu peux continuer à travailler.
 - Elle n'envoie que des textes inventés, jamais un de tes mails ni une de tes réunions, et dépense quelques centimes
   de ton abonnement. Son relevé ne garde que des nombres.
-- Elle ne se lance pas pendant une réunion ou une transcription, et s'arrête si une réunion commence.
+- Si Claude Code n'est pas connecté sur ce compte, ne répond pas ou est introuvable, elle s'arrête tout de suite, sans
+  nouvel essai, et te dit pourquoi.
+- Elle ne se lance pas pendant une réunion ou une transcription, et s'arrête si une réunion commence ou si Polhub
+  quitte. Polhub ne se met pas à jour pendant qu'elle tourne.
 - Rien d'autre ne change : Colin n'est pas encore dans l'app.
 
 ## 0.31.0 — 17 novembre 2026

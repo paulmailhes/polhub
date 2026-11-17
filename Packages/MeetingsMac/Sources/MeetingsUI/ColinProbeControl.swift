@@ -21,28 +21,36 @@ public final class ColinProbeControl: ObservableObject {
     private let isQuiet: () async -> Bool
     private let start: (_ account: String, _ onFinish: @escaping @MainActor (String?) -> Void) -> Bool
     private let stop: () -> Void
-    private let verdict: () -> Bool?
+    private let report: () -> (ok: Bool, reason: String?)?
     private let folderExists: (String) -> Bool
+    private let isAccount: (String) -> Bool
     private let watchEvery: Duration
     private var watcher: Task<Void, Never>?
+    /// A click is being checked: a second one, of a double click, does nothing.
+    private var launching = false
     private var stoppedForMeeting = false
+    /// Why the last probe stopped early, as the probe names it.
+    private var reason: String?
 
     /// - Parameters:
     ///   - isQuiet: no meeting and no transcription under way.
     ///   - start: starts the probe on this account's folder; `false` when another probe runs.
     ///   - stop: stops the probe under way.
-    ///   - verdict: what the last probe concluded.
+    ///   - report: what the last probe concluded, and why it stopped early when it knows.
+    ///   - isAccount: the folder holds a Claude account (Claude Code keeps a `.claude.json` in each).
     public init(defaults: UserDefaults = .standard, isQuiet: @escaping () async -> Bool,
                 start: @escaping (_ account: String, _ onFinish: @escaping @MainActor (String?) -> Void) -> Bool,
-                stop: @escaping () -> Void, verdict: @escaping () -> Bool?,
+                stop: @escaping () -> Void, report: @escaping () -> (ok: Bool, reason: String?)?,
                 folderExists: @escaping (String) -> Bool = { FileManager.default.fileExists(atPath: $0) },
+                isAccount: @escaping (String) -> Bool = { FileManager.default.fileExists(atPath: $0 + "/.claude.json") },
                 watchEvery: Duration = .seconds(3)) {
         self.defaults = defaults
         self.isQuiet = isQuiet
         self.start = start
         self.stop = stop
-        self.verdict = verdict
+        self.report = report
         self.folderExists = folderExists
+        self.isAccount = isAccount
         self.watchEvery = watchEvery
         accountFolder = defaults.string(forKey: Preferences.Key.colinAccount) ?? ""
     }
@@ -62,16 +70,26 @@ public final class ColinProbeControl: ObservableObject {
     }
 
     public func launch() async {
-        guard phase != .running else { return }
+        guard phase != .running, !launching else { return }
+        launching = true
+        defer { launching = false }
         guard await isQuiet() else {
             phase = .refused("Pas pendant une réunion ni une transcription.")
             return
         }
-        guard accountFolder.isEmpty || folderExists(accountFolder) else {
-            phase = .refused("Ce dossier de compte n'existe plus.")
-            return
+        if !accountFolder.isEmpty {
+            guard folderExists(accountFolder) else {
+                phase = .refused("Ce dossier de compte n'existe plus.")
+                return
+            }
+            // Any folder can be chosen in the panel, and Claude Code would write its own files in it.
+            guard isAccount(accountFolder) else {
+                phase = .refused("Ce dossier n'est pas celui d'un compte Claude.")
+                return
+            }
         }
         stoppedForMeeting = false
+        reason = nil
         let started = start(accountFolder) { [weak self] _ in self?.finished() }
         guard started else {
             phase = .refused("Une autre sonde tourne déjà.")
@@ -81,16 +99,25 @@ public final class ColinProbeControl: ObservableObject {
         watch()
     }
 
-    /// Nothing heavy during a meeting: one that begins stops the probe.
+    /// Nothing heavy during a meeting: one that begins stops the probe. The app says it at once; `watch` looks
+    /// again every few seconds, for a transcription that starts.
+    public func meetingBegan() {
+        guard phase == .running, !stoppedForMeeting else { return }
+        stoppedForMeeting = true
+        stop()
+    }
+
     private func watch() {
         watcher?.cancel()
         watcher = Task { [weak self, watchEvery] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: watchEvery)
                 guard let self, self.phase == .running, !Task.isCancelled else { return }
-                if await !self.isQuiet() {
-                    self.stoppedForMeeting = true
-                    self.stop()
+                let quiet = await self.isQuiet()
+                // The probe may have ended while the check was waiting.
+                guard self.phase == .running, !Task.isCancelled else { return }
+                if !quiet {
+                    self.meetingBegan()
                     return
                 }
             }
@@ -100,7 +127,9 @@ public final class ColinProbeControl: ObservableObject {
     private func finished() {
         watcher?.cancel()
         watcher = nil
-        phase = .done(stoppedForMeeting ? nil : verdict())
+        let report = stoppedForMeeting ? nil : report()
+        reason = report?.reason
+        phase = .done(report?.ok)
     }
 
     /// The sentence under the button.
@@ -110,8 +139,19 @@ public final class ColinProbeControl: ObservableObject {
         case .running: "La sonde tourne. Tu peux continuer à travailler."
         case .refused(let reason): reason
         case .done(true): "Terminé : Claude Code a répondu. Le relevé est enregistré."
-        case .done(false): "Terminé : un point est à regarder. Le relevé est enregistré."
+        case .done(false): "Terminé : \(Self.sentence(reason) ?? "un point est à regarder.") Le relevé est enregistré."
         case .done(nil): stoppedForMeeting ? "Arrêtée : une réunion commence. Relance la sonde après." : "La sonde s'est arrêtée avant la fin."
+        }
+    }
+
+    /// Why the probe stopped early, in words; `nil` for a reason this version does not know.
+    static func sentence(_ reason: String?) -> String? {
+        switch reason {
+        case "introuvable": "Claude Code est introuvable sur ce Mac."
+        case "pas-connecte": "Claude Code n'est pas connecté sur ce compte."
+        case "sans-reponse": "Claude Code n'a pas répondu."
+        case "lancement-impossible": "Claude Code n'a pas pu se lancer."
+        default: nil
         }
     }
 }
@@ -125,9 +165,10 @@ struct ColinProbeSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Sonde de Colin").font(.headline)
-            Text("Mesure si Claude Code répond bien depuis Polhub. Deux à trois minutes, avec des textes inventés.")
+            Text("Mesure si Claude Code répond bien depuis Polhub. Deux à trois minutes, avec des textes inventés. Elle utilise un peu de ton abonnement Claude : quelques centimes.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 8) {
                 Text("Compte : \(control.accountLabel)").font(.callout)
                 Button("Choisir…", action: chooseFolder)

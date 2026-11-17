@@ -20,6 +20,12 @@ import Testing
         #expect(event(#"{"type":"system","subtype":"init","messaging_socket_path":""}"#) == .initialized(ClaudeInit()))
     }
 
+    /// Only what Claude Code itself calls « builtin » by its path is its own: a name that looks like it is not enough.
+    @Test func aPluginThatOnlyLooksBuiltInIsTheUsers() {
+        let e = event(#"{"type":"system","subtype":"init","plugins":[{"name":"faux","path":"/x/plugins/faux","source":"faux@builtin"}]}"#)
+        #expect(e == .initialized(ClaudeInit(plugins: 1, builtinPlugins: 0)))
+    }
+
     @Test func aPartialMessageGivesItsText() {
         #expect(event(#"{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Bon"}},"parent_tool_use_id":null}"#) == .textDelta("Bon"))
         #expect(event(#"{"type":"stream_event","event":{"type":"message_start"}}"#) == .other("stream_event/message_start"))
@@ -35,6 +41,13 @@ import Testing
         #expect(event(#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"3 projets","is_error":false}]}}"#) == .toolResult(isError: false))
         #expect(event(#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"refusé","is_error":true}]}}"#) == .toolResult(isError: true))
         #expect(event(#"{"type":"user","message":{"role":"user","content":"un message rejoué"}}"#) == .other("user"))
+    }
+
+    /// What Claude Code 2.1.304 writes itself when a turn is interrupted (measured on 17/11): not a message of anyone.
+    @Test func theMarkOfAnInterruptionIsToldApart() {
+        #expect(event(#"{"type":"user","message":{"role":"user","content":[{"type":"text","text":"[Request interrupted by user]"}]},"parent_tool_use_id":null,"timestamp":"2026-11-17T22:00:00Z"}"#)
+            == .other("user/interruption"))
+        #expect(event(#"{"type":"user","message":{"role":"user","content":[{"type":"text","text":"Un message venu d'ailleurs"}]}}"#) == .other("user"))
     }
 
     @Test func aRateLimitGivesBothWindows() {

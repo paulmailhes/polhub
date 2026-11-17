@@ -16,7 +16,8 @@ import Testing
     func theProbeRunsAgainstTheRealClaudeCode() async throws {
         let environment = ProcessInfo.processInfo.environment
         let helper = environment["POLHUB_HELPER"].map { URL(fileURLWithPath: $0) }
-        let directory = FileManager.default.temporaryDirectory.appending(path: "sonde-colin-reelle-\(UUID().uuidString)", directoryHint: .isDirectory)
+        // A space and an accent in the path, on purpose: the app's own folder (« Application Support ») has a space.
+        let directory = FileManager.default.temporaryDirectory.appending(path: "sonde colin réelle \(UUID().uuidString)", directoryHint: .isDirectory)
         let trace = try TraceWriter(fileURL: directory.appending(path: "trace.jsonl"))
         let probe = ColinProbe(helper: helper, pings: Int(environment["POLHUB_COLIN_PINGS"] ?? "") ?? 3)
         await probe.run(ProbeRequest(probe: .colin, variant: environment["POLHUB_COLIN_ACCOUNT"]), trace: trace, directory: directory)

@@ -135,9 +135,13 @@ public enum ClaudeStream {
             let tools = blocks.filter { $0["type"] as? String == "tool_use" }.compactMap { $0["name"] as? String }
             return .assistant(text: text, tools: tools)
         case "user":
-            let results = content(object).filter { $0["type"] as? String == "tool_result" }
-            guard !results.isEmpty else { return .other("user") }
-            return .toolResult(isError: results.contains { $0["is_error"] as? Bool == true })
+            let blocks = content(object)
+            let results = blocks.filter { $0["type"] as? String == "tool_result" }
+            if !results.isEmpty { return .toolResult(isError: results.contains { $0["is_error"] as? Bool == true }) }
+            // What Claude Code writes itself when a turn is interrupted: nobody's message. Any other line of this
+            // kind was not asked for.
+            let interrupted = blocks.contains { ($0["text"] as? String)?.hasPrefix("[Request interrupted") == true }
+            return .other(interrupted ? "user/interruption" : "user")
         case "rate_limit_event":
             return .rateLimit(rateLimit(object["rate_limit_info"] as? [String: Any] ?? [:]))
         case "result":
@@ -170,7 +174,8 @@ public enum ClaudeStream {
             if let name = server["name"] as? String { servers[name] = server["status"] as? String ?? "" }
         }
         let plugins = object["plugins"] as? [[String: Any]] ?? []
-        let builtin = plugins.filter { $0["path"] as? String == "builtin" || ($0["source"] as? String)?.hasSuffix("@builtin") == true }.count
+        // Claude Code's own are the ones it places at « builtin »; a name that ends like theirs is not enough.
+        let builtin = plugins.filter { $0["path"] as? String == "builtin" }.count
         return ClaudeInit(
             version: object["claude_code_version"] as? String ?? "", model: object["model"] as? String ?? "",
             permissionMode: object["permissionMode"] as? String ?? "", apiKeySource: object["apiKeySource"] as? String ?? "",

@@ -12,6 +12,10 @@ public enum ProbeID: String, CaseIterable, Sendable, Codable {
     /// Step 0 of Colin (17/11): Claude Code launched by Polhub, on invented texts.
     case colin
 
+    /// The probes offered in the window of the probes. Colin's is not: it has its own button on the Diagnostic page,
+    /// with the account it uses and its guards (never during a meeting).
+    public static var listed: [ProbeID] { allCases.filter { $0 != .colin } }
+
     /// Title shown in the probes window.
     public var title: String {
         switch self {
