@@ -21,6 +21,7 @@ public enum ProbeRegistry {
         case .call: CallProbe()
         case .record: RecordProbe()
         case .pipeline: PipelineProbe()
+        case .colin: ColinProbe(helper: ColinProbe.embeddedHelper())
         }
     }
 }

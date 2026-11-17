@@ -66,7 +66,13 @@ public struct ClaudeCommand: Equatable, Sendable {
     public func environment(from base: [String: String]) -> [String: String] {
         var environment = base.filter { Self.inherited.contains($0.key) }
         environment["ENABLE_CLAUDEAI_MCP_SERVERS"] = "false"
-        if let configDirectory { environment["CLAUDE_CONFIG_DIR"] = configDirectory.path(percentEncoded: false) }
+        if let configDirectory {
+            // Written as the user's own launches write it, with no slash at the end: Claude Code names the account's
+            // entry in the Keychain after this very text.
+            var path = configDirectory.path(percentEncoded: false)
+            while path.count > 1, path.hasSuffix("/") { path.removeLast() }
+            environment["CLAUDE_CONFIG_DIR"] = path
+        }
         return environment
     }
 

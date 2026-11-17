@@ -143,6 +143,7 @@ let package = Package(
             .product(name: "Persistence", package: "Kernel"),
             "MeetingDetection",
             "MeetingsUI",
+            "Colin",
             .product(name: "Domain", package: "Kernel"),
             .product(name: "Observability", package: "Kernel"),
         ]),
@@ -164,7 +165,7 @@ let package = Package(
         .testTarget(name: "MeetingsUITests", dependencies: ["MeetingsUI", "ProjectsUI", "PolhubDesign", "Notifications", "Inspiration", "Agenda", "GoogleKit", "Mail", "MailFormat", "Updates", "Pipeline", "Recording", "AudioCapture", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "RecordingTests", dependencies: ["Recording", "AudioCapture", "MeetingDetection", .product(name: "Observability", package: "Kernel"), .product(name: "Domain", package: "Kernel")]),
         .testTarget(name: "PipelineTests", dependencies: ["Pipeline", "MeetingDetection", "Recording", "Transcription", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
-        .testTarget(name: "ProbeKitTests", dependencies: ["ProbeKit", "Recording", "AudioCapture", "MeetingDetection", .product(name: "Domain", package: "Kernel"), .product(name: "Observability", package: "Kernel")]),
+        .testTarget(name: "ProbeKitTests", dependencies: ["ProbeKit", "Colin", "Recording", "AudioCapture", "MeetingDetection", .product(name: "Domain", package: "Kernel"), .product(name: "Observability", package: "Kernel")]),
         .testTarget(name: "PolhubDesignTests", dependencies: ["PolhubDesign"]),
         .testTarget(name: "ColinTests", dependencies: ["Colin"]),
     ]

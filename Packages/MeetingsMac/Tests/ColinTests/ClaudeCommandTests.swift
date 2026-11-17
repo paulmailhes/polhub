@@ -48,6 +48,13 @@ import Testing
         #expect(command.environment(from: base)["CLAUDE_CONFIG_DIR"] == "/Users/essai/comptes/second")
     }
 
+    @Test func theAccountFolderIsWrittenWithoutASlashAtItsEnd() {
+        // Claude Code names the account's entry in the Keychain after this text: a slash more is another account.
+        let command = ClaudeCommand(model: "haiku", systemPrompt: "x", prompt: "y",
+                                    configDirectory: URL(fileURLWithPath: "/Users/essai/comptes/second", isDirectory: true))
+        #expect(command.environment(from: base)["CLAUDE_CONFIG_DIR"] == "/Users/essai/comptes/second")
+    }
+
     @Test func theServerConfigNamesTheHelperAndItsBase() {
         let json = ClaudeCommand.mcpConfig(helper: URL(fileURLWithPath: "/Applications/Polhub.app/Contents/Helpers/polhub"),
                                            base: URL(fileURLWithPath: "/tmp/essai/Polhub.sqlite"))

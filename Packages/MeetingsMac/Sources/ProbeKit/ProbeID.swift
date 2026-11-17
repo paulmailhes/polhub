@@ -9,6 +9,8 @@ public enum ProbeID: String, CaseIterable, Sendable, Codable {
     case call
     case record
     case pipeline
+    /// Step 0 of Colin (17/11): Claude Code launched by Polhub, on invented texts.
+    case colin
 
     /// Title shown in the probes window.
     public var title: String {
@@ -23,6 +25,7 @@ public enum ProbeID: String, CaseIterable, Sendable, Codable {
         case .call: "Appel d'essai"
         case .record: "Enregistreur de réunion"
         case .pipeline: "Chaîne complète (enregistrer, finaliser, relire)"
+        case .colin: "Colin : Claude Code depuis Polhub"
         }
     }
 }
