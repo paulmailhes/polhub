@@ -93,6 +93,19 @@ import WebKit
         #expect(bottom > 30, "le curseur est sur la deuxième ligne : \(bottom)")
     }
 
+    /// Moving with the arrows, held down or with ⌘, follows the caret too (review of 17/11): keyup never comes for ⌘↓.
+    @Test func theArrowsFollowTheCaret() async throws {
+        let messages = Messages()
+        let view = try await page(messages: messages)
+        _ = try await run(view, "polhub.start('<p>Bonjour Camille,</p><p>la maquette</p>', ''); polhub.setEditable(true); document.getElementById('texte').focus();")
+        messages.received.removeAll()
+        _ = try await run(view, "document.getElementById('texte').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', metaKey: true, bubbles: true }))")
+        for _ in 0..<40 where !messages.received.contains(where: { $0["type"] as? String == "caret" }) {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        #expect(messages.received.contains { $0["type"] as? String == "caret" })
+    }
+
     /// The page's own policy forbids every request: a pasted image never loads.
     @Test func thePageLoadsNothing() {
         #expect(RichTextEditor.page.contains("default-src 'none'") && RichTextEditor.page.contains("img-src 'none'"))

@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import Mail
 import MailFormat
 import Persistence
@@ -10,22 +11,49 @@ import SwiftUI
 @MainActor
 final class ComposeSession: ObservableObject {
     let editor = RichTextController()
-    @Published var fieldsFocused = false
+    @Published var fieldsFocused = false { didSet { if fieldsFocused, !oldValue { onFocus?() } } }
     @Published var pendingTo = ""
     @Published var pendingCc = ""
     @Published var pendingBcc = ""
+    /// Its text or its fields just took the keyboard.
+    var onFocus: (() -> Void)?
+    private var watch: AnyCancellable?
+
+    init() {
+        watch = editor.$isFocused.removeDuplicates().sink { [weak self] on in
+            if on { self?.onFocus?() }
+        }
+    }
 }
 
-/// The sessions of the drafts on one page, kept while it is open.
+/// The sessions of the drafts on one page, kept while it is open, and the one that last had the keyboard.
 @MainActor
-final class ComposeSessions {
+final class ComposeSessions: ObservableObject {
     private var sessions: [String: ComposeSession] = [:]
+    @Published private(set) var active: String?
 
     func callAsFunction(_ draftID: String) -> ComposeSession {
         if let session = sessions[draftID] { return session }
         let session = ComposeSession()
+        session.onFocus = { [weak self] in
+            if self?.active != draftID { self?.active = draftID }
+        }
         sessions[draftID] = session
         return session
+    }
+}
+
+/// Which reply of a thread has the bar fixed at the bottom (review of 17/11): the one Paul writes, never another,
+/// so « Envoyer » sends the mail he sees.
+enum ComposePinning {
+    /// Oldest first, the one just begun at the bottom: the replies keep their place as Paul types.
+    static func ordered(_ drafts: [MailDraftRow]) -> [MailDraftRow] {
+        drafts.sorted { ($0.createdAt, $0.id) < ($1.createdAt, $1.id) }
+    }
+
+    /// The reply that had the keyboard last; before any, the one just begun.
+    static func pinned(_ ordered: [MailDraftRow], active: String?) -> MailDraftRow? {
+        ordered.first { $0.id == active } ?? ordered.last
     }
 }
 

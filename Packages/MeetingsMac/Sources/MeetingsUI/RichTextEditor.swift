@@ -231,7 +231,8 @@ struct RichTextEditor: NSViewRepresentable {
       texte.addEventListener('input', changed);
       texte.addEventListener('focus', () => post({ type: 'focus', value: true }));
       texte.addEventListener('blur', () => { saved = selection(); if (timer) flush(); post({ type: 'focus', value: false }); });
-      texte.addEventListener('keyup', (event) => { if (event.key.startsWith('Arrow') || event.key.startsWith('Page')) caret(); });
+      // On keydown, after the caret moved: keyup never comes for ⌘↓, nor while an arrow is held (review of 17/11).
+      texte.addEventListener('keydown', (event) => { if (event.key.startsWith('Arrow')) setTimeout(caret, 0); });
       texte.addEventListener('keydown', (event) => {
         if (!event.metaKey || event.altKey || event.ctrlKey) return;
         const key = event.key.toLowerCase();

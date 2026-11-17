@@ -347,6 +347,10 @@ struct MailScreenTests {
         try await Task.sleep(for: .milliseconds(300))
         router.mailSelection = MailThreadRow.key(account: "moi@exemple.fr", threadID: "a")
         try await capture("mails-reponse")
+        // Review of 17/11: a message stays above the draft's bar, never over it.
+        mails.message = "Mail envoyé : « Re: Maquette v2 du site »."
+        try await capture("mails-reponse-message")
+        mails.message = nil
         router.mailSelection = nil
         mails.newMail()
         try await capture("mails-nouveau")

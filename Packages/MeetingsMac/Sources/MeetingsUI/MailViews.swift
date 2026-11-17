@@ -19,6 +19,11 @@ struct MailSectionView: View {
 
     private func close() { router.mailSelection = nil }
 
+    /// A draft's bar is fixed at the bottom: a new mail, or an open thread with a reply below.
+    private var composeBarShown: Bool {
+        mails.composing != nil || router.mailSelection.map { key in mails.drafts.contains { $0.threadKey == key } } == true
+    }
+
     var body: some View {
         Group {
             if mails.accounts.isEmpty {
@@ -50,7 +55,8 @@ struct MailSectionView: View {
         }
         .animation(Motion.standard, value: router.mailSelection)
         .animation(Motion.standard, value: mails.composing)
-        .overlay(alignment: .bottom) { MailUndoBar(mails: mails) }
+        // Above the bar of a draft fixed at the bottom, never over it (review of 17/11).
+        .overlay(alignment: .bottom) { MailUndoBar(mails: mails).padding(.bottom, composeBarShown ? 80 : 0) }
         // One Quick Look for the list's chips and the open thread's files (15/11): two would fight over the
         // window's single preview panel.
         .quickLookPreview($mails.preview)
@@ -452,7 +458,7 @@ struct MailThreadView: View {
     /// A reply below has the keyboard.
     @FocusedValue(\.writingMail) private var writing
     /// The replies being written below, each with its editor and its bar.
-    @State private var sessions = ComposeSessions()
+    @StateObject private var sessions = ComposeSessions()
 
     init(key: String, mails: MailLibrary, router: WindowRouter, close: (() -> Void)?) {
         self.key = key
@@ -505,12 +511,13 @@ struct MailThreadView: View {
     /// The replies written below: nothing is written from the trash or the spam; a reply programmed before the
     /// thread went there still shows, locked, with its way back (wave B review): it would leave otherwise unseen.
     private var drafts: [MailDraftRow] {
-        mails.drafts.filter { $0.threadKey == key && (aside == nil || mails.scheduled[$0.id] != nil) }
+        ComposePinning.ordered(mails.drafts.filter { $0.threadKey == key && (aside == nil || mails.scheduled[$0.id] != nil) })
     }
 
     var body: some View {
         let mine = Set(mails.agenda.accounts.map(\.email))
         let drafts = drafts
+        let pinned = ComposePinning.pinned(drafts, active: sessions.active)
         VStack(spacing: 0) {
             header
             Divider()
@@ -541,8 +548,9 @@ struct MailThreadView: View {
                     ForEach(drafts) { draft in
                         VStack(alignment: .leading, spacing: Space.s) {
                             ComposeView(draftID: draft.id, mails: mails, session: sessions(draft.id))
-                            // The last reply has its bar fixed at the bottom of the page; another, rare, keeps it under it.
-                            if draft.id != drafts.last?.id {
+                            // The reply being written has its bar fixed at the bottom of the page; another, rare,
+                            // keeps it under it.
+                            if draft.id != pinned?.id {
                                 ComposeBar(draftID: draft.id, mails: mails, session: sessions(draft.id))
                                     .padding(.horizontal, Space.l)
                             }
@@ -573,7 +581,7 @@ struct MailThreadView: View {
             }
             // The bar of the reply being written stays at the bottom of the page, wherever the thread is scrolled (17/11).
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if let draft = drafts.last {
+                if let draft = pinned {
                     FloatingBar { ComposeBar(draftID: draft.id, mails: mails, session: sessions(draft.id)) }
                         .padding(.horizontal, PageMetrics.horizontal - Space.xl)
                         .frame(maxWidth: PageMetrics.readingWidth)

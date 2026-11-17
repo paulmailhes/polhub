@@ -3,6 +3,16 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.30.1 — 17 novembre 2026
+
+**Des corrections sur la barre fixe des brouillons.**
+
+- Quand un fil a deux réponses en cours, la barre fixe en bas suit celle que tu écris. Avant, elle pouvait viser
+  l'autre, et « Envoyer » serait parti sur le mauvais brouillon. Les réponses gardent aussi leur place pendant que
+  tu tapes.
+- Le bandeau « Mail envoyé » s'affiche au-dessus de la barre, sans en cacher les boutons.
+- La page suit le curseur aussi quand tu gardes une flèche enfoncée ou que tu fais ⌘↓.
+
 ## 0.30.0 — 17 novembre 2026
 
 **Écrire un long mail : la page défile, la barre reste en bas.**
