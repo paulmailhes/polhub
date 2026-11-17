@@ -529,6 +529,13 @@ public final class AppDatabase: Sendable {
                 t.add(column: "bodyHTML", .text)
             }
         }
+        // An agent changes or deletes the draft it prepared (17/11).
+        migrator.registerMigration("v15") { db in
+            try db.alter(table: "mail_agent_draft") { t in
+                t.add(column: "replaces", .text)
+                t.add(column: "discard", .boolean).notNull().defaults(to: false)
+            }
+        }
         return migrator
     }
 }

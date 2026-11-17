@@ -344,6 +344,54 @@ struct MailDeskFixture {
         #expect(((try? FileManager.default.contentsOfDirectory(atPath: staging.path(percentEncoded: false))) ?? []).isEmpty)
     }
 
+    /// Paul, 17/11: « il me le recrée à chaque fois ». An agent changes or deletes the draft it prepared, never Paul's own.
+    @Test func anAgentChangesOrDeletesItsDraftNeverPaulsOwn() throws {
+        let fixture = try MailDeskFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let answer = try fixture.desk().draft(replyTo: nil, all: false, to: ["nina@exemple.net"], cc: [], subject: "Devis", text: "Bonjour Nina", account: nil)
+        let id = try #require(try fixture.store.agentDrafts().first?.id)
+        #expect(answer.contains(id) && answer.contains("identifiant"))
+        // Still waiting for the app: the drop itself changes.
+        let changed = try fixture.desk().change(id, text: "Bonjour Nina, voici le devis.", subject: "Devis du site", to: [], cc: [], format: nil)
+        #expect(changed.contains("modifié"))
+        let drops = try fixture.store.agentDrafts()
+        #expect(drops.count == 1 && drops[0].id == id && drops[0].body == "Bonjour Nina, voici le devis." && drops[0].subject == "Devis du site")
+        #expect(drops[0].to == [MailAddress(email: "nina@exemple.net")])
+        // In Polhub's drafts: a request the app applies; the draft is untouched until then.
+        try fixture.store.saveDraft(MailDraftRow(id: "brouillon-agent-01", account: fixture.account, mode: .new, to: [MailAddress(email: "nina@exemple.net")],
+                                                 subject: "Devis", body: "Bonjour", origin: .agent, createdAt: fixture.now))
+        _ = try fixture.desk().change("brouillon-agent-01", text: "**Bonjour** Nina", subject: nil, to: [], cc: [], format: .markdown)
+        let request = try #require(try fixture.store.agentDrafts().last)
+        #expect(request.replaces == "brouillon-agent-01" && !request.discard && request.body == "**Bonjour** Nina" && request.format == .markdown)
+        #expect(try request.subject.isEmpty && request.to.isEmpty && fixture.store.draft("brouillon-agent-01")?.body == "Bonjour")
+        // Deleted: the drop waiting goes at once; the draft, by the app.
+        _ = try fixture.desk().discard(id)
+        #expect(try fixture.store.agentDrafts().allSatisfy { $0.id != id })
+        _ = try fixture.desk().discard("brouillon-agent-01")
+        #expect(try fixture.store.agentDrafts().last?.discard == true)
+        // Paul's own draft is never touched.
+        try fixture.store.saveDraft(MailDraftRow(id: "brouillon-paul-01", account: fixture.account, mode: .new, subject: "Perso", body: "à moi", createdAt: fixture.now))
+        #expect(throws: ToolError.self) { try fixture.desk().change("brouillon-paul-01", text: "x", subject: nil, to: [], cc: [], format: nil) }
+        #expect(throws: ToolError.self) { try fixture.desk().discard("brouillon-paul-01") }
+        #expect(throws: ToolError.self) { try fixture.desk().discard("inconnu") }
+        #expect(throws: ToolError.self) { try fixture.desk().change("brouillon-agent-01", text: "", subject: nil, to: [], cc: [], format: nil) }
+    }
+
+    /// The agents see the drafts they prepared, with their text and identifier; never Paul's own.
+    @Test func theAgentsSeeTheDraftsTheyPrepared() throws {
+        let fixture = try MailDeskFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        _ = try fixture.desk().draft(replyTo: nil, all: false, to: ["nina@exemple.net"], cc: [], subject: "Devis", text: "Bonjour Nina", account: nil)
+        try fixture.store.saveDraft(MailDraftRow(id: "brouillon-agent-01", account: fixture.account, mode: .reply, threadKey: "moi@exemple.fr|fil-maquette-01",
+                                                 to: [MailAddress(name: "Camille Martin", email: "camille@studio.exemple")], subject: "Re: Maquette v2",
+                                                 body: "Merci Camille", origin: .agent, createdAt: fixture.now))
+        try fixture.store.saveDraft(MailDraftRow(id: "brouillon-paul-01", account: fixture.account, mode: .new, subject: "Perso", body: "à moi", createdAt: fixture.now))
+        let list = try fixture.desk().drafts()
+        #expect(list.contains("[brouillon-agent-01]") && list.contains("Merci Camille") && list.contains("Re: Maquette v2"))
+        #expect(list.contains("Bonjour Nina") && list.contains("Devis"))
+        #expect(!list.contains("brouillon-paul-01") && !list.contains("à moi"))
+    }
+
     /// A formatted draft keeps the agent's markdown as it wrote it: the app makes the HTML, never the agent.
     @Test func aFormattedDraftKeepsItsMarkdownForTheApp() throws {
         let fixture = try MailDeskFixture()
@@ -370,7 +418,9 @@ struct MailDeskFixture {
         let tools = try #require((list["result"] as? [String: Any])?["tools"] as? [[String: Any]])
         let draft = try #require(tools.first { $0["name"] as? String == "brouillon" })
         let properties = try #require((draft["inputSchema"] as? [String: Any])?["properties"] as? [String: Any])
-        #expect(properties["fichiers"] != nil && properties["format"] != nil)
+        #expect(properties["fichiers"] != nil && properties["format"] != nil && properties["identifiant"] != nil && properties["supprimer"] != nil)
+        let listing = try #require(tools.first { $0["name"] as? String == "mails" })
+        #expect(((listing["inputSchema"] as? [String: Any])?["properties"] as? [String: Any])?["brouillons"] != nil)
         #expect((draft["description"] as? String)?.contains("seulement quand Paul") == true)
         let devis = home.appending(path: "Documents/devis.pdf").path(percentEncoded: false)
         let drop = try call(server, """
@@ -384,6 +434,18 @@ struct MailDeskFixture {
         #expect(!toolText(filed).1 && toolText(filed).0.contains("Perso") && writes.count == 2)
         let missing = try call(server, #"{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"ranger","arguments":{"quel":"fil-lettre-02"}}}"#)
         #expect(toolText(missing).1 && writes.count == 2)
+        // Changed and deleted by its identifier (17/11), listed by `mails`.
+        let id = try #require(try fixture.store.agentDrafts().first?.id)
+        let listed = try call(server, #"{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"mails","arguments":{"brouillons":true}}}"#)
+        #expect(!toolText(listed).1 && toolText(listed).0.contains(id) && writes.count == 2)
+        let changed = try call(server, """
+            {"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"brouillon","arguments":{"identifiant":"\(id)","texte":"Merci beaucoup !"}}}
+            """)
+        #expect(try !toolText(changed).1 && writes.count == 3 && fixture.store.agentDrafts().first?.body == "Merci beaucoup !")
+        let deleted = try call(server, """
+            {"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"brouillon","arguments":{"identifiant":"\(id)","supprimer":true}}}
+            """)
+        #expect(try !toolText(deleted).1 && writes.count == 4 && fixture.store.agentDrafts().isEmpty)
     }
 
     /// Paul, 16/11: an agent files a thread in a case, as Paul's click does (in Polhub only), but learns nothing about

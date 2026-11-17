@@ -378,6 +378,7 @@ struct NewMailPanel: View {
             Divider()
             ScrollView {
                 ComposeView(draftID: draftID, mails: mails, session: session)
+                    .id(mails.agentRevisions[draftID] ?? 0)
                     .padding(Space.xl)
                     .frame(maxWidth: PageMetrics.readingWidth)
                     .frame(maxWidth: .infinity)

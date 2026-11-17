@@ -25,21 +25,37 @@ extension MCPServer {
                    "description": "« texte » (par défaut) ou « markdown » : **gras**, *italique*, listes « - » et « 1. », liens [texte](https://…), paragraphes. Rien d'autre (ni titre, ni image, ni HTML) : Polhub fait le mail mis en forme lui-même."],
     ] }
 
-    /// `brouillon`: a reply or a new mail, its files and its format.
+    /// `brouillon`'s parameters of 17/11: a draft the agents prepared, changed or deleted by its identifier.
+    static var draftChangeProperties: [String: Any] { [
+        "identifiant": ["type": "string",
+                        "description": "Pour changer un brouillon déjà préparé par un agent, au lieu d'en déposer un autre : son identifiant (donné par cet outil quand il l'a déposé, ou par `mails` avec « brouillons »). Seul ce qui est donné change : « texte » (et « format »), « objet », « a », « cc », « fichiers » (qui remplacent ceux joints). Jamais un brouillon écrit par Paul."],
+        "supprimer": ["type": "boolean", "description": "Avec « identifiant » : supprime ce brouillon (dans Polhub et dans Gmail), quand Paul le demande."],
+    ] }
+
+    /// `brouillon`: a reply or a new mail, its files and its format; or, by its identifier, a change or a deletion.
     func dropDraft(_ arguments: [String: Any], mails: MailDesk) throws -> String {
         func strings(_ key: String) -> [String] {
             if let list = arguments[key] as? [Any] { return list.compactMap { $0 as? String } }
             return (arguments[key] as? String).map { [$0] } ?? []
         }
-        let format: MailAgentDraftRow.Format
-        switch (Self.text(arguments["format"]) ?? "texte").lowercased() {
+        let format: MailAgentDraftRow.Format?
+        switch Self.text(arguments["format"])?.lowercased() {
+        case nil: format = nil
         case "texte", "text", "plain": format = .plain
         case "markdown": format = .markdown
-        case let other: throw ToolError("« format » attend « texte » ou « markdown », pas « \(other) ». Pas de HTML : Polhub fait le mail mis en forme lui-même.")
+        case let other?: throw ToolError("« format » attend « texte » ou « markdown », pas « \(other) ». Pas de HTML : Polhub fait le mail mis en forme lui-même.")
+        }
+        if let which = Self.text(arguments["identifiant"]) {
+            if arguments["supprimer"] as? Bool == true { return try mails.discard(which) }
+            return try mails.change(which, text: arguments["texte"] as? String ?? "", subject: Self.text(arguments["objet"]), to: strings("a"),
+                                    cc: strings("cc"), format: format, joining: strings("fichiers"))
+        }
+        if arguments["supprimer"] as? Bool == true {
+            throw ToolError("Il manque « identifiant » : celui du brouillon à supprimer (outil `mails` avec « brouillons »).")
         }
         return try mails.draft(replyTo: Self.text(arguments["quel"]), all: arguments["tous"] as? Bool ?? false, to: strings("a"), cc: strings("cc"),
                                subject: Self.text(arguments["objet"]), text: arguments["texte"] as? String ?? "", account: Self.text(arguments["boite"]),
-                               joining: strings("fichiers"), format: format)
+                               joining: strings("fichiers"), format: format ?? .plain)
     }
 
     /// `ranger`: a thread in a case.

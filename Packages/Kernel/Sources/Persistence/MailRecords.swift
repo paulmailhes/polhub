@@ -304,10 +304,15 @@ public struct MailAgentDraftRow: Codable, Equatable, Identifiable, Sendable, Fet
     /// (`MailFiles.agentFolder`); the app moves them into the draft's.
     public var files: [MailDraftFile]
     public var format: Format
+    /// A change to a draft the agents prepared (17/11), by its identifier, instead of a new one: only what is given
+    /// (text, subject, people, files) replaces what the draft has. The app applies it, never to Paul's own drafts.
+    public var replaces: String?
+    /// With `replaces`: the draft goes.
+    public var discard: Bool
 
     public init(id: String = UUID().uuidString.lowercased(), mode: MailDraftRow.Mode, account: String? = nil, threadKey: String? = nil,
                 to: [MailAddress] = [], cc: [MailAddress] = [], subject: String = "", body: String, createdAt: Date,
-                files: [MailDraftFile] = [], format: Format = .plain) {
+                files: [MailDraftFile] = [], format: Format = .plain, replaces: String? = nil, discard: Bool = false) {
         self.id = id
         self.mode = mode
         self.account = account?.lowercased()
@@ -319,6 +324,8 @@ public struct MailAgentDraftRow: Codable, Equatable, Identifiable, Sendable, Fet
         self.createdAt = createdAt
         self.files = files
         self.format = format
+        self.replaces = replaces
+        self.discard = discard
     }
 }
 

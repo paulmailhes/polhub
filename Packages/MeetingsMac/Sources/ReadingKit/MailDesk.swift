@@ -243,7 +243,7 @@ public struct MailDesk: Sendable {
     /// the app, 16/11) and a text in markdown, which the app makes simple HTML: the agent never writes HTML.
     public func draft(replyTo which: String?, all: Bool, to: [String], cc: [String], subject: String?, text: String, account: String?,
                       joining paths: [String] = [], format: MailAgentDraftRow.Format = .plain) throws -> String {
-        guard try store.acceptsAgentDrafts(), try store.agentDraftsTakeFiles() else {
+        guard try store.acceptsAgentDrafts(), try store.agentDraftsTakeFiles(), try store.agentDraftsChange() else {
             throw ToolError("La base de Polhub n'accepte pas encore de brouillon : la dernière version de Polhub doit être ouverte une fois.")
         }
         // No invisible character leaves under Paul's eyes (review of 14/11): tags, zero widths, reversals.
@@ -288,6 +288,8 @@ public struct MailDesk: Sendable {
         if !row.files.isEmpty {
             answer += "Joint\(row.files.count > 1 ? "s" : "") : " + row.files.map { "« \($0.filename) » (\(Self.size($0.size)))" }.joined(separator: ", ") + ". "
         }
+        // Paul, 17/11: the next change goes to this draft, never to a new one.
+        answer += "Son identifiant : \(row.id). Pour le changer ou le supprimer, repasse-le dans « identifiant » : ne dépose pas un autre brouillon. "
         return answer + closing
     }
 

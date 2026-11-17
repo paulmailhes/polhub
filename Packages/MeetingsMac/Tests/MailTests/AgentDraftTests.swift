@@ -146,6 +146,80 @@ import Testing
     }
 }
 
+/// Paul, 17/11: « il me le recrée à chaque fois ». An agent changes the draft it prepared instead of making another:
+/// the draft keeps its place, its people, its quote and its Gmail copy; deleted, it goes. Paul's own never changes.
+@Suite struct AgentDraftChangeTests {
+    let base = AgentDraftTests()
+    var account: String { base.account }
+    var thread: String { base.thread }
+
+    @Test func anAgentsChangeAppliesToItsDraft() async throws {
+        let (engine, _, store, root) = try await base.setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let drop = MailAgentDraftRow(mode: .reply, account: account, threadKey: thread, body: "Merci.", createdAt: Date())
+        try store.drop(drop)
+        let draft = try #require(await engine.adoptAgentDrafts().first)
+        // The draft takes the drop's identifier: the agent was given it.
+        #expect(draft.id == drop.id)
+        try store.markPushed(draftID: draft.id, gmailDraftID: "g-1", gmailMessageID: "gm-1", version: draft.updatedAt, at: draft.updatedAt)
+        try store.drop(MailAgentDraftRow(mode: .reply, account: account, threadKey: thread, body: "**Merci** Camille, je valide.", createdAt: Date(),
+                                         format: .markdown, replaces: draft.id))
+        let pass = await engine.takeAgentDrafts()
+        #expect(pass.adopted.isEmpty && pass.changed.map(\.id) == [draft.id])
+        let stored = try #require(try store.draft(draft.id))
+        #expect(stored.body == "Merci Camille, je valide." && stored.bodyHTML?.contains("<b>Merci</b>") == true)
+        #expect(stored.quoteHTML == draft.quoteHTML && stored.to == draft.to && stored.subject == draft.subject && stored.createdAt == draft.createdAt)
+        // Gmail holds an older version: the change goes there too, by the app's push.
+        #expect(stored.origin == .agent && stored.gmailDraftID == "g-1" && stored.needsPush)
+        #expect(try store.agentDrafts().isEmpty)
+        // Deleted: gone.
+        try store.drop(MailAgentDraftRow(mode: .reply, account: account, threadKey: thread, body: "", createdAt: Date(), replaces: draft.id, discard: true))
+        let gone = await engine.takeAgentDrafts()
+        #expect(gone.discarded.map(\.id) == [draft.id])
+        #expect(try store.draft(draft.id) == nil && store.agentDrafts().isEmpty)
+    }
+
+    /// A new mail: only what the agent gives changes; the rest stays as it is, files included.
+    @Test func aNewMailChangesOnlyWhatIsGiven() async throws {
+        let (engine, _, store, root) = try await base.setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let nina = MailAddress(name: "Nina", email: "nina@exemple.net")
+        try store.drop(MailAgentDraftRow(mode: .new, account: account, to: [nina], subject: "Devis", body: "Bonjour Nina", createdAt: Date()))
+        let draft = try #require(await engine.adoptAgentDrafts().first)
+        try store.drop(MailAgentDraftRow(mode: .new, account: account, subject: "Devis du site", body: "", createdAt: Date(), replaces: draft.id))
+        #expect(await engine.takeAgentDrafts().changed.count == 1)
+        let stored = try #require(try store.draft(draft.id))
+        #expect(stored.subject == "Devis du site" && stored.body == "Bonjour Nina" && stored.to == [nina])
+        let jules = MailAddress(email: "jules@exemple.net")
+        try store.drop(MailAgentDraftRow(mode: .new, account: account, to: [jules], cc: [nina], body: "Bonjour Jules", createdAt: Date(), replaces: draft.id))
+        _ = await engine.takeAgentDrafts()
+        let again = try #require(try store.draft(draft.id))
+        #expect(again.to == [jules] && again.cc == [nina] && again.subject == "Devis du site" && again.body == "Bonjour Jules" && again.bodyHTML == nil)
+    }
+
+    /// Paul's own draft, or one leaving now: refused, untouched, and said.
+    @Test func paulsOwnDraftOrOneLeavingIsNeverChanged() async throws {
+        let (engine, _, store, root) = try await base.setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let mine = MailDraftRow(account: account, mode: .new, subject: "À moi", body: "Mon texte", createdAt: Date())
+        try store.saveDraft(mine)
+        try store.drop(MailAgentDraftRow(mode: .new, account: account, body: "Remplacé", createdAt: Date(), replaces: mine.id))
+        try store.drop(MailAgentDraftRow(mode: .new, account: account, body: "", createdAt: Date(), replaces: mine.id, discard: true))
+        let refused = await engine.takeAgentDrafts()
+        #expect(refused.refused.map(\.id) == [mine.id, mine.id] && refused.changed.isEmpty && refused.discarded.isEmpty)
+        #expect(try store.draft(mine.id)?.body == "Mon texte" && store.agentDrafts().isEmpty)
+        try store.drop(MailAgentDraftRow(mode: .new, account: account, to: [MailAddress(email: "nina@exemple.net")], subject: "Devis", body: "Bonjour", createdAt: Date()))
+        let leaving = try #require(await engine.adoptAgentDrafts().first)
+        try store.drop(MailAgentDraftRow(mode: .new, account: account, body: "Trop tard", createdAt: Date(), replaces: leaving.id))
+        #expect(await engine.takeAgentDrafts(busy: [leaving.id]).refused.map(\.id) == [leaving.id])
+        #expect(try store.draft(leaving.id)?.body == "Bonjour")
+        // A draft gone meanwhile: the request goes, nothing is made.
+        try store.drop(MailAgentDraftRow(mode: .new, account: account, body: "x", createdAt: Date(), replaces: "parti"))
+        let none = await engine.takeAgentDrafts()
+        #expect(try none.changed.isEmpty && none.adopted.isEmpty && store.agentDrafts().isEmpty)
+    }
+}
+
 /// The little markdown of the agents (16/11), alone.
 @Suite struct MailMarkdownTests {
     @Test func onlyWhatTheBriefAllowsBecomesHTML() {

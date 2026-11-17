@@ -254,6 +254,8 @@ public final class MailLibrary: ObservableObject {
     @Published public private(set) var readingAside = false
     private var asideToken = 0
     @Published public private(set) var drafts: [MailDraftRow] = []
+    /// A draft an agent changed (17/11): its editor, if open, opens again on the new version.
+    @Published public private(set) var agentRevisions: [String: Int] = [:]
     /// The drafts Gmail holds that Polhub did not make.
     @Published public private(set) var gmailDrafts: [MailMessageRow] = []
     @Published public private(set) var sent: [MailThreadRow] = []
@@ -365,12 +367,7 @@ public final class MailLibrary: ObservableObject {
             // What an agent dropped (step « Agents »): the app makes a draft of it at once.
             store.observeAgentDrafts { [weak self] rows in
                 guard let self, !rows.isEmpty else { return }
-                Task {
-                    let adopted = await self.engine.adoptAgentDrafts()
-                    if let draft = adopted.last {
-                        self.message = "Un agent a préparé « \(draft.subject.isEmpty ? "(sans objet)" : draft.subject) » : il t'attend dans Brouillons."
-                    }
-                }
+                Task { await self.takeAgentDrafts() }
             },
             store.observeFilingRules { [weak self] rules in
                 self?.rules = rules
@@ -436,7 +433,7 @@ public final class MailLibrary: ObservableObject {
         if folder.aside != nil { readAside() }
         pushPending()
         // An agent's reply left waiting (offline) is taken up again.
-        Task { await engine.adoptAgentDrafts() }
+        Task { await takeAgentDrafts() }
     }
 
     /// Mails just arrived in an inbox: those of the people's tab are told; only those of a project, if Paul
@@ -1362,6 +1359,32 @@ public final class MailLibrary: ObservableObject {
         message = "Envoi annulé : le mail t'attend dans Brouillons."
         if (try? store.draft(sending.draftID))?.threadKey == nil { composing = sending.draftID }
         schedulePush(sending.draftID, after: .zero)
+    }
+
+    /// What the agents dropped (step « Agents »), taken at once: their new drafts, and the changes of the drafts they
+    /// prepared (17/11). A changed draft Gmail holds gets the new version; an open editor shows it.
+    func takeAgentDrafts() async {
+        let pass = await engine.takeAgentDrafts(busy: Set([sending?.draftID].compactMap { $0 }))
+        for draft in pass.changed {
+            agentRevisions[draft.id, default: 0] += 1
+            if draft.gmailDraftID != nil, draft.needsPush { schedulePush(draft.id, after: .zero) }
+        }
+        for gone in pass.discarded {
+            pushes[gone.id]?.task.cancel()
+            pushes[gone.id] = nil
+            unconfirmed.remove(gone.id)
+            if composing == gone.id { composing = nil }
+        }
+        func title(_ subject: String) -> String { subject.isEmpty ? "(sans objet)" : subject }
+        if let refused = pass.refused.last {
+            message = "Un agent voulait changer « \(title(refused.subject)) », mais il est écrit par toi, programmé ou en train de partir : rien n'a changé."
+        } else if let gone = pass.discarded.last {
+            message = "Un agent a supprimé le brouillon « \(title(gone.subject)) »."
+        } else if let draft = pass.changed.last {
+            message = "Un agent a modifié « \(title(draft.subject)) » : il t'attend dans Brouillons."
+        } else if let draft = pass.adopted.last {
+            message = "Un agent a préparé « \(title(draft.subject)) » : il t'attend dans Brouillons."
+        }
     }
 
     /// The draft goes, here and in Gmail. A mail waiting to leave is called back first.

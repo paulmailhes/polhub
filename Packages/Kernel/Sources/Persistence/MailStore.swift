@@ -341,6 +341,24 @@ public struct MailStore: Sendable {
     }
 
     /// An agent's draft, dropped by `polhub mcp`.
+    /// The base knows the changes of an agent's draft (17/11): the app of 0.31 opened once.
+    public func agentDraftsChange() throws -> Bool {
+        try writer.read { try $0.columns(in: MailAgentDraftRow.databaseTableName).contains { $0.name == "replaces" } }
+    }
+
+    public func agentDraft(_ id: String) throws -> MailAgentDraftRow? {
+        try writer.read { try MailAgentDraftRow.fetchOne($0, key: id) }
+    }
+
+    /// A drop still waiting for the app, changed in place; `false` once the app took it.
+    public func updateDrop(_ draft: MailAgentDraftRow) throws -> Bool {
+        try writer.write { db in
+            guard try MailAgentDraftRow.fetchOne(db, key: draft.id) != nil else { return false }
+            try draft.update(db)
+            return true
+        }
+    }
+
     public func drop(_ draft: MailAgentDraftRow) throws {
         try writer.write { try draft.insert($0) }
     }

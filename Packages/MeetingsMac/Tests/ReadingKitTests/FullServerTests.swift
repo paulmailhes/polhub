@@ -31,10 +31,11 @@ import Testing
         #expect(writing == ["action", "note", "journal", "fait", "projet", "nouveau_projet", "brouillon", "ranger", "rendez_vous"])
         let draft = try #require(tools.first { $0["name"] as? String == "brouillon" })
         let properties = try #require((draft["inputSchema"] as? [String: Any])?["properties"] as? [String: Any])
-        #expect(Set(properties.keys) == ["quel", "tous", "a", "cc", "objet", "texte", "boite", "fichiers", "format"])
-        // `projet` replaces the notes whole: a destructive write, as `action` that removes one (review of 16/11).
+        #expect(Set(properties.keys) == ["quel", "tous", "a", "cc", "objet", "texte", "boite", "fichiers", "format", "identifiant", "supprimer"])
+        // `projet` replaces the notes whole: a destructive write, as `action` that removes one (review of 16/11), and
+        // `brouillon` that deletes a draft the agents prepared (17/11).
         let destructive = tools.filter { ($0["annotations"] as? [String: Any])?["destructiveHint"] as? Bool == true }.compactMap { $0["name"] as? String }
-        #expect(destructive == ["action", "projet"])
+        #expect(destructive == ["action", "projet", "brouillon"])
     }
 
     /// Each name the instructions give between backquotes is a tool offered or one of their parameters: a tool renamed

@@ -548,6 +548,7 @@ struct MailThreadView: View {
                     ForEach(drafts) { draft in
                         VStack(alignment: .leading, spacing: Space.s) {
                             ComposeView(draftID: draft.id, mails: mails, session: sessions(draft.id))
+                                .id(mails.agentRevisions[draft.id] ?? 0)
                             // The reply being written has its bar fixed at the bottom of the page; another, rare,
                             // keeps it under it.
                             if draft.id != pinned?.id {
