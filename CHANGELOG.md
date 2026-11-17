@@ -3,6 +3,20 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.29.0 — 17 novembre 2026
+
+**Écrire un mail mis en forme, comme dans Gmail.**
+
+- Le texte d'un brouillon s'écrit maintenant avec sa mise en forme : gras, italique, souligné, listes à puces et
+  numérotées, liens. Une petite barre de boutons au-dessus du texte, et les raccourcis de Gmail : ⌘B, ⌘I, ⌘U, ⌘K
+  pour un lien.
+- Un brouillon préparé par un agent avec de la mise en forme s'ouvre tel qu'il partira, et tu le modifies sans la
+  perdre. « Repasser en texte simple » disparaît : il n'y en a plus besoin.
+- Un brouillon écrit dans Gmail avec de la mise en forme s'ouvre lui aussi dans l'éditeur, prêt à modifier ; seul
+  un brouillon avec des images ou des tableaux garde son texte à part, tel quel, sous ce que tu ajoutes.
+- Un texte collé depuis une page web ou un document garde son gras, ses listes et ses liens, sans ses couleurs ni ses
+  polices.
+
 ## 0.28.0 — 16 novembre 2026
 
 **Tes agents font presque tout par Polhub, et Polhub ne dépend plus d'Obsidian.**
