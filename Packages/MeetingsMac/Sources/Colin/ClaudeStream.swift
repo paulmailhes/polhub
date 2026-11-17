@@ -10,13 +10,23 @@ public struct ClaudeInit: Equatable, Sendable {
     public var tools: [String]
     /// The servers by name, each with its state (« connected », « failed »…).
     public var servers: [String: String]
+    /// The user's plugins. Those built into Claude Code itself (« builtin ») always load: they are counted apart.
     public var plugins: Int
+    public var builtinPlugins: Int
     public var skills: Int
     public var slashCommands: Int
+    /// The memory files (CLAUDE.md) and the extra folders taken along.
+    public var memoryPaths: Int
+    public var directories: Int
+    /// The kinds of agents on offer; Claude Code has its own.
+    public var agents: [String]
+    /// A socket is open for the messages of the other sessions.
+    public var messaging: Bool
     public var capabilities: [String]
 
     public init(version: String = "", model: String = "", permissionMode: String = "", apiKeySource: String = "", tools: [String] = [],
-                servers: [String: String] = [:], plugins: Int = 0, skills: Int = 0, slashCommands: Int = 0, capabilities: [String] = []) {
+                servers: [String: String] = [:], plugins: Int = 0, builtinPlugins: Int = 0, skills: Int = 0, slashCommands: Int = 0,
+                memoryPaths: Int = 0, directories: Int = 0, agents: [String] = [], messaging: Bool = false, capabilities: [String] = []) {
         self.version = version
         self.model = model
         self.permissionMode = permissionMode
@@ -24,8 +34,13 @@ public struct ClaudeInit: Equatable, Sendable {
         self.tools = tools
         self.servers = servers
         self.plugins = plugins
+        self.builtinPlugins = builtinPlugins
         self.skills = skills
         self.slashCommands = slashCommands
+        self.memoryPaths = memoryPaths
+        self.directories = directories
+        self.agents = agents
+        self.messaging = messaging
         self.capabilities = capabilities
     }
 }
@@ -154,11 +169,16 @@ public enum ClaudeStream {
         for server in object["mcp_servers"] as? [[String: Any]] ?? [] {
             if let name = server["name"] as? String { servers[name] = server["status"] as? String ?? "" }
         }
+        let plugins = object["plugins"] as? [[String: Any]] ?? []
+        let builtin = plugins.filter { $0["path"] as? String == "builtin" || ($0["source"] as? String)?.hasSuffix("@builtin") == true }.count
         return ClaudeInit(
             version: object["claude_code_version"] as? String ?? "", model: object["model"] as? String ?? "",
             permissionMode: object["permissionMode"] as? String ?? "", apiKeySource: object["apiKeySource"] as? String ?? "",
-            tools: strings(object["tools"]), servers: servers, plugins: count(object["plugins"]), skills: count(object["skills"]),
-            slashCommands: count(object["slash_commands"]), capabilities: strings(object["capabilities"]))
+            tools: strings(object["tools"]), servers: servers, plugins: plugins.count - builtin, builtinPlugins: builtin,
+            skills: count(object["skills"]), slashCommands: count(object["slash_commands"]),
+            memoryPaths: count(object["memory_paths"]), directories: count(object["additional_directories"]),
+            agents: strings(object["agents"]), messaging: !(object["messaging_socket_path"] as? String ?? "").isEmpty,
+            capabilities: strings(object["capabilities"]))
     }
 
     private static func rateLimit(_ info: [String: Any]) -> ClaudeRateLimit {

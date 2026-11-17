@@ -87,15 +87,16 @@ final class FakeLauncher: ClaudeLaunching, @unchecked Sendable {
 
     // MARK: - A Claude Code where everything answers well
 
-    static let loaded = ClaudeInit(version: "2.1.304", model: "claude-haiku-4-5", permissionMode: "dontAsk", apiKeySource: "none")
+    static let loaded = ClaudeInit(version: "2.1.304", model: "claude-haiku-4-5", permissionMode: "dontAsk", apiKeySource: "none",
+                                   builtinPlugins: 3, agents: ["claude", "Explore"])
     static let withServer = ClaudeInit(version: "2.1.304", model: "claude-opus-4-8", permissionMode: "dontAsk", apiKeySource: "none",
-                                       tools: ["mcp__polhub__projets", "mcp__polhub__journal"], servers: ["polhub": "connected"])
+                                       tools: ["mcp__polhub__projets", "mcp__polhub__journal"], servers: ["polhub": "connected"], builtinPlugins: 3)
     static let limit = ClaudeRateLimit(status: "allowed", type: "five_hour", fiveHour: 0.42, sevenDay: 0.11)
     static func done(_ cost: Double = 0.0002) -> ClaudeEvent {
         .result(ClaudeResult(subtype: "success", durationMs: 900, numTurns: 1, costUSD: cost, inputTokens: 900, outputTokens: 3, text: "ok " + secret))
     }
 
-    static func ping() -> FakeSession { FakeSession([.initialized(loaded), .rateLimit(limit), done()], code: 0) }
+    static func ping() -> FakeSession { FakeSession([.initialized(loaded), .textDelta("ok"), .rateLimit(limit), done()], code: 0) }
 
     static func notConnected() -> FakeSession {
         FakeSession([.result(ClaudeResult(subtype: "success", isError: true, apiErrorStatus: 401, text: "Invalid API key · Please run /login"))], code: 1)
@@ -170,6 +171,7 @@ final class FakeLauncher: ClaudeLaunching, @unchecked Sendable {
         let launcher = Self.healthy()
         let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper))
         #expect(measures.map(\.step) == ["binaire", "compte", "connexion", "isolation", "connexions", "outils", "conversation",
+                                         "premier-mot", "premier-mot", "premier-mot", "premier-mot",
                                          "scene", "scene", "scene", "panne", "invisible", "limites", "bilan"], "\(measures.map(\.step))")
         let failed = measures.filter { !$0.ok }
         #expect(failed.isEmpty, "\(failed)")
@@ -179,7 +181,10 @@ final class FakeLauncher: ClaudeLaunching, @unchecked Sendable {
         #expect(step("connexion", measures)?.labels["cle"] == "none")
         #expect(step("connexion", measures)?.numbers["coutUSD"] == 0.0002)
         #expect(step("connexion", measures)?.numbers["entree"] == 900)
-        #expect(step("isolation", measures)?.numbers == ["outils": 0, "serveurs": 0, "plugins": 0, "skills": 0, "commandes": 0])
+        #expect(step("connexion", measures)?.numbers["premierMotMs"] != nil)
+        // Claude Code's own plugins and agents are told, and are no fault.
+        #expect(step("isolation", measures)?.numbers == ["outils": 0, "serveurs": 0, "plugins": 0, "pluginsIntegres": 3, "skills": 0, "commandes": 0,
+                                                         "memoires": 0, "dossiers": 0, "agents": 2])
         #expect(step("connexions", measures)?.numbers["lancements"] == 3)
         #expect(step("connexions", measures)?.numbers["reussis"] == 3)
         #expect(step("connexions", measures)?.numbers["connecteApres"] == 1)
@@ -193,6 +198,9 @@ final class FakeLauncher: ClaudeLaunching, @unchecked Sendable {
         #expect(conversation.numbers["memoireMo"] == 200)
         #expect(conversation.numbers["code"] == 0)
         #expect(conversation.labels["finInterrompue"] == "error_during_execution")
+        #expect(conversation.labels["modele"] == "claude-opus-4-8")
+        #expect(conversation.numbers["inits"] == 1)
+        #expect(measures.filter { $0.step == "premier-mot" }.compactMap { $0.labels["nom"] } == ["opus", "opus-low", "sonnet", "haiku"])
         #expect(measures.filter { $0.step == "scene" }.compactMap { $0.labels["nom"] } == ["fiche-mail", "brouillon", "compte-rendu"])
         #expect(step("panne", measures)?.labels["categorie"] == "pas-connecte")
         #expect(step("limites", measures)?.numbers["cinqHeuresAvant"] == 42)
@@ -200,9 +208,25 @@ final class FakeLauncher: ClaudeLaunching, @unchecked Sendable {
         #expect(step("bilan", measures)?.labels["fin"] == "complete")
         #expect(step("bilan", measures)?.numbers["echecs"] == 0)
         #expect(ColinProbe.verdict(in: directory) == true)
-        // 3 pings, the tools, the conversation, 3 scenes, the empty account.
-        #expect(launcher.started.count == 9)
+        // 3 pings, the tools, the conversation, 4 first words, 3 scenes, the empty account.
+        #expect(launcher.started.count == 13)
         #expect(launcher.all.allSatisfy { !$0.stopped })
+        let low = launcher.started.first { $0.effort == "low" }
+        #expect(low?.model == "opus" && low?.prompt == "Dis bonjour en une phrase.")
+    }
+
+    @Test func anIsolationThatLeaksIsAFault() async throws {
+        // A plugin of the user, a memory file: Claude Code loaded more than what was asked.
+        let leaking = ClaudeInit(version: "2.1.304", model: "claude-haiku-4-5", permissionMode: "dontAsk", apiKeySource: "none",
+                                 plugins: 1, builtinPlugins: 3, memoryPaths: 1)
+        let launcher = Self.healthy { command, _ in
+            command.prompt == "Réponds seulement : ok" && command.configDirectory?.lastPathComponent != "compte-vide"
+                ? FakeSession([.initialized(leaking), Self.done()], code: 0) : nil
+        }
+        let measures = try await run(probe(launcher, binary: binary, helper: helper)).measures
+        #expect(step("isolation", measures)?.ok == false)
+        #expect(step("isolation", measures)?.numbers["plugins"] == 1)
+        #expect(step("isolation", measures)?.numbers["memoires"] == 1)
     }
 
     @Test func theConversationSaysItsFourMessagesAndInterruptsTheThird() async throws {

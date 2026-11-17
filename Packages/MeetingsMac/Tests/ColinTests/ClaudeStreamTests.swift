@@ -12,6 +12,14 @@ import Testing
             tools: ["mcp__polhub__projets"], servers: ["polhub": "connected"], plugins: 1, skills: 0, slashCommands: 0, capabilities: ["interrupt_receipt_v1"])))
     }
 
+    /// As Claude Code 2.1.304 says it (measured on 17/11): its own plugins are named « builtin », and it tells the
+    /// memory files, the extra folders and the agents it loaded.
+    @Test func thePluginsBuiltIntoClaudeCodeAreCountedApart() {
+        let e = event(#"{"type":"system","subtype":"init","plugins":[{"name":"cc-plugin-telemetry","path":"builtin","source":"cc-plugin-telemetry@builtin"},{"name":"cc-plugin-agents-md","path":"builtin","source":"cc-plugin-agents-md@builtin"},{"name":"le-mien","path":"/x/plugins/le-mien","source":"le-mien@quelque-part"}],"memory_paths":["/x/CLAUDE.md"],"additional_directories":["/x/a","/x/b"],"agents":["claude","Explore"],"messaging_socket_path":"/tmp/cc.sock"}"#)
+        #expect(e == .initialized(ClaudeInit(plugins: 1, builtinPlugins: 2, memoryPaths: 1, directories: 2, agents: ["claude", "Explore"], messaging: true)))
+        #expect(event(#"{"type":"system","subtype":"init","messaging_socket_path":""}"#) == .initialized(ClaudeInit()))
+    }
+
     @Test func aPartialMessageGivesItsText() {
         #expect(event(#"{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Bon"}},"parent_tool_use_id":null}"#) == .textDelta("Bon"))
         #expect(event(#"{"type":"stream_event","event":{"type":"message_start"}}"#) == .other("stream_event/message_start"))

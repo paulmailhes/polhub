@@ -47,7 +47,7 @@ public struct ColinProbe: Probe {
     ///   - interruptDelay: seconds after the first word of the third answer before it is interrupted.
     public init(launcher: any ClaudeLaunching = LiveClaudeLauncher(), binary: URL? = ClaudeBinary.find(), helper: URL?,
                 home: URL = FileManager.default.homeDirectoryForCurrentUser, environment: [String: String] = ProcessInfo.processInfo.environment,
-                pings: Int = 20, pause: Double = 1, timeout: Double = 60, initWait: Double = 5, interruptDelay: Double = 0.4,
+                pings: Int = 20, pause: Double = 1, timeout: Double = 60, initWait: Double = 2, interruptDelay: Double = 0.4,
                 tool: @escaping Tool = { await ClaudeTool.run($0, arguments: $1, environment: $2, timeout: 15) }) {
         self.launcher = launcher
         self.binary = binary
@@ -101,6 +101,7 @@ public struct ColinProbe: Probe {
 private struct Outcome {
     var initial: ClaudeInit?
     var initMs: Double?
+    var firstWordMs: Double?
     var result: ClaudeResult?
     var totalMs = 0.0
     var code: Int32?
@@ -200,10 +201,13 @@ private struct Run {
         try? FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
         let first = await launch(ping, binary)
         let start = first.initial
-        await note("connexion", ok: first.succeeded && first.totalMs < 10_000, [
+        var connection: [String: Double] = [
             "initMs": first.initMs ?? -1, "totalMs": first.totalMs, "coutUSD": first.result?.costUSD ?? 0,
             "entree": Double(first.result?.inputTokens ?? 0), "sortie": Double(first.result?.outputTokens ?? 0),
-        ], ["cle": start?.apiKeySource ?? "", "modele": start?.model ?? "", "mode": start?.permissionMode ?? "", "version": start?.version ?? ""])
+        ]
+        connection["premierMotMs"] = first.firstWordMs
+        await note("connexion", ok: first.succeeded && first.totalMs < 10_000, connection,
+                   ["cle": start?.apiKeySource ?? "", "modele": start?.model ?? "", "mode": start?.permissionMode ?? "", "version": start?.version ?? ""])
         if Task.isCancelled { return .interrompue }
         guard first.succeeded else {
             // Not connected, or no answer: said once, and nothing is launched again.
@@ -211,11 +215,15 @@ private struct Run {
             await note("panne", ok: failure.ok, failure.numbers, failure.labels)
             return .arretee
         }
+        // Nothing of the user's may have come along. Claude Code's own plugins and agents always do: they are told,
+        // and are no fault.
         let loaded: [String: Double] = [
             "outils": Double(start?.tools.count ?? -1), "serveurs": Double(start?.servers.count ?? -1), "plugins": Double(start?.plugins ?? -1),
             "skills": Double(start?.skills ?? -1), "commandes": Double(start?.slashCommands ?? -1),
+            "memoires": Double(start?.memoryPaths ?? -1), "dossiers": Double(start?.directories ?? -1),
         ]
-        await note("isolation", ok: loaded.values.allSatisfy { $0 == 0 }, loaded)
+        await note("isolation", ok: loaded.values.allSatisfy { $0 == 0 },
+                   loaded.merging(["pluginsIntegres": Double(start?.builtinPlugins ?? 0), "agents": Double(start?.agents.count ?? 0)]) { first, _ in first })
 
         // Launches in a row: does the account stay connected?
         var times = [first.totalMs]
@@ -268,14 +276,20 @@ private struct Run {
         await converse(binary, server: server)
         if await mustStop() { return .interrompue }
 
+        // The first word of the same short answer, by model and by effort: what a person waits for in a conversation.
+        let voices: [(name: String, model: String, effort: String?)] = [("opus", "opus", nil), ("opus-low", "opus", "low"), ("sonnet", "sonnet", nil), ("haiku", "haiku", nil)]
+        for voice in voices {
+            let outcome = await launch(ClaudeCommand(model: voice.model, systemPrompt: Texts.system, prompt: Texts.turns[0], maxTurns: 1,
+                                                     configDirectory: account, effort: voice.effort), binary)
+            await note("premier-mot", ok: outcome.succeeded, Self.spent(outcome), ["nom": voice.name, "modele": outcome.initial?.model ?? ""])
+            if await mustStop() { return .interrompue }
+        }
+
         // What a scene costs.
         let scenes = [("fiche-mail", "haiku", Texts.mailRequest), ("brouillon", "opus", Texts.threadRequest), ("compte-rendu", "opus", Texts.callRequest)]
         for (name, model, request) in scenes {
             let outcome = await launch(ClaudeCommand(model: model, systemPrompt: Texts.system, prompt: request, maxTurns: 1, configDirectory: account), binary)
-            await note("scene", ok: outcome.succeeded, [
-                "ms": outcome.totalMs, "coutUSD": outcome.result?.costUSD ?? 0,
-                "entree": Double(outcome.result?.inputTokens ?? 0), "sortie": Double(outcome.result?.outputTokens ?? 0),
-            ], ["nom": name])
+            await note("scene", ok: outcome.succeeded, Self.spent(outcome), ["nom": name])
             if await mustStop() { return .interrompue }
         }
 
@@ -370,6 +384,8 @@ private struct Run {
                 case .initialized(let initial):
                     outcome.initial = initial
                     outcome.initMs = milliseconds(clock.now - start)
+                case .textDelta:
+                    if outcome.firstWordMs == nil { outcome.firstWordMs = milliseconds(clock.now - start) }
                 case .assistant(_, let tools):
                     outcome.tools += tools
                 case .rateLimit(let limit):
@@ -392,6 +408,16 @@ private struct Run {
         outcome.timedOut = late.isRaised
         if outcome.result == nil { outcome.totalMs = milliseconds(clock.now - start) }
         return outcome
+    }
+
+    /// The time, the cost and the size of one answer.
+    private static func spent(_ outcome: Outcome) -> [String: Double] {
+        var numbers: [String: Double] = [
+            "ms": outcome.totalMs, "coutUSD": outcome.result?.costUSD ?? 0,
+            "entree": Double(outcome.result?.inputTokens ?? 0), "sortie": Double(outcome.result?.outputTokens ?? 0),
+        ]
+        numbers["premierMotMs"] = outcome.firstWordMs
+        return numbers
     }
 
     /// How a launch that failed shows: its code, whether a result came, and what it looks like.
@@ -499,8 +525,13 @@ private actor Conversation {
 
     func handle(_ event: ClaudeEvent) async {
         switch event {
-        case .initialized:
-            numbers["initMs"] = milliseconds(clock.now - started)
+        case .initialized(let initial):
+            // Claude Code 2.1.304 says it again at each turn (measured on 17/11): the first one is the one timed.
+            numbers["inits", default: 0] += 1
+            if numbers["initMs"] == nil {
+                numbers["initMs"] = milliseconds(clock.now - started)
+                labels["modele"] = initial.model
+            }
             if turn == 0 {
                 numbers["initAvantMessage"] = 1
                 await next()

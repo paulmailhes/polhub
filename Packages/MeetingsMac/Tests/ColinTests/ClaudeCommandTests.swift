@@ -13,7 +13,8 @@ import Testing
 
     @Test func aOneShotCommandCarriesItsPromptAndTheIsolation() {
         let arguments = ClaudeCommand(model: "haiku", systemPrompt: "Réponds en un mot.", prompt: "ok ?", maxTurns: 1).arguments
-        #expect(Array(arguments.prefix(5)) == ["-p", "ok ?", "--output-format", "stream-json", "--verbose"])
+        #expect(Array(arguments.prefix(6)) == ["-p", "ok ?", "--output-format", "stream-json", "--verbose", "--include-partial-messages"])
+        #expect(!arguments.contains("--effort"))
         let pairs = [("--setting-sources", ""), ("--tools", ""), ("--permission-mode", "dontAsk"), ("--permission-prompts", "none"),
                      ("--settings", #"{"crossSessionInbound":"refuse"}"#), ("--max-turns", "1"), ("--model", "haiku"),
                      ("--system-prompt", "Réponds en un mot.")]
@@ -23,9 +24,15 @@ import Testing
         for flag in ["--strict-mcp-config", "--disable-slash-commands", "--no-session-persistence"] {
             #expect(arguments.contains(flag), "\(flag)")
         }
-        for flag in ["--input-format", "--include-partial-messages", "--mcp-config", "--allowedTools"] {
+        for flag in ["--input-format", "--mcp-config", "--allowedTools"] {
             #expect(!arguments.contains(flag), "\(flag)")
         }
+    }
+
+    @Test func anEffortIsSaidOnlyWhenChosen() {
+        var command = ClaudeCommand(model: "opus", systemPrompt: "x", prompt: "y")
+        command.effort = "low"
+        #expect(value(after: "--effort", in: command.arguments) == "low")
     }
 
     @Test func aConversationReadsItsMessagesOnTheStandardInput() {

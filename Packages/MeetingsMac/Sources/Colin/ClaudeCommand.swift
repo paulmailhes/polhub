@@ -18,9 +18,11 @@ public struct ClaudeCommand: Equatable, Sendable {
     public var maxTurns: Int?
     /// The folder of the Claude account to use; `nil`: Claude Code's own.
     public var configDirectory: URL?
+    /// « low », « medium », « high »…; `nil`: the model's own.
+    public var effort: String?
 
     public init(model: String, systemPrompt: String, prompt: String? = nil, mcpConfig: String? = nil,
-                allowedTools: [String] = [], maxTurns: Int? = nil, configDirectory: URL? = nil) {
+                allowedTools: [String] = [], maxTurns: Int? = nil, configDirectory: URL? = nil, effort: String? = nil) {
         self.model = model
         self.systemPrompt = systemPrompt
         self.prompt = prompt
@@ -28,17 +30,20 @@ public struct ClaudeCommand: Equatable, Sendable {
         self.allowedTools = allowedTools
         self.maxTurns = maxTurns
         self.configDirectory = configDirectory
+        self.effort = effort
     }
 
     public var arguments: [String] {
+        // The answer always comes word by word: its first word is what a person waits for.
         var all: [String]
         if let prompt {
-            all = ["-p", prompt, "--output-format", "stream-json", "--verbose"]
+            all = ["-p", prompt, "--output-format", "stream-json", "--verbose", "--include-partial-messages"]
         } else {
             all = ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages"]
         }
+        all += ["--model", model]
+        if let effort { all += ["--effort", effort] }
         all += [
-            "--model", model,
             "--system-prompt", systemPrompt,
             "--setting-sources", "",
             "--strict-mcp-config",
