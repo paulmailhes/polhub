@@ -24,6 +24,7 @@ let package = Package(
         .library(name: "PolhubDesign", targets: ["PolhubDesign"]),
         .library(name: "Notifications", targets: ["Notifications"]),
         .library(name: "Inspiration", targets: ["Inspiration"]),
+        .library(name: "Colin", targets: ["Colin"]),
         .executable(name: "polhub-calcul", targets: ["PolhubCalcul"]),
         .executable(name: "polhub", targets: ["PolhubCLI"]),
     ],
@@ -81,6 +82,9 @@ let package = Package(
             .product(name: "Persistence", package: "Kernel"),
             .product(name: "Yams", package: "Yams"),
         ], resources: [.copy("Vocabulary/Resources")]),
+        // Colin, the agent of the home page (17/11): how Polhub finds Claude Code on this Mac, starts it alone and reads
+        // what it answers. No dependency: the probe of step 0 uses it first, the home page later.
+        .target(name: "Colin"),
         // The models live only in `polhub-calcul`: the app never loads them.
         .target(name: "Compute", dependencies: [
             "Transcription",
@@ -162,5 +166,6 @@ let package = Package(
         .testTarget(name: "PipelineTests", dependencies: ["Pipeline", "MeetingDetection", "Recording", "Transcription", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "ProbeKitTests", dependencies: ["ProbeKit", "Recording", "AudioCapture", "MeetingDetection", .product(name: "Domain", package: "Kernel"), .product(name: "Observability", package: "Kernel")]),
         .testTarget(name: "PolhubDesignTests", dependencies: ["PolhubDesign"]),
+        .testTarget(name: "ColinTests", dependencies: ["Colin"]),
     ]
 )
