@@ -79,6 +79,12 @@ Elle copie Gmail, l'outil que Paul connaît le mieux (Paul, 15/11 : « calque-to
   nombre à deux chiffres, et « Tous les messages », en grandes rangées) : elle ne change plus d'une section à
   l'autre.
 
+**Le texte d'un brouillon** s'écrit mis en forme, comme dans Gmail (Paul, 17/11) : `RichTextEditor`, une vue web à
+sa page, qui ne charge rien ni ne suit aucun lien, sous une barre de boutons ronds (`FormatBar` : gras ⌘B, italique
+⌘I, souligné ⌘U, listes à puces et numérotée, lien ⌘K, effacer la mise en forme). Il grandit avec son texte (180
+points au moins), prend la police et les couleurs du système, et ce qu'il donne ne garde que la mise en forme simple
+(`MailRichText.clean`) : un brouillon d'agent mis en forme s'y ouvre tel qu'il partira.
+
 ## Les couleurs
 
 - Une seule palette (`Palette`) pour les comptes Google, les projets et les statuts.

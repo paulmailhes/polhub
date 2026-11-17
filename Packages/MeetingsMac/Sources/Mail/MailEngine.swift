@@ -894,12 +894,16 @@ public actor MailEngine {
             GmailAPI.messageRequest(accessToken: $0, id: message.messageID, format: .metadata, headers: ["Bcc", "In-Reply-To", "References"])
         }.payload
         let body = try await self.body(of: message)
-        let rich = message.bodyIsHTML && HTMLText.isFormatted(body)
+        let formatted = message.bodyIsHTML && HTMLText.isFormatted(body)
+        // Its formatting opens in the editor, to change (17/11); what the editor cannot hold (images, tables) keeps it
+        // whole, below what Paul adds, as before.
+        let whole = formatted && MailRichText.holdsMoreThanText(body)
         let others = try store.messages(threadKey: message.threadKey).filter { $0.id != message.id }
         var draft = MailDraftRow(account: message.account, mode: others.isEmpty ? .new : .reply, threadKey: others.isEmpty ? nil : message.threadKey,
                                  to: message.to, cc: message.cc, bcc: MailParser.addresses(headers?.header("Bcc")), subject: message.subject == "(sans objet)" ? "" : message.subject,
-                                 body: rich ? "" : (message.bodyIsHTML ? HTMLText.plain(body) : body),
-                                 quoteHTML: rich ? HTMLText.quotable(body) : nil, quoteText: rich ? HTMLText.plain(body) : nil,
+                                 body: whole ? "" : formatted ? MailRichText.plain(body) : (message.bodyIsHTML ? HTMLText.plain(body) : body),
+                                 bodyHTML: formatted && !whole ? MailRichText.clean(body) : nil,
+                                 quoteHTML: whole ? HTMLText.quotable(body) : nil, quoteText: whole ? HTMLText.plain(body) : nil,
                                  inReplyTo: headers?.header("In-Reply-To"), references: headers?.header("References"), signature: false,
                                  gmailDraftID: gmailDraftID, gmailMessageID: message.messageID, origin: .gmail, createdAt: message.date, updatedAt: now())
         // Gmail holds it as it is: nothing goes back until Paul changes it.

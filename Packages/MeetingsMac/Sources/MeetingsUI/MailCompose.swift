@@ -121,10 +121,11 @@ struct ComposeView: View {
     @State private var showQuote = false
     @State private var dropping = false
     @State private var confirmingDiscard = false
-    /// The text and the subject as typed, kept here: a late reading of the base never takes a keystroke back
-    /// (review of 14/11).
-    @State private var text = ""
+    /// The subject as typed, kept here: a late reading of the base never takes a keystroke back (review of 14/11).
+    /// The text lives in the editor, which reads the draft once.
     @State private var subject = ""
+    @StateObject private var editor = RichTextController()
+    @State private var editorHeight = RichTextEditor.minimumHeight
     @State private var loaded = false
     @State private var pendingTo = ""
     @State private var pendingCc = ""
@@ -134,15 +135,12 @@ struct ComposeView: View {
     @State private var threadProject: UUID?
     /// « Choisir une date et une heure… » is open (wave B).
     @State private var choosingDate = false
-    /// The formatting « Repasser en texte simple » took off an agent's draft, until Paul writes in the text: « Remettre
-    /// la mise en forme » gives it back (review of 16/11).
-    @State private var setAside: String?
     @FocusState private var focus: Field?
 
     enum Field { case body, subject }
 
     /// ⌘↩ belongs to the draft being written, never to another on the same screen.
-    private var isActive: Bool { focus != nil || recipientsFocused }
+    private var isActive: Bool { focus != nil || recipientsFocused || editor.isFocused }
 
     private var draft: MailDraftRow? { mails.drafts.first { $0.id == draftID } }
 
@@ -172,55 +170,21 @@ struct ComposeView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
                 }
-                if let formatted = draft.formattedText {
-                    // An agent's formatted draft (16/11): it leaves as the agent formatted it, so its text shows whole, not in
-                    // the editor. « Repasser en texte simple » gives its plain version to edit as usual.
-                    VStack(alignment: .leading, spacing: Space.s) {
-                        HStack(alignment: .firstTextBaseline, spacing: Space.m) {
-                            Text(MailDraftRow.agentFormattedCaption).font(.meta).foregroundStyle(.secondary)
-                            Spacer(minLength: 0)
-                            TextButton("Repasser en texte simple") {
-                                setAside = draft.bodyHTML
-                                mails.edit(draftID) { $0.makePlain() }
-                            }
-                            .help("Retire la mise en forme : tu modifies ensuite le texte comme d'habitude")
-                            .disabled(planned != nil)
-                        }
-                        Text(formatted).font(.system(size: TextSize.reading)).lineSpacing(3).textSelection(.enabled)
-                            .frame(maxWidth: .infinity, minHeight: 180, alignment: .topLeading)
+                // The text, written with formatting as in Gmail (17/11); an agent's formatted draft opens as it leaves.
+                VStack(alignment: .leading, spacing: Space.xs) {
+                    FormatBar(editor: editor).disabled(planned != nil)
+                    RichTextEditor(initialHTML: draft.editorHTML, placeholder: draft.mode == .new ? "Écris ton mail…" : "Écris ta réponse…",
+                                   isEditable: planned == nil, focusOnStart: draft.mode != .new, controller: editor, height: $editorHeight) { html in
+                        mails.edit(draftID) { $0.write(html: html) }
                     }
-                } else {
-                    if let html = setAside {
-                        // Until Paul writes in the text, the formatting comes back in one click (review of 16/11).
-                        HStack(alignment: .firstTextBaseline, spacing: Space.m) {
-                            Text("Mise en forme retirée : tu modifies le texte comme d'habitude.").font(.meta).foregroundStyle(.secondary)
-                            Spacer(minLength: 0)
-                            TextButton("Remettre la mise en forme") {
-                                mails.edit(draftID) { $0.formatAgain(html) }
-                                setAside = nil
-                            }
-                            .disabled(planned != nil)
+                    .frame(height: max(RichTextEditor.minimumHeight, editorHeight))
+                    .opacity(planned != nil ? 0.75 : 1)
+                    .popover(isPresented: $editor.askingLink, arrowEdge: .bottom) {
+                        LinkPrompt { address in
+                            editor.askingLink = false
+                            if let address { editor.link(address) }
                         }
                     }
-                    TextEditor(text: $text)
-                        .font(.system(size: TextSize.reading))
-                        .lineSpacing(3)
-                        .scrollContentBackground(.hidden)
-                        .focused($focus, equals: .body)
-                        .frame(minHeight: 180)
-                        .onChange(of: text) { _, typed in
-                            guard loaded else { return }
-                            setAside = nil
-                            mails.edit(draftID) { $0.body = typed }
-                        }
-                        .overlay(alignment: .topLeading) {
-                            if text.isEmpty {
-                                Text(draft.mode == .new ? "Écris ton mail…" : "Écris ta réponse…").font(.system(size: TextSize.reading)).foregroundStyle(.tertiary)
-                                    .padding(.leading, 5).allowsHitTesting(false)
-                            }
-                        }
-                        .disabled(planned != nil)
-                        .opacity(planned != nil ? 0.75 : 1)
                 }
                 if !draft.files.isEmpty { files(draft).disabled(planned != nil) }
                 if let signature = mails.signature(of: draft.account) {
@@ -274,13 +238,11 @@ struct ComposeView: View {
             }
             .onAppear {
                 if !loaded {
-                    text = draft.body
                     subject = draft.subject
                     loaded = true
                 }
                 showCc = !draft.cc.isEmpty
                 showBcc = !draft.bcc.isEmpty
-                if draft.mode != .new { focus = .body }
                 if let key = draft.threadKey, let thread = try? mails.store.thread(key) {
                     threadProject = mails.filing(of: thread)?.filing.projectID
                 }
@@ -624,21 +586,56 @@ extension MailDraftRow {
     /// keeps it below what Paul adds), not a message it quotes.
     var isFormattedGmailDraft: Bool { origin == .gmail && quoteHTML != nil && mode != .forward }
 
-    /// Over an agent's formatted draft (16/11): what leaves, and what Paul sees (review of 16/11).
-    static let agentFormattedCaption = "Mis en forme par l'agent (gras, listes, liens) : il part ainsi. Ici, son texte sans la mise en forme."
+    /// What the editor opens with: the formatted text, else the plain one, a block a line.
+    var editorHTML: String { bodyHTML ?? MailRichText.html(fromPlain: body) }
 
-    /// An agent's formatted draft: the plain version of its text, shown whole in place of the editor; `nil` for a
-    /// draft Paul edits.
-    var formattedText: String? { bodyHTML == nil ? nil : body }
-
-    /// « Repasser en texte simple »: the formatting goes, the plain version stays, to edit as usual. The formatting
-    /// taken off comes back, for « Remettre la mise en forme ».
-    @discardableResult
-    mutating func makePlain() -> String? {
-        defer { bodyHTML = nil }
-        return bodyHTML
+    /// What Paul wrote in the editor (17/11): its formatting kept simple, and the plain text the mail carries beside it.
+    mutating func write(html: String) {
+        let cleaned = MailRichText.clean(html)
+        let words = MailRichText.plain(cleaned)
+        bodyHTML = words.isEmpty ? nil : cleaned
+        body = words
     }
+}
 
-    /// « Remettre la mise en forme », while Paul has not written in the text (review of 16/11).
-    mutating func formatAgain(_ html: String) { bodyHTML = html }
+/// The formatting buttons above the text: the commands Gmail has, with their shortcuts.
+struct FormatBar: View {
+    @ObservedObject var editor: RichTextController
+
+    var body: some View {
+        HStack(spacing: 2) {
+            IconButton("bold", help: "Gras (⌘B)", size: 13) { editor.bold() }
+            IconButton("italic", help: "Italique (⌘I)", size: 13) { editor.italic() }
+            IconButton("underline", help: "Souligné (⌘U)", size: 13) { editor.underline() }
+            Divider().frame(height: 16).padding(.horizontal, Space.xs)
+            IconButton("list.bullet", help: "Liste à puces", size: 13) { editor.bulletList() }
+            IconButton("list.number", help: "Liste numérotée", size: 13) { editor.numberedList() }
+            Divider().frame(height: 16).padding(.horizontal, Space.xs)
+            IconButton("link", help: "Lien (⌘K)", size: 13) { editor.askingLink = true }
+            IconButton("textformat", help: "Effacer la mise en forme", size: 13) { editor.removeFormat() }
+        }
+        .padding(.horizontal, -Space.xs)
+    }
+}
+
+/// « Lien » : the address, then « Ajouter ».
+struct LinkPrompt: View {
+    let done: (String?) -> Void
+    @State private var address = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            Text("Ajouter un lien").font(.headline)
+            TextField("exemple.fr/page ou une adresse mail", text: $address)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 280)
+                .onSubmit { done(address) }
+            HStack {
+                Spacer()
+                Button("Annuler") { done(nil) }.keyboardShortcut(.cancelAction)
+                Button("Ajouter") { done(address) }.keyboardShortcut(.defaultAction).disabled(RichTextController.address(address) == nil)
+            }
+        }
+        .padding(Space.l)
+    }
 }

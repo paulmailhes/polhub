@@ -207,21 +207,34 @@ import Testing
         #expect(gmail.drafts.isEmpty && !gmail.calls.contains { $0.hasPrefix("POST") || $0.hasPrefix("PUT") })
     }
 
-    /// Gmail's draft with a link: its HTML stays whole, under what Paul adds; taken up twice, one draft.
-    @Test func aGmailDraftWithLinksKeepsItsHTML() async throws {
+    /// Gmail's draft with formatting (Paul, 17/11): it opens formatted in the editor, to change; taken up twice, one
+    /// draft.
+    @Test func aGmailDraftWithFormattingOpensInTheEditor() async throws {
         let (engine, gmail, store, root) = try await setUp()
         defer { try? FileManager.default.removeItem(at: root) }
         gmail.add("d2", .init(thread: "t9", labels: ["DRAFT"], from: "Moi <moi@exemple.fr>", minutes: 5, to: "Camille Martin <camille@exemple.fr>",
-                              body: #"<div>Voir <a href="https://exemple.fr/devis">le devis</a></div>"#))
+                              body: #"<div dir="ltr"><b>Bonjour</b>, voir <a href="https://exemple.fr/devis" style="color:blue">le devis</a></div>"#))
         gmail.addGmailDraft(id: "r-lien", messageID: "d2", thread: "t9")
         await engine.step(account)
         let message = try #require(try store.gmailOnlyDrafts().first)
         let row = try await engine.resume(gmailDraft: message)
-        #expect(row.body.isEmpty)
-        #expect(row.quoteHTML?.contains("https://exemple.fr/devis") == true)
-        #expect(row.quoteText?.contains("le devis") == true)
+        #expect(row.bodyHTML == #"<div><b>Bonjour</b>, voir <a href="https://exemple.fr/devis">le devis</a></div>"#)
+        #expect(row.body == "Bonjour, voir le devis (https://exemple.fr/devis)" && row.quoteHTML == nil)
         let twice = try await engine.resume(gmailDraft: message)
         #expect(try twice.id == row.id && store.drafts().count == 1)
+    }
+
+    /// One with an image the editor cannot hold: its HTML stays whole, under what Paul adds, as before.
+    @Test func aGmailDraftWithAnImageKeepsItsHTMLWhole() async throws {
+        let (engine, gmail, store, root) = try await setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        gmail.add("d3", .init(thread: "t8", labels: ["DRAFT"], from: "Moi <moi@exemple.fr>", minutes: 5, to: "Camille Martin <camille@exemple.fr>",
+                              body: #"<div>Voir <a href="https://exemple.fr/devis">le devis</a><img src="cid:logo"></div>"#))
+        gmail.addGmailDraft(id: "r-image", messageID: "d3", thread: "t8")
+        await engine.step(account)
+        let row = try await engine.resume(gmailDraft: try #require(try store.gmailOnlyDrafts().first))
+        #expect(row.body.isEmpty && row.bodyHTML == nil)
+        #expect(row.quoteHTML?.contains("https://exemple.fr/devis") == true && row.quoteText?.contains("le devis") == true)
     }
 
     /// Paul, 16/11: a draft taken up in Polhub, then sent from Gmail, stayed in Brouillons. Untouched here, it goes
