@@ -534,6 +534,10 @@ public final class AppDatabase: Sendable {
             try db.alter(table: "mail_agent_draft") { t in
                 t.add(column: "replaces", .text)
                 t.add(column: "discard", .boolean).notNull().defaults(to: false)
+                t.add(column: "basedOn", .datetime)
+            }
+            try db.alter(table: "mail_draft") { t in
+                t.add(column: "agentVersionAt", .datetime)
             }
         }
         return migrator

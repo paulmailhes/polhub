@@ -1362,12 +1362,26 @@ public final class MailLibrary: ObservableObject {
     }
 
     /// What the agents dropped (step « Agents »), taken at once: their new drafts, and the changes of the drafts they
-    /// prepared (17/11). A changed draft Gmail holds gets the new version; an open editor shows it.
+    /// prepared (17/11). A changed draft stays in Polhub until Paul sees it; an open editor opens again on it.
     func takeAgentDrafts() async {
-        let pass = await engine.takeAgentDrafts(busy: Set([sending?.draftID].compactMap { $0 }))
+        let pass = await engine.takeAgentDrafts(busy: { [weak self] id in
+            await MainActor.run { self?.sending?.draftID == id }
+        })
+        func title(_ subject: String) -> String { subject.isEmpty ? "(sans objet)" : subject }
+        if !pass.changed.isEmpty, let fresh = try? store.drafts() { drafts = fresh }
+        var calledBack: String?
         for draft in pass.changed {
+            pushes[draft.id]?.task.cancel()
+            pushes[draft.id] = nil
             agentRevisions[draft.id, default: 0] += 1
-            if draft.gmailDraftID != nil, draft.needsPush { schedulePush(draft.id, after: .zero) }
+            // Changed in the last instant before leaving: it waits for Paul to read it.
+            if let sending, sending.draftID == draft.id, !sending.leaving {
+                cancelSend()
+                // The agent's version never reaches Gmail before Paul has read it.
+                pushes[draft.id]?.task.cancel()
+                pushes[draft.id] = nil
+                calledBack = draft.subject
+            }
         }
         for gone in pass.discarded {
             pushes[gone.id]?.task.cancel()
@@ -1375,9 +1389,10 @@ public final class MailLibrary: ObservableObject {
             unconfirmed.remove(gone.id)
             if composing == gone.id { composing = nil }
         }
-        func title(_ subject: String) -> String { subject.isEmpty ? "(sans objet)" : subject }
-        if let refused = pass.refused.last {
-            message = "Un agent voulait changer « \(title(refused.subject)) », mais il est écrit par toi, programmé ou en train de partir : rien n'a changé."
+        if let calledBack {
+            message = "Un agent a changé « \(title(calledBack)) » pendant son envoi : l'envoi est annulé, relis-le."
+        } else if let refused = pass.refused.last {
+            message = "Un agent voulait changer « \(title(refused.subject)) », mais \(refused.reason ?? "ce n'est pas possible") : rien n'a changé."
         } else if let gone = pass.discarded.last {
             message = "Un agent a supprimé le brouillon « \(title(gone.subject)) »."
         } else if let draft = pass.changed.last {

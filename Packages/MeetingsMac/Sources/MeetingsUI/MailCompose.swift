@@ -167,7 +167,8 @@ struct ComposeView: View {
                 // The text, written with formatting as in Gmail (17/11); an agent's formatted draft opens as it leaves.
                 // Its buttons are in the bar fixed at the bottom of the page, in reach wherever the text is scrolled.
                 RichTextEditor(initialHTML: draft.editorHTML, placeholder: draft.mode == .new ? "Écris ton mail…" : "Écris ta réponse…",
-                               isEditable: planned == nil, focusOnStart: draft.mode != .new, controller: editor, height: $editorHeight) { html in
+                               isEditable: planned == nil, focusOnStart: draft.mode != .new && mails.agentRevisions[draftID] == nil,
+                               controller: editor, height: $editorHeight) { html in
                     mails.edit(draftID) { $0.write(html: html) }
                 }
                 .frame(height: max(RichTextEditor.minimumHeight, editorHeight))

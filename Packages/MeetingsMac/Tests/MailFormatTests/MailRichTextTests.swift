@@ -44,3 +44,15 @@ import Testing
         #expect(MailRichText.html(fromPlain: "") == "")
     }
 }
+
+/// What an agent reads of a draft Paul formatted (17/11), to give it back changed without losing its formatting.
+@Suite struct MailRichTextMarkdownTests {
+    @Test func aFormattedDraftReadsAsTheAgentsMarkdown() {
+        let html = #"<p><b>Bonjour</b> Camille,</p><p>Voici <i>le devis</i> et <u>la date</u> :</p><ul><li>la maquette</li><li><a href="https://exemple.fr/plan">le planning</a></li></ul><ol><li>relire</li><li>signer</li></ol>"#
+        #expect(MailRichText.markdown(html) == "**Bonjour** Camille,\n\nVoici *le devis* et la date :\n\n- la maquette\n- [le planning](https://exemple.fr/plan)\n\n1. relire\n2. signer")
+        // Written in the editor: a block a line.
+        #expect(MailRichText.markdown("<div>Bonjour Nina,</div><div><br></div><div>À <b>jeudi</b>.</div>") == "Bonjour Nina,\n\nÀ **jeudi**.")
+        // And back: the same HTML as the agent's markdown makes.
+        #expect(MailMarkdown.html(MailRichText.markdown(html)).contains("<b>Bonjour</b>"))
+    }
+}

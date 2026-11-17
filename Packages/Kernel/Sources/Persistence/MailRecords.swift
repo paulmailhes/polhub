@@ -309,10 +309,13 @@ public struct MailAgentDraftRow: Codable, Equatable, Identifiable, Sendable, Fet
     public var replaces: String?
     /// With `replaces`: the draft goes.
     public var discard: Bool
+    /// With `replaces`: the version of the draft the agent saw (its `updatedAt`). Retouched by Paul since, the app
+    /// changes nothing (17/11).
+    public var basedOn: Date?
 
     public init(id: String = UUID().uuidString.lowercased(), mode: MailDraftRow.Mode, account: String? = nil, threadKey: String? = nil,
                 to: [MailAddress] = [], cc: [MailAddress] = [], subject: String = "", body: String, createdAt: Date,
-                files: [MailDraftFile] = [], format: Format = .plain, replaces: String? = nil, discard: Bool = false) {
+                files: [MailDraftFile] = [], format: Format = .plain, replaces: String? = nil, discard: Bool = false, basedOn: Date? = nil) {
         self.id = id
         self.mode = mode
         self.account = account?.lowercased()
@@ -326,6 +329,7 @@ public struct MailAgentDraftRow: Codable, Equatable, Identifiable, Sendable, Fet
         self.format = format
         self.replaces = replaces
         self.discard = discard
+        self.basedOn = basedOn
     }
 }
 
@@ -393,6 +397,9 @@ public struct MailDraftRow: Codable, Equatable, Identifiable, Sendable, Fetchabl
     public var updatedAt: Date
     /// Gmail's copy went its own way: nothing more goes to Gmail and nothing leaves until Paul chooses.
     public var conflict: Conflict?
+    /// When an agent last gave this draft its text (17/11): changed later, Paul retouched it, and an agent rereads it
+    /// before changing it again.
+    public var agentVersionAt: Date?
 
     /// What happened to Gmail's copy of a draft (review of 14/11): sent or deleted elsewhere, or changed on
     /// another device. Polhub never makes it again nor overwrites it on its own.
@@ -411,7 +418,8 @@ public struct MailDraftRow: Codable, Equatable, Identifiable, Sendable, Fetchabl
                 to: [MailAddress] = [], cc: [MailAddress] = [], bcc: [MailAddress] = [], subject: String = "", body: String = "", bodyHTML: String? = nil,
                 quoteHTML: String? = nil, quoteText: String? = nil, inReplyTo: String? = nil, references: String? = nil, signature: Bool = true,
                 files: [MailDraftFile] = [], gmailDraftID: String? = nil, gmailMessageID: String? = nil, origin: Origin = .paul,
-                pushedAt: Date? = nil, lastError: String? = nil, createdAt: Date, updatedAt: Date? = nil, conflict: Conflict? = nil) {
+                pushedAt: Date? = nil, lastError: String? = nil, createdAt: Date, updatedAt: Date? = nil, conflict: Conflict? = nil,
+                agentVersionAt: Date? = nil) {
         self.id = id
         self.account = account.lowercased()
         self.mode = mode
@@ -437,6 +445,12 @@ public struct MailDraftRow: Codable, Equatable, Identifiable, Sendable, Fetchabl
         self.createdAt = createdAt
         self.updatedAt = updatedAt ?? createdAt
         self.conflict = conflict
+        self.agentVersionAt = agentVersionAt
+    }
+
+    /// An agent's draft Paul changed since the agent last gave it its text (17/11).
+    public var retouchedByPaul: Bool {
+        origin == .agent && updatedAt > (agentVersionAt ?? .distantPast)
     }
 
     /// Something to send: someone to send it to, and words or a file.

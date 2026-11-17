@@ -1155,6 +1155,8 @@ public actor MailEngine {
         public struct Named: Sendable, Equatable {
             public let id: String
             public let subject: String
+            /// Why a change was refused, as Paul reads it.
+            public var reason: String? = nil
         }
 
         public var adopted: [MailDraftRow] = []
@@ -1163,10 +1165,10 @@ public actor MailEngine {
         public var refused: [Named] = []
     }
 
-    /// The agents' drops, taken: new drafts, and the changes of the drafts they prepared. `busy`: the drafts leaving
-    /// now (« Envoyer » and its delay), never changed.
+    /// The agents' drops, taken: new drafts, and the changes of the drafts they prepared. `busy`: a draft leaving now
+    /// (« Envoyer » and its delay), asked at the moment of the change, never changed.
     @discardableResult
-    public func takeAgentDrafts(busy: Set<String> = []) async -> AgentDraftPass {
+    public func takeAgentDrafts(busy: @escaping @Sendable (String) async -> Bool = { _ in false }) async -> AgentDraftPass {
         // One pass at a time (second review of 14/11); a call during a pass makes it run once more.
         if adopting {
             adoptAgain = true
@@ -1186,7 +1188,7 @@ public actor MailEngine {
         return all
     }
 
-    private func adoptionPass(busy: Set<String>) async -> AgentDraftPass {
+    private func adoptionPass(busy: @Sendable (String) async -> Bool) async -> AgentDraftPass {
         var pass = AgentDraftPass()
         guard let dropped = try? store.agentDrafts() else { return pass }
         // The folders of drops gone long ago, left by a helper stopped on the way.
@@ -1202,6 +1204,7 @@ public actor MailEngine {
             }
             do {
                 var draft: MailDraftRow
+                let stamp = now()
                 switch row.mode {
                 case .reply, .replyAll:
                     guard let key = row.threadKey, let thread = try store.thread(key), accounts.contains(thread.account),
@@ -1216,14 +1219,14 @@ public actor MailEngine {
                                          subject: ReplyBuilder.subject(row.mode, original: last.subject), body: HTMLText.clean(row.body),
                                          quoteHTML: ReplyBuilder.quoteHTML(row.mode, source: source), quoteText: ReplyBuilder.quoteText(row.mode, source: source),
                                          inReplyTo: threading.inReplyTo, references: threading.references, origin: .agent, createdAt: row.createdAt,
-                                         updatedAt: now())
+                                         updatedAt: stamp, agentVersionAt: stamp)
                 default:
                     guard let account = row.account, accounts.contains(account) else {
                         letGo(row)
                         continue
                     }
                     draft = MailDraftRow(id: row.id, account: account, mode: .new, to: row.to, cc: row.cc, subject: HTMLText.clean(row.subject), body: HTMLText.clean(row.body), origin: .agent,
-                                         createdAt: row.createdAt, updatedAt: now())
+                                         createdAt: row.createdAt, updatedAt: stamp, agentVersionAt: stamp)
                 }
                 // Formatted by the agent: the HTML is made here, from its markdown, and the plain version is the text part.
                 if row.format == .markdown {
@@ -1232,7 +1235,8 @@ public actor MailEngine {
                 }
                 let joined = try takeFiles(of: row, into: &draft)
                 draft.files = joined
-                if try store.adopt(row.id, as: draft) {
+                // Changed by an agent while it was being made (17/11): the next pass takes the new version.
+                if try store.adopt(row.id, as: draft, expecting: row) {
                     adopted.append(draft)
                     try? FileManager.default.removeItem(at: files.agentFolder(id: row.id))
                 } else {
@@ -1246,40 +1250,38 @@ public actor MailEngine {
         return pass
     }
 
-    /// A change an agent asked for a draft the agents prepared (17/11): only what it gives replaces what the draft
-    /// has; the people of a reply, its quote and its thread stay; Gmail's copy is given the new version by the app.
-    /// A draft Paul wrote, one programmed or leaving, is never touched; a draft gone takes the request with it.
-    private func applyChange(_ row: MailAgentDraftRow, to targetID: String, busy: Set<String>, into pass: inout AgentDraftPass) async {
-        defer { letGo(row) }
+    /// A change an agent asked for a draft the agents prepared (17/11): only what it gives changes; the people of a
+    /// reply, its quote and its thread stay; files are added. Never a draft Paul wrote, nor one programmed, leaving,
+    /// in conflict with Gmail, or retouched by Paul since the agent read it. Gmail's copy, if any, goes: the agent's
+    /// version stays in Polhub until Paul has seen it (spec of 14/11: on the phone, a tap would send it unmarked).
+    /// A draft gone takes the request with it; a deletion Gmail could not take waits for the next pass.
+    private func applyChange(_ row: MailAgentDraftRow, to targetID: String, busy: @Sendable (String) async -> Bool,
+                             into pass: inout AgentDraftPass) async {
+        var keep = false
+        defer { if !keep { letGo(row) } }
         guard let target = try? store.draft(targetID) else { return }
-        let named = AgentDraftPass.Named(id: target.id, subject: target.subject)
-        let programmed = (try? entries())?.contains { $0.draftID == target.id } ?? false
-        guard target.origin == .agent, !busy.contains(target.id), !programmed else {
-            pass.refused.append(named)
-            return
-        }
+        func refuse(_ reason: String) { pass.refused.append(AgentDraftPass.Named(id: target.id, subject: target.subject, reason: reason)) }
+        guard target.origin == .agent else { return refuse("tu l'as écrit toi-même") }
+        if (try? entries())?.contains(where: { $0.draftID == target.id }) == true { return refuse("il est programmé") }
+        if target.conflict != nil { return refuse("Gmail en a une autre version, qui attend ton choix") }
+        if target.retouchedByPaul, row.basedOn.map({ target.updatedAt > $0 }) ?? true { return refuse("tu l'as retouché depuis que l'agent l'a lu") }
+        await settled(target.id)
+        if await busy(target.id) { return refuse("il est en train de partir") }
         if row.discard {
             do {
                 try await discard(target.id)
-                pass.discarded.append(named)
+                pass.discarded.append(AgentDraftPass.Named(id: target.id, subject: target.subject))
             } catch {
-                pass.refused.append(named)
+                keep = true
             }
             return
         }
-        await settled(target.id)
         var joined: [MailDraftFile]?
-        if !row.files.isEmpty, var copy = try? store.draft(target.id) {
-            let previous = copy.files
-            if let taken = try? takeFiles(of: row, into: &copy) {
-                for file in previous where !taken.contains(where: { $0.filename == file.filename }) {
-                    try? FileManager.default.removeItem(at: files.draftFolder(copy).appending(path: file.filename))
-                }
-                joined = taken
-            }
+        if !row.files.isEmpty, var copy = try? store.draft(target.id), let taken = try? takeFiles(of: row, into: &copy), !taken.isEmpty {
+            joined = copy.files.filter { file in !taken.contains { $0.filename == file.filename } } + taken
         }
         let body = HTMLText.clean(row.body)
-        let changed = try? store.updateDraft(target.id, at: now()) { draft in
+        guard let changed = try? store.updateDraft(target.id, at: now(), { draft in
             if !body.isEmpty {
                 if row.format == .markdown {
                     draft.bodyHTML = MailMarkdown.html(body)
@@ -1295,8 +1297,20 @@ public actor MailEngine {
                 if !row.cc.isEmpty { draft.cc = row.cc }
             }
             if let joined { draft.files = joined }
+        }) else { return }
+        try? store.setAgentVersion(changed.id, at: changed.updatedAt)
+        if flavor == .prod, let gmailDraftID = changed.gmailDraftID {
+            do {
+                await pacer(changed.account).take(GmailAPI.Cost.draftDelete)
+                _ = try await sendFor(changed.account)({ GmailAPI.draftDeleteRequest(accessToken: $0, draftID: gmailDraftID) })
+                try? store.forgetGmailCopy(changed.id)
+            } catch GoogleError.notFound {
+                try? store.forgetGmailCopy(changed.id)
+            } catch {
+                // Gmail did not answer: it keeps the version Paul saw, and nothing of the agent's goes there.
+            }
         }
-        if let changed { pass.changed.append(changed) }
+        pass.changed.append((try? store.draft(changed.id)) ?? changed)
     }
 
     /// The files the agent joined, copied into the draft's folder (a clone on the Mac's disk) before the draft exists;

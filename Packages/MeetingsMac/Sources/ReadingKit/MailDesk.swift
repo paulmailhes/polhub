@@ -31,6 +31,17 @@ public struct MailDesk: Sendable {
     let timeZone: TimeZone
     /// Paul's home folder: what lies in its Library or its hidden folders is never joined to a draft (16/11).
     let home: URL
+    /// The versions of the drafts this session has read (17/11): a draft Paul retouched changes only once reread.
+    let seen = SeenDrafts()
+
+    /// The versions read, kept for the life of the helper (one Claude Code session).
+    final class SeenDrafts: @unchecked Sendable {
+        private let lock = NSLock()
+        private var versions: [String: Date] = [:]
+
+        func read(_ id: String, at version: Date) { lock.withLock { versions[id] = version } }
+        func version(of id: String) -> Date? { lock.withLock { versions[id] } }
+    }
 
     /// `scope` is evaluated at each call: `.current()` reads Paul's setting every time.
     public init(database: AppDatabase, root: URL, scope: @autoclosure @escaping @Sendable () -> Scope, projects: ProjectDesk?,

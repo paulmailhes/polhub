@@ -28,7 +28,7 @@ extension MCPServer {
     /// `brouillon`'s parameters of 17/11: a draft the agents prepared, changed or deleted by its identifier.
     static var draftChangeProperties: [String: Any] { [
         "identifiant": ["type": "string",
-                        "description": "Pour changer un brouillon déjà préparé par un agent, au lieu d'en déposer un autre : son identifiant (donné par cet outil quand il l'a déposé, ou par `mails` avec « brouillons »). Seul ce qui est donné change : « texte » (et « format »), « objet », « a », « cc », « fichiers » (qui remplacent ceux joints). Jamais un brouillon écrit par Paul."],
+                        "description": "Pour changer un brouillon déjà préparé par un agent, au lieu d'en déposer un autre : son identifiant (donné par cet outil quand il l'a déposé, ou par `mails` avec « brouillons »). Seul ce qui est donné change : « texte » (en entier, et « format »), « objet », « a », « cc » ; les « fichiers » s'ajoutent. Si Paul l'a retouché, relis-le d'abord (`mails` avec « brouillons ») et repars de son texte. Jamais un brouillon écrit par Paul."],
         "supprimer": ["type": "boolean", "description": "Avec « identifiant » : supprime ce brouillon (dans Polhub et dans Gmail), quand Paul le demande."],
     ] }
 
@@ -46,9 +46,12 @@ extension MCPServer {
         case let other?: throw ToolError("« format » attend « texte » ou « markdown », pas « \(other) ». Pas de HTML : Polhub fait le mail mis en forme lui-même.")
         }
         if let which = Self.text(arguments["identifiant"]) {
-            if arguments["supprimer"] as? Bool == true { return try mails.discard(which) }
+            let ignored = ["quel", "tous", "boite"].filter { arguments[$0] != nil }
+            let note = ignored.isEmpty ? "" : " " + ignored.map { "« \($0) »" }.joined(separator: ", ")
+                + " ne change\(ignored.count > 1 ? "nt" : "") pas un brouillon existant : ignoré\(ignored.count > 1 ? "s" : "")."
+            if arguments["supprimer"] as? Bool == true { return try mails.discard(which) + note }
             return try mails.change(which, text: arguments["texte"] as? String ?? "", subject: Self.text(arguments["objet"]), to: strings("a"),
-                                    cc: strings("cc"), format: format, joining: strings("fichiers"))
+                                    cc: strings("cc"), format: format, joining: strings("fichiers")) + note
         }
         if arguments["supprimer"] as? Bool == true {
             throw ToolError("Il manque « identifiant » : celui du brouillon à supprimer (outil `mails` avec « brouillons »).")

@@ -359,7 +359,7 @@ struct MailDeskFixture {
         #expect(drops[0].to == [MailAddress(email: "nina@exemple.net")])
         // In Polhub's drafts: a request the app applies; the draft is untouched until then.
         try fixture.store.saveDraft(MailDraftRow(id: "brouillon-agent-01", account: fixture.account, mode: .new, to: [MailAddress(email: "nina@exemple.net")],
-                                                 subject: "Devis", body: "Bonjour", origin: .agent, createdAt: fixture.now))
+                                                 subject: "Devis", body: "Bonjour", origin: .agent, createdAt: fixture.now, agentVersionAt: fixture.now))
         _ = try fixture.desk().change("brouillon-agent-01", text: "**Bonjour** Nina", subject: nil, to: [], cc: [], format: .markdown)
         let request = try #require(try fixture.store.agentDrafts().last)
         #expect(request.replaces == "brouillon-agent-01" && !request.discard && request.body == "**Bonjour** Nina" && request.format == .markdown)
@@ -369,6 +369,17 @@ struct MailDeskFixture {
         #expect(try fixture.store.agentDrafts().allSatisfy { $0.id != id })
         _ = try fixture.desk().discard("brouillon-agent-01")
         #expect(try fixture.store.agentDrafts().last?.discard == true)
+        // Retouched by Paul: reread first, then changed from his text.
+        let desk = fixture.desk()
+        try fixture.store.saveDraft(MailDraftRow(id: "brouillon-agent-02", account: fixture.account, mode: .new, to: [MailAddress(email: "nina@exemple.net")],
+                                                 subject: "Planning", body: "Bonjour", bodyHTML: "<p><b>Bonjour</b> Nina</p>", origin: .agent,
+                                                 createdAt: fixture.now, updatedAt: fixture.now.addingTimeInterval(60), agentVersionAt: fixture.now))
+        #expect(throws: ToolError.self) { try desk.change("brouillon-agent-02", text: "De mémoire", subject: nil, to: [], cc: [], format: nil) }
+        let listed = try desk.drafts()
+        #expect(listed.contains("retouché par Paul") && listed.contains("**Bonjour** Nina") && listed.contains("format » markdown"))
+        _ = try desk.change("brouillon-agent-02", text: "**Bonjour** Nina, à jeudi", subject: nil, to: [], cc: [], format: nil)
+        let reread = try #require(try fixture.store.agentDrafts().last)
+        #expect(reread.replaces == "brouillon-agent-02" && reread.format == .markdown && reread.basedOn == fixture.now.addingTimeInterval(60))
         // Paul's own draft is never touched.
         try fixture.store.saveDraft(MailDraftRow(id: "brouillon-paul-01", account: fixture.account, mode: .new, subject: "Perso", body: "à moi", createdAt: fixture.now))
         #expect(throws: ToolError.self) { try fixture.desk().change("brouillon-paul-01", text: "x", subject: nil, to: [], cc: [], format: nil) }

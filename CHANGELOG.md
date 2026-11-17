@@ -3,6 +3,21 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.31.0 — 17 novembre 2026
+
+**Tes agents corrigent le brouillon qu'ils ont préparé, au lieu d'en refaire un.**
+
+- Quand tu demandes une correction, l'agent modifie le brouillon existant : il garde sa place, ses destinataires et
+  le message cité. Seul ce qu'il change bouge (texte, objet, destinataires d'un nouveau mail) ; les fichiers qu'il
+  joint s'ajoutent.
+- Il peut aussi le supprimer quand tu le lui demandes, dans Polhub et dans Gmail.
+- Il ne touche jamais un brouillon que tu as écrit toi-même, ni un brouillon programmé ou en train de partir.
+- Si tu as retouché son brouillon, il doit d'abord relire ta version et repartir de ton texte : il ne l'écrase pas
+  de mémoire. Une correction qui arrive après ta retouche est refusée, et Polhub te le dit.
+- La version corrigée reste dans Polhub, hors de Gmail, jusqu'à ce que tu l'aies vue : rien ne part par erreur depuis
+  ton téléphone. Une correction qui tombe pendant les secondes d'annulation d'un envoi annule l'envoi.
+- Un message en bas de Mails te dit ce qu'un agent a préparé, modifié, supprimé ou n'a pas pu changer.
+
 ## 0.30.1 — 17 novembre 2026
 
 **Des corrections sur la barre fixe des brouillons.**

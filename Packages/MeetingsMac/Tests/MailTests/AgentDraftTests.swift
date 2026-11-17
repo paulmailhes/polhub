@@ -160,8 +160,7 @@ import Testing
         try store.drop(drop)
         let draft = try #require(await engine.adoptAgentDrafts().first)
         // The draft takes the drop's identifier: the agent was given it.
-        #expect(draft.id == drop.id)
-        try store.markPushed(draftID: draft.id, gmailDraftID: "g-1", gmailMessageID: "gm-1", version: draft.updatedAt, at: draft.updatedAt)
+        #expect(draft.id == drop.id && !draft.retouchedByPaul)
         try store.drop(MailAgentDraftRow(mode: .reply, account: account, threadKey: thread, body: "**Merci** Camille, je valide.", createdAt: Date(),
                                          format: .markdown, replaces: draft.id))
         let pass = await engine.takeAgentDrafts()
@@ -169,14 +168,50 @@ import Testing
         let stored = try #require(try store.draft(draft.id))
         #expect(stored.body == "Merci Camille, je valide." && stored.bodyHTML?.contains("<b>Merci</b>") == true)
         #expect(stored.quoteHTML == draft.quoteHTML && stored.to == draft.to && stored.subject == draft.subject && stored.createdAt == draft.createdAt)
-        // Gmail holds an older version: the change goes there too, by the app's push.
-        #expect(stored.origin == .agent && stored.gmailDraftID == "g-1" && stored.needsPush)
+        // The agent's own version: not a retouch of Paul's.
+        #expect(stored.origin == .agent && !stored.retouchedByPaul)
         #expect(try store.agentDrafts().isEmpty)
         // Deleted: gone.
         try store.drop(MailAgentDraftRow(mode: .reply, account: account, threadKey: thread, body: "", createdAt: Date(), replaces: draft.id, discard: true))
         let gone = await engine.takeAgentDrafts()
         #expect(gone.discarded.map(\.id) == [draft.id])
         #expect(try store.draft(draft.id) == nil && store.agentDrafts().isEmpty)
+    }
+
+    /// A drop an agent changes while the app makes it a draft: the app waits for the next pass, the change is kept.
+    @Test func aDropChangedWhileTakenWaitsForTheNextPass() throws {
+        let database = try AppDatabase.inMemory()
+        try CalendarStore(database).addAccount(email: account, at: Date(timeIntervalSince1970: 1_794_562_920))
+        let store = MailStore(database)
+        let drop = MailAgentDraftRow(mode: .new, account: account, to: [MailAddress(email: "nina@exemple.net")], subject: "Devis", body: "Bonjour",
+                                     createdAt: Date(timeIntervalSince1970: 1_794_562_920))
+        try store.drop(drop)
+        let read = try #require(try store.agentDrafts().first)
+        var changed = read
+        changed.body = "Bonjour Nina"
+        #expect(try store.updateDrop(changed))
+        let draft = MailDraftRow(id: read.id, account: account, mode: .new, body: read.body, origin: .agent, createdAt: read.createdAt)
+        #expect(try !store.adopt(read.id, as: draft, expecting: read))
+        #expect(try store.draft(read.id) == nil && store.agentDrafts().first?.body == "Bonjour Nina")
+        #expect(try store.adopt(read.id, as: draft, expecting: try #require(try store.agentDrafts().first)))
+    }
+
+    /// A draft Gmail holds (Paul opened it): the agent's version never goes there before Paul has seen it; Gmail's
+    /// copy goes.
+    @Test func anAgentsVersionStaysOutOfGmail() async throws {
+        let (engine, gmail, store, root) = try await MailWritingTests().setUp()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try CalendarStore(store.database).setGrantedScopes(email: account, scopes: "openid https://www.googleapis.com/auth/gmail.modify")
+        try store.drop(MailAgentDraftRow(mode: .new, account: account, to: [MailAddress(email: "nina@exemple.net")], subject: "Devis", body: "Bonjour",
+                                         createdAt: Date()))
+        let draft = try #require(await engine.adoptAgentDrafts().first)
+        let gmailID = try #require(try await engine.push(draft.id).gmailDraftID)
+        try store.drop(MailAgentDraftRow(mode: .new, account: account, body: "Bonjour Nina", createdAt: Date(), replaces: draft.id,
+                                         basedOn: try store.draft(draft.id)?.updatedAt))
+        #expect(await engine.takeAgentDrafts().changed.count == 1)
+        let stored = try #require(try store.draft(draft.id))
+        #expect(stored.body == "Bonjour Nina" && stored.gmailDraftID == nil && stored.pushedAt == nil)
+        #expect(gmail.drafts[gmailID] == nil && gmail.calls.contains("DELETE /drafts/\(gmailID)"))
     }
 
     /// A new mail: only what the agent gives changes; the rest stays as it is, files included.
@@ -207,12 +242,25 @@ import Testing
         try store.drop(MailAgentDraftRow(mode: .new, account: account, body: "", createdAt: Date(), replaces: mine.id, discard: true))
         let refused = await engine.takeAgentDrafts()
         #expect(refused.refused.map(\.id) == [mine.id, mine.id] && refused.changed.isEmpty && refused.discarded.isEmpty)
+        #expect(refused.refused.allSatisfy { $0.reason == "tu l'as écrit toi-même" })
         #expect(try store.draft(mine.id)?.body == "Mon texte" && store.agentDrafts().isEmpty)
         try store.drop(MailAgentDraftRow(mode: .new, account: account, to: [MailAddress(email: "nina@exemple.net")], subject: "Devis", body: "Bonjour", createdAt: Date()))
         let leaving = try #require(await engine.adoptAgentDrafts().first)
         try store.drop(MailAgentDraftRow(mode: .new, account: account, body: "Trop tard", createdAt: Date(), replaces: leaving.id))
-        #expect(await engine.takeAgentDrafts(busy: [leaving.id]).refused.map(\.id) == [leaving.id])
+        let busy = await engine.takeAgentDrafts(busy: { $0 == leaving.id })
+        #expect(busy.refused.map(\.id) == [leaving.id] && busy.refused.first?.reason == "il est en train de partir")
         #expect(try store.draft(leaving.id)?.body == "Bonjour")
+        // Retouched by Paul since the agent read it: refused; read after the retouch: applied.
+        let read = try #require(try store.draft(leaving.id))
+        let retouched = try #require(try store.updateDraft(leaving.id, at: read.updatedAt.addingTimeInterval(60)) { $0.body = "Bonjour, de Paul" })
+        #expect(retouched.retouchedByPaul)
+        try store.drop(MailAgentDraftRow(mode: .new, account: account, body: "De mémoire", createdAt: Date(), replaces: leaving.id, basedOn: read.updatedAt))
+        let stale = await engine.takeAgentDrafts()
+        #expect(try stale.refused.first?.reason == "tu l'as retouché depuis que l'agent l'a lu" && store.draft(leaving.id)?.body == "Bonjour, de Paul")
+        try store.drop(MailAgentDraftRow(mode: .new, account: account, body: "Bonjour, de Paul, et la date", createdAt: Date(), replaces: leaving.id,
+                                         basedOn: retouched.updatedAt))
+        #expect(await engine.takeAgentDrafts().changed.count == 1)
+        #expect(try store.draft(leaving.id)?.body == "Bonjour, de Paul, et la date")
         // A draft gone meanwhile: the request goes, nothing is made.
         try store.drop(MailAgentDraftRow(mode: .new, account: account, body: "x", createdAt: Date(), replaces: "parti"))
         let none = await engine.takeAgentDrafts()

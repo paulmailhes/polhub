@@ -46,23 +46,29 @@ extension MailDesk {
         guard !waiting.isEmpty || !kept.isEmpty else {
             return (lines + ["Aucun. Les brouillons écrits par Paul ne se lisent ni ne se changent ici."]).joined(separator: "\n")
         }
+        let requests = try store.agentDrafts().compactMap(\.replaces)
         for draft in kept.prefix(30) {
             var parts = ["« \(draft.subject.isEmpty ? "(sans objet)" : Self.line(draft.subject)) »", kind(draft.mode, threadKey: draft.threadKey),
                          "boîte \(draft.account)", "modifié le \(moment(draft.updatedAt))"]
-            if draft.gmailDraftID != nil { parts.append("aussi dans les brouillons de Gmail") }
+            if draft.retouchedByPaul { parts.append("retouché par Paul : repars de ce texte") }
+            if requests.contains(draft.id) { parts.append("une modification demandée attend que Polhub l'applique") }
             lines.append("- [\(draft.id)] " + parts.joined(separator: " · "))
-            lines += details(to: draft.to, cc: draft.cc, body: draft.body, files: draft.files.map(\.filename))
+            // Formatted: given as the little markdown, to give back with « format » markdown and keep its formatting.
+            let text = draft.bodyHTML.map(MailRichText.markdown) ?? draft.body
+            lines += details(to: draft.to, cc: draft.cc, body: text, files: draft.files.map(\.filename), markdown: draft.bodyHTML != nil)
+            seen.read(draft.id, at: draft.updatedAt)
         }
         for drop in waiting.prefix(30) {
             let parts = ["« \(drop.subject.isEmpty ? "(objet du fil)" : Self.line(drop.subject)) »", kind(drop.mode, threadKey: drop.threadKey),
                          drop.account.map { "boîte \($0)" } ?? "", "déposé le \(moment(drop.createdAt))",
                          "pas encore dans Polhub : il y entre à son ouverture"].filter { !$0.isEmpty }
             lines.append("- [\(drop.id)] " + parts.joined(separator: " · "))
-            lines += details(to: drop.to, cc: drop.cc, body: drop.body, files: drop.files.map(\.filename))
+            lines += details(to: drop.to, cc: drop.cc, body: drop.body, files: drop.files.map(\.filename), markdown: drop.format == .markdown)
         }
         lines.append("")
-        lines.append("Pour en changer un : `brouillon` avec son « identifiant » et ce qui change (« texte », « objet », « a », « cc », « fichiers »). "
-                     + "Pour le supprimer : « identifiant » et « supprimer ». Les brouillons écrits par Paul ne se lisent ni ne se changent ici.")
+        lines.append("Pour en changer un : `brouillon` avec son « identifiant » et ce qui change (« texte » en entier, « objet », « a », « cc », "
+                     + "« fichiers » qui s'ajoutent). Repars du texte ci-dessus : il garde ce que Paul y a retouché. Pour le supprimer : « identifiant » "
+                     + "et « supprimer ». Les brouillons écrits par Paul ne se lisent ni ne se changent ici.")
         return lines.joined(separator: "\n")
     }
 
@@ -76,10 +82,11 @@ extension MailDesk {
         }
     }
 
-    private func details(to: [MailAddress], cc: [MailAddress], body: String, files: [String]) -> [String] {
+    private func details(to: [MailAddress], cc: [MailAddress], body: String, files: [String], markdown: Bool) -> [String] {
         var lines: [String] = []
         if !to.isEmpty { lines.append("  À : " + to.map(address).joined(separator: ", ")) }
         if !cc.isEmpty { lines.append("  Cc : " + cc.map(address).joined(separator: ", ")) }
+        lines.append(markdown ? "  Texte, mis en forme (à renvoyer avec « format » markdown) :" : "  Texte :")
         let text = HTMLText.clean(body)
         let shown = text.count > 4_000 ? String(text.prefix(4_000)) + " […]" : text
         lines += shown.split(separator: "\n", omittingEmptySubsequences: false).map { "  > " + $0 }
@@ -114,6 +121,11 @@ extension MailDesk {
             throw ToolError("« \(Self.line(draft.subject)) » est un brouillon écrit par Paul : un agent ne le change ni ne le supprime. "
                             + "Dis à Paul ce qu'il faudrait changer, ou dépose un autre brouillon s'il le demande.")
         }
+        // Retouched by Paul since this session read it: reread first, never write over his changes from memory.
+        if draft.retouchedByPaul, seen.version(of: draft.id) != draft.updatedAt {
+            throw ToolError("Paul a retouché « \(Self.line(draft.subject)) » depuis ta dernière lecture : relis-le avec `mails` et « brouillons », "
+                            + "puis repars de son texte pour garder ses changements. Rien n'a changé.")
+        }
         if let key = draft.threadKey {
             let rules = try store.filingRules()
             guard try readable(rules).contains(where: { $0.id == key }) else {
@@ -147,6 +159,7 @@ extension MailDesk {
             notes.append("Pour une réponse, l'objet et les destinataires viennent du fil : « objet », « a » et « cc » sont ignorés.")
         }
         if case .waiting(var drop) = target {
+            var added: [MailDraftFile] = []
             if !body.isEmpty {
                 drop.body = body
                 drop.format = format ?? drop.format
@@ -157,20 +170,25 @@ extension MailDesk {
                 if !copies.isEmpty { drop.cc = copies }
             }
             if !chosen.isEmpty {
-                try? FileManager.default.removeItem(at: files.agentFolder(id: drop.id))
-                drop.files = try stage(chosen, for: drop.id)
+                let names = Set(chosen.map(\.name))
+                guard drop.files.filter({ !names.contains($0.filename) }).count + chosen.count <= Self.maximumFiles else {
+                    throw ToolError("\(Self.maximumFiles) fichiers au plus par brouillon. Rien n'a changé.")
+                }
+                for name in names { try? FileManager.default.removeItem(at: files.agentFolder(id: drop.id).appending(path: name)) }
+                added = try stage(chosen, for: drop.id)
+                drop.files = drop.files.filter { !names.contains($0.filename) } + added
             }
             if try store.updateDrop(drop) {
-                return answer("modifié", target, notes: notes, files: drop.files)
+                return answer("modifié", target, notes: notes, files: added)
             }
             // Taken by the app meanwhile: it is a draft in Polhub now, with the same identifier.
-            if !chosen.isEmpty { try? FileManager.default.removeItem(at: files.agentFolder(id: drop.id)) }
             return try change(drop.id, text: text, subject: subject, to: to, cc: cc, format: format, joining: paths)
         }
         guard case .draft(let draft) = target else { return "" }
         var request = MailAgentDraftRow(mode: draft.mode, account: draft.account, threadKey: draft.threadKey,
                                         to: isReply ? [] : people, cc: isReply ? [] : copies, subject: isReply ? "" : title, body: body,
-                                        createdAt: now(), format: format ?? (draft.bodyHTML != nil ? .markdown : .plain), replaces: draft.id)
+                                        createdAt: now(), format: format ?? (draft.bodyHTML != nil ? .markdown : .plain), replaces: draft.id,
+                                        basedOn: draft.updatedAt)
         request.files = try stage(chosen, for: request.id)
         do {
             try store.drop(request)
@@ -195,24 +213,29 @@ extension MailDesk {
             return try discard(drop.id)
         case .draft(let draft):
             try store.drop(MailAgentDraftRow(mode: draft.mode, account: draft.account, threadKey: draft.threadKey, body: "", createdAt: now(),
-                                             replaces: draft.id, discard: true))
+                                             replaces: draft.id, discard: true, basedOn: draft.updatedAt))
             return answer("supprimé", target, notes: [], files: [])
         }
     }
 
     private func answer(_ done: String, _ target: Changeable, notes: [String], files: [MailDraftFile]) -> String {
         let name = target.subject.isEmpty ? "le brouillon" : "« \(Self.line(target.subject)) »"
+        let deleted = done == "supprimé"
         var text: String
         switch target {
         case .waiting:
-            text = "Brouillon \(name) \(done) (identifiant \(target.id)) : Polhub le prendra ainsi à son ouverture. "
+            text = deleted ? "Brouillon \(name) supprimé (identifiant \(target.id)) : il n'était pas encore entré dans Polhub. "
+                : "Brouillon \(name) modifié (identifiant \(target.id)) : Polhub le prendra ainsi à son ouverture. "
         case .draft:
-            text = "Brouillon \(name) \(done) dans Polhub (identifiant \(target.id)), dans les secondes qui viennent. "
-                + "Un brouillon que Paul a programmé ou qui part en ce moment n'est pas touché : Polhub le lui dit. "
+            text = "Demande déposée : Polhub \(deleted ? "supprime" : "modifie") \(name) (identifiant \(target.id)) dès qu'il est ouvert"
+                + (deleted ? ", dans Gmail aussi. " : ". ")
+                + "Il refuse, et le dit à Paul, si le brouillon est programmé, en train de partir ou retouché par Paul entre-temps. "
+            if !deleted { text += "La version de l'agent reste dans Polhub, hors de Gmail, jusqu'à ce que Paul l'ait vue. " }
         }
         if !files.isEmpty {
-            text += "Fichiers joints, à la place des précédents : " + files.map { "« \($0.filename) » (\(Self.size($0.size)))" }.joined(separator: ", ") + ". "
+            text += "Fichiers joints en plus : " + files.map { "« \($0.filename) » (\(Self.size($0.size)))" }.joined(separator: ", ") + ". "
         }
-        return text + notes.map { $0 + " " }.joined() + "Paul le relit et l'envoie lui-même : aucun outil ne peut l'envoyer."
+        text += notes.map { $0 + " " }.joined()
+        return text + (deleted ? "" : "Paul le relit et l'envoie lui-même : aucun outil ne peut l'envoyer.")
     }
 }

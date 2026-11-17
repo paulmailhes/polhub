@@ -369,13 +369,21 @@ public struct MailStore: Sendable {
 
     /// The app made a draft of what the agent dropped: the draft takes its place, in one transaction. False
     /// when the drop was already taken.
+    /// `expecting`: the drop as the app read it; changed meanwhile by an agent (17/11), it waits for the next pass.
     @discardableResult
-    public func adopt(_ agentDraftID: String, as draft: MailDraftRow) throws -> Bool {
+    public func adopt(_ agentDraftID: String, as draft: MailDraftRow, expecting: MailAgentDraftRow? = nil) throws -> Bool {
         try writer.write { db in
-            guard try MailAgentDraftRow.fetchOne(db, key: agentDraftID) != nil else { return false }
+            guard let current = try MailAgentDraftRow.fetchOne(db, key: agentDraftID), expecting.map({ $0 == current }) ?? true else { return false }
             try draft.insert(db)
             _ = try MailAgentDraftRow.deleteOne(db, key: agentDraftID)
             return true
+        }
+    }
+
+    /// The version an agent just gave a draft (17/11).
+    public func setAgentVersion(_ id: String, at date: Date) throws {
+        try writer.write { db in
+            try db.execute(sql: "UPDATE mail_draft SET agentVersionAt = ? WHERE id = ?", arguments: [date, id])
         }
     }
 
