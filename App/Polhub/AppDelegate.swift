@@ -1,4 +1,5 @@
 import AppKit
+import Colin
 import Combine
 import Domain
 import Inspiration
@@ -33,11 +34,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         quit: { NSApp.terminate(nil) }
     ))
     let runner = ProbeRunner()
-    /// The probe of Colin on the Diagnostic page (17/11): never during a meeting, and stopped when one begins.
+    /// The probe of Colin on the Diagnostic page (17/11): never during a meeting, and stopped when one begins,
+    /// when the Mac goes to sleep, or by hand.
     private(set) lazy var colinProbe = ColinProbeControl(
         isQuiet: { [weak self] in !(await self?.recordingOrTranscribing() ?? false) },
         start: { [weak self] account, onFinish in
-            self?.runner.start(ProbeRequest(probe: .colin, variant: account), onFinish: onFinish) ?? false
+            guard let self else { return "Polhub se ferme." }
+            guard self.runner.running == nil else { return "Une autre sonde tourne déjà." }
+            // What the runner says of a start it could not make (the trace, the probe itself) is shown as it is.
+            return self.runner.start(ProbeRequest(probe: .colin, variant: account), onFinish: onFinish)
+                ? nil : (self.runner.message ?? "La sonde n'a pas pu être lancée.")
         },
         stop: { [weak self] in self?.runner.stop() },
         report: { [weak self] in
@@ -60,6 +66,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var inspirationAutomation: InspirationAutomation?
     private var inspirationTimer: Timer?
     private var wakeObserver: NSObjectProtocol?
+    /// The Mac's sleep and wake, told to the probe of Colin.
+    private var powerObservers: [NSObjectProtocol] = []
     private var agendaTimer: Timer?
     /// The notifications (14/11): reminders, new events, meetings not recorded, summaries ready.
     private var notifications: NotificationHub?
@@ -149,8 +157,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             // A meeting this copy was recording is resumed by the agent's copy (crash recovery).
             DistributedNotificationCenter.default().addObserver(
                 forName: Self.yieldNotification, object: nil, queue: .main
-            ) { _ in exit(0) }
+            ) { [weak self] _ in
+                // A probe under way ends with this copy, and the Claude Code it launched with it.
+                MainActor.assumeIsolated { self?.stopClaude() }
+                exit(0)
+            }
         }
+        watchPower()
 
         Task {
             await LaunchJournal.record("launch", LaunchRecord(origin: origin, pid: getpid(), probe: request?.probe.rawValue))
@@ -495,23 +508,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
     /// A meeting (from the pop-up to the end) or a transcription: nothing heavy runs meanwhile.
     private func recordingOrTranscribing() async -> Bool {
+        let transcribing = await transcription?.isRunning ?? false
+        // The app's own state is read last, with nothing waited for after it: a meeting that began while the
+        // transcription was asked is seen (17/11).
         switch model.status {
         case .prompting, .recording, .presumedEnded: return true
-        case .idle, .paused: break
+        case .idle, .paused: return transcribing
         }
-        return await transcription?.isRunning ?? false
     }
 
     /// No meeting (from the pop-up to the end) and no transcription under way.
     private func isQuiet() async -> Bool {
+        // What must be waited for is asked first; the app's own state is read after, and nothing waits after it.
+        // A collection or the tagging under way: they finish first (16/11).
+        let collecting = await inspirationAutomation?.isRunning ?? false
+        let summarizing = await summaries?.isRunning ?? false
         if await recordingOrTranscribing() { return false }
         // A probe under way finishes first: an update now would cut it, and leave its Claude Code behind (17/11).
         if runner.running != nil { return false }
         // A mail leaving waits ten seconds in memory: an update now would call it back (14/11).
         if mails?.isSending == true { return false }
-        // A collection or the tagging under way: they finish first (16/11).
-        if await inspirationAutomation?.isRunning ?? false { return false }
-        return !(await summaries?.isRunning ?? false)
+        return !collecting && !summarizing
+    }
+
+    /// The Mac goes to sleep: the probe of Colin stops. It wakes: nothing is launched for a few minutes (17/11).
+    private func watchPower() {
+        let center = NSWorkspace.shared.notificationCenter
+        powerObservers = [
+            center.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.colinProbe.macWillSleep() }
+            },
+            center.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.colinProbe.macWoke() }
+            },
+        ]
+    }
+
+    /// The app is going, by whatever way: the probe under way stops, and every Claude Code that Polhub launched is
+    /// asked to stop, then killed if it stays. It returns once they are gone (two seconds at most).
+    func stopClaude() {
+        runner.stop()
+        ClaudeProcesses.shared.stopAll()
     }
 
     /// Reads Dia and feeds the coordinator, or stops doing so.
@@ -785,7 +822,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
     /// A probe under way ends with the app: the Claude Code it launched is told at once, never left behind (17/11).
     func applicationWillTerminate(_ notification: Notification) {
-        runner.stop()
+        stopClaude()
     }
 
     /// The relaunch agent restarts the app after an abnormal exit only: a plain `kill` must end with code 0.
@@ -794,7 +831,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
         source.setEventHandler { [weak self] in
             // The handler runs on the main queue: a probe under way stops its Claude Code before the app goes.
-            MainActor.assumeIsolated { self?.runner.stop() }
+            MainActor.assumeIsolated { self?.stopClaude() }
             exit(0)
         }
         source.resume()

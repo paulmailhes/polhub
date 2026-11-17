@@ -42,6 +42,9 @@ targets:
         product: Persistence
       - package: MeetingsMac
         product: ProbeKit
+      # Colin (17/11): the Claude Code that Polhub launches, stopped with the app.
+      - package: MeetingsMac
+        product: Colin
       - package: MeetingsMac
         product: MeetingDetection
       - package: MeetingsMac
@@ -107,6 +110,9 @@ targets:
         product: Persistence
       - package: MeetingsMac
         product: ProbeKit
+      # Colin (17/11): the Claude Code that Polhub launches, stopped with the app.
+      - package: MeetingsMac
+        product: Colin
       - package: MeetingsMac
         product: MeetingDetection
       - package: MeetingsMac

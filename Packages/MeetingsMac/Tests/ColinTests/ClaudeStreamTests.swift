@@ -6,24 +6,55 @@ import Testing
 @Suite struct ClaudeStreamTests {
     func event(_ json: String) -> ClaudeEvent? { ClaudeStream.decode(Data(json.utf8)) }
 
+    /// The lists every `init` of Claude Code 2.1.304 carries, empty (measured on 17/11). Its memory is not one of
+    /// them: with the memory off, the line says nothing of it.
+    static let lists = #""tools":[],"mcp_servers":[],"plugins":[],"skills":[],"slash_commands":[],"additional_directories":[]"#
+
     @Test func theInitTellsWhatIsLoaded() {
-        let e = event(#"{"type":"system","subtype":"init","apiKeySource":"none","claude_code_version":"2.1.304","cwd":"/tmp/x","tools":["mcp__polhub__projets"],"mcp_servers":[{"name":"polhub","status":"connected"}],"model":"claude-haiku-4-5","permissionMode":"dontAsk","slash_commands":[],"skills":[],"plugins":[{"name":"p","path":"/x"}],"capabilities":["interrupt_receipt_v1"],"uuid":"u","session_id":"s"}"#)
+        let e = event(#"{"type":"system","subtype":"init","apiKeySource":"none","claude_code_version":"2.1.304","cwd":"/tmp/x","tools":["mcp__polhub__projets"],"mcp_servers":[{"name":"polhub","status":"connected"}],"model":"claude-haiku-4-5","permissionMode":"dontAsk","slash_commands":[],"skills":[],"plugins":[{"name":"p","path":"/x"}],"additional_directories":[],"capabilities":["interrupt_receipt_v1"],"uuid":"u","session_id":"s"}"#)
         #expect(e == .initialized(ClaudeInit(version: "2.1.304", model: "claude-haiku-4-5", permissionMode: "dontAsk", apiKeySource: "none",
             tools: ["mcp__polhub__projets"], servers: ["polhub": "connected"], plugins: 1, skills: 0, slashCommands: 0, capabilities: ["interrupt_receipt_v1"])))
     }
 
-    /// As Claude Code 2.1.304 says it (measured on 17/11): its own plugins are named « builtin », and it tells the
-    /// memory files, the extra folders and the agents it loaded.
+    /// As Claude Code 2.1.304 says it (measured on 17/11): its own plugins are named « builtin », and it tells its
+    /// memory (an object, one key by kind: « auto » is the memory it keeps by itself), the extra folders and the
+    /// agents it loaded.
     @Test func thePluginsBuiltIntoClaudeCodeAreCountedApart() {
-        let e = event(#"{"type":"system","subtype":"init","plugins":[{"name":"cc-plugin-telemetry","path":"builtin","source":"cc-plugin-telemetry@builtin"},{"name":"cc-plugin-agents-md","path":"builtin","source":"cc-plugin-agents-md@builtin"},{"name":"le-mien","path":"/x/plugins/le-mien","source":"le-mien@quelque-part"}],"memory_paths":["/x/CLAUDE.md"],"additional_directories":["/x/a","/x/b"],"agents":["claude","Explore"],"messaging_socket_path":"/tmp/cc.sock"}"#)
+        let e = event(#"{"type":"system","subtype":"init","tools":[],"mcp_servers":[],"skills":[],"slash_commands":[],"plugins":[{"name":"cc-plugin-telemetry","path":"builtin","source":"cc-plugin-telemetry@builtin"},{"name":"cc-plugin-agents-md","path":"builtin","source":"cc-plugin-agents-md@builtin"},{"name":"le-mien","path":"/x/plugins/le-mien","source":"le-mien@quelque-part"}],"memory_paths":{"auto":"/x/projects/y/memory"},"additional_directories":["/x/a","/x/b"],"agents":["claude","Explore"],"messaging_socket_path":"/tmp/cc.sock"}"#)
         #expect(e == .initialized(ClaudeInit(plugins: 1, builtinPlugins: 2, memoryPaths: 1, directories: 2, agents: ["claude", "Explore"], messaging: true)))
-        #expect(event(#"{"type":"system","subtype":"init","messaging_socket_path":""}"#) == .initialized(ClaudeInit()))
+        #expect(event(#"{"type":"system","subtype":"init",\#(Self.lists),"messaging_socket_path":""}"#) == .initialized(ClaudeInit()))
     }
 
     /// Only what Claude Code itself calls « builtin » by its path is its own: a name that looks like it is not enough.
     @Test func aPluginThatOnlyLooksBuiltInIsTheUsers() {
-        let e = event(#"{"type":"system","subtype":"init","plugins":[{"name":"faux","path":"/x/plugins/faux","source":"faux@builtin"}]}"#)
+        let e = event(#"{"type":"system","subtype":"init","tools":[],"mcp_servers":[],"skills":[],"slash_commands":[],"additional_directories":[],"plugins":[{"name":"faux","path":"/x/plugins/faux","source":"faux@builtin"}]}"#)
         #expect(e == .initialized(ClaudeInit(plugins: 1, builtinPlugins: 0)))
+    }
+
+    /// A list that is not there is not an empty list: nothing can be said of what it would have told.
+    @Test func aListTheInitDoesNotCarryIsToldMissing() {
+        #expect(event(#"{"type":"system","subtype":"init"}"#)
+            == .initialized(ClaudeInit(missing: ["tools", "mcp_servers", "plugins", "skills", "slash_commands", "additional_directories"])))
+        // A list of another shape (plain names where objects are expected) is missing too.
+        #expect(event(#"{"type":"system","subtype":"init","tools":[],"mcp_servers":[],"plugins":["un-nom"],"skills":[],"slash_commands":[],"additional_directories":[]}"#)
+            == .initialized(ClaudeInit(missing: ["plugins"])))
+    }
+
+    /// The memory, as Claude Code 2.1.304 says it (measured on 17/11): nothing at all when it is off, an object
+    /// with one key by kind when it is on. Any other shape is a memory too: it is there, whatever it holds.
+    @Test func theMemoryIsCountedWhateverItsShape() {
+        func memory(_ value: String?) -> ClaudeEvent? {
+            event(#"{"type":"system","subtype":"init",\#(Self.lists)\#(value.map { #","memory_paths":"# + $0 } ?? "")}"#)
+        }
+        #expect(memory(nil) == .initialized(ClaudeInit()))
+        #expect(memory(#"{"auto":"/x/projects/y/memory"}"#) == .initialized(ClaudeInit(memoryPaths: 1)))
+        #expect(memory(#"{"auto":"/x/a","user":"/x/b"}"#) == .initialized(ClaudeInit(memoryPaths: 2)))
+        #expect(memory(#"["/x/CLAUDE.md","/y/CLAUDE.md","/z/CLAUDE.md"]"#) == .initialized(ClaudeInit(memoryPaths: 3)))
+        #expect(memory(#""/x/CLAUDE.md""#) == .initialized(ClaudeInit(memoryPaths: 1)))
+        // Present and empty: nothing loaded.
+        #expect(memory("{}") == .initialized(ClaudeInit()))
+        #expect(memory("[]") == .initialized(ClaudeInit()))
+        #expect(memory("null") == .initialized(ClaudeInit()))
     }
 
     @Test func aPartialMessageGivesItsText() {
@@ -48,6 +79,10 @@ import Testing
         #expect(event(#"{"type":"user","message":{"role":"user","content":[{"type":"text","text":"[Request interrupted by user]"}]},"parent_tool_use_id":null,"timestamp":"2026-11-17T22:00:00Z"}"#)
             == .other("user/interruption"))
         #expect(event(#"{"type":"user","message":{"role":"user","content":[{"type":"text","text":"Un message venu d'ailleurs"}]}}"#) == .other("user"))
+        #expect(event(#"{"type":"user","message":{"role":"user","content":[{"type":"text","text":"[Request interrupted by user for tool use]"}]}}"#) == .other("user/interruption"))
+        // The mark and nothing else: a text that only begins like it, or the mark with something more, is a message.
+        #expect(event(#"{"type":"user","message":{"role":"user","content":[{"type":"text","text":"[Request interrupted by user] puis fais ceci"}]}}"#) == .other("user"))
+        #expect(event(#"{"type":"user","message":{"role":"user","content":[{"type":"text","text":"[Request interrupted by user]"},{"type":"text","text":"autre chose"}]}}"#) == .other("user"))
     }
 
     @Test func aRateLimitGivesBothWindows() {
@@ -79,7 +114,7 @@ import Testing
     @Test func anUnknownLineIsKeptAsOther() {
         #expect(event(#"{"type":"system","subtype":"session_state_changed","state":"idle"}"#) == .other("system/session_state_changed"))
         #expect(event(#"{"type":"nouveau_message_de_demain"}"#) == .other("nouveau_message_de_demain"))
-        #expect(event(#"{"type":"system","subtype":"init"}"#) == .initialized(ClaudeInit()))
+        #expect(event(#"{"type":"system","subtype":"init",\#(Self.lists)}"#) == .initialized(ClaudeInit()))
         #expect(event("pas du JSON") == nil)
         #expect(event(#"["un","tableau"]"#) == nil)
         #expect(event(#"{"sans":"type"}"#) == nil)

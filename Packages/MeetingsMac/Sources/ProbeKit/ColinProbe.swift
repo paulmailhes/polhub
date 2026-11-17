@@ -22,8 +22,9 @@ public struct ColinMeasure: Codable, Sendable, Equatable {
 
 /// Step 0 of Colin (17/11): does the Claude Code of this Mac answer from Polhub as an API would? The connection, what
 /// loads, the tools, a conversation with an interruption, the failures, the cost. Invented texts only, one process at
-/// a time. A Claude that is not connected, does not answer or cannot start stops the probe at whatever launch it
-/// shows: nothing is tried after it.
+/// a time, each one gone before the next begins. A Claude that is not connected, has reached its limit, does not
+/// answer, cannot start or loaded more than what was asked stops the probe at whatever launch it shows: nothing is
+/// tried after it.
 public struct ColinProbe: Probe {
     public typealias Tool = @Sendable (URL, [String], [String: String]) async -> (code: Int32, output: String)?
 
@@ -78,8 +79,8 @@ public struct ColinProbe: Probe {
         report(in: directory)?["ok"] as? Bool
     }
 
-    /// Why the probe stopped early, when it knows: « introuvable », « pas-connecte », « sans-reponse »,
-    /// « lancement-impossible ».
+    /// Why the probe stopped early, when it knows: « introuvable », « pas-connecte », « limite-atteinte »,
+    /// « sans-reponse », « lancement-impossible », « isolation », « erreur ».
     public static func reason(in directory: URL) -> String? {
         report(in: directory)?["raison"] as? String
     }
@@ -110,7 +111,7 @@ public struct ColinProbe: Probe {
 
 // MARK: - One launch that answers once
 
-private struct Outcome {
+private struct Outcome: Sendable {
     var initial: ClaudeInit?
     var initMs: Double?
     var firstWordMs: Double?
@@ -121,8 +122,11 @@ private struct Outcome {
     var tools: [String] = []
     var limits: [ClaudeRateLimit] = []
     var unexpected: [String] = []
+    /// Stopped by the probe's delay.
     var timedOut = false
     var couldNotStart = false
+    /// Stopped because the probe itself was.
+    var cancelled = false
 
     var succeeded: Bool { result.map { $0.subtype == "success" && !$0.isError } ?? false }
 }
@@ -139,11 +143,35 @@ private func milliseconds(_ duration: Duration) -> Double {
     return (value * 10).rounded() / 10
 }
 
-/// The partial messages, Claude Code's own notices and its mark of an interruption are expected; any other line
-/// nobody asked for is counted and named: it may be a message of another session.
-private func isExpected(_ name: String) -> Bool {
-    name.hasPrefix("stream_event/") || name.hasPrefix("system/") || name == "keep_alive" || name == "user/interruption"
+/// A part from 0 to 1 → a percentage with one decimal.
+private func percent(_ part: Double?) -> Double? {
+    part.map { ($0 * 1_000).rounded() / 10 }
 }
+
+private let wordCharacters = Set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_[]")
+
+/// A word of Claude Code's own (a version, a model, a mode, the name of a tool), kept only when it looks like one:
+/// short, made of letters, digits and « . - _ [ ] ». Anything else (a path, an address, a sentence) is « autre »:
+/// the trace is meant to be shown, and holds nothing of the user's.
+private func word(_ text: String?) -> String {
+    guard let text, !text.isEmpty else { return "" }
+    return text.count <= 64 && text.allSatisfy(wordCharacters.contains) ? text : "autre"
+}
+
+/// The name of a line: « type » or « type/subtype », each one a technical word; anything else is « autre ».
+private func lineName(_ name: String) -> String {
+    let parts = name.split(separator: "/", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+    return parts.allSatisfy { !$0.isEmpty && word($0) == $0 } ? name : "autre"
+}
+
+/// The partial messages and Claude Code's own notices are expected; any other line nobody asked for is counted and
+/// named: it may be a message of another session. The mark of an interruption is expected only where the probe
+/// itself interrupted or stopped Claude Code.
+private func isExpected(_ name: String) -> Bool {
+    name.hasPrefix("stream_event/") || name.hasPrefix("system/") || name == "keep_alive"
+}
+
+private let interruptionMark = "user/interruption"
 
 /// What Claude Code says when the account is not connected.
 private func saysNotConnected(_ text: String) -> Bool {
@@ -158,14 +186,22 @@ private struct Run {
 
     typealias Texts = ColinProbeTexts
     static let allowed = "mcp__polhub__projets"
+    /// What the first launch may read, in tokens. Measured on 17/11 with Claude Code 2.1.304: 620 to 660 with
+    /// nothing of the user's. Instructions of his own, or a memory, weigh more than the margin left here.
+    static let contextCeiling = 1_000.0
 
     let probe: ColinProbe
     let account: URL?
     let trace: TraceWriter
     let directory: URL
-    /// The name of the launches' working folder: Claude Code would name a conversation's folder after it.
+    /// The name of the run's own folders. Claude Code would name a conversation's folder after the first one.
     let token: String
+    /// Where the launches run: an empty folder among the temporary ones, whose path says nothing of the user
+    /// (Claude Code may tell the model where it runs).
     let work: URL
+    /// The run's own folder in the measure's: the base of the tools and the empty account. Only these two folders
+    /// are removed at the end.
+    let scratch: URL
     let clock = ContinuousClock()
     let began: ContinuousClock.Instant
     var measures: [ColinMeasure] = []
@@ -181,7 +217,8 @@ private struct Run {
         self.trace = trace
         self.directory = directory
         token = "colin-sonde-" + UUID().uuidString.prefix(8).lowercased()
-        work = directory.appending(path: token, directoryHint: .isDirectory)
+        work = FileManager.default.temporaryDirectory.appending(path: token, directoryHint: .isDirectory)
+        scratch = directory.appending(path: token, directoryHint: .isDirectory)
         began = clock.now
     }
 
@@ -193,14 +230,14 @@ private struct Run {
         ClaudeCommand(model: "haiku", systemPrompt: Texts.system, prompt: Texts.ping, maxTurns: 1, configDirectory: account)
     }
 
-    private var base: URL { directory.appending(path: "base", directoryHint: .isDirectory) }
-    private var emptyAccount: URL { directory.appending(path: "compte-vide", directoryHint: .isDirectory) }
+    private var base: URL { scratch.appending(path: "base", directoryHint: .isDirectory) }
+    private var emptyAccount: URL { scratch.appending(path: "compte-vide", directoryHint: .isDirectory) }
 
     mutating func go() async {
         let end = await steps()
         await close(end)
-        // Nothing of the run stays but its trace and its report.
-        for folder in [work, base, emptyAccount] { try? FileManager.default.removeItem(at: folder) }
+        // Nothing of the run stays but its trace and its report: its two folders go, and nothing else is touched.
+        for folder in [work, scratch] { try? FileManager.default.removeItem(at: folder) }
     }
 
     private mutating func note(_ step: String, ok: Bool, _ numbers: [String: Double] = [:], _ labels: [String: String] = [:]) async {
@@ -222,23 +259,29 @@ private struct Run {
             return .arretee
         }
         let version = await probe.tool(binary, ["--version"], toolEnvironment)
+        if await mustStop() { return .interrompue }
         await note("binaire", ok: true, ["trouve": 1], ["sorte": ClaudeBinary.kind(of: binary, home: probe.home), "version": Self.version(version?.output)])
 
         let root = account ?? probe.home.appending(path: ".claude", directoryHint: .isDirectory)
         let busyBefore = probe.busySessions(root)
 
         let before = await connected(binary)
-        await note("compte", ok: before.connected == true, before.connected.map { ["connecte": $0 ? 1 : 0] } ?? [:], before.labels)
         if await mustStop() { return .interrompue }
+        await note("compte", ok: before.connected == true, before.connected.map { ["connecte": $0 ? 1 : 0] } ?? [:], before.labels)
         // An account that says it is not connected: nothing is launched at all.
         if before.connected == false {
             reason = "pas-connecte"
             return .arretee
         }
 
-        // The connection, and what Claude Code loaded.
+        // The connection, and what Claude Code loaded. A file of instructions waits in the launches' folder, on
+        // purpose: the first launch asks for its word, which a Claude closed on itself does not know.
         try? FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
-        let first = await launch(ping, binary)
+        let planted = (try? Data(Texts.memoryFile.utf8).write(to: work.appending(path: "CLAUDE.md"))) != nil
+        var asking = ping
+        asking.prompt = Texts.memoryRequest
+        let first = await launch(asking, binary)
+        if Task.isCancelled { return .interrompue }
         let start = first.initial
         var connection: [String: Double] = [
             "initMs": first.initMs ?? -1, "totalMs": first.totalMs, "coutUSD": first.result?.costUSD ?? 0,
@@ -246,17 +289,18 @@ private struct Run {
         ]
         connection["premierMotMs"] = first.firstWordMs
         await note("connexion", ok: first.succeeded && first.totalMs < 10_000, connection,
-                   ["cle": start?.apiKeySource ?? "", "modele": start?.model ?? "", "mode": start?.permissionMode ?? "", "version": start?.version ?? ""])
-        if Task.isCancelled { return .interrompue }
+                   ["cle": word(start?.apiKeySource), "modele": word(start?.model), "mode": word(start?.permissionMode), "version": word(start?.version)])
         guard first.succeeded else {
-            // Not connected, no answer, or anything else: said once, and nothing is launched again.
+            // Not connected, at its limit, no answer, or an error of its own: said once, and nothing is launched again.
             let failure = Self.failure(first)
             await note("panne", ok: failure.ok, failure.numbers, failure.labels)
-            reason = Self.breakdown(first)
+            reason = Self.breakdown(first) ?? "erreur"
             return .arretee
         }
         // Nothing of the user's may have come along. Claude Code's own plugins and agents always do, and its socket
-        // for the other sessions may be open: they are told, and are no fault.
+        // for the other sessions may be open: they are told, and are no fault. A list that Claude Code no longer
+        // gives proves nothing: it is a fault too. Its first line never tells the instructions it read (measured on
+        // 17/11): those show by the word of the file, and by the size of what the launch read.
         let loaded: [String: Double] = [
             "outils": Double(start?.tools.count ?? -1), "serveurs": Double(start?.servers.count ?? -1), "plugins": Double(start?.plugins ?? -1),
             "skills": Double(start?.skills ?? -1), "commandes": Double(start?.slashCommands ?? -1),
@@ -265,7 +309,20 @@ private struct Run {
         let told: [String: Double] = [
             "pluginsIntegres": Double(start?.builtinPlugins ?? 0), "agents": Double(start?.agents.count ?? 0), "messagerie": start?.messaging == true ? 1 : 0,
         ]
-        await note("isolation", ok: loaded.values.allSatisfy { $0 == 0 }, loaded.merging(told) { first, _ in first })
+        let read = first.result?.text.contains(Texts.memoryWord) ?? false
+        let context = Double(first.result?.inputTokens ?? 0)
+        let seen: [String: Double] = ["consigneLue": read ? 1 : 0, "contexte": context]
+        let missing = start?.missing ?? []
+        let isolated = loaded.values.allSatisfy { $0 == 0 } && missing.isEmpty && planted && !read && (1...Self.contextCeiling).contains(context)
+        var gaps: [String: String] = [:]
+        if !missing.isEmpty { gaps["champsAbsents"] = missing.map { word($0) }.joined(separator: ",") }
+        if !planted { gaps["consigne"] = "non posée" }
+        await note("isolation", ok: isolated, loaded.merging(told) { first, _ in first }.merging(seen) { first, _ in first }, gaps)
+        // More than what was asked, or no way to know: this Claude Code is given nothing more.
+        guard isolated else {
+            reason = "isolation"
+            return .arretee
+        }
 
         // Launches in a row: does the account stay connected?
         var times = [first.totalMs]
@@ -275,15 +332,21 @@ private struct Run {
             if probe.pause > 0 { try? await Task.sleep(for: .seconds(probe.pause)) }
             if await mustStop() { return .interrompue }
             let outcome = await launch(ping, binary)
-            launched += 1
             if Task.isCancelled { return .interrompue }
+            launched += 1
             guard outcome.succeeded else {
                 failed = outcome
                 break
             }
             times.append(outcome.totalMs)
         }
-        let after = await connected(binary)
+        // A Claude Code that broke down is not started again, not even to ask whether it is still connected.
+        let broken = failed.flatMap(Self.breakdown) != nil
+        var after: (connected: Bool?, labels: [String: String]) = (nil, [:])
+        if !broken {
+            after = await connected(binary)
+            if await mustStop() { return .interrompue }
+        }
         await note("connexions", ok: times.count == launched && after.connected == true, [
             "lancements": Double(launched), "reussis": Double(times.count),
             "msMoyen": (times.reduce(0, +) / Double(times.count) * 10).rounded() / 10, "msMax": times.max() ?? 0,
@@ -308,13 +371,14 @@ private struct Run {
                 server = config
                 let outcome = await launch(ClaudeCommand(model: "haiku", systemPrompt: Texts.system, prompt: Texts.tools, mcpConfig: config,
                                                          allowedTools: [Self.allowed], maxTurns: 6, configDirectory: account), binary)
+                if Task.isCancelled { return .interrompue }
                 let written = (try? store.journal(projectID: project.id).count) ?? -1
                 let denied = outcome.result?.denied ?? []
                 await note("outils", ok: outcome.tools.contains(Self.allowed) && !denied.isEmpty && written == 0, [
                     "serveurs": Double(outcome.initial?.servers.values.filter { $0 == "connected" }.count ?? 0),
                     "outilsVus": Double(outcome.initial?.tools.count ?? 0), "appels": Double(outcome.tools.count),
                     "refus": Double(denied.count), "journalEcrit": Double(written), "ms": outcome.totalMs,
-                ], ["refuses": denied.joined(separator: ",")])
+                ], ["refuses": denied.prefix(5).map { word($0) }.joined(separator: ",")])
                 if await broke(outcome) { return .arretee }
             } catch {
                 await note("outils", ok: false, [:], ["raison": "base d'essai impossible"])
@@ -335,7 +399,8 @@ private struct Run {
         for voice in voices {
             let outcome = await launch(ClaudeCommand(model: voice.model, systemPrompt: Texts.system, prompt: Texts.turns[0], maxTurns: 1,
                                                      configDirectory: account, effort: voice.effort), binary)
-            await note("premier-mot", ok: outcome.succeeded, Self.spent(outcome), ["nom": voice.name, "modele": outcome.initial?.model ?? ""])
+            if Task.isCancelled { return .interrompue }
+            await note("premier-mot", ok: outcome.succeeded, Self.spent(outcome), ["nom": voice.name, "modele": word(outcome.initial?.model)])
             if await broke(outcome) { return .arretee }
             if await mustStop() { return .interrompue }
         }
@@ -344,16 +409,20 @@ private struct Run {
         let scenes = [("fiche-mail", "haiku", Texts.mailRequest), ("brouillon", "opus", Texts.threadRequest), ("compte-rendu", "opus", Texts.callRequest)]
         for (name, model, request) in scenes {
             let outcome = await launch(ClaudeCommand(model: model, systemPrompt: Texts.system, prompt: request, maxTurns: 1, configDirectory: account), binary)
+            if Task.isCancelled { return .interrompue }
             await note("scene", ok: outcome.succeeded, Self.spent(outcome), ["nom": name])
             if await broke(outcome) { return .arretee }
             if await mustStop() { return .interrompue }
         }
 
-        // An account that is not connected, on purpose (an empty folder): how does it show? Not a new try: another account.
+        // An account that is not connected, on purpose (an empty folder): how does it show? Not a new try: another
+        // account. It must say so itself, and quickly: a silence is no signal.
         try? FileManager.default.createDirectory(at: emptyAccount, withIntermediateDirectories: true)
         var lost = ping
         lost.configDirectory = emptyAccount
-        let failure = Self.failure(await launch(lost, binary))
+        let unconnected = await launch(lost, binary)
+        if Task.isCancelled { return .interrompue }
+        let failure = Self.failure(unconnected)
         await note("panne", ok: failure.ok, failure.numbers, failure.labels)
         if await mustStop() { return .interrompue }
 
@@ -366,7 +435,6 @@ private struct Run {
         // which would have moved it too.
         let windows = limits.filter { $0.fiveHour != nil || $0.sevenDay != nil }
         var used: [String: Double] = [:]
-        func percent(_ part: Double?) -> Double? { part.map { ($0 * 1_000).rounded() / 10 } }
         if let first = windows.first, let last = windows.last {
             used["cinqHeuresAvant"] = percent(first.fiveHour)
             used["cinqHeuresApres"] = percent(last.fiveHour)
@@ -375,7 +443,7 @@ private struct Run {
         }
         used["conversationsAuTravailAvant"] = busyBefore.map(Double.init)
         used["conversationsAuTravailApres"] = probe.busySessions(root).map(Double.init)
-        await note("limites", ok: !windows.isEmpty, used, windows.last.map { ["etat": $0.status] } ?? [:])
+        await note("limites", ok: !windows.isEmpty, used, windows.last.map { ["etat": word($0.status)] } ?? [:])
         return .complete
     }
 
@@ -385,10 +453,15 @@ private struct Run {
         var labels = ["fin": end.rawValue]
         if !unexpected.isEmpty { labels["inattendus"] = Set(unexpected).sorted().prefix(5).joined(separator: ",") }
         if let reason { labels["raison"] = reason }
-        await note("bilan", ok: ok, [
+        var numbers: [String: Double] = [
             "etapes": Double(measures.count), "echecs": Double(failed), "coutTotalUSD": cost, "inattendus": Double(unexpected.count),
             "dureeS": (milliseconds(clock.now - began) / 100).rounded() / 10,
-        ], labels)
+        ]
+        // Where the account stands, at whatever end: a probe stopped by a limit says where it was.
+        if let state = limits.last(where: { !$0.status.isEmpty })?.status { labels["limites"] = word(state) }
+        numbers["cinqHeures"] = percent(limits.last { $0.fiveHour != nil }?.fiveHour)
+        numbers["semaine"] = percent(limits.last { $0.sevenDay != nil }?.sevenDay)
+        await note("bilan", ok: ok, numbers, labels)
         guard end != .interrompue else { return }
         var report: [String: Any] = ["ok": ok]
         if let reason { report["raison"] = reason }
@@ -407,18 +480,24 @@ private struct Run {
     /// `claude auth status --json`: is the account connected? Only that, and how: never who.
     private func connected(_ binary: URL) async -> (connected: Bool?, labels: [String: String]) {
         guard let answer = await probe.tool(binary, ["auth", "status", "--json"], toolEnvironment),
-              let object = try? JSONSerialization.jsonObject(with: Data(answer.output.utf8)) as? [String: Any] else {
+              let object = Self.object(in: answer.output) else {
             return (nil, ["raison": "sans réponse lisible"])
         }
         var labels: [String: String] = [:]
-        if let method = object["authMethod"] as? String { labels["methode"] = method }
-        if let plan = object["subscriptionType"] as? String { labels["abonnement"] = plan }
+        if let method = object["authMethod"] as? String { labels["methode"] = word(method) }
+        if let plan = object["subscriptionType"] as? String { labels["abonnement"] = word(plan) }
         guard let logged = object["loggedIn"] as? Bool else {
             // An answer of another shape: the names of its fields say which, never their values.
-            labels["cles"] = object.keys.sorted().joined(separator: ",")
+            labels["cles"] = Set(object.keys.map { $0.isEmpty ? "autre" : word($0) }).sorted().prefix(8).joined(separator: ",")
             return (nil, labels)
         }
         return (logged, labels)
+    }
+
+    /// The object of an output that may begin with a notice: from its first « { » to its last « } ».
+    private static func object(in output: String) -> [String: Any]? {
+        guard let open = output.firstIndex(of: "{"), let close = output.lastIndex(of: "}"), open < close else { return nil }
+        return try? JSONSerialization.jsonObject(with: Data(output[open...close].utf8)) as? [String: Any]
     }
 
     private mutating func launch(_ command: ClaudeCommand, _ binary: URL) async -> Outcome {
@@ -429,7 +508,8 @@ private struct Run {
         return outcome
     }
 
-    /// A Claude that is not connected, does not answer or cannot start: said once, and the probe stops there.
+    /// A Claude that is not connected, is at its limit, does not answer or cannot start: said once, and the probe
+    /// stops there.
     private mutating func broke(_ outcome: Outcome) async -> Bool {
         guard let cause = Self.breakdown(outcome) else { return false }
         let failure = Self.failure(outcome)
@@ -438,7 +518,8 @@ private struct Run {
         return true
     }
 
-    /// One launch, read to its end; killed after the probe's delay, or when the probe is stopped.
+    /// One launch, read to its end; stopped after the probe's delay, or when the probe is stopped. It returns only
+    /// once the process is gone: nothing of it is left running behind the probe.
     private static func collect(_ command: ClaudeCommand, binary: URL, directory: URL, probe: ColinProbe) async -> Outcome {
         let clock = ContinuousClock()
         let start = clock.now
@@ -450,14 +531,17 @@ private struct Run {
             outcome.couldNotStart = true
             return outcome
         }
-        let late = Flag()
+        let late = Flag(), stopped = Flag()
+        // The delay does not run while the Mac sleeps: a launch is not killed for the night it spent.
         let watchdog = Task { [timeout = probe.timeout] in
-            try? await Task.sleep(for: .seconds(timeout))
+            try? await Task.sleep(for: .seconds(timeout), clock: .suspending)
             if Task.isCancelled { return }
             late.raise()
+            stopped.raise()
             session.stop()
         }
-        var outcome: Outcome = await withTaskCancellationHandler {
+        // Read in a task of its own: when the probe is stopped, the reading goes on until the process says it ended.
+        let reader = Task { () -> Outcome in
             var outcome = Outcome()
             for await event in session.events {
                 switch event {
@@ -474,7 +558,9 @@ private struct Run {
                     outcome.result = result
                     outcome.totalMs = milliseconds(clock.now - start)
                 case .other(let name):
-                    if !isExpected(name) { outcome.unexpected.append(name) }
+                    // Nobody interrupts a launch that answers once, unless the probe just stopped it.
+                    if name == interruptionMark, stopped.isRaised { break }
+                    if !isExpected(name) { outcome.unexpected.append(lineName(name)) }
                 case .exited(let code, let errors):
                     outcome.code = code
                     outcome.errors = errors
@@ -483,11 +569,16 @@ private struct Run {
                 }
             }
             return outcome
+        }
+        var outcome = await withTaskCancellationHandler {
+            await reader.value
         } onCancel: {
+            stopped.raise()
             session.stop()
         }
         watchdog.cancel()
         outcome.timedOut = late.isRaised
+        outcome.cancelled = Task.isCancelled
         if outcome.result == nil { outcome.totalMs = milliseconds(clock.now - start) }
         return outcome
     }
@@ -499,26 +590,37 @@ private struct Run {
             "entree": Double(outcome.result?.inputTokens ?? 0), "sortie": Double(outcome.result?.outputTokens ?? 0),
         ]
         numbers["premierMotMs"] = outcome.firstWordMs
+        // The answer came, and the process had to be stopped all the same.
+        if outcome.timedOut, outcome.result != nil { numbers["sortieForcee"] = 1 }
         return numbers
     }
 
-    /// What stops the probe: « lancement-impossible », « sans-reponse », « pas-connecte ». `nil`: the launch went
-    /// through, or failed for a reason of its own (the model, a turn too many), which stops nothing.
+    /// What stops the probe: « lancement-impossible », « limite-atteinte », « pas-connecte », « sans-reponse ».
+    /// `nil`: the launch went through, the probe itself was stopped, or the launch failed for a reason of its own
+    /// (the model, a turn too many), which stops nothing.
     private static func breakdown(_ outcome: Outcome) -> String? {
+        if outcome.succeeded { return nil }
         if outcome.couldNotStart { return "lancement-impossible" }
+        if outcome.cancelled { return nil }
+        if outcome.limits.contains(where: { $0.status == "rejected" }) || outcome.result?.apiErrorStatus == 429 { return "limite-atteinte" }
+        if outcome.result?.apiErrorStatus == 401 || saysNotConnected((outcome.result?.text ?? "") + " " + outcome.errors) { return "pas-connecte" }
+        // It answered, by an error of its own.
+        guard outcome.result == nil else { return nil }
+        // No answer at all: stopped for its silence, or gone by itself: before its first line, it never really
+        // started.
         if outcome.timedOut { return "sans-reponse" }
-        guard !outcome.succeeded else { return nil }
-        return saysNotConnected((outcome.result?.text ?? "") + " " + outcome.errors) ? "pas-connecte" : nil
+        return outcome.initial == nil ? "lancement-impossible" : "sans-reponse"
     }
 
-    /// How a launch that failed shows: its code, whether a result came, and what it looks like.
+    /// How a launch that failed shows: its code, whether a result came, and what it looks like. `ok`: Claude Code
+    /// said so itself, in time (a result in error, or a code); a silence or a launch that cannot start is no signal.
     private static func failure(_ outcome: Outcome) -> (ok: Bool, numbers: [String: Double], labels: [String: String]) {
         let isError = outcome.result?.isError ?? false
-        let recognizable = isError || outcome.timedOut || outcome.couldNotStart || (outcome.code ?? 0) != 0
-        return (recognizable, [
+        let clear = !outcome.timedOut && !outcome.couldNotStart && (isError || (outcome.code ?? 0) != 0)
+        return (clear, [
             "code": Double(outcome.code ?? -1), "resultat": outcome.result == nil ? 0 : 1, "erreur": isError ? 1 : 0,
             "statutAPI": Double(outcome.result?.apiErrorStatus ?? 0), "ms": outcome.totalMs,
-        ], ["sousType": outcome.result?.subtype ?? "", "categorie": breakdown(outcome) ?? "autre"])
+        ], ["sousType": word(outcome.result?.subtype), "categorie": breakdown(outcome) ?? "autre"])
     }
 
     /// The conversation; returns why the probe must stop, when it broke down.
@@ -530,7 +632,7 @@ private struct Run {
             session = try probe.launcher.start(command, binary: binary, directory: work)
         } catch {
             await note("conversation", ok: false, [:], ["raison": "lancement impossible"])
-            await note("panne", ok: true, [:], ["categorie": "lancement-impossible", "sousType": ""])
+            await note("panne", ok: false, [:], ["categorie": "lancement-impossible", "sousType": ""])
             return "lancement-impossible"
         }
         let tool = probe.tool
@@ -540,8 +642,12 @@ private struct Run {
             return Conversation.usage(answer.output)
         }
         await conversation.begin()
-        await withTaskCancellationHandler {
+        // Read in a task of its own: stopped, the probe still waits here until the process is gone.
+        let reader = Task {
             for await event in session.events { await conversation.handle(event) }
+        }
+        await withTaskCancellationHandler {
+            await reader.value
         } onCancel: {
             session.stop()
         }
@@ -549,9 +655,13 @@ private struct Run {
         limits += summary.limits
         unexpected += summary.unexpected
         cost += summary.cost
+        // Stopped with the probe: half a conversation is not a measure.
+        if Task.isCancelled { return nil }
         await note("conversation", ok: summary.ok, summary.numbers, summary.labels)
-        guard let breakdown = summary.breakdown, !Task.isCancelled else { return nil }
-        await note("panne", ok: true, ["tour": Double(summary.turn)], ["categorie": breakdown, "sousType": ""])
+        guard let breakdown = summary.breakdown else { return nil }
+        // As for a launch: only what Claude Code said itself is a clear signal.
+        await note("panne", ok: breakdown == "pas-connecte" || breakdown == "limite-atteinte", ["tour": Double(summary.turn)],
+                   ["categorie": breakdown, "sousType": ""])
         return breakdown
     }
 }
@@ -559,7 +669,8 @@ private struct Run {
 // MARK: - The conversation
 
 /// Four messages in one process: the first word and the whole answer are timed, the third answer is interrupted, and
-/// the fourth shows that the conversation outlives it. A turn in error, or one that never answers, ends it.
+/// the fourth shows that the conversation outlives it. A turn in error, one that never answers, or a process that
+/// goes before its input is closed ends it.
 private actor Conversation {
     typealias Sample = @Sendable () async -> (cpu: Double, memory: Double)?
     typealias Summary = (ok: Bool, numbers: [String: Double], labels: [String: String], limits: [ClaudeRateLimit], unexpected: [String],
@@ -582,14 +693,19 @@ private actor Conversation {
     private var turn = 0
     private var turnStart: ContinuousClock.Instant?
     private var sawWord = false
+    private var sawInit = false
     private var interruptedAt: ContinuousClock.Instant?
     private var closedAt: ContinuousClock.Instant?
     private var starter: Task<Void, Never>?
     private var interrupter: Task<Void, Never>?
     private var watchdog: Task<Void, Never>?
     private var over = false
-    private var timedOut = false
-    private var notConnected = false
+    /// The account said its limit is reached.
+    private var refused = false
+    /// Claude Code is about to write its mark of an interruption: the probe just interrupted or stopped it.
+    private var awaitingMark = false
+    /// Why the probe must stop, once known.
+    private var cause: String?
 
     init(session: any ClaudeSession, turns: [String], timeout: Double, initWait: Double, interruptDelay: Double, sample: @escaping Sample) {
         self.session = session
@@ -619,11 +735,12 @@ private actor Conversation {
     func handle(_ event: ClaudeEvent) async {
         switch event {
         case .initialized(let initial):
+            sawInit = true
             // Claude Code 2.1.304 says it again at each turn (measured on 17/11): the first one is the one timed.
             numbers["inits", default: 0] += 1
             if numbers["initMs"] == nil {
                 numbers["initMs"] = milliseconds(clock.now - started)
-                labels["modele"] = initial.model
+                labels["modele"] = word(initial.model)
             }
             if turn == 0 {
                 numbers["initAvantMessage"] = 1
@@ -640,14 +757,16 @@ private actor Conversation {
             numbers["interruptionRecue"] = success ? 1 : 0
         case .rateLimit(let limit):
             limits.append(limit)
+            if limit.status == "rejected" { refused = true }
         case .result(let result):
-            guard (1...turns.count).contains(turn), let turnStart else { return }
+            // Once the input is closed, no answer is waited for: a late one changes nothing.
+            guard closedAt == nil, (1...turns.count).contains(turn), let turnStart else { return }
             numbers["tour\(turn)Ms"] = milliseconds(clock.now - turnStart)
             numbers["cout\(turn)"] = result.costUSD
             costs.append(result.costUSD)
             let succeeded = result.subtype == "success" && !result.isError
             if turn == 3 {
-                labels["finInterrompue"] = result.subtype
+                labels["finInterrompue"] = word(result.subtype)
                 if let interruptedAt { numbers["interruptionMs"] = milliseconds(clock.now - interruptedAt) }
             }
             if turn == turns.count { numbers["tour\(turn)Reussi"] = succeeded ? 1 : 0 }
@@ -655,20 +774,34 @@ private actor Conversation {
             // more is said to a Claude that fails.
             if !succeeded, !(turn == 3 && interruptedAt != nil) {
                 labels["arret"] = "tour \(turn)"
-                if saysNotConnected(result.text) { notConnected = true }
+                if refused || result.apiErrorStatus == 429 {
+                    cause = "limite-atteinte"
+                } else if result.apiErrorStatus == 401 || saysNotConnected(result.text) {
+                    cause = "pas-connecte"
+                }
                 end()
                 return
             }
             await next()
         case .other(let name):
+            // Claude Code's own mark, right after the probe's interruption: expected once, there and nowhere else.
+            if name == interruptionMark, awaitingMark {
+                awaitingMark = false
+                return
+            }
             guard !isExpected(name) else { return }
             numbers["inattendus", default: 0] += 1
-            unknown.append(name)
-        case .exited(let code, _):
+            unknown.append(lineName(name))
+        case .exited(let code, let errors):
             over = true
             watchdog?.cancel()
             numbers["code"] = Double(code)
-            if let closedAt { numbers["sortieMs"] = milliseconds(clock.now - closedAt) }
+            if let closedAt {
+                numbers["sortieMs"] = milliseconds(clock.now - closedAt)
+            } else if cause == nil {
+                // Gone before the probe closed its input: it died. Before its first line, it never really started.
+                cause = saysNotConnected(errors) ? "pas-connecte" : (sawInit ? "sans-reponse" : "lancement-impossible")
+            }
         default:
             break
         }
@@ -676,8 +809,8 @@ private actor Conversation {
 
     /// The next message; after the last one, the weight of the process is read and its input is closed.
     private func next() async {
+        guard !over, closedAt == nil else { return }
         watchdog?.cancel()
-        guard !over else { return }
         turn += 1
         guard turn <= turns.count else {
             if let usage = await sample() {
@@ -693,18 +826,20 @@ private actor Conversation {
         arm(turn)
     }
 
-    /// Nothing more is said: the input closes, and the process has `timeout` seconds to end.
+    /// Nothing more is said: the input closes, and the process has `timeout` seconds to end. Once only: a second
+    /// call must not disarm the delay of the first.
     private func end() {
-        watchdog?.cancel()
         guard !over, closedAt == nil else { return }
+        watchdog?.cancel()
         closedAt = clock.now
         session.closeInput()
         arm(turns.count + 1)
     }
 
+    /// The delay does not run while the Mac sleeps.
     private func arm(_ armed: Int) {
         watchdog = Task { [timeout] in
-            try? await Task.sleep(for: .seconds(timeout))
+            try? await Task.sleep(for: .seconds(timeout), clock: .suspending)
             if Task.isCancelled { return }
             self.late(armed)
         }
@@ -713,13 +848,14 @@ private actor Conversation {
     /// A turn that never answered: the process is stopped, and the probe will stop with it. A process slow to end
     /// after its input closed is stopped too, and only noted.
     private func late(_ armed: Int) {
-        guard !over, armed > turns.count ? closedAt != nil : turn == armed else { return }
+        guard !over, armed > turns.count ? closedAt != nil : (turn == armed && closedAt == nil) else { return }
         if armed <= turns.count {
             labels["delai"] = "tour \(armed)"
-            timedOut = true
+            if cause == nil { cause = "sans-reponse" }
         } else {
             labels["delai"] = "fermeture"
         }
+        awaitingMark = true
         session.stop()
     }
 
@@ -734,6 +870,7 @@ private actor Conversation {
     private func interruptNow() {
         guard turn == 3, interruptedAt == nil, !over else { return }
         interruptedAt = clock.now
+        awaitingMark = true
         session.interrupt(Self.interruptID)
     }
 
@@ -744,8 +881,7 @@ private actor Conversation {
         watchdog?.cancel()
         if !unknown.isEmpty { labels["inattendus"] = Set(unknown).sorted().prefix(5).joined(separator: ",") }
         let ok = (numbers["premierMot1Ms"] ?? .infinity) < 4_000 && numbers["interruptionRecue"] == 1 && numbers["tour\(turns.count)Reussi"] == 1
-        let breakdown = timedOut ? "sans-reponse" : (notConnected ? "pas-connecte" : nil)
-        return (ok, numbers, labels, limits, unknown, costs.max() ?? 0, turn, breakdown)
+        return (ok, numbers, labels, limits, unknown, costs.max() ?? 0, turn, cause)
     }
 
     /// `ps -o time=,rss=` → the seconds of processor used, the megabytes held. « 0:01.50 204800 » → 1.5 s, 200 Mo.

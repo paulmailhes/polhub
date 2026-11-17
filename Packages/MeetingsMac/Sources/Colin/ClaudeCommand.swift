@@ -1,8 +1,8 @@
 import Foundation
 
-/// One launch of Claude Code by Polhub, closed on itself: none of the user's settings, hooks, plugins, skills or
-/// servers come along, no tool of the Mac, nothing asked on a screen, no session kept, deaf to the other sessions.
-/// What it may use is said here and nowhere else.
+/// One launch of Claude Code by Polhub, closed on itself: none of the user's settings, hooks, plugins, skills,
+/// instructions or servers come along, no tool of the Mac, nothing asked on a screen, no session and no memory kept,
+/// deaf to the other sessions. What it may use is said here and nowhere else.
 public struct ClaudeCommand: Equatable, Sendable {
     /// « haiku », « opus »: Claude Code's own names.
     public var model: String
@@ -52,13 +52,18 @@ public struct ClaudeCommand: Equatable, Sendable {
             "--permission-prompts", "none",
             "--disable-slash-commands",
             "--no-session-persistence",
-            "--settings", #"{"crossSessionInbound":"refuse"}"#,
+            "--settings", Self.settings,
         ]
         if let mcpConfig { all += ["--mcp-config", mcpConfig] }
         if !allowedTools.isEmpty { all += ["--allowedTools", allowedTools.joined(separator: ",")] }
         if let maxTurns { all += ["--max-turns", String(maxTurns)] }
         return all
     }
+
+    /// The settings given on top of none: deaf to the other sessions, and no memory of its own. Without the second,
+    /// Claude Code keeps a memory by folder in the account, even with no settings file read (measured on 17/11 with
+    /// Claude Code 2.1.304: its first line then tells a memory; with this setting, or with the variable below, none).
+    static let settings = #"{"autoMemoryEnabled":false,"crossSessionInbound":"refuse"}"#
 
     /// What passes from the app's environment: where the user lives, the language, a proxy. Nothing of Anthropic's
     /// or of Claude Code's is inherited: an API key lying there would change who pays, a session's variables would
@@ -71,6 +76,8 @@ public struct ClaudeCommand: Equatable, Sendable {
     public func environment(from base: [String: String]) -> [String: String] {
         var environment = base.filter { Self.inherited.contains($0.key) }
         environment["ENABLE_CLAUDEAI_MCP_SERVERS"] = "false"
+        // Said twice, here and in the settings: one of the two may change its name with a version.
+        environment["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] = "1"
         // Written as the user's own launches write it, with no slash at its end: with one more, Claude Code no longer
         // finds the account's connection (measured on 17/11 with Claude Code 2.1.304).
         if let configDirectory { environment["CLAUDE_CONFIG_DIR"] = Self.plain(configDirectory) }
@@ -84,7 +91,14 @@ public struct ClaudeCommand: Equatable, Sendable {
         guard let folder, !folder.isEmpty else { return nil }
         let chosen = URL(fileURLWithPath: folder, isDirectory: true).standardizedFileURL
         let own = home.appending(path: ".claude", directoryHint: .isDirectory).standardizedFileURL
-        return plain(chosen) == plain(own) ? nil : chosen
+        if plain(chosen) == plain(own) { return nil }
+        // The same folder written another way (a link to it, another case): compared as the disk knows them.
+        if let one = identity(chosen), let other = identity(own), one.isEqual(other) { return nil }
+        return chosen
+    }
+
+    private static func identity(_ url: URL) -> (any NSObjectProtocol)? {
+        (try? url.resolvingSymlinksInPath().resourceValues(forKeys: [.fileResourceIdentifierKey]))?.fileResourceIdentifier
     }
 
     /// A folder's path with no slash at its end.

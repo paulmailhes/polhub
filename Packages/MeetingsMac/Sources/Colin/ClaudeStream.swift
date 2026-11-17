@@ -15,18 +15,26 @@ public struct ClaudeInit: Equatable, Sendable {
     public var builtinPlugins: Int
     public var skills: Int
     public var slashCommands: Int
-    /// The memory files (CLAUDE.md) and the extra folders taken along.
+    /// The memories Claude Code says it keeps, one by kind; with its memory off, none. Not the files of
+    /// instructions (CLAUDE.md): one that the model did read leaves this line as it was (measured on 17/11 with
+    /// Claude Code 2.1.304), so nothing here proves that none was read.
     public var memoryPaths: Int
+    /// The extra folders taken along.
     public var directories: Int
     /// The kinds of agents on offer; Claude Code has its own.
     public var agents: [String]
     /// A socket is open for the messages of the other sessions.
     public var messaging: Bool
     public var capabilities: [String]
+    /// The lists this line should carry and does not, or carries in another shape: nothing can be said of what
+    /// they would have told, and an empty count above proves nothing.
+    public var missing: [String]
 
     public init(version: String = "", model: String = "", permissionMode: String = "", apiKeySource: String = "", tools: [String] = [],
                 servers: [String: String] = [:], plugins: Int = 0, builtinPlugins: Int = 0, skills: Int = 0, slashCommands: Int = 0,
-                memoryPaths: Int = 0, directories: Int = 0, agents: [String] = [], messaging: Bool = false, capabilities: [String] = []) {
+                memoryPaths: Int = 0, directories: Int = 0, agents: [String] = [], messaging: Bool = false, capabilities: [String] = [],
+                missing: [String] = []) {
+        self.missing = missing
         self.version = version
         self.model = model
         self.permissionMode = permissionMode
@@ -138,9 +146,10 @@ public enum ClaudeStream {
             let blocks = content(object)
             let results = blocks.filter { $0["type"] as? String == "tool_result" }
             if !results.isEmpty { return .toolResult(isError: results.contains { $0["is_error"] as? Bool == true }) }
-            // What Claude Code writes itself when a turn is interrupted: nobody's message. Any other line of this
-            // kind was not asked for.
-            let interrupted = blocks.contains { ($0["text"] as? String)?.hasPrefix("[Request interrupted") == true }
+            // What Claude Code writes itself when a turn is interrupted: nobody's message. The mark and nothing else:
+            // any other line of this kind was not asked for.
+            let interrupted = blocks.count == 1 && blocks[0]["type"] as? String == "text"
+                && interruptionMarks.contains(blocks[0]["text"] as? String ?? "")
             return .other(interrupted ? "user/interruption" : "user")
         case "rate_limit_event":
             return .rateLimit(rateLimit(object["rate_limit_info"] as? [String: Any] ?? [:]))
@@ -153,6 +162,9 @@ public enum ClaudeStream {
             return .other(named(type, subtype))
         }
     }
+
+    /// As Claude Code 2.1.304 writes them (the first one measured on 17/11).
+    private static let interruptionMarks: Set<String> = ["[Request interrupted by user]", "[Request interrupted by user for tool use]"]
 
     private static func named(_ type: String, _ subtype: String?) -> String {
         subtype.map { "\(type)/\($0)" } ?? type
@@ -176,14 +188,34 @@ public enum ClaudeStream {
         let plugins = object["plugins"] as? [[String: Any]] ?? []
         // Claude Code's own are the ones it places at « builtin »; a name that ends like theirs is not enough.
         let builtin = plugins.filter { $0["path"] as? String == "builtin" }.count
+        // A list that is not there, or not in its shape, reads as empty above: it is told, so that nobody takes
+        // « nothing loaded » for checked.
+        var missing: [String] = []
+        if object["tools"] as? [String] == nil { missing.append("tools") }
+        if object["mcp_servers"] as? [[String: Any]] == nil { missing.append("mcp_servers") }
+        if object["plugins"] as? [[String: Any]] == nil { missing.append("plugins") }
+        for list in ["skills", "slash_commands", "additional_directories"] where object[list] as? [Any] == nil {
+            missing.append(list)
+        }
         return ClaudeInit(
             version: object["claude_code_version"] as? String ?? "", model: object["model"] as? String ?? "",
             permissionMode: object["permissionMode"] as? String ?? "", apiKeySource: object["apiKeySource"] as? String ?? "",
             tools: strings(object["tools"]), servers: servers, plugins: plugins.count - builtin, builtinPlugins: builtin,
             skills: count(object["skills"]), slashCommands: count(object["slash_commands"]),
-            memoryPaths: count(object["memory_paths"]), directories: count(object["additional_directories"]),
+            memoryPaths: memory(object["memory_paths"]), directories: count(object["additional_directories"]),
             agents: strings(object["agents"]), messaging: !(object["messaging_socket_path"] as? String ?? "").isEmpty,
-            capabilities: strings(object["capabilities"]))
+            capabilities: strings(object["capabilities"]), missing: missing)
+    }
+
+    /// The memory, as Claude Code 2.1.304 says it (measured on 17/11): no field at all when it is off, an object
+    /// with one key by kind (« auto ») when it is on. Any other shape is a memory too: it is there.
+    private static func memory(_ value: Any?) -> Int {
+        switch value {
+        case nil, is NSNull: 0
+        case let kinds as [String: Any]: kinds.count
+        case let list as [Any]: list.count
+        default: 1
+        }
     }
 
     private static func rateLimit(_ info: [String: Any]) -> ClaudeRateLimit {

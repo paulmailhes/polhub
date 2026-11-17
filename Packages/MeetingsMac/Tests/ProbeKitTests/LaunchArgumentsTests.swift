@@ -13,6 +13,8 @@ import Testing
         #expect(LaunchArguments.parse(["Polhub", "--probe", "mic-holders"])
                 == ProbeRequest(probe: .micHolders, seconds: 60, variant: nil, quitWhenDone: false))
         #expect(LaunchArguments.parse(["Polhub", "--probe", "inconnue"]) == nil)
+        // The probe of Colin starts from its button only: a command line would skip its guards.
+        #expect(LaunchArguments.parse(["Polhub", "--probe", "colin", "--variant", "/tmp/compte"]) == nil)
         #expect(LaunchArguments.parse(["Polhub"]) == nil)
     }
 

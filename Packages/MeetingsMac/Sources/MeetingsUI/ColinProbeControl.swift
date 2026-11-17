@@ -1,9 +1,11 @@
 import AppKit
+import Colin
 import PolhubDesign
 import SwiftUI
 
-/// The probe of Colin as the Diagnostic page shows it (17/11): the Claude account it uses, its one button, and where
-/// it stands. The app runs the probe; this says when it may, and stops it when a meeting begins.
+/// The probe of Colin as the Diagnostic page shows it (17/11): the Claude account it uses, its button, and where it
+/// stands. The app runs the probe; this says when it may, and stops it when a meeting begins, when the Mac goes to
+/// sleep, or by hand.
 @MainActor
 public final class ColinProbeControl: ObservableObject {
     public enum Phase: Equatable {
@@ -13,45 +15,68 @@ public final class ColinProbeControl: ObservableObject {
         case refused(String)
     }
 
+    /// Why a probe under way was stopped from here.
+    private enum StopCause { case meeting, hand, sleep }
+
     @Published public private(set) var phase: Phase = .idle
     /// The folder of the Claude account; empty: Claude Code's own.
     @Published public private(set) var accountFolder: String
 
     private let defaults: UserDefaults
+    private let home: URL
     private let isQuiet: () async -> Bool
-    private let start: (_ account: String, _ onFinish: @escaping @MainActor (String?) -> Void) -> Bool
+    private let start: (_ account: String, _ onFinish: @escaping @MainActor (String?) -> Void) -> String?
     private let stop: () -> Void
     private let report: () -> (ok: Bool, reason: String?)?
     private let folderExists: (String) -> Bool
     private let isAccount: (String) -> Bool
+    private let uptime: () -> TimeInterval
     private let watchEvery: Duration
+    private let settleAfterWake: Duration
+    private let restAfterFinish: Duration
+    private let clock = ContinuousClock()
     private var watcher: Task<Void, Never>?
     /// A click is being checked: a second one, of a double click, does nothing.
     private var launching = false
-    private var stoppedForMeeting = false
+    private var stopCause: StopCause?
     /// Why the last probe stopped early, as the probe names it.
     private var reason: String?
+    /// What the app's runner said of a run it could not carry to its end.
+    private var problem: String?
+    private var wokeAt: ContinuousClock.Instant?
+    private var finishedAt: ContinuousClock.Instant?
 
     /// - Parameters:
+    ///   - home: the user's own folder; Claude Code's own account lives in its `.claude`.
     ///   - isQuiet: no meeting and no transcription under way.
-    ///   - start: starts the probe on this account's folder; `false` when another probe runs.
+    ///   - start: starts the probe on this account's folder; why it could not, or `nil` once started.
     ///   - stop: stops the probe under way.
-    ///   - report: what the last probe concluded, and why it stopped early when it knows.
+    ///   - report: what the last probe concluded, and why it stopped early when it knows; `nil` without a report.
     ///   - isAccount: the folder holds a Claude account (Claude Code keeps a `.claude.json` in each).
-    public init(defaults: UserDefaults = .standard, isQuiet: @escaping () async -> Bool,
-                start: @escaping (_ account: String, _ onFinish: @escaping @MainActor (String?) -> Void) -> Bool,
+    ///   - uptime: seconds since the Mac started.
+    ///   - watchEvery: how often a probe under way looks for a meeting or a transcription that begins.
+    ///   - settleAfterWake: how long nothing is launched after the Mac starts or wakes.
+    ///   - restAfterFinish: how long a click is ignored after a probe ends.
+    public init(defaults: UserDefaults = .standard, home: URL = FileManager.default.homeDirectoryForCurrentUser,
+                isQuiet: @escaping () async -> Bool,
+                start: @escaping (_ account: String, _ onFinish: @escaping @MainActor (String?) -> Void) -> String?,
                 stop: @escaping () -> Void, report: @escaping () -> (ok: Bool, reason: String?)?,
                 folderExists: @escaping (String) -> Bool = { FileManager.default.fileExists(atPath: $0) },
                 isAccount: @escaping (String) -> Bool = { FileManager.default.fileExists(atPath: $0 + "/.claude.json") },
-                watchEvery: Duration = .seconds(3)) {
+                uptime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+                watchEvery: Duration = .seconds(3), settleAfterWake: Duration = .seconds(300), restAfterFinish: Duration = .seconds(1)) {
         self.defaults = defaults
+        self.home = home
         self.isQuiet = isQuiet
         self.start = start
         self.stop = stop
         self.report = report
         self.folderExists = folderExists
         self.isAccount = isAccount
+        self.uptime = uptime
         self.watchEvery = watchEvery
+        self.settleAfterWake = settleAfterWake
+        self.restAfterFinish = restAfterFinish
         accountFolder = defaults.string(forKey: Preferences.Key.colinAccount) ?? ""
     }
 
@@ -61,23 +86,77 @@ public final class ColinProbeControl: ObservableObject {
         return accountFolder.split(separator: "/").suffix(2).joined(separator: "/")
     }
 
-    /// `nil` or empty: Claude Code's own account.
+    /// `nil` or empty: Claude Code's own account. Its own folder, chosen by hand, is its own account too: given as
+    /// a folder, it would name another one.
     public func choose(_ folder: String?) {
-        var path = folder ?? ""
-        while path.count > 1, path.hasSuffix("/") { path.removeLast() }
+        guard phase != .running else { return }
+        let path = ClaudeCommand.account(folder: folder, home: home).map(Self.plain) ?? ""
+        if let refusal = unfit(path) {
+            phase = .refused(refusal)
+            return
+        }
         accountFolder = path
         defaults.set(path, forKey: Preferences.Key.colinAccount)
+        // What was said was about the account before.
+        phase = .idle
+    }
+
+    /// The user's own folder, or the disk's root: no account's folder. Claude Code keeps the file of its own
+    /// account in the first, which would pass for one, and would then write everything there.
+    private func unfit(_ path: String) -> String? {
+        guard !path.isEmpty else { return nil }
+        let chosen = URL(fileURLWithPath: path, isDirectory: true)
+        guard Self.plain(chosen) != "/", !Self.same(chosen, home) else {
+            return "Choisis le dossier d'un compte Claude, pas ton dossier personnel."
+        }
+        return nil
+    }
+
+    /// A folder's path with no slash at its end.
+    private static func plain(_ url: URL) -> String {
+        var path = url.standardizedFileURL.path(percentEncoded: false)
+        while path.count > 1, path.hasSuffix("/") { path.removeLast() }
+        return path
+    }
+
+    /// The same folder, written the same way or not (a link to it, another case): compared as the disk knows them.
+    private static func same(_ one: URL, _ other: URL) -> Bool {
+        let first = one.standardizedFileURL.resolvingSymlinksInPath(), second = other.standardizedFileURL.resolvingSymlinksInPath()
+        if plain(first) == plain(second) { return true }
+        guard let left = (try? first.resourceValues(forKeys: [.fileResourceIdentifierKey]))?.fileResourceIdentifier,
+              let right = (try? second.resourceValues(forKeys: [.fileResourceIdentifierKey]))?.fileResourceIdentifier else { return false }
+        return left.isEqual(right)
+    }
+
+    /// Each launch of Claude Code may renew the connection of its account, and the keychain chokes when many do at
+    /// once: nothing in the minutes after the Mac starts or wakes.
+    private var settled: Bool {
+        let wait = Double(settleAfterWake.components.seconds) + Double(settleAfterWake.components.attoseconds) / 1e18
+        if uptime() < wait { return false }
+        if let wokeAt, clock.now - wokeAt < settleAfterWake { return false }
+        return true
     }
 
     public func launch() async {
         guard phase != .running, !launching else { return }
+        // Right after a probe ended: the second click of a double click on « Arrêter », not a new launch.
+        if let finishedAt, clock.now - finishedAt < restAfterFinish { return }
         launching = true
         defer { launching = false }
+        guard settled else {
+            phase = .refused("Le Mac vient de démarrer ou de se réveiller : réessaie dans quelques minutes.")
+            return
+        }
         guard await isQuiet() else {
             phase = .refused("Pas pendant une réunion ni une transcription.")
             return
         }
+        // From here to the start, nothing waits: a meeting cannot begin in between.
         if !accountFolder.isEmpty {
+            if let refusal = unfit(accountFolder) {
+                phase = .refused(refusal)
+                return
+            }
             guard folderExists(accountFolder) else {
                 phase = .refused("Ce dossier de compte n'existe plus.")
                 return
@@ -88,11 +167,11 @@ public final class ColinProbeControl: ObservableObject {
                 return
             }
         }
-        stoppedForMeeting = false
+        stopCause = nil
         reason = nil
-        let started = start(accountFolder) { [weak self] _ in self?.finished() }
-        guard started else {
-            phase = .refused("Une autre sonde tourne déjà.")
+        problem = nil
+        if let refusal = start(accountFolder, { [weak self] problem in self?.finished(problem) }) {
+            phase = .refused(refusal)
             return
         }
         phase = .running
@@ -101,9 +180,21 @@ public final class ColinProbeControl: ObservableObject {
 
     /// Nothing heavy during a meeting: one that begins stops the probe. The app says it at once; `watch` looks
     /// again every few seconds, for a transcription that starts.
-    public func meetingBegan() {
-        guard phase == .running, !stoppedForMeeting else { return }
-        stoppedForMeeting = true
+    public func meetingBegan() { halt(.meeting) }
+
+    /// « Arrêter ».
+    public func stopByHand() { halt(.hand) }
+
+    /// The Mac goes to sleep: what the probe would time across the night means nothing.
+    public func macWillSleep() { halt(.sleep) }
+
+    /// The Mac woke up: nothing is launched for a few minutes.
+    public func macWoke() { wokeAt = clock.now }
+
+    /// Asked once; the probe still runs until the app says it ended.
+    private func halt(_ cause: StopCause) {
+        guard phase == .running, stopCause == nil else { return }
+        stopCause = cause
         stop()
     }
 
@@ -117,17 +208,20 @@ public final class ColinProbeControl: ObservableObject {
                 // The probe may have ended while the check was waiting.
                 guard self.phase == .running, !Task.isCancelled else { return }
                 if !quiet {
-                    self.meetingBegan()
+                    self.halt(.meeting)
                     return
                 }
             }
         }
     }
 
-    private func finished() {
+    private func finished(_ problem: String?) {
         watcher?.cancel()
         watcher = nil
-        let report = stoppedForMeeting ? nil : report()
+        finishedAt = clock.now
+        self.problem = problem
+        // A probe that reached its end left its report: it is shown, even when a stop was asked at that moment.
+        let report = report()
         reason = report?.reason
         phase = .done(report?.ok)
     }
@@ -135,12 +229,18 @@ public final class ColinProbeControl: ObservableObject {
     /// The sentence under the button.
     public var message: String? {
         switch phase {
-        case .idle: nil
-        case .running: "La sonde tourne. Tu peux continuer à travailler."
-        case .refused(let reason): reason
-        case .done(true): "Terminé : Claude Code a répondu. Le relevé est enregistré."
-        case .done(false): "Terminé : \(Self.sentence(reason) ?? "un point est à regarder.") Le relevé est enregistré."
-        case .done(nil): stoppedForMeeting ? "Arrêtée : une réunion commence. Relance la sonde après." : "La sonde s'est arrêtée avant la fin."
+        case .idle: return nil
+        case .running: return "La sonde tourne. Tu peux continuer à travailler."
+        case .refused(let reason): return reason
+        case .done(true): return "Terminé : Claude Code a répondu. Le relevé est enregistré."
+        case .done(false): return "Terminé : \(Self.sentence(reason) ?? "un point est à regarder.") Le relevé est enregistré."
+        case .done(nil):
+            switch stopCause {
+            case .meeting: return "Arrêtée : une réunion ou une transcription commence. Relance la sonde après."
+            case .hand: return "Arrêtée."
+            case .sleep: return "Arrêtée : le Mac s'est mis en veille."
+            case nil: return problem ?? "La sonde s'est arrêtée avant la fin."
+            }
         }
     }
 
@@ -149,8 +249,11 @@ public final class ColinProbeControl: ObservableObject {
         switch reason {
         case "introuvable": "Claude Code est introuvable sur ce Mac."
         case "pas-connecte": "Claude Code n'est pas connecté sur ce compte."
+        case "limite-atteinte": "Ton compte Claude a atteint sa limite."
         case "sans-reponse": "Claude Code n'a pas répondu."
         case "lancement-impossible": "Claude Code n'a pas pu se lancer."
+        case "isolation": "Claude Code a chargé plus que ce que Polhub lui demande."
+        case "erreur": "Claude Code a répondu par une erreur dès le premier lancement."
         default: nil
         }
     }
@@ -165,7 +268,7 @@ struct ColinProbeSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Sonde de Colin").font(.headline)
-            Text("Mesure si Claude Code répond bien depuis Polhub. Deux à trois minutes, avec des textes inventés. Elle utilise un peu de ton abonnement Claude : quelques centimes.")
+            Text("Mesure si Claude Code répond bien depuis Polhub. Environ deux minutes, avec des textes inventés. Elle utilise un peu de ton abonnement Claude : l'équivalent d'une dizaine de centimes.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -180,7 +283,10 @@ struct ColinProbeSection: View {
             HStack(spacing: 8) {
                 Button("Lancer la sonde de Colin") { Task { await control.launch() } }
                     .disabled(isRunning)
-                if isRunning { ProgressView().controlSize(.small) }
+                if isRunning {
+                    ProgressView().controlSize(.small)
+                    Button("Arrêter") { control.stopByHand() }
+                }
             }
             if let message = control.message {
                 Text(message)

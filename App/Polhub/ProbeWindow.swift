@@ -1,4 +1,5 @@
 import AppKit
+import Colin
 import Observability
 import ProbeKit
 import SwiftUI
@@ -116,6 +117,9 @@ struct ProbeWindow: View {
                 if AppDelegate.anotherCopyIsRunning() {
                     relaunchMessage = "Relance activée. Cette fenêtre se ferme : rouvre les sondes par l'icône de la barre des menus."
                     try? await Task.sleep(for: .seconds(1.5))
+                    // A probe under way ends with this copy, and the Claude Code it launched with it.
+                    runner.stop()
+                    ClaudeProcesses.shared.stopAll()
                     exit(0)
                 }
                 try? await Task.sleep(for: .milliseconds(200))

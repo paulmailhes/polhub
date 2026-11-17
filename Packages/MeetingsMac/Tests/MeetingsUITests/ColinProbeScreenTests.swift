@@ -11,8 +11,9 @@ struct ColinProbeScreenTests {
         let name = "colin-sonde-capture-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
-        return ColinProbeControl(defaults: defaults, isQuiet: { quiet }, start: { _, _ in true }, stop: {}, report: { verdict.map { (ok: $0, reason: nil) } },
-                                 folderExists: { _ in true }, isAccount: { _ in true })
+        return ColinProbeControl(defaults: defaults, home: URL(fileURLWithPath: "/Users/essai", isDirectory: true), isQuiet: { quiet },
+                                 start: { _, _ in nil }, stop: {}, report: { verdict.map { (ok: $0, reason: nil) } },
+                                 folderExists: { _ in true }, isAccount: { _ in true }, uptime: { 86_400 })
     }
 
     @Test func theProbeSection() async throws {

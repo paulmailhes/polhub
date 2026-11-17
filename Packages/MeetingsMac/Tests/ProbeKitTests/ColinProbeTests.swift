@@ -64,6 +64,8 @@ final class FakeLauncher: ClaudeLaunching, @unchecked Sendable {
     private let lock = NSLock()
     private var commands: [ClaudeCommand] = []
     private var sessions: [FakeSession] = []
+    private var folders: [URL] = []
+    private var files: [Bool] = []
     private let failing: Set<Int>
     private let respond: @Sendable (ClaudeCommand, Int) -> FakeSession
 
@@ -75,9 +77,13 @@ final class FakeLauncher: ClaudeLaunching, @unchecked Sendable {
 
     var started: [ClaudeCommand] { lock.withLock { commands } }
     var all: [FakeSession] { lock.withLock { sessions } }
+    var directories: [URL] { lock.withLock { folders } }
+    /// For each launch: was a file of instructions waiting in its folder?
+    var instructions: [Bool] { lock.withLock { files } }
 
     func start(_ command: ClaudeCommand, binary: URL, directory: URL) throws -> any ClaudeSession {
-        let index = lock.withLock { commands.count }
+        let waiting = FileManager.default.fileExists(atPath: directory.appending(path: "CLAUDE.md").path(percentEncoded: false))
+        let index = lock.withLock { folders.append(directory); files.append(waiting); return commands.count }
         if failing.contains(index) {
             lock.withLock { commands.append(command) }
             throw CocoaError(.fileNoSuchFile)
@@ -92,6 +98,7 @@ final class FakeLauncher: ClaudeLaunching, @unchecked Sendable {
 final class Calls: @unchecked Sendable {
     private let lock = NSLock()
     private var count = 0
+    var value: Int { lock.withLock { count } }
     func next() -> Int { lock.withLock { count += 1; return count } }
 }
 
@@ -141,13 +148,14 @@ final class Calls: @unchecked Sendable {
     }
 
     /// Every launch answers; `override` changes one of them.
-    static func healthy(_ override: @escaping @Sendable (ClaudeCommand, Int) -> FakeSession? = { _, _ in nil }) -> FakeLauncher {
-        FakeLauncher { command, index in
+    static func healthy(failing: Set<Int> = [], _ override: @escaping @Sendable (ClaudeCommand, Int) -> FakeSession? = { _, _ in nil }) -> FakeLauncher {
+        FakeLauncher(failing: failing) { command, index in
             if let session = override(command, index) { return session }
             if command.configDirectory?.lastPathComponent == "compte-vide" { return notConnected() }
             guard let prompt = command.prompt else { return conversation() }
             if prompt.hasPrefix("Appelle l'outil projets") { return tools(denied: ["mcp__polhub__journal"]) }
-            if prompt == "Réponds seulement : ok" { return ping() }
+            // The first launch asks for the word of the folder's instructions; the others only « ok ».
+            if prompt == "Réponds seulement : ok" || prompt == ColinProbeTexts.memoryRequest { return ping() }
             return FakeSession([.initialized(loaded), done(0.05)], code: 0)
         }
     }
@@ -158,9 +166,10 @@ final class Calls: @unchecked Sendable {
         return (0, "  0:01.50 204800\n")
     }
 
-    func probe(_ launcher: FakeLauncher, binary: URL?, helper: URL?, pings: Int = 3, timeout: Double = 5, tool: @escaping ColinProbe.Tool = answers) -> ColinProbe {
+    func probe(_ launcher: FakeLauncher, binary: URL?, helper: URL?, pings: Int = 3, pause: Double = 0, timeout: Double = 5,
+               tool: @escaping ColinProbe.Tool = answers) -> ColinProbe {
         ColinProbe(launcher: launcher, binary: binary, helper: helper, home: Self.home, environment: ["HOME": Self.home.path, "PATH": "/usr/bin:/bin"],
-                   pings: pings, pause: 0, timeout: timeout, initWait: 0.5, interruptDelay: 0, tool: tool, busySessions: { _ in 2 })
+                   pings: pings, pause: pause, timeout: timeout, initWait: 0.5, interruptDelay: 0, tool: tool, busySessions: { _ in 2 })
     }
 
     func folder() -> URL {
@@ -203,7 +212,11 @@ final class Calls: @unchecked Sendable {
         #expect(step("connexion", measures)?.numbers["premierMotMs"] != nil)
         // Claude Code's own plugins and agents are told, and are no fault.
         #expect(step("isolation", measures)?.numbers == ["outils": 0, "serveurs": 0, "plugins": 0, "pluginsIntegres": 3, "skills": 0, "commandes": 0,
-                                                         "memoires": 0, "dossiers": 0, "agents": 2, "messagerie": 0])
+                                                         "memoires": 0, "dossiers": 0, "agents": 2, "messagerie": 0, "consigneLue": 0, "contexte": 900])
+        #expect(step("isolation", measures)?.labels == [:])
+        // A file of instructions waited in the folder of every launch, and the first one asked for its word.
+        #expect(launcher.started.first?.prompt == ColinProbeTexts.memoryRequest)
+        #expect(launcher.instructions.count == 13 && launcher.instructions.allSatisfy { $0 })
         #expect(step("connexions", measures)?.numbers["lancements"] == 3)
         #expect(step("connexions", measures)?.numbers["reussis"] == 3)
         #expect(step("connexions", measures)?.numbers["connecteApres"] == 1)
@@ -242,18 +255,58 @@ final class Calls: @unchecked Sendable {
         #expect(low?.model == "opus" && low?.prompt == "Dis bonjour en une phrase.")
     }
 
-    @Test func anIsolationThatLeaksIsAFault() async throws {
-        // A plugin of the user, a memory file: Claude Code loaded more than what was asked.
+    @Test func anIsolationThatLeaksStopsTheProbe() async throws {
+        // A plugin of the user, a memory file: Claude Code loaded more than what was asked. Nothing more is sent to it.
         let leaking = ClaudeInit(version: "2.1.304", model: "claude-haiku-4-5", permissionMode: "dontAsk", apiKeySource: "none",
                                  plugins: 1, builtinPlugins: 3, memoryPaths: 1)
-        let launcher = Self.healthy { command, _ in
-            command.prompt == "Réponds seulement : ok" && command.configDirectory?.lastPathComponent != "compte-vide"
-                ? FakeSession([.initialized(leaking), Self.done()], code: 0) : nil
-        }
-        let measures = try await run(probe(launcher, binary: binary, helper: helper)).measures
+        let launcher = Self.healthy { _, index in index == 0 ? FakeSession([.initialized(leaking), Self.done()], code: 0) : nil }
+        let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper))
         #expect(step("isolation", measures)?.ok == false)
         #expect(step("isolation", measures)?.numbers["plugins"] == 1)
         #expect(step("isolation", measures)?.numbers["memoires"] == 1)
+        #expect(launcher.started.count == 1)
+        #expect(Array(measures.map(\.step).suffix(2)) == ["isolation", "bilan"])
+        #expect(ColinProbe.reason(in: directory) == "isolation")
+    }
+
+    @Test func anInitWithoutItsListsFailsTheIsolation() async throws {
+        // A Claude Code that no longer says what it loaded: « nothing loaded » is not checked, and is not said.
+        let silent = ClaudeInit(version: "9.9.9", model: "claude-haiku-4-5", permissionMode: "dontAsk", apiKeySource: "none", missing: ["plugins", "skills"])
+        let launcher = Self.healthy { _, index in index == 0 ? FakeSession([.initialized(silent), Self.done()], code: 0) : nil }
+        let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper))
+        #expect(step("isolation", measures)?.ok == false)
+        #expect(step("isolation", measures)?.labels["champsAbsents"] == "plugins,skills")
+        #expect(launcher.started.count == 1)
+        #expect(ColinProbe.reason(in: directory) == "isolation")
+    }
+
+    @Test func aClaudeThatReadTheFoldersInstructionsIsNotIsolated() async throws {
+        // It answers the word of the file: the file was read, whatever its first line says of what it loaded.
+        let knows = FakeSession([.initialized(Self.loaded),
+                                 .result(ClaudeResult(subtype: "success", inputTokens: 900, text: "Le mot est \(ColinProbeTexts.memoryWord)."))], code: 0)
+        let launcher = Self.healthy { _, index in index == 0 ? knows : nil }
+        let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper))
+        #expect(step("isolation", measures)?.ok == false)
+        #expect(step("isolation", measures)?.numbers["consigneLue"] == 1)
+        #expect(launcher.started.count == 1)
+        #expect(ColinProbe.reason(in: directory) == "isolation")
+        // The answer itself is never kept, not even this invented word.
+        let trace = try String(contentsOf: directory.appending(path: "trace.jsonl"), encoding: .utf8)
+        #expect(!trace.contains(ColinProbeTexts.memoryWord))
+    }
+
+    @Test func aFirstLaunchThatReadTooMuchIsNotIsolated() async throws {
+        // More was read than the few sentences given: instructions of the user's, a memory. A size that is not
+        // told proves nothing either.
+        for tokens in [2_400, 0] {
+            let heavy = FakeSession([.initialized(Self.loaded), .result(ClaudeResult(subtype: "success", inputTokens: tokens, text: "inconnu"))], code: 0)
+            let launcher = Self.healthy { _, index in index == 0 ? heavy : nil }
+            let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper))
+            #expect(step("isolation", measures)?.ok == false, "\(tokens)")
+            #expect(step("isolation", measures)?.numbers["contexte"] == Double(tokens), "\(tokens)")
+            #expect(launcher.started.count == 1, "\(tokens)")
+            #expect(ColinProbe.reason(in: directory) == "isolation", "\(tokens)")
+        }
     }
 
     @Test func theConversationSaysItsFourMessagesAndInterruptsTheThird() async throws {
@@ -297,7 +350,7 @@ final class Calls: @unchecked Sendable {
 
     @Test func aClaudeThatGoesSilentMidwayStopsTheProbe() async throws {
         let launcher = Self.healthy { _, index in index == 2 ? FakeSession(endsWhenClosed: false) : nil }
-        let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper, pings: 5, timeout: 0.3))
+        let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper, pings: 5, timeout: 0.5))
         #expect(launcher.started.count == 3)
         #expect(launcher.all[2].stopped)
         #expect(step("panne", measures)?.labels["categorie"] == "sans-reponse")
@@ -352,7 +405,7 @@ final class Calls: @unchecked Sendable {
     @Test func aTurnThatNeverAnswersIsKilled() async throws {
         // The second message of the conversation gets no answer: the process is stopped, and the probe with it.
         let launcher = Self.healthy { command, _ in command.prompt == nil ? Self.conversation(endsWhenClosed: false, second: []) : nil }
-        let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper, timeout: 0.3))
+        let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper, timeout: 0.5))
         let index = try #require(launcher.started.firstIndex { $0.prompt == nil })
         #expect(launcher.all[index].stopped)
         #expect(launcher.all[index].sent.count == 2)
@@ -367,8 +420,9 @@ final class Calls: @unchecked Sendable {
         let launcher = Self.healthy { command, _ in command.prompt == nil ? Self.conversation(second: refused) : nil }
         let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper))
         let index = try #require(launcher.started.firstIndex { $0.prompt == nil })
-        // No third message after a turn in error.
+        // No third message after a turn in error, and no launch after the conversation.
         #expect(launcher.all[index].sent.count == 2)
+        #expect(launcher.started.count == 5)
         #expect(step("conversation", measures)?.ok == false)
         #expect(measures.last?.labels["fin"] == "arretee")
         #expect(ColinProbe.reason(in: directory) == "pas-connecte")
@@ -410,6 +464,222 @@ final class Calls: @unchecked Sendable {
         #expect(step("binaire", measures)?.labels["version"] == "")
     }
 
+    // MARK: - Every launch, and every way to break
+
+    @Test func aFirstWordLaunchThatBreaksStopsTheProbe() async throws {
+        // The second of the four first words (Opus at a low effort) says « not connected ».
+        let launcher = Self.healthy { command, _ in command.effort == "low" ? Self.notConnected() : nil }
+        let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper))
+        #expect(launcher.started.count == 7)
+        #expect(Array(measures.map(\.step).suffix(4)) == ["premier-mot", "premier-mot", "panne", "bilan"])
+        #expect(ColinProbe.reason(in: directory) == "pas-connecte")
+    }
+
+    @Test func aSceneThatGoesSilentStopsTheProbe() async throws {
+        let launcher = Self.healthy { command, _ in
+            command.prompt?.hasPrefix("Voici la transcription") == true ? FakeSession(endsWhenClosed: false) : nil
+        }
+        let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper, timeout: 0.5))
+        #expect(launcher.started.count == 12)
+        #expect(Array(measures.map(\.step).suffix(3)) == ["scene", "panne", "bilan"])
+        #expect(step("panne", measures)?.labels["categorie"] == "sans-reponse")
+        #expect(ColinProbe.reason(in: directory) == "sans-reponse")
+    }
+
+    @Test func aSceneThatCannotStartStopsTheProbe() async throws {
+        // The eleventh launch is the second scene.
+        let launcher = Self.healthy(failing: [10])
+        let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper))
+        #expect(launcher.started.count == 11)
+        #expect(Array(measures.map(\.step).suffix(2)) == ["panne", "bilan"])
+        #expect(ColinProbe.reason(in: directory) == "lancement-impossible")
+    }
+
+    @Test func aConversationThatCannotStartStopsTheProbe() async throws {
+        // Three launches in a row, the tools, then the conversation: the fifth.
+        let launcher = Self.healthy(failing: [4])
+        let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper))
+        #expect(launcher.started.count == 5)
+        #expect(Array(measures.map(\.step).suffix(3)) == ["conversation", "panne", "bilan"])
+        #expect(ColinProbe.reason(in: directory) == "lancement-impossible")
+    }
+
+    @Test func aLaunchInARowThatBreaksIsNotFollowedByAnotherLookAtTheAccount() async throws {
+        let calls = Calls()
+        let tool: ColinProbe.Tool = { url, arguments, environment in
+            if arguments.first == "auth" { _ = calls.next() }
+            return await Self.answers(url, arguments, environment)
+        }
+        let launcher = Self.healthy(failing: [1])
+        let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper, tool: tool))
+        #expect(launcher.started.count == 2)
+        // The account was looked at once, before the launches: Claude Code is not started again after the breakdown.
+        #expect(calls.next() == 2)
+        #expect(step("connexions", measures)?.numbers["connecteApres"] == -1)
+        #expect(ColinProbe.reason(in: directory) == "lancement-impossible")
+    }
+
+    @Test func aClaudeThatDiesWithoutAnAnswerIsABreakdown() async throws {
+        // Gone before saying anything (a code 127, a crash): it could not start. Gone after its first line: no answer.
+        let first = FakeLauncher { _, _ in FakeSession([], code: 127) }
+        let (one, firstMeasures) = try await run(probe(first, binary: binary, helper: helper))
+        #expect(first.started.count == 1)
+        #expect(step("panne", firstMeasures)?.labels["categorie"] == "lancement-impossible")
+        #expect(ColinProbe.reason(in: one) == "lancement-impossible")
+
+        let third = Self.healthy { _, index in index == 2 ? FakeSession([.initialized(Self.loaded)], code: 1) : nil }
+        let (two, _) = try await run(probe(third, binary: binary, helper: helper, pings: 5))
+        #expect(third.started.count == 3)
+        #expect(ColinProbe.reason(in: two) == "sans-reponse")
+    }
+
+    @Test func anAccountAtItsLimitIsNamed() async throws {
+        let refused: [ClaudeEvent] = [.initialized(Self.loaded), .rateLimit(ClaudeRateLimit(status: "rejected", type: "seven_day", sevenDay: 1)),
+                                      .result(ClaudeResult(subtype: "success", isError: true, apiErrorStatus: 429, text: "limite"))]
+        let launcher = Self.healthy { _, index in index == 1 ? FakeSession(refused, code: 1) : nil }
+        let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper))
+        #expect(launcher.started.count == 2)
+        #expect(step("panne", measures)?.labels["categorie"] == "limite-atteinte")
+        #expect(ColinProbe.reason(in: directory) == "limite-atteinte")
+        // Where the account stands is said at whatever end.
+        #expect(step("bilan", measures)?.labels["limites"] == "rejected")
+        #expect(step("bilan", measures)?.numbers["semaine"] == 100)
+    }
+
+    @Test func aFirstLaunchInErrorSaysSo() async throws {
+        let launcher = FakeLauncher { _, _ in
+            FakeSession([.initialized(Self.loaded), .result(ClaudeResult(subtype: "error_during_execution", isError: true, text: "boum"))], code: 1)
+        }
+        let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper))
+        #expect(launcher.started.count == 1)
+        #expect(step("panne", measures)?.labels["categorie"] == "autre")
+        #expect(ColinProbe.reason(in: directory) == "erreur")
+    }
+
+    @Test func aLaunchThatAnsweredButWasSlowToLeaveIsNoBreakdown() async throws {
+        // The answer came; the process only took its time to end, and was stopped. Not « no answer ».
+        let slow = FakeSession([.initialized(Self.loaded), Self.done()], endsWhenClosed: false)
+        let launcher = Self.healthy { command, _ in command.effort == "low" ? slow : nil }
+        let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper, timeout: 0.5))
+        #expect(slow.stopped)
+        #expect(step("bilan", measures)?.labels["fin"] == "complete")
+        #expect(ColinProbe.reason(in: directory) == nil)
+    }
+
+    @Test func aConversationWhoseProcessDiesIsABreakdown() async throws {
+        let launcher = Self.healthy { command, _ in command.prompt == nil ? FakeSession([.initialized(Self.withServer)], code: 1) : nil }
+        let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper))
+        #expect(launcher.started.count == 5)
+        #expect(Array(measures.map(\.step).suffix(3)) == ["conversation", "panne", "bilan"])
+        #expect(ColinProbe.reason(in: directory) == "sans-reponse")
+    }
+
+    @Test func theEmptyAccountThatStaysSilentIsNotAGoodFailure() async throws {
+        let launcher = Self.healthy { command, _ in
+            command.configDirectory?.lastPathComponent == "compte-vide" ? FakeSession(endsWhenClosed: false) : nil
+        }
+        let measures = try await run(probe(launcher, binary: binary, helper: helper, timeout: 0.5)).measures
+        #expect(measures.last { $0.step == "panne" }?.ok == false)
+        #expect(step("bilan", measures)?.ok == false)
+        #expect(step("bilan", measures)?.labels["fin"] == "complete")
+    }
+
+    @Test func theMarkOfAnInterruptionIsExpectedOnlyWhereTheProbeInterrupts() async throws {
+        // In a launch that answers once, nobody interrupts: the mark there was not asked for.
+        let launcher = Self.healthy { command, _ in
+            command.prompt == "Dis bonjour en une phrase." && command.model == "sonnet"
+                ? FakeSession([.initialized(Self.loaded), .other("user/interruption"), Self.done()], code: 0) : nil
+        }
+        let measures = try await run(probe(launcher, binary: binary, helper: helper)).measures
+        #expect(step("bilan", measures)?.numbers["inattendus"] == 2)
+    }
+
+    // MARK: - What a trace, a report and the cleaning may hold
+
+    @Test func nothingThatLooksLikeAPathOrAnAddressReachesTheTrace() async throws {
+        // Claude Code's own words are kept only when they look like technical words.
+        let path = "/Users/essai-de-sonde/quelque/part", address = "quelquun@exemple.fr", arn = "arn:aws:bedrock:eu-west-1:123456789012:model/x"
+        let odd = ClaudeInit(version: path, model: arn, permissionMode: path, apiKeySource: address, builtinPlugins: 3)
+        let launcher = Self.healthy { command, index in
+            if index == 0 || command.prompt == "Réponds seulement : ok", command.configDirectory?.lastPathComponent != "compte-vide" {
+                return FakeSession([.initialized(odd), .other(path), .rateLimit(ClaudeRateLimit(status: address, type: path, sevenDay: 0.2)), Self.done()], code: 0)
+            }
+            if command.prompt?.hasPrefix("Appelle l'outil projets") == true {
+                return FakeSession([.initialized(Self.withServer), .assistant(text: "", tools: ["mcp__polhub__projets"]),
+                                    .result(ClaudeResult(subtype: "success", denied: [path, address]))], code: 0)
+            }
+            if command.configDirectory?.lastPathComponent == "compte-vide" {
+                return FakeSession([.result(ClaudeResult(subtype: path, isError: true, text: "Please run /login"))], code: 1)
+            }
+            return nil
+        }
+        let tool: ColinProbe.Tool = { url, arguments, environment in
+            if arguments.first == "auth" { return (0, #"{"loggedIn":true,"authMethod":"\#(address)","subscriptionType":"\#(path)"}"#) }
+            return await Self.answers(url, arguments, environment)
+        }
+        let (directory, _) = try await run(probe(launcher, binary: binary, helper: helper, tool: tool))
+        let trace = try String(contentsOf: directory.appending(path: "trace.jsonl"), encoding: .utf8)
+        for word in ["essai-de-sonde", "exemple.fr", "123456789012", "quelque/part"] { #expect(!trace.contains(word), "\(word)") }
+        #expect(trace.contains("autre"))
+    }
+
+    @Test func anAnswerOfAnotherShapeTellsOnlyTheNamesOfItsFields() async throws {
+        let tool: ColinProbe.Tool = { url, arguments, environment in
+            if arguments.first == "auth" { return (0, #"Avis : une mise à jour existe.\n{"connecte":"oui","compte":"quelquun@exemple.fr","/Users/essai-de-sonde":1}"#) }
+            return await Self.answers(url, arguments, environment)
+        }
+        let (directory, measures) = try await run(probe(Self.healthy(), binary: binary, helper: helper, tool: tool))
+        #expect(step("compte", measures)?.ok == false)
+        #expect(step("compte", measures)?.labels["cles"] == "autre,compte,connecte")
+        let trace = try String(contentsOf: directory.appending(path: "trace.jsonl"), encoding: .utf8)
+        #expect(!trace.contains("exemple.fr") && !trace.contains("essai-de-sonde"))
+    }
+
+    @Test func theReportHoldsOnlyItsVerdictAndItsReason() async throws {
+        let healthy = try await run(probe(Self.healthy(), binary: binary, helper: helper)).directory
+        let stopped = try await run(probe(FakeLauncher { _, _ in Self.notConnected() }, binary: binary, helper: helper)).directory
+        for directory in [healthy, stopped] {
+            let object = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: directory.appending(path: "bilan.json"))) as? [String: Any])
+            #expect(Set(object.keys).isSubset(of: ["ok", "raison"]))
+        }
+    }
+
+    @Test func theBusyConversationsAreCountedFromTheirFiles() throws {
+        let root = folder()
+        let sessions = root.appending(path: "sessions", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: sessions, withIntermediateDirectories: true)
+        try Data(#"{"status":"busy","cwd":"/quelque/part"}"#.utf8).write(to: sessions.appending(path: "1.json"))
+        try Data(#"{"status":"busy"}"#.utf8).write(to: sessions.appending(path: "2.json"))
+        try Data(#"{"status":"idle"}"#.utf8).write(to: sessions.appending(path: "3.json"))
+        try Data("pas du JSON".utf8).write(to: sessions.appending(path: "4.json"))
+        try Data(#"{"status":"busy"}"#.utf8).write(to: sessions.appending(path: "5.key"))
+        #expect(ColinProbe.busySessions(in: root) == 2)
+        #expect(ColinProbe.busySessions(in: folder()) == nil)
+    }
+
+    @Test func theCleaningLeavesTheAccountAndItsNeighboursAlone() async throws {
+        let manager = FileManager.default
+        let account = folder()
+        try manager.createDirectory(at: account, withIntermediateDirectories: true)
+        try Data("un fichier du compte".utf8).write(to: account.appending(path: "garde.txt"))
+        let directory = folder()
+        try manager.createDirectory(at: directory.appending(path: "base", directoryHint: .isDirectory), withIntermediateDirectories: true)
+        try Data("un voisin".utf8).write(to: directory.appending(path: "voisin.txt"))
+        let launcher = Self.healthy()
+        _ = try await run(probe(launcher, binary: binary, helper: helper), variant: account.path(percentEncoded: false), in: directory)
+        #expect(manager.fileExists(atPath: account.appending(path: "garde.txt").path(percentEncoded: false)))
+        // A folder that was there before, even named like one of the probe's own, stays.
+        #expect(try manager.contentsOfDirectory(atPath: directory.path(percentEncoded: false)).sorted() == ["base", "bilan.json", "trace.jsonl", "voisin.txt"])
+        // The launches ran in a folder of their own, outside the measure's: its path, with the user's name, is not
+        // what the tools would tell Claude.
+        #expect(!launcher.directories.isEmpty)
+        #expect(launcher.directories.allSatisfy { !$0.path(percentEncoded: false).hasPrefix(directory.path(percentEncoded: false)) })
+        #expect(launcher.directories.allSatisfy { !manager.fileExists(atPath: $0.path(percentEncoded: false)) })
+        // The chosen account never reaches the trace.
+        let trace = try String(contentsOf: directory.appending(path: "trace.jsonl"), encoding: .utf8)
+        #expect(!trace.contains(account.lastPathComponent))
+    }
+
     @Test func aToolOutsideTheProfileMustBeDenied() async throws {
         let denied = try await run(probe(Self.healthy(), binary: binary, helper: helper)).measures
         #expect(step("outils", denied)?.ok == true)
@@ -448,7 +718,7 @@ final class Calls: @unchecked Sendable {
     @Test func aSilentClaudeIsKilledAfterTheDelay() async throws {
         let launcher = FakeLauncher { _, _ in FakeSession(endsWhenClosed: false) }
         let began = Date()
-        let measures = try await run(probe(launcher, binary: binary, helper: helper, timeout: 0.2)).measures
+        let measures = try await run(probe(launcher, binary: binary, helper: helper, timeout: 0.5)).measures
         #expect(Date().timeIntervalSince(began) < 5)
         #expect(launcher.started.count == 1)
         #expect(launcher.all.first?.stopped == true)
@@ -470,6 +740,47 @@ final class Calls: @unchecked Sendable {
         #expect(launcher.started.count == 2)
         #expect(step("bilan", measures)?.labels["fin"] == "interrompue")
         #expect(step("bilan", measures)?.ok == false)
+        #expect(ColinProbe.verdict(in: directory) == nil)
+    }
+
+    @Test func aProbeStoppedDuringThePauseBetweenTwoLaunchesStopsAtOnce() async throws {
+        let launcher = Self.healthy()
+        let directory = folder()
+        let probe = probe(launcher, binary: binary, helper: helper, pings: 5, pause: 30)
+        let task = Task { try await run(probe, in: directory).measures }
+        for _ in 0..<500 where launcher.started.isEmpty { try await Task.sleep(for: .milliseconds(10)) }
+        try await Task.sleep(for: .milliseconds(100))
+        let began = Date()
+        task.cancel()
+        let measures = try await task.value
+        #expect(Date().timeIntervalSince(began) < 3)
+        #expect(launcher.started.count == 1)
+        #expect(step("bilan", measures)?.labels["fin"] == "interrompue")
+    }
+
+    @Test func aProbeStoppedWhileAToolIsSlowLaunchesNothing() async throws {
+        // `claude --version` hangs; the probe is stopped meanwhile: nothing is noted of it, and nothing is launched.
+        let asked = Calls()
+        let tool: ColinProbe.Tool = { url, arguments, environment in
+            if arguments == ["--version"] {
+                _ = asked.next()
+                try? await Task.sleep(for: .seconds(30))
+                return nil
+            }
+            return await Self.answers(url, arguments, environment)
+        }
+        let launcher = Self.healthy()
+        let directory = folder()
+        let probe = probe(launcher, binary: binary, helper: helper, tool: tool)
+        let task = Task { try await run(probe, in: directory).measures }
+        for _ in 0..<500 where asked.value == 0 { try await Task.sleep(for: .milliseconds(10)) }
+        let began = Date()
+        task.cancel()
+        let measures = try await task.value
+        #expect(Date().timeIntervalSince(began) < 3)
+        #expect(launcher.started.isEmpty)
+        #expect(measures.map(\.step) == ["bilan"])
+        #expect(step("bilan", measures)?.labels["fin"] == "interrompue")
         #expect(ColinProbe.verdict(in: directory) == nil)
     }
 

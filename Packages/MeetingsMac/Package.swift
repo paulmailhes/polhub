@@ -115,6 +115,7 @@ let package = Package(
             "MailFormat",
             "Summarization",
             "PolhubDesign",
+            "Colin",
             "Notifications",
             "Inspiration",
             .product(name: "Domain", package: "Kernel"),

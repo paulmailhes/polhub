@@ -23,7 +23,20 @@ import Testing
         await probe.run(ProbeRequest(probe: .colin, variant: environment["POLHUB_COLIN_ACCOUNT"]), trace: trace, directory: directory)
         await trace.close()
         // The trace holds numbers and technical labels only: it can be shown.
-        print(try String(contentsOf: directory.appending(path: "trace.jsonl"), encoding: .utf8))
+        let text = try String(contentsOf: directory.appending(path: "trace.jsonl"), encoding: .utf8)
+        print(text)
         #expect(ColinProbe.verdict(in: directory) != nil)
+        struct Line: Decodable { let kind: String; let data: ColinMeasure }
+        let measures = text.split(separator: "\n").compactMap { try? JSONDecoder().decode(Line.self, from: Data($0.utf8)) }
+            .filter { $0.kind == "colin" }.map(\.data)
+        // The words by which Claude Code says « not connected » may change with its versions: a probe that reached
+        // its end has seen them on the empty account, and must have known them.
+        if measures.last?.labels["fin"] == "complete" {
+            let unconnected = measures.last { $0.step == "panne" }
+            #expect(unconnected?.labels["categorie"] == "pas-connecte")
+            #expect(unconnected?.ok == true)
+        }
+        // Nothing of the run stays but its trace and its report.
+        #expect(try FileManager.default.contentsOfDirectory(atPath: directory.path(percentEncoded: false)).sorted() == ["bilan.json", "trace.jsonl"])
     }
 }

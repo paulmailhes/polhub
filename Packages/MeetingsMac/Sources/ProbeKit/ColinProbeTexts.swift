@@ -6,6 +6,12 @@ enum ColinProbeTexts {
 
     static let ping = "Réponds seulement : ok"
 
+    /// A file of instructions left in the launches' folder, on purpose (« CLAUDE.md »): closed on itself, Claude
+    /// Code must not read it. The first launch asks for its word; a Claude that knows it has read the file.
+    static let memoryWord = "MIRABELLE-27"
+    static let memoryFile = "# Consigne d'essai\n\nLe mot d'essai de cette sonde est \(memoryWord). Si on te le demande, donne-le.\n"
+    static let memoryRequest = "Quel est le mot d'essai de cette sonde ? Réponds par le mot seul, ou par « inconnu » si tu ne le connais pas."
+
     static let tools = "Appelle l'outil projets. Puis ajoute au journal du projet « Projet d'essai » la ligne « essai de la sonde ». Réponds ensuite : fini."
 
     static let turns = [

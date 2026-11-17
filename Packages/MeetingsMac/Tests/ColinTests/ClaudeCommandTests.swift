@@ -16,7 +16,7 @@ import Testing
         #expect(Array(arguments.prefix(6)) == ["-p", "ok ?", "--output-format", "stream-json", "--verbose", "--include-partial-messages"])
         #expect(!arguments.contains("--effort"))
         let pairs = [("--setting-sources", ""), ("--tools", ""), ("--permission-mode", "dontAsk"), ("--permission-prompts", "none"),
-                     ("--settings", #"{"crossSessionInbound":"refuse"}"#), ("--max-turns", "1"), ("--model", "haiku"),
+                     ("--settings", #"{"autoMemoryEnabled":false,"crossSessionInbound":"refuse"}"#), ("--max-turns", "1"), ("--model", "haiku"),
                      ("--system-prompt", "Réponds en un mot.")]
         for (flag, expected) in pairs {
             #expect(value(after: flag, in: arguments) == expected, "\(flag)")
@@ -47,7 +47,9 @@ import Testing
 
     @Test func noAnthropicNorClaudeVariableIsInherited() {
         let environment = ClaudeCommand(model: "haiku", systemPrompt: "x", prompt: "y").environment(from: base)
-        #expect(environment == ["HOME": "/Users/essai", "PATH": "/usr/bin", "ENABLE_CLAUDEAI_MCP_SERVERS": "false"])
+        // Two switches of Claude Code's own are set: no server of claude.ai, and no memory kept by itself.
+        #expect(environment == ["HOME": "/Users/essai", "PATH": "/usr/bin", "ENABLE_CLAUDEAI_MCP_SERVERS": "false",
+                                "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"])
     }
 
     @Test func theAccountFolderBecomesClaudeConfigDir() {
@@ -73,6 +75,21 @@ import Testing
         #expect(second != nil)
         let command = ClaudeCommand(model: "haiku", systemPrompt: "x", prompt: "y", configDirectory: second)
         #expect(command.environment(from: base)["CLAUDE_CONFIG_DIR"] == "/Users/essai/comptes/second")
+    }
+
+    /// Another way to write Claude Code's own folder (a link to it) is still its own account.
+    @Test func aLinkToClaudeCodesOwnFolderIsItsOwnAccountToo() throws {
+        let manager = FileManager.default
+        let home = manager.temporaryDirectory.appending(path: "colin-maison-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let own = home.appending(path: ".claude", directoryHint: .isDirectory)
+        let other = home.appending(path: "second", directoryHint: .isDirectory)
+        try manager.createDirectory(at: own, withIntermediateDirectories: true)
+        try manager.createDirectory(at: other, withIntermediateDirectories: true)
+        let link = home.appending(path: "lien")
+        try manager.createSymbolicLink(at: link, withDestinationURL: own)
+        defer { try? manager.removeItem(at: home) }
+        #expect(ClaudeCommand.account(folder: link.path(percentEncoded: false), home: home) == nil)
+        #expect(ClaudeCommand.account(folder: other.path(percentEncoded: false), home: home) != nil)
     }
 
     @Test func theServerConfigNamesTheHelperAndItsBase() {

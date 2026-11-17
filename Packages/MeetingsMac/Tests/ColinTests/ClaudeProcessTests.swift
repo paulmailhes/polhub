@@ -149,6 +149,63 @@ import Testing
         }
     }
 
+    @Test func stopAsksBeforeItKills() async throws {
+        // The process hears the request to stop, says so and leaves by itself: it was asked, not killed.
+        // (Claude Code 2.1.304 leaves within 0.7 s of SIGINT, with its turn ended in error: measured on 17/11.)
+        let ready = folder.appending(path: "pret.txt")
+        let session = try start(#"trap 'echo entendu > "\#(note.path(percentEncoded: false))"; exit 0' INT; echo pret > "\#(ready.path(percentEncoded: false))"; sleep 30 & wait"#, oneShot)
+        // The script says when it listens: under load, a shell may take long to get there.
+        for _ in 0..<500 where !FileManager.default.fileExists(atPath: ready.path(percentEncoded: false)) { try await Task.sleep(for: .milliseconds(10)) }
+        let began = Date()
+        session.stop()
+        let events = await collect(session)
+        #expect(Date().timeIntervalSince(began) < 2)
+        #expect(noted() == "entendu\n")
+        guard case .exited(let code, _) = events.last else { Issue.record("\(events)"); return }
+        #expect(code == 0)
+    }
+
+    @Test func everyProcessStillRunningIsStoppedWhenTheAppGoes() async throws {
+        let processes = ClaudeProcesses()
+        let launcher = LiveClaudeLauncher(environment: ["PATH": "/usr/bin:/bin"], processes: processes)
+        let obedient = try launcher.start(oneShot, binary: try script("trap 'exit 0' INT; sleep 30 & wait"), directory: folder)
+        let deaf = try launcher.start(oneShot, binary: try script("trap '' INT TERM; exec sleep 30"), directory: folder)
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(processes.count == 2)
+        let began = Date()
+        processes.stopAll(within: 0.5)
+        // Asked, waited for half a second, then killed: nothing is left when this returns.
+        #expect(Date().timeIntervalSince(began) < 2)
+        #expect(kill(obedient.pid, 0) != 0)
+        #expect(kill(deaf.pid, 0) != 0)
+        _ = await collect(obedient)
+        _ = await collect(deaf)
+        #expect(processes.count == 0)
+        // Once the app is going, nothing new is launched.
+        let late = try script("exit 0")
+        #expect(throws: (any Error).self) { _ = try launcher.start(oneShot, binary: late, directory: folder) }
+    }
+
+    @Test func aProcessThatEndedLeavesTheList() async throws {
+        let processes = ClaudeProcesses()
+        let session = try LiveClaudeLauncher(environment: [:], processes: processes).start(oneShot, binary: try script("exit 0"), directory: folder)
+        _ = await collect(session)
+        #expect(processes.count == 0)
+    }
+
+    @Test func aCancelledToolIsKilledAtOnce() async throws {
+        let slow = try script("exec sleep 30")
+        let processes = ClaudeProcesses()
+        let task = Task { await ClaudeTool.run(slow, arguments: [], environment: ["PATH": "/usr/bin:/bin"], timeout: 20, processes: processes) }
+        for _ in 0..<200 where processes.count == 0 { try await Task.sleep(for: .milliseconds(10)) }
+        let began = Date()
+        task.cancel()
+        let answer = await task.value
+        #expect(answer == nil)
+        #expect(Date().timeIntervalSince(began) < 2)
+        #expect(processes.count == 0)
+    }
+
     @Test func aToolThatDoesNotExistIsNil() async {
         #expect(await ClaudeTool.run(URL(fileURLWithPath: "/nulle/part/claude"), arguments: [], environment: [:], timeout: 1) == nil)
     }
