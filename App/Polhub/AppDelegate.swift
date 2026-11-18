@@ -711,6 +711,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         NSApp.setActivationPolicy(.regular)
         mainWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate()
+        // The window is shown to Paul on the Accueil (it was closed, not gone: its page does not appear again by itself).
+        if router.section == .home { colin?.seen() }
     }
 
     /// « Précédent » and « Suivant » in the window (Paul, 16/11: his mouse's side buttons, as in a browser): the
