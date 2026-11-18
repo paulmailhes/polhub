@@ -138,6 +138,10 @@ public struct Preferences: @unchecked Sendable {
         public static let colinAccount = "colin.dossierDuCompte"
         /// The version of the app that last counted Colin's rules on the mails (18/11).
         public static let colinRulesCount = "colin.releveDesRegles"
+        /// Réglages › Colin (18/11): the days after which the Accueil signals a mail left without an answer, and a
+        /// client who no longer answers.
+        public static let colinReplyDays = "colin.reponseAttendue.jours"
+        public static let colinSilentDays = "colin.clientMuet.jours"
     }
 
     public enum Default {
@@ -153,6 +157,12 @@ public struct Preferences: @unchecked Sendable {
         public static let meetingCardChoices = [1, 2, 5]
         /// Gmail's choices for calling a mail back.
         public static let mailUndoChoices = [5, 10, 20, 30]
+        /// A mail left without an answer is signaled after three days, a silent client after seven (the design of
+        /// 17/11).
+        public static let colinReplyDays = 3
+        public static let colinReplyChoices = [2, 3, 5, 7]
+        public static let colinSilentDays = 7
+        public static let colinSilentChoices = [5, 7, 10, 14]
     }
 
     private let defaults: UserDefaults
@@ -191,6 +201,10 @@ public struct Preferences: @unchecked Sendable {
         return Default.mailUndoChoices.contains(value) ? value : 10
     }
     public var mailAfterGesture: MailAfterGesture { MailAfterGesture(rawValue: defaults.string(forKey: Key.mailAfterGesture) ?? "") ?? .suivant }
+    /// The days after which a mail without an answer is signaled: one of the choices, or the default.
+    public var colinReplyDays: Int { choice(Key.colinReplyDays, among: Default.colinReplyChoices, or: Default.colinReplyDays) }
+    /// The days after which a silent client is signaled: one of the choices, or the default.
+    public var colinSilentDays: Int { choice(Key.colinSilentDays, among: Default.colinSilentChoices, or: Default.colinSilentDays) }
     /// The minutes before a Meet in the menu bar (Paul, 15/11: on by default).
     public var menuBarMeetMinutes: Bool { flag(Key.menuBarMeetMinutes) }
     /// Polhub collects the new sites and posts by itself (on by default; never in the development build, which
@@ -200,6 +214,15 @@ public struct Preferences: @unchecked Sendable {
     public var inspirationAICategories: Bool { flag(Key.inspirationAICategories) }
 
     private func flag(_ key: String) -> Bool { (defaults.object(forKey: key) as? Bool) ?? true }
+
+    /// A value among its choices, or the default: what nobody could have chosen is never applied.
+    public static func choice(_ value: Int?, among choices: [Int], or fallback: Int) -> Int {
+        value.flatMap { choices.contains($0) ? $0 : nil } ?? fallback
+    }
+
+    private func choice(_ key: String, among choices: [Int], or fallback: Int) -> Int {
+        Self.choice(defaults.object(forKey: key) as? Int, among: choices, or: fallback)
+    }
 
     /// « 10,1 » → [10, 1].
     public static func minutes(_ text: String) -> [Int] {

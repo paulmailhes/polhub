@@ -86,6 +86,8 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
             if let agenda { CalendarSettingsPane(agenda: agenda) }
         case .mails:
             MailSettingsPane(mails: mails)
+        case .colin:
+            ColinSettingsPane()
         case .projects:
             ProjectsSettingsPane()
         case .meetings:

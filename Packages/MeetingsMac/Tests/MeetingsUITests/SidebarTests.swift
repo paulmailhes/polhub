@@ -83,6 +83,20 @@ import Testing
         #expect(condition())
     }
 
+    /// 18/11: Réglages › Colin, right after Mails and only with the mails: what Colin signals comes from them.
+    @Test func reglagesHasAColinFamilyWithTheMails() {
+        let families = SettingsPane.families(hasAgenda: true, hasProjects: true, hasMails: true)
+        #expect(families[1] == [.accounts, .calendar, .mails, .colin, .projects, .meetings])
+        #expect(SettingsPane.colin.title == "Colin")
+        #expect(SettingsPane.colin.subtitle == "Ce que Colin signale sur l'Accueil")
+        #expect(SettingsPane.colin.icon == "sparkles")
+        #expect(!SettingsPane.families(hasAgenda: true, hasProjects: true).flatMap { $0 }.contains(.colin))
+        // No two families of one group share their color: Paul finds them by it.
+        for group in SettingsPane.families(hasAgenda: true, hasProjects: true, hasMails: true, hasInspiration: true) {
+            #expect(Set(group.map(\.tint)).count == group.count)
+        }
+    }
+
     /// 14/11: Réglages opens on its families, as Apple's; each family is entered.
     @Test func reglagesListsItsFamilies() {
         let families = SettingsPane.families(hasAgenda: true, hasProjects: true)

@@ -76,7 +76,7 @@ public enum SidebarItem: String, Hashable, Sendable {
 /// The families of Réglages, entered one by one, as in Apple's settings (Paul, 14/11). Every new feature puts
 /// its settings in its family.
 public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
-    case general, notifications, accounts, calendar, mails, projects, meetings, inspiration, updates, diagnostic, journal
+    case general, notifications, accounts, calendar, mails, colin, projects, meetings, inspiration, updates, diagnostic, journal
 
     public var title: String {
         switch self {
@@ -85,6 +85,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .accounts: "Comptes Google"
         case .calendar: "Calendrier"
         case .mails: "Mails"
+        case .colin: "Colin"
         case .projects: "Projets"
         case .meetings: "Réunions"
         case .inspiration: "Inspiration"
@@ -101,6 +102,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .accounts: "person.crop.circle.fill"
         case .calendar: "calendar"
         case .mails: "envelope.fill"
+        case .colin: "sparkles"
         case .projects: "square.grid.3x2.fill"
         case .meetings: "waveform"
         case .inspiration: "lightbulb.fill"
@@ -117,6 +119,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .accounts: Palette.teal
         case .calendar: Palette.orange
         case .mails: Palette.pink
+        case .colin: Palette.green
         case .projects: Palette.blue
         case .meetings: Palette.violet
         case .inspiration: Palette.yellow
@@ -133,6 +136,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .accounts: "Comptes, couleurs, accès à l'agenda et aux mails"
         case .calendar: "Nouveaux rendez-vous, affichage"
         case .mails: "Images distantes"
+        case .colin: "Ce que Colin signale sur l'Accueil"
         case .projects: "Taille des cartes du Kanban"
         case .meetings: "Comptes rendus, langue des transcriptions"
         case .inspiration: "Pages LinkedIn, collecte, catégories"
@@ -142,11 +146,12 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         }
     }
 
-    /// The whole app first, then Paul's tools, then the app's own pages.
+    /// The whole app first, then Paul's tools, then the app's own pages. Colin comes with the mails: what he signals
+    /// is read in them.
     static func families(hasAgenda: Bool, hasProjects: Bool, hasMails: Bool = false, hasInspiration: Bool = false) -> [[SettingsPane]] {
         [[.general, .notifications],
-         [hasAgenda ? .accounts : nil, hasAgenda ? .calendar : nil, hasMails ? .mails : nil, hasProjects ? .projects : nil, .meetings,
-          hasInspiration ? .inspiration : nil].compactMap { $0 },
+         [hasAgenda ? .accounts : nil, hasAgenda ? .calendar : nil, hasMails ? .mails : nil, hasMails ? .colin : nil,
+          hasProjects ? .projects : nil, .meetings, hasInspiration ? .inspiration : nil].compactMap { $0 },
          [.updates, .diagnostic, .journal]]
     }
 }
