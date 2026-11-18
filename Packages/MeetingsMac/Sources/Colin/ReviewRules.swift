@@ -177,7 +177,7 @@ public enum ReviewRules {
     /// « Claire Morel » → « Claire », « Morel, Claire » too. Whatever does not plainly begin with a first name stays
     /// whole, rather than be cut at the wrong word: an address, a single word, a title (« Dr. Claire Morel »), a
     /// name in capitals (« MOREL Claire », « EDF Entreprises »), a first word that is no word.
-    static func short(_ name: String) -> String {
+    public static func short(_ name: String) -> String {
         let trimmed = name.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "'\"«»“”‘’")))
         let words = trimmed.split(whereSeparator: \.isWhitespace).map(String.init)
         guard words.count >= 2, !trimmed.contains("@") else { return trimmed }

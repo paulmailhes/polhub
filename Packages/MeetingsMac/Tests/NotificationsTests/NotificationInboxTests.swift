@@ -129,6 +129,26 @@ import Testing
         #expect(inbox.unreadCount == 1)
     }
 
+    /// 18/11: « Brouillon prêt » opens the Accueil, where the draft waits at the head of « À valider ».
+    @Test func aDraftReadyOpensHome() {
+        #expect(PlannedNotice.Kind.draft.section == .home)
+        #expect(NoticeAction.of(kind: .draft, eventID: nil, meetCode: nil, account: nil, meetingID: nil, threadKey: "a|t", folder: nil, join: false) == .home)
+        let card = InboxNotice(NotificationPlan.draftNotices([(id: "d1", recipient: "Claire", threadKey: "a|t")], now: now)[0], at: now)
+        #expect(card.kind == .draft && card.action(now: now) == .home)
+    }
+
+    /// The same draft said twice (an agent prepared it again) is one card; another draft is another card.
+    @Test func twoNoticesOfOneDraftAreOneCard() {
+        let inbox = inbox()
+        let claire = NotificationPlan.draftNotices([(id: "d1", recipient: "Claire", threadKey: nil)], now: now)[0]
+        inbox.record(claire, at: now.addingTimeInterval(-600))
+        inbox.record(claire, at: now)
+        inbox.record(NotificationPlan.draftNotices([(id: "d2", recipient: "Marc", threadKey: nil)], now: now)[0], at: now)
+        #expect(inbox.notices.count == 2)
+        #expect(inbox.notices.first { $0.body.contains("Claire") }?.count == 2)
+        #expect(inbox.notices.first { $0.body.contains("Marc") }?.count == 1)
+    }
+
     @Test func aClickOpensWhatTheNotificationIsAbout() {
         // From macOS's center: the same mapping the app used before 15/11.
         #expect(NoticeAction.of(kind: .mail, eventID: nil, meetCode: nil, account: nil, meetingID: nil, threadKey: "a|t", folder: nil, join: false)

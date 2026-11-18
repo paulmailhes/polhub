@@ -1,4 +1,5 @@
 import Agenda
+import Colin
 import Foundation
 import Notifications
 import Persistence
@@ -111,6 +112,17 @@ public final class NotificationHub: ObservableObject {
     public func mailsArrived(_ mails: [(threadKey: String, sender: String, subject: String)]) async {
         guard settings().mailNotices, !mails.isEmpty else { return }
         for notice in NotificationPlan.mailNotices(mails, now: Date()) { await deliver(notice) }
+    }
+
+    /// The drafts an agent just prepared (18/11): Colin says they are ready, by the first name of who each is written
+    /// to. A click opens the Accueil.
+    public func draftsReady(_ drafts: [MailDraftRow]) async {
+        await draftsReady(drafts.map { (id: $0.id, recipient: $0.to.first.map { ReviewRules.short($0.display) } ?? "", threadKey: $0.threadKey) })
+    }
+
+    public func draftsReady(_ drafts: [(id: String, recipient: String, threadKey: String?)]) async {
+        guard settings().colinDraftNotice, !drafts.isEmpty else { return }
+        for notice in NotificationPlan.draftNotices(drafts, now: Date()) { await deliver(notice) }
     }
 
     /// A mail Paul sent that did not leave: told even when the window is closed. A click opens its thread.

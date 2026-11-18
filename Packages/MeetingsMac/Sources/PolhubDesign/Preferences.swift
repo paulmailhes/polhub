@@ -142,6 +142,8 @@ public struct Preferences: @unchecked Sendable {
         /// client who no longer answers.
         public static let colinReplyDays = "colin.reponseAttendue.jours"
         public static let colinSilentDays = "colin.clientMuet.jours"
+        /// Réglages › Notifications › Colin (18/11): « Un brouillon est prêt ».
+        public static let colinDraftNotice = "notifications.colin.brouillon"
         /// When the Accueil was last before Paul, and since when (18/11): three dates.
         public static let colinPresence = "colin.presence"
         /// How long Paul was away from the Accueil, in minutes, from half an hour up, the last hundred: numbers
@@ -196,6 +198,8 @@ public struct Preferences: @unchecked Sendable {
     public var unrecorded: Bool { flag(Key.unrecorded) }
     public var summaryReady: Bool { flag(Key.summaryReady) }
     public var mailNotices: Bool { flag(Key.mailNotices) }
+    /// Colin says a draft an agent prepared is ready (on by default).
+    public var colinDraftNotice: Bool { flag(Key.colinDraftNotice) }
     public var sound: Bool { flag(Key.sound) }
     public var mailDensity: MailDensity { MailDensity(rawValue: defaults.string(forKey: Key.mailDensity) ?? "") ?? .defaut }
     /// The list cut by day (« Aujourd'hui », « Hier »…); Gmail does not.

@@ -236,6 +236,8 @@ public final class MailLibrary: ObservableObject {
     public var onSendFailed: ((String, String?) -> Void)?
     /// A programmed mail that left late, waits for Paul or did not leave (wave B), for the notifications.
     public var onScheduleNotice: ((MailScheduleNotice) -> Void)?
+    /// The drafts an agent just prepared, once each (18/11): Colin says they are ready.
+    public var onAgentDrafts: (([MailDraftRow]) -> Void)?
     /// The mails Paul programmed (wave B), by draft: the Keychain's list, as the engine holds it.
     @Published public private(set) var scheduled: [String: ScheduledSend] = [:]
     private var scheduleVersion = 0
@@ -1371,6 +1373,7 @@ public final class MailLibrary: ObservableObject {
             await MainActor.run { self?.sending?.draftID == id }
         })
         func title(_ subject: String) -> String { subject.isEmpty ? "(sans objet)" : subject }
+        if !pass.adopted.isEmpty { onAgentDrafts?(pass.adopted) }
         if !pass.changed.isEmpty, let fresh = try? store.drafts() { drafts = fresh }
         var calledBack: String?
         for draft in pass.changed {

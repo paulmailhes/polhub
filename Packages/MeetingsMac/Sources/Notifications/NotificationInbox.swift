@@ -7,6 +7,8 @@ import Foundation
 /// The part of Polhub a notification belongs to: its color and symbol in the list.
 public enum NoticeSection: String, Sendable {
     case calendar, meetings, mails, polhub
+    /// The Accueil: what Colin says (18/11).
+    case home
 }
 
 extension PlannedNotice.Kind {
@@ -16,6 +18,7 @@ extension PlannedNotice.Kind {
         case .unrecorded, .summary: .meetings
         case .mail: .mails
         case .test: .polhub
+        case .draft: .home
         }
     }
 }
@@ -35,6 +38,8 @@ public enum NoticeAction: Equatable, Sendable {
     case mailFolder(String?)
     /// Nothing to open but the window (the test).
     case window
+    /// The Accueil: a draft ready waits there, at the head of « À valider » (18/11).
+    case home
 
     /// A mail opens its thread, else its folder; a reminder or a meeting not recorded joins the Meet when `join`
     /// (« Rejoindre », or a click on it); otherwise the meeting, the event, or Calendrier (review of 14/11).
@@ -45,6 +50,8 @@ public enum NoticeAction: Equatable, Sendable {
             return threadKey.map(NoticeAction.mailThread) ?? .mailFolder(folder)
         case .test:
             return .window
+        case .draft:
+            return .home
         default:
             if join, let meetCode, let account { return .join(meetCode: meetCode, account: account) }
             if let meetingID { return .meeting(meetingID) }
@@ -97,6 +104,8 @@ public struct InboxNotice: Codable, Equatable, Identifiable, Sendable {
         case .summary: notice.meetingID?.uuidString ?? notice.title
         case .mail: notice.threadKey ?? "\(notice.folder ?? "")|\(notice.title)"
         case .test: "essai"
+        // One card by draft, whatever its thread: its notice carries its name.
+        case .draft: notice.id
         }
         return "\(notice.kind.rawValue)|\(subject)"
     }

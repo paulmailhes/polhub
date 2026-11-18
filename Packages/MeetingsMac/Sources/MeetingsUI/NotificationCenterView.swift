@@ -29,6 +29,8 @@ extension WindowRouter {
             mails?.show(folderNamed: folder)
         case .window:
             break
+        case .home:
+            section = .home
         }
         return true
     }
@@ -42,6 +44,7 @@ extension NoticeSection {
         case .meetings: .meetings
         case .mails: .mails
         case .polhub: nil
+        case .home: .home
         }
     }
 

@@ -173,6 +173,27 @@ import Testing
         #expect(router.mailSelection == key("a") && router.homeMail == nil)
     }
 
+    /// What an agent drops becomes a draft, told once to the app (for the notification), and a line of « À valider ».
+    @Test func aDraftAnAgentDropsIsToldAndShown() async throws {
+        let world = try await world()
+        defer { try? FileManager.default.removeItem(at: world.root) }
+        let mails = try #require(world.mails)
+        var told: [MailDraftRow] = []
+        mails.onAgentDrafts = { told.append(contentsOf: $0) }
+        try world.store.drop(MailAgentDraftRow(mode: .new, account: Self.me, to: [MailAddress(name: "Claire Morel", email: Self.claire)], subject: "Devis d'avril",
+                                               body: "Bonjour Claire, voici le devis.", createdAt: Date()))
+        try await waitUntil { told.count == 1 }
+        #expect(told.first?.origin == .agent && told.first?.subject == "Devis d'avril")
+        try await waitUntil { world.colin.review.map(\.kind) == [.draft] }
+        #expect(world.colin.review.first?.person == "Claire" && world.colin.review.first?.draftID == told.first?.id)
+        // Looked at again and again, nothing new is told.
+        for _ in 0..<3 {
+            mails.refresh()
+            try await Task.sleep(for: .milliseconds(60))
+        }
+        #expect(told.count == 1)
+    }
+
     @Test func aDismissedLineLeavesAtOnce() async throws {
         let world = try await world { database, _, clock in try marcWaits(database, clock) }
         defer { try? FileManager.default.removeItem(at: world.root) }

@@ -210,6 +210,7 @@ struct NotificationsSettingsPane: View {
     @AppStorage(Preferences.Key.summaryReady) private var summaryReady = true
     @AppStorage(Preferences.Key.mailNotices) private var mailNotices = true
     @AppStorage(Preferences.Key.mailNoticesProjects) private var mailNoticesProjects = false
+    @AppStorage(Preferences.Key.colinDraftNotice) private var draftReady = true
     @AppStorage(Preferences.Key.sound) private var sound = true
 
     var body: some View {
@@ -261,6 +262,13 @@ struct NotificationsSettingsPane: View {
                 Text("Mails")
             } footer: {
                 Text("Jamais pour l'onglet Notifications (services, lettres d'information), ni pendant la première lecture d'une boîte. Un clic ouvre le fil.")
+            }
+            Section {
+                Toggle("Un brouillon est prêt", isOn: $draftReady)
+            } header: {
+                Text("Colin")
+            } footer: {
+                Text("Quand un agent a préparé un mail. Un clic ouvre l'Accueil, où le brouillon t'attend en tête d'« À valider ».")
             }
             Section {
                 Toggle("Son", isOn: $sound)

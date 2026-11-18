@@ -479,6 +479,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         mails?.onSendFailed = { subject, thread in Task { await hub.mailNotSent(subject: subject, threadKey: thread) } }
         // A programmed mail that left late, waits for Paul or did not leave (wave B).
         mails?.onScheduleNotice = { notice in Task { await hub.mailScheduleNotice(notice) } }
+        // A draft an agent prepared: Colin says it is ready (18/11). A click opens the Accueil.
+        mails?.onAgentDrafts = { drafts in Task { await hub.draftsReady(drafts) } }
         // The card before a Meet: « Rejoindre » opens it in Dia under the event's account, as Coup d'œil does.
         meetingCards = MeetingCardPresenter(join: { [weak agenda] event in agenda?.join(event) },
                                             color: { [weak agenda] account in agenda?.color(for: account) ?? .accentColor })

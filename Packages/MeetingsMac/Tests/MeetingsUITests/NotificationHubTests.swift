@@ -186,6 +186,30 @@ import Testing
         #expect(inbox.notices.count == 1)
     }
 
+    /// 18/11: Colin says a draft is ready, by the first name of who it is written to, unless Réglages › Notifications
+    /// says not to.
+    @Test func aDraftReadyIsAnnouncedUnlessTurnedOff() async {
+        let center = Center()
+        let inbox = NotificationInbox(file: nil)
+        let hub = hub(center, inbox: inbox)
+        #expect(Preferences(defaults: defaults).colinDraftNotice && Preferences.Key.colinDraftNotice == "notifications.colin.brouillon")
+        await hub.draftsReady([(id: "d1", recipient: "Claire", threadKey: "moi@exemple.fr|t1")])
+        #expect(center.delivered.map(\.title) == ["Colin"])
+        #expect(center.delivered.first?.body == "Brouillon prêt pour Claire. On le valide ?" && center.delivered.first?.kind == .draft)
+        #expect(inbox.notices.count == 1 && inbox.notices.first?.kind == .draft)
+        await hub.draftsReady([(id: String, recipient: String, threadKey: String?)]())
+        #expect(center.delivered.count == 1)
+        // The drafts as the mails give them: « Claire Morel » is « Claire ».
+        let row = MailDraftRow(id: "d2", account: "moi@exemple.fr", mode: .new, to: [MailAddress(name: "Marc Dubois", email: "marc@exemple.net")],
+                               subject: "Devis", body: "Bonjour", origin: .agent, createdAt: now)
+        await hub.draftsReady([row])
+        #expect(center.delivered.last?.body == "Brouillon prêt pour Marc. On le valide ?" && center.delivered.last?.id == "brouillon|d2")
+        defaults.set(false, forKey: Preferences.Key.colinDraftNotice)
+        await hub.draftsReady([(id: "d3", recipient: "Anne", threadKey: nil)])
+        await hub.draftsReady([row])
+        #expect(center.delivered.count == 2 && inbox.notices.count == 2)
+    }
+
     /// A click in the list opens the same pages as a click on macOS's notification.
     @Test func aClickOpensThePageOfTheNotification() {
         let router = WindowRouter()
@@ -204,5 +228,8 @@ import Testing
         // The Meet opens in Dia: no window to show.
         #expect(!router.perform(.join(meetCode: "abc-defg-hij", account: "paul@exemple.fr"), agenda: nil, mails: nil))
         #expect(router.perform(.window, agenda: nil, mails: nil))
+        // « Brouillon prêt » : the Accueil.
+        #expect(router.perform(.home, agenda: nil, mails: nil))
+        #expect(router.section == .home)
     }
 }

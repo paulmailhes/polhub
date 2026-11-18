@@ -5,9 +5,9 @@ import Persistence
 /// One notification Polhub asks macOS to show, now or at a date.
 public struct PlannedNotice: Equatable, Sendable {
     /// `test`: « Envoyer une notification d'essai » (15/11: it has its own kind, so the list does not file it under
-    /// Calendrier).
+    /// Calendrier). `draft`: a draft an agent prepared waits for Paul on the Accueil (18/11).
     public enum Kind: String, Codable, CaseIterable, Sendable {
-        case reminder, newEvent, unrecorded, summary, mail, test
+        case reminder, newEvent, unrecorded, summary, mail, test, draft
     }
 
     public var id: String
@@ -123,6 +123,21 @@ public enum NotificationPlan {
         return mails.map { mail in
             PlannedNotice(id: "mail|\(mail.threadKey)|\(Int(now.timeIntervalSince1970))", fireDate: now, title: mail.sender, body: mail.subject,
                           eventID: nil, meetCode: nil, account: nil, threadKey: mail.threadKey, kind: .mail)
+        }
+    }
+
+    /// The drafts an agent just prepared (18/11), said by Colin: one notice each, or one line for more than three.
+    /// `recipient`: the first name of who the mail is written to, empty when nobody yet. A click opens the Accueil,
+    /// where they wait at the head of « À valider ». The same draft said again replaces its notice.
+    public static func draftNotices(_ drafts: [(id: String, recipient: String, threadKey: String?)], now: Date) -> [PlannedNotice] {
+        guard drafts.count <= 3 else {
+            return [PlannedNotice(id: "brouillons|\(Int(now.timeIntervalSince1970))", fireDate: now, title: "Colin",
+                                  body: "\(drafts.count) brouillons prêts. On les valide ?", eventID: nil, meetCode: nil, account: nil, kind: .draft)]
+        }
+        return drafts.map { draft in
+            PlannedNotice(id: "brouillon|\(draft.id)", fireDate: now, title: "Colin",
+                          body: (draft.recipient.isEmpty ? "Brouillon prêt." : "Brouillon prêt pour \(draft.recipient).") + " On le valide ?",
+                          eventID: nil, meetCode: nil, account: nil, threadKey: draft.threadKey, kind: .draft)
         }
     }
 
