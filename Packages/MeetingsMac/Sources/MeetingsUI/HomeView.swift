@@ -48,39 +48,84 @@ enum HomeModel {
     }
 }
 
-/// Accueil (18/11): Colin's column on the left (what is done, where Paul stands), the lists on the right (what waits
-/// for his click, his day). In a narrow window the lists come first, Colin under them. Nothing is said twice.
+/// Accueil (18/11): Colin's column on the left (what is done, where Paul stands, his thread and his bar), the lists on
+/// the right (what waits for his click, his day). In two columns each scrolls alone and the bar stays under Colin's;
+/// in a narrow window the lists come first, Colin under them, the bar at the bottom. Nothing is said twice.
 struct HomeView: View {
     @ObservedObject var agenda: AgendaLibrary
     let mails: MailLibrary?
     @ObservedObject var colin: ColinLibrary
+    /// `nil`: no bar (captures without the engine).
+    var thread: ColinThread?
     @ObservedObject var router: WindowRouter
     @State private var layout = HomeLayout.columns
+    /// The bar's height, for the bar of a sending to stay above it.
+    @State private var barHeight: CGFloat = 0
 
     var body: some View {
-        Page(spacing: Space.l) {
-            Group {
-                switch layout {
-                case .columns:
-                    HStack(alignment: .top, spacing: Space.l) {
-                        ColinHome(colin: colin)
-                        lists.frame(width: HomeLayout.listsWidth)
-                    }
-                case .stacked:
-                    VStack(alignment: .leading, spacing: Space.l) {
-                        lists
-                        ColinHome(colin: colin)
-                    }
-                }
+        Group {
+            switch layout {
+            case .columns: columns
+            case .stacked: stacked
             }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { layout = HomeLayout.of(width: $0) }
+        }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
+            layout = HomeLayout.of(width: min(width, PageMetrics.maxWidth) - 2 * PageMetrics.horizontal)
         }
         .windowTitle("Accueil")
-        .modifier(HomeMailPanels(mails: mails, router: router))
+        .modifier(HomeMailPanels(mails: mails, router: router, lift: barHeight))
         // The Accueil is before Paul: « Le point » is prepared when he is back. He goes to another page: his absence starts.
         .onAppear { colin.seen() }
         .onDisappear { colin.left() }
+    }
+
+    /// Two columns, each scrolling alone; the bar under Colin's, outside his scroll.
+    private var columns: some View {
+        HStack(alignment: .top, spacing: Space.l) {
+            VStack(spacing: 0) {
+                ScrollViewReader { scroll in
+                    ScrollView {
+                        ColinHome(colin: colin, thread: thread, mails: mails, router: router)
+                            .padding(.top, PageMetrics.top)
+                            .padding(.bottom, Space.l)
+                    }
+                    // Opened on the last exchanges; a short thread stays at the top.
+                    .defaultScrollAnchor(.bottom, for: .initialOffset)
+                    .defaultScrollAnchor(.bottom, for: .sizeChanges)
+                    .scrollIndicators(.automatic)
+                    .onChange(of: thread?.messages.last?.id) { _, last in
+                        if let last { withAnimation(Motion.standard) { scroll.scrollTo(last, anchor: .bottom) } }
+                    }
+                    .onChange(of: thread?.streaming) { _, _ in scroll.scrollTo("colin-travaille", anchor: .bottom) }
+                }
+                if let thread { bar(thread) }
+            }
+            ScrollView {
+                lists
+                    .padding(.top, PageMetrics.top)
+                    .padding(.bottom, PageMetrics.bottom)
+            }
+            .frame(width: HomeLayout.listsWidth)
+        }
+        .padding(.horizontal, PageMetrics.horizontal)
+        .frame(maxWidth: PageMetrics.maxWidth)
+        .frame(maxWidth: .infinity)
+    }
+
+    /// One page: the lists, then Colin; the bar at the bottom, over the whole width.
+    private var stacked: some View {
+        Page(spacing: Space.l) {
+            lists
+            ColinHome(colin: colin, thread: thread, mails: mails, router: router)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if let thread { bar(thread).padding(.horizontal, PageMetrics.horizontal - Space.xl) }
+        }
+    }
+
+    private func bar(_ thread: ColinThread) -> some View {
+        ColinComposer(thread: thread)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
     }
 
     private var lists: some View {
@@ -96,11 +141,13 @@ struct HomeView: View {
 private struct HomeMailPanels: ViewModifier {
     let mails: MailLibrary?
     @ObservedObject var router: WindowRouter
+    /// Colin's bar: the bar of a sending stays above it.
+    var lift: CGFloat = 0
 
     func body(content: Content) -> some View {
         if let mails {
             content
-                .mailPanels(mails, router: router, thread: $router.homeMail, browses: false, title: "Accueil", draftNews: false)
+                .mailPanels(mails, router: router, thread: $router.homeMail, browses: false, title: "Accueil", draftNews: false, lift: lift)
                 .onAppear { mails.router = router }
         } else {
             content

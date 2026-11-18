@@ -462,6 +462,8 @@ public struct MainWindowView<Diagnostic: View>: View {
     let mails: MailLibrary?
     /// What the Accueil knows (18/11), kept by the app whether the window shows or not.
     let colin: ColinLibrary?
+    /// Colin's thread and bar (18/11); none in a window made without it: nothing is ever launched from a capture.
+    let thread: ColinThread?
     let inspiration: InspirationLibrary?
     let updates: UpdateService?
     let notifications: NotificationHub?
@@ -473,7 +475,7 @@ public struct MainWindowView<Diagnostic: View>: View {
 
     public init(
         library: MeetingLibrary, projects: ProjectLibrary? = nil, agenda: AgendaLibrary? = nil, mails: MailLibrary? = nil, colin: ColinLibrary? = nil,
-        inspiration: InspirationLibrary? = nil, updates: UpdateService? = nil, notifications: NotificationHub? = nil,
+        thread: ColinThread? = nil, inspiration: InspirationLibrary? = nil, updates: UpdateService? = nil, notifications: NotificationHub? = nil,
         startup: StartupControl? = nil, router: WindowRouter, paths: AppPaths, @ViewBuilder diagnostic: () -> Diagnostic
     ) {
         self.notifications = notifications
@@ -484,6 +486,7 @@ public struct MainWindowView<Diagnostic: View>: View {
         self.mails = mails
         // The app keeps its own; a window made without one (a capture, a test) gets one for its Accueil.
         self.colin = colin ?? agenda.map { ColinLibrary(agenda: $0, mails: mails) }
+        self.thread = thread
         self.inspiration = inspiration
         self.updates = updates
         self.router = router
@@ -514,7 +517,7 @@ public struct MainWindowView<Diagnostic: View>: View {
         } detail: {
             switch router.section {
             case .home:
-                if let agenda, let colin { HomeView(agenda: agenda, mails: mails, colin: colin, router: router) }
+                if let agenda, let colin { HomeView(agenda: agenda, mails: mails, colin: colin, thread: thread, router: router) }
             case .calendar:
                 if let agenda { CalendarView(agenda: agenda, router: router) }
             case .contacts:

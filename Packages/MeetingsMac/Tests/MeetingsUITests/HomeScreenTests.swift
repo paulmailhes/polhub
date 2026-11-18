@@ -148,5 +148,69 @@ struct HomeScreenTests {
                                   paths: AppPaths(root: root, logs: root)) { EmptyView() }
         try await LiveWindow.capture(bare, to: output.appending(path: "accueil-vide.png"), size: NSSize(width: 1_180, height: 760))
         _ = window
+
+        // Colin's bar and thread (18/11): an invented exchange, then each state of the bar. Claude Code is a script.
+        let colinStore = ColinStore(database)
+        let asked = now.addingTimeInterval(-3_600)
+        try colinStore.add(ColinMessageRow(author: .paul, text: "Où on en est sur Cabinet Martin ?", createdAt: ago(1)))
+        try colinStore.add(ColinMessageRow(author: .colin, text: "Claire attend la maquette v2, à livrer jeudi. Le devis est parti lundi, sans réponse.",
+                                           createdAt: ago(1).addingTimeInterval(20), costUSD: 0.04))
+        try colinStore.add(ColinMessageRow(author: .paul, text: "Écris-moi un WhatsApp pour Marc : je lui envoie la maquette ce soir.", createdAt: asked))
+        try colinStore.add(ColinMessageRow(author: .colin, text: """
+            Voilà, court et à ton ton.
+            ```message
+            Salut Marc, je t'envoie la maquette ce soir. Bonne journée !
+            ```
+            ```retenir
+            Marc préfère WhatsApp au mail.
+            ```
+            """, createdAt: asked.addingTimeInterval(15), costUSD: 0.03))
+        func colinThread(on: Bool, busy: Bool, hanging: Bool) throws -> ColinThread {
+            let defaults = try #require(UserDefaults(suiteName: "accueil-colin-\(UUID().uuidString)"))
+            defaults.set(on, forKey: Preferences.Key.colinOn)
+            let good = ClaudeInit(model: "claude-opus-5-5", permissionMode: "dontAsk", apiKeySource: "none", tools: ColinTool.allowed, servers: ["polhub": "connected"])
+            let launcher = FakeLauncher { _, _ in
+                FakeSession(onSend: { _, rank in
+                    rank == 1 ? [.initialized(good), .result(ClaudeResult(text: "prêt"))]
+                        : [.initialized(good), .assistant(text: "", tools: ["mcp__polhub__mails"]), .textDelta("Marc t'a écrit lundi ") ] + (hanging ? [] : [])
+                })
+            }
+            let work = root.appending(path: "colin-travail", directoryHint: .isDirectory)
+            let setup = ColinSetup(binary: URL(fileURLWithPath: "/usr/bin/true"), helper: URL(fileURLWithPath: "/usr/bin/true"),
+                                   base: URL(fileURLWithPath: "/tmp/essai.sqlite"), account: nil, work: work)
+            return ColinThread(database: database, runner: ColinRunner(launcher: launcher, setup: { setup }), defaults: defaults, isBusy: { busy })
+        }
+        let running = try colinThread(on: true, busy: false, hanging: false)
+        try await waitUntil { running.messages.count == 4 }
+        func colinPage(_ thread: ColinThread) -> some View {
+            HomeView(agenda: agenda, mails: mails, colin: colin, thread: thread, router: router).background(Color(nsColor: .windowBackgroundColor))
+        }
+        for dark in [false, true] {
+            let suffix = dark ? "-sombre" : ""
+            try await LiveWindow.capture(colinPage(running), to: output.appending(path: "accueil-colin\(suffix).png"), size: NSSize(width: 928, height: 760), dark: dark)
+            try await LiveWindow.capture(colinPage(running), to: output.appending(path: "accueil-colin-etroit\(suffix).png"), size: NSSize(width: narrow, height: 900), dark: dark)
+        }
+        running.draft = "Et Maison Leroy ?"
+        running.send()
+        try await waitUntil { !running.streaming.isEmpty }
+        try await LiveWindow.capture(colinPage(running), to: output.appending(path: "accueil-colin-reponse.png"), size: NSSize(width: 928, height: 760))
+        running.turnOff()
+        try await waitUntil { running.status == .off }
+        try await LiveWindow.capture(colinPage(running), to: output.appending(path: "accueil-colin-arret.png"), size: NSSize(width: 928, height: 760))
+        let calling = try colinThread(on: true, busy: true, hanging: false)
+        calling.draft = "Prépare la relance d'Anne"
+        calling.send()
+        try await waitUntil { calling.status == .waitingCall }
+        try await LiveWindow.capture(colinPage(calling), to: output.appending(path: "accueil-colin-call.png"), size: NSSize(width: 928, height: 760))
+        if live {
+            let windowed = MainWindowView(library: library, projects: ProjectLibrary(store: projects, meetings: meetingStore), agenda: agenda, mails: mails, colin: colin,
+                                          thread: try colinThread(on: true, busy: false, hanging: false), router: router, paths: AppPaths(root: root, logs: root)) { EmptyView() }
+            for dark in [false, true] {
+                try await LiveWindow.capture(windowed, to: output.appending(path: "accueil-colin-fenetre\(dark ? "-sombre" : "").png"),
+                                             size: NSSize(width: 1_180, height: 760), dark: dark)
+            }
+            try await LiveWindow.capture(windowed, to: output.appending(path: "accueil-colin-fenetre-etroite.png"),
+                                         size: NSSize(width: MainWindowView<EmptyView>.minimumWidth, height: 900))
+        }
     }
 }

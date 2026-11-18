@@ -739,7 +739,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         if mainWindow == nil {
             let diagnostic = diagnostic
             let probe = colinProbe
-            let view = MainWindowView(library: library, projects: projects, agenda: agenda, mails: mails, colin: colin, inspiration: inspiration,
+            let view = MainWindowView(library: library, projects: projects, agenda: agenda, mails: mails, colin: colin, thread: colinThread, inspiration: inspiration,
                                       updates: updates, notifications: notifications, startup: startup, router: router, paths: paths) {
                 if let diagnostic {
                     DiagnosticView(model: diagnostic, colin: probe) { [weak self] in self?.showProbeWindow() }

@@ -1,6 +1,7 @@
 import Colin
 import Foundation
 import Persistence
+import PolhubDesign
 import Testing
 @testable import MeetingsUI
 
@@ -75,5 +76,52 @@ import Testing
         // The text begins with a capital, as a sentence of its own.
         #expect(BriefingText.parts("Cette semaine : aucun rendez-vous.") == BriefingText.Part(label: "Cette semaine", text: "Aucun rendez-vous."))
         #expect(BriefingText.parts("Rien à dire.") == BriefingText.Part(label: nil, text: "Rien à dire."))
+    }
+}
+
+/// Colin's thread and bar on the Accueil (18/11): the days of the thread, what the bar says, how wide it is.
+@MainActor
+@Suite struct ColinThreadTextTests {
+    /// Wednesday 18/11/2026, 10:00 in Paris.
+    let now = Date(timeIntervalSince1970: 1_794_992_400)
+    var paris: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Paris")!
+        calendar.locale = Locale(identifier: "fr_FR")
+        return calendar
+    }
+
+    @Test func theDaySeparatorsSayTodayYesterdayThenTheDate() {
+        #expect(ColinThreadText.day(now.addingTimeInterval(-3_600), now: now, calendar: paris) == "Aujourd'hui")
+        #expect(ColinThreadText.day(now.addingTimeInterval(-86_400), now: now, calendar: paris) == "Hier")
+        #expect(ColinThreadText.day(now.addingTimeInterval(-2 * 86_400), now: now, calendar: paris) == "lundi 16 novembre")
+        let messages = [-2.0, -1.9, -1.0, 0].map { days in
+            ColinMessageRow(author: .paul, text: "\(days)", createdAt: now.addingTimeInterval(days * 86_400 - 60))
+        }
+        #expect(ColinThreadText.sections(messages, now: now, calendar: paris).map(\.day) == ["lundi 16 novembre", "Hier", "Aujourd'hui"])
+        #expect(ColinThreadText.sections(messages, now: now, calendar: paris).map { $0.messages.count } == [2, 1, 1])
+    }
+
+    @Test func theBarSaysWhatColinCanDo() {
+        let ask = "Écris ou dicte à Colin…"
+        #expect(ColinThreadText.bar(.off) == .turnOn)
+        #expect(ColinThreadText.bar(.waitingCall) == .field(placeholder: "Colin attend la fin de ton call", enabled: false, note: nil))
+        #expect(ColinThreadText.bar(.idle) == .field(placeholder: ask, enabled: true, note: nil))
+        #expect(ColinThreadText.bar(.working("Colin lit tes mails…")) == .field(placeholder: ask, enabled: true, note: nil))
+        #expect(ColinThreadText.bar(.settling) == .field(placeholder: ask, enabled: true, note: "Le Mac vient de se réveiller : Colin répond dans un instant."))
+        #expect(ColinThreadText.bar(.broken("Limite atteinte.")) == .field(placeholder: ask, enabled: true, note: "Limite atteinte."))
+    }
+
+    @Test func theEndOfAnAnswerIsSaidApart() {
+        func answer(_ text: String, _ state: ColinMessageRow.State) -> ColinMessageRow { ColinMessageRow(author: .colin, text: text, state: state, createdAt: now) }
+        #expect(ColinThreadText.note(of: answer("Marc t'a écrit\n\nArrêté : ton call commence.", .interrupted)) == ("Marc t'a écrit", "Arrêté : ton call commence."))
+        #expect(ColinThreadText.note(of: answer("Arrêté : le Mac s'endort.", .interrupted)) == ("", "Arrêté : le Mac s'endort."))
+        #expect(ColinThreadText.note(of: answer("Marc t'a", .interrupted)) == ("Marc t'a", "Arrêté."))
+        #expect(ColinThreadText.note(of: answer("Mar", .failed)) == ("Mar", "Colin n'a pas pu finir."))
+        #expect(ColinThreadText.note(of: answer("Trois projets.", .done)) == ("Trois projets.", nil))
+    }
+
+    @Test func theBarIsAsWideAsColinsColumn() {
+        #expect(HomeLayout.colinWidth(content: 1_000) == 1_000 - HomeLayout.listsWidth - Space.l)
     }
 }

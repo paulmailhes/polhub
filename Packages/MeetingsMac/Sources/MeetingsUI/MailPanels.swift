@@ -19,6 +19,8 @@ struct MailPanels: ViewModifier {
     let title: String
     /// Whether the bar says that a draft an agent prepared waits (Mails), or leaves it to the page's own line (the Accueil).
     let draftNews: Bool
+    /// The height of a bar of the page at its bottom: the bar of a sending stays above it.
+    var lift: CGFloat = 0
 
     private func close() { thread = nil }
 
@@ -44,7 +46,7 @@ struct MailPanels: ViewModifier {
             .animation(Motion.standard, value: thread)
             .animation(Motion.standard, value: mails.composing)
             // Above the bar of a draft fixed at the bottom, never over it (review of 17/11).
-            .overlay(alignment: .bottom) { MailUndoBar(mails: mails, draftNews: draftNews).padding(.bottom, composeBarShown ? 80 : 0) }
+            .overlay(alignment: .bottom) { MailUndoBar(mails: mails, draftNews: draftNews).padding(.bottom, composeBarShown ? 80 : lift) }
             // One Quick Look for the list's chips and the open thread's files (15/11): two would fight over the
             // window's single preview panel.
             .quickLookPreview($mails.preview)
@@ -67,8 +69,10 @@ struct MailPanels: ViewModifier {
 
 extension View {
     /// The mails' panels over this page: `thread` is the thread open over it.
+    /// `lift`: the height of a bar of the page at its bottom (Colin's), which the bar of a sending stays above.
     func mailPanels(_ mails: MailLibrary, router: WindowRouter, thread: Binding<String?>, floating: Bool = true, browses: Bool = true,
-                    title: String = "Mails", draftNews: Bool = true) -> some View {
-        modifier(MailPanels(mails: mails, router: router, thread: thread, floating: floating, browses: browses, title: title, draftNews: draftNews))
+                    title: String = "Mails", draftNews: Bool = true, lift: CGFloat = 0) -> some View {
+        modifier(MailPanels(mails: mails, router: router, thread: thread, floating: floating, browses: browses, title: title, draftNews: draftNews,
+                            lift: lift))
     }
 }

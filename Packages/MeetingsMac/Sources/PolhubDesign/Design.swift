@@ -282,21 +282,33 @@ public struct ColorDot: View {
     }
 }
 
-/// Controls floating over the content, at the bottom of a page: a capsule of glass.
+/// Controls floating over the content, at the bottom of a page: a capsule of glass; with `cornerRadius`, a rounded
+/// rectangle, for a field that grows over several lines (Colin's bar, 18/11).
 public struct FloatingBar<Content: View>: View {
     let content: Content
+    let cornerRadius: CGFloat?
 
-    public init(@ViewBuilder content: () -> Content) {
+    public init(cornerRadius: CGFloat? = nil, @ViewBuilder content: () -> Content) {
         self.content = content()
+        self.cornerRadius = cornerRadius
     }
 
     public var body: some View {
-        content
-            .padding(.horizontal, Space.l)
-            .padding(.vertical, Space.s + 2)
-            .glassEffect(.regular, in: .capsule)
-            .padding(.horizontal, Space.xl)
-            .padding(.bottom, Space.l)
+        Group {
+            if let cornerRadius {
+                content
+                    .padding(.horizontal, Space.l)
+                    .padding(.vertical, Space.s + 2)
+                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            } else {
+                content
+                    .padding(.horizontal, Space.l)
+                    .padding(.vertical, Space.s + 2)
+                    .glassEffect(.regular, in: .capsule)
+            }
+        }
+        .padding(.horizontal, Space.xl)
+        .padding(.bottom, Space.l)
     }
 }
 
