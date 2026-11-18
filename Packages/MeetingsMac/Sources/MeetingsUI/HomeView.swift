@@ -104,7 +104,7 @@ struct HomeView: View {
     /// One column: a strip of the day at the top, the thread under it.
     private var stacked: some View {
         VStack(spacing: 0) {
-            DayStrip(colin: colin, agenda: agenda, reviewOpen: $reviewOpen)
+            DayStrip(colin: colin, agenda: agenda, thread: thread, reviewOpen: $reviewOpen, seeing: $seeing)
                 .padding(.horizontal, PageMetrics.horizontal)
                 .padding(.vertical, Space.m)
             Divider()
@@ -162,9 +162,8 @@ private struct ColinConversation: View {
     @ObservedObject var router: WindowRouter
     @Binding var barHeight: CGFloat
     @State private var position = ScrollPosition(edge: .bottom)
-    @State private var following = true
-    /// Paul is scrolling the thread himself: only then does leaving its end mean he went up to read.
-    @State private var scrolling = false
+    /// Whether the thread follows its end: Paul's hand on it, and where the end stands.
+    @State private var follow = ThreadFollow()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -185,29 +184,35 @@ private struct ColinConversation: View {
             .onScrollGeometryChange(for: Bool.self) { geometry in
                 ThreadScroll.follows(contentHeight: geometry.contentSize.height, offset: geometry.visibleRect.minY, visibleHeight: geometry.visibleRect.height)
             } action: { _, atEnd in
-                // The thread growing (a load, an answer) never counts as Paul going up: only his own scroll does.
-                if atEnd { following = true } else if scrolling { following = false }
+                // The thread grew while it followed (a word, a card, a foot): to its end. Paul's hand decides the rest.
+                if follow.geometry(atEnd: atEnd) { position.scrollTo(edge: .bottom) }
             }
-            .onScrollPhaseChange { _, phase in scrolling = phase != .idle }
-            .onChange(of: thread.visible) { _, _ in if following { position.scrollTo(edge: .bottom) } }
+            .onScrollPhaseChange { _, phase in
+                // Only Paul's own hand: a scroll animated by the code is not him going up.
+                let hand = phase == .interacting || phase == .decelerating
+                if hand != follow.userScrolling { follow.userScroll(began: hand) }
+            }
+            .onChange(of: thread.visible) { _, _ in if follow.scrollsOnTick { position.scrollTo(edge: .bottom) } }
+            .onChange(of: thread.liveSteps) { _, _ in if follow.scrollsOnTick { position.scrollTo(edge: .bottom) } }
             .onChange(of: ColinThreadText.lastID(thread.messages, changes: thread.changes)) { _, _ in
-                if following || thread.messages.last?.author == .paul {
-                    following = true
-                    withAnimation(Motion.standard) { position.scrollTo(edge: .bottom) }
-                }
+                if follow.scrollsOnTick { withAnimation(Motion.standard) { position.scrollTo(edge: .bottom) } }
             }
-            .onChange(of: thread.liveSteps) { _, _ in if following { position.scrollTo(edge: .bottom) } }
+            // A question of Paul's always brings him to the end.
+            .onChange(of: thread.messages.last(where: { $0.author == .paul })?.id) { _, _ in
+                follow.asked()
+                withAnimation(Motion.standard) { position.scrollTo(edge: .bottom) }
+            }
             .overlay(alignment: .bottom) {
-                if !following {
+                if !follow.following {
                     JumpToEnd {
-                        following = true
+                        follow.asked()
                         withAnimation(Motion.standard) { position.scrollTo(edge: .bottom) }
                     }
                     .padding(.bottom, Space.s)
                     .transition(.opacity)
                 }
             }
-            .animation(Motion.quick, value: following)
+            .animation(Motion.quick, value: follow.following)
             // The bar floats over the thread, which passes under its glass.
             .safeAreaBar(edge: .bottom) {
                 ColinComposer(thread: thread, review: colin.review,
@@ -218,27 +223,54 @@ private struct ColinConversation: View {
     }
 }
 
-/// The narrow window's day, in one strip: the date, the figures, the next meeting, « À valider » that opens.
+/// The narrow window's day, in one strip (final review, 18/11): the date, the figures (a click asks Colin), « Voir »,
+/// the next meeting with « Rejoindre », and « À valider » that opens over the thread.
 private struct DayStrip: View {
     @ObservedObject var colin: ColinLibrary
     @ObservedObject var agenda: AgendaLibrary
+    var thread: ColinThread?
     @Binding var reviewOpen: Bool
+    @Binding var seeing: Bool
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
             let next = HomeModel.next(agenda.shown, now: context.date, calendar: CalendarView.calendar)
-            HStack(alignment: .firstTextBaseline, spacing: Space.l) {
-                Text(BriefingText.today(context.date, calendar: CalendarView.calendar)).font(.headline)
-                if let figures = colin.briefingFigures, !figures.tiles.isEmpty {
-                    Text(figures.tiles.map { "\($0.count) \(Briefing.label($0.tile, count: $0.count))" }.joined(separator: " · "))
-                        .font(.meta).foregroundStyle(.secondary).lineLimit(1)
+            // Two lines: the day and its figures; the next meeting and what waits.
+            VStack(alignment: .leading, spacing: Space.s) {
+                HStack(alignment: .center, spacing: Space.s) {
+                    Text(BriefingText.today(context.date, calendar: CalendarView.calendar)).font(.headline).lineLimit(1).fixedSize()
+                    if let figures = colin.briefingFigures {
+                        ForEach(figures.tiles, id: \.tile) { figure in
+                            Button("\(figure.count) \(Briefing.label(figure.tile, count: figure.count))") { thread?.fill(Briefing.question(for: figure.tile)) }
+                                .buttonStyle(.subtle)
+                                .fixedSize()
+                        }
+                    }
+                    if !colin.briefingChanges.isEmpty || !colin.briefingMails.isEmpty {
+                        TextButton("Voir", quiet: true) { seeing = true }.fixedSize()
+                    }
+                    Spacer(minLength: 0)
                 }
-                if let next {
-                    Text("\(next.startAt.formatted(date: .omitted, time: .shortened)) \(next.title)").font(.meta).foregroundStyle(.secondary).lineLimit(1)
+                HStack(alignment: .center, spacing: Space.s) {
+                    if let next {
+                        Text("\(next.startAt.formatted(date: .omitted, time: .shortened)) \(next.title)").font(.meta).foregroundStyle(.secondary).lineLimit(1)
+                        if next.meetCode != nil {
+                            Group {
+                                if next.startAt.timeIntervalSince(context.date) <= 600 {
+                                    Button { agenda.join(next) } label: { Label("Rejoindre", systemImage: "video.fill") }
+                                        .buttonStyle(.glassProminent).controlSize(.small)
+                                } else {
+                                    Button { agenda.join(next) } label: { Label("Rejoindre", systemImage: "video") }.buttonStyle(.subtle)
+                                }
+                            }
+                            .fixedSize()
+                        }
+                    }
+                    Spacer(minLength: Space.s)
+                    Button("À valider \(colin.review.count)") { withAnimation(Motion.quick) { reviewOpen.toggle() } }
+                        .buttonStyle(.subtle)
+                        .fixedSize()
                 }
-                Spacer(minLength: Space.s)
-                Button("À valider \(colin.review.count)") { withAnimation(Motion.quick) { reviewOpen.toggle() } }
-                    .buttonStyle(.subtle)
             }
         }
     }

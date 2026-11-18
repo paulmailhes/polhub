@@ -186,8 +186,11 @@ public actor ColinRunner {
             if name.hasPrefix("system/hook") { fail(.isolation("hooks")) }
         case .textDelta(let text):
             guard phase == .answering else { return }
-            turnText += text
-            continuation.yield(.delta(text))
+            // Text that resumes after an action is a new paragraph (final review, 18/11): Claude writes it with no space.
+            var said = text
+            if !turnText.isEmpty, turnSteps.last?.position == turnText.count, !turnText.hasSuffix("\n") { said = "\n\n" + text }
+            turnText += said
+            continuation.yield(.delta(said))
         case .toolStarted(let id, let name):
             guard phase == .answering, !turnSteps.contains(where: { $0.id == id }) else { return }
             let step = ColinStep(id: id, tool: Self.short(name), position: turnText.count)
@@ -249,9 +252,7 @@ public actor ColinRunner {
             if result.isError, !interrupted {
                 return fail(ColinFailure.of(result: result, rateLimit: rate, errors: "", initialized: initialized) ?? .noAnswer)
             }
-            // What was written, all of it (the text before a tool too, where the steps take their place); the result's
-            // text only when nothing came in pieces.
-            let text = turnText.isEmpty ? result.text : turnText
+            let text = Self.answer(streamed: turnText, result: result.text, lastStep: turnSteps.last?.position, interrupted: interrupted)
             // Nothing stays « under way »: a turn that ended well, or that Paul stopped, ends its steps; a failed one, not.
             let ended = interrupted || !result.isError
             let steps = turnSteps.map { step in
@@ -266,6 +267,21 @@ public actor ColinRunner {
         default:
             break
         }
+    }
+
+    /// What an answer keeps (final review, 18/11): all that was written, the text before an action too (the steps take
+    /// their places in it). Stopped, only that: never what Claude Code says of its abort. Ended, its last message is
+    /// the result's own — one not streamed (Claude Code's fallback), or streamed twice, is taken from there.
+    static func answer(streamed: String, result: String, lastStep: Int?, interrupted: Bool) -> String {
+        if interrupted { return streamed }
+        let final = result.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !final.isEmpty else { return streamed }
+        guard !streamed.isEmpty else { return result }
+        let cut = min(max(lastStep ?? 0, 0), streamed.count)
+        let tail = String(streamed.dropFirst(cut)).trimmingCharacters(in: .whitespacesAndNewlines)
+        if tail == final { return streamed }
+        let head = String(streamed.prefix(cut))
+        return head.isEmpty ? result : head + "\n\n" + result
     }
 
     /// « mcp__polhub__mails » → « mails ».

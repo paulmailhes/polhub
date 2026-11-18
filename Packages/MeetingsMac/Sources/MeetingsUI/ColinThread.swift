@@ -127,10 +127,15 @@ public final class ColinThread: ObservableObject {
     // MARK: - Paul's gestures
 
     public func send() {
-        let question = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        submit(draft, clearing: true)
+    }
+
+    /// A question to Colin; `clearing`: it came from the bar, which empties.
+    private func submit(_ text: String, clearing: Bool) {
+        let question = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !question.isEmpty, isOn, runner != nil, !isAnswering else { return }
         asking = true
-        Task { await begin(question) }
+        Task { await begin(question, clearing: clearing) }
     }
 
     /// The stop arrow: the answer ends with what came.
@@ -227,7 +232,7 @@ public final class ColinThread: ObservableObject {
 
     // MARK: - Pieces
 
-    private func begin(_ question: String) async {
+    private func begin(_ question: String, clearing: Bool) async {
         defer { asking = false }
         if await isBusy() {
             status = .waitingCall
@@ -238,7 +243,8 @@ public final class ColinThread: ObservableObject {
         // Before the question joins the thread: it is said once, after the primer.
         let primer = ColinPrimer.text(knowledge: (try? store.knowledge()) ?? "", exchanges: (try? store.exchanges(last: 16)) ?? [], review: review(),
                                       now: now(), calendar: calendar)
-        draft = ""
+        // The bar empties once the question is asked — not during a call, where it waits in the bar.
+        if clearing { draft = "" }
         let asked = ColinMessageRow(author: .paul, text: question, createdAt: now())
         try? store.add(asked)
         if let since = sinceWake(), since < settleAfterWake {
@@ -277,7 +283,13 @@ public final class ColinThread: ObservableObject {
             pace()
         case .step(let step):
             guard answer != nil else { return }
-            if let index = liveSteps.firstIndex(where: { $0.id == step.id }) { liveSteps[index] = step } else { liveSteps.append(step) }
+            if let index = liveSteps.firstIndex(where: { $0.id == step.id }) {
+                liveSteps[index] = step
+            } else {
+                // An action begins: the text before it is whole, its last word too (final review, 18/11).
+                visible = pacer.flush()
+                liveSteps.append(step)
+            }
             status = .working(Self.phrase(for: step.tool))
         case .answered(let turn):
             guard var row = answer else { return }
@@ -288,6 +300,7 @@ public final class ColinThread: ObservableObject {
             row.steps = turn.steps
             row.durationMs = turn.durationMs
             try? store.update(row)
+            shown(row)
             answer = nil
             streaming = ""
             liveSteps = []
@@ -300,6 +313,7 @@ public final class ColinThread: ObservableObject {
                 row.state = .failed
                 row.steps = Self.ended(liveSteps, failed: true)
                 try? store.update(row)
+                shown(row)
             }
             answer = nil
             streaming = ""
@@ -322,6 +336,7 @@ public final class ColinThread: ObservableObject {
         row.steps = Self.ended(liveSteps)
         liveSteps = []
         try? store.update(row)
+        shown(row)
         answer = nil
         streaming = ""
         endPacing()
@@ -389,8 +404,8 @@ public final class ColinThread: ObservableObject {
     public func retry(_ answer: ColinMessageRow) {
         guard answer.author == .colin, answer.state == .interrupted || answer.state == .failed, !isAnswering,
               let question = messages.last(where: { $0.author == .paul && $0.createdAt < answer.createdAt }) else { return }
-        draft = question.text
-        send()
+        // What Paul is typing stays in the bar.
+        submit(question.text, clearing: false)
     }
 
     /// Three suggestions above the bar (the Accueil's pass, 18/11), from the day, until Paul asks Colin something today:
@@ -414,6 +429,12 @@ public final class ColinThread: ObservableObject {
     public func undo(_ line: ProjectChangeLine) {
         guard outcomes[line.id] == nil, line.undoneAt == nil else { return }
         outcomes[line.id] = (try? changeStore.undo(line, at: now())) ?? .changedSince
+    }
+
+    /// The answer kept is the answer shown, at once: the base's observation brings it a little later, and meanwhile
+    /// the row would still be « being written » with nothing to write (final review, 18/11).
+    private func shown(_ row: ColinMessageRow) {
+        if let index = messages.firstIndex(where: { $0.id == row.id }) { messages[index] = row }
     }
 
     /// The words that came go out at about thirty paces a second, while some are waiting.

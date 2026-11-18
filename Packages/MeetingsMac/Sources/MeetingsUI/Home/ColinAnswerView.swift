@@ -53,24 +53,50 @@ struct DaySeparator: View {
 
 // MARK: - Text that writes itself
 
-/// The words that just came, marked for the renderer.
-struct FreshWords: TextAttribute {}
+/// The words of each pace, and when they came: they fade in over a fifth of a second from their own arrival (final
+/// review, 18/11).
+enum FreshText {
+    static let fade: TimeInterval = 0.2
 
-/// The words that just came fade in; the others stay still.
-struct FreshRenderer: TextRenderer, Animatable {
-    var progress: Double
-
-    var animatableData: Double {
-        get { progress }
-        set { progress = newValue }
+    struct Arrival: Equatable {
+        var offset: Int
+        var at: Date
     }
 
+    struct Segment: Equatable {
+        var range: Range<Int>
+        var opacity: Double
+    }
+
+    /// The text cut by arrival: what came more than a fade ago is settled (opacity 1).
+    static func segments(count: Int, arrivals: [Arrival], now: Date) -> [Segment] {
+        let fresh = arrivals.filter { now.timeIntervalSince($0.at) < fade && $0.offset < count }.sorted { $0.offset < $1.offset }
+        var segments: [Segment] = []
+        let settled = fresh.first?.offset ?? count
+        if settled > 0 { segments.append(Segment(range: 0..<settled, opacity: 1)) }
+        for (index, arrival) in fresh.enumerated() {
+            let end = index + 1 < fresh.count ? fresh[index + 1].offset : count
+            guard end > arrival.offset else { continue }
+            let opacity = max(0, min(1, now.timeIntervalSince(arrival.at) / fade))
+            segments.append(Segment(range: arrival.offset..<end, opacity: (opacity * 100).rounded() / 100))
+        }
+        return segments
+    }
+}
+
+/// The opacity of a run of words still fading in.
+struct FreshWords: TextAttribute {
+    var opacity: Double
+}
+
+/// The words still fading in are drawn at their opacity; the others stay still.
+struct FreshRenderer: TextRenderer {
     func draw(layout: Text.Layout, in context: inout GraphicsContext) {
         for line in layout {
             for run in line {
-                if run[FreshWords.self] != nil {
+                if let fresh = run[FreshWords.self] {
                     var faded = context
-                    faded.opacity = progress
+                    faded.opacity = fresh.opacity
                     faded.draw(run)
                 } else {
                     context.draw(run)
@@ -80,39 +106,44 @@ struct FreshRenderer: TextRenderer, Animatable {
     }
 }
 
-/// Colin's text, 15 on 22. While it is written, the new words fade in over a fifth of a second.
+/// Colin's text, 15 on 22. While it is written, each pace's words fade in over a fifth of a second from their arrival.
 struct AnswerText: View {
     let text: String
     var writing = false
-    @State private var settled = 0
-    @State private var progress: Double = 1
+    @State private var arrivals: [FreshText.Arrival] = []
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        content
-            .font(.rowTitle)
-            .lineSpacing(4)
-            .textSelection(.enabled)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .onChange(of: text) { before, now in
-                guard writing, !reduceMotion, now.hasPrefix(before) else {
-                    settled = now.count
-                    progress = 1
-                    return
-                }
-                settled = before.count
-                progress = 0
-                withAnimation(.easeOut(duration: 0.2)) { progress = 1 }
+        TimelineView(.animation(paused: arrivals.isEmpty)) { context in
+            content(now: context.date)
+        }
+        .font(.rowTitle)
+        .lineSpacing(4)
+        .textSelection(.enabled)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onChange(of: text) { before, now in
+            let date = Date()
+            arrivals.removeAll { date.timeIntervalSince($0.at) >= FreshText.fade }
+            guard writing, !reduceMotion, now.hasPrefix(before), now.count > before.count else {
+                arrivals = []
+                return
             }
+            arrivals.append(FreshText.Arrival(offset: before.count, at: date))
+        }
     }
 
     @ViewBuilder
-    private var content: some View {
-        if writing, settled < text.count {
-            let cut = text.index(text.startIndex, offsetBy: settled)
-            Text("\(Text(ColinAnswer.inline(String(text[..<cut]))))\(Text(String(text[cut...])).customAttribute(FreshWords()))")
-                .textRenderer(FreshRenderer(progress: progress))
+    private func content(now: Date) -> some View {
+        let segments = FreshText.segments(count: text.count, arrivals: arrivals, now: now)
+        if writing, segments.count > 1 {
+            let characters = Array(text)
+            segments.reduce(Text(verbatim: "")) { said, segment in
+                let piece = String(characters[segment.range])
+                let part = segment.opacity >= 1 ? Text(ColinAnswer.inline(piece)) : Text(piece).customAttribute(FreshWords(opacity: segment.opacity))
+                return Text("\(said)\(part)")
+            }
+            .textRenderer(FreshRenderer())
         } else {
             Text(ColinAnswer.inline(text))
         }
@@ -308,6 +339,7 @@ struct ColinAnswerView: View {
     let isLast: Bool
     let calendar: Calendar
     @State private var hovering = false
+    @State private var copied = false
 
     private var writing: Bool { message.state == .answering }
     private var text: String { writing ? thread.visible : ColinThreadText.note(of: message).said }
@@ -357,11 +389,13 @@ struct ColinAnswerView: View {
             if let note { Text(note).font(.meta).foregroundStyle(.secondary) }
             if let duration = message.durationMs, !stopped { Text(ColinThreadText.worked(duration)).font(.meta).foregroundStyle(.tertiary) }
             if isLast || hovering {
-                TextButton("Copier", quiet: true) {
+                TextButton(copied ? "Copié" : "Copier", quiet: true) {
                     NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(ColinThreadText.note(of: message).said, forType: .string)
+                    NSPasteboard.general.setString(ColinThreadText.plain(ColinThreadText.note(of: message).said), forType: .string)
+                    copied = true
+                    Task { try? await Task.sleep(for: .seconds(1.5)); copied = false }
                 }
-                if stopped { TextButton("Réessayer", quiet: true) { thread.retry(message) } }
+                if stopped, thread.isOn { TextButton("Réessayer", quiet: true) { thread.retry(message) } }
             }
         }
         .frame(minHeight: 18)

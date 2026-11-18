@@ -6,16 +6,33 @@ import SwiftUI
 
 /// The words of Colin's thread and bar (18/11), apart from the views.
 enum ColinThreadText {
-    /// « Aujourd'hui », « Hier », then the date (« lundi 16 novembre »).
+    /// « Aujourd'hui », « Hier », then the date (« lundi 16 novembre »). One formatter for all (final review, 18/11:
+    /// the thread is drawn again at each word).
     static func day(_ date: Date, now: Date, calendar: Calendar) -> String {
         if calendar.isDate(date, inSameDayAs: now) { return "Aujourd'hui" }
         if let yesterday = calendar.date(byAdding: .day, value: -1, to: now), calendar.isDate(date, inSameDayAs: yesterday) { return "Hier" }
+        dayFormatter.calendar = calendar
+        dayFormatter.timeZone = calendar.timeZone
+        return dayFormatter.string(from: date)
+    }
+
+    private nonisolated(unsafe) static let dayFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.calendar = calendar
-        formatter.timeZone = calendar.timeZone
         formatter.locale = Locale(identifier: "fr_FR")
         formatter.dateFormat = "EEEE d MMMM"
-        return formatter.string(from: date)
+        return formatter
+    }()
+
+    /// What « Copier » under an answer gives: the text as read — no fences, no stars, no line to keep.
+    static func plain(_ answer: String) -> String {
+        ColinAnswer.blocks(answer).compactMap { block -> String? in
+            switch block {
+            case .text(let text): String(ColinAnswer.inline(text).characters)
+            case .message(let text): text
+            case .keep: nil
+            }
+        }
+        .joined(separator: "\n\n")
     }
 
     /// What the thread shows: a message, or a change Colin made on a project (step 3, 18/11).
@@ -98,9 +115,16 @@ enum ColinThreadText {
         return (inAnswers, loose)
     }
 
-    /// The last thing of the thread, where it scrolls to.
+    /// The last thing of the thread, where it scrolls to: the latest of its last message and its last change.
     static func lastID(_ messages: [ColinMessageRow], changes: [ProjectChangeLine]) -> String? {
-        sections(messages, changes: changes, now: Date(), calendar: Calendar(identifier: .gregorian)).last?.items.last?.id
+        let message = messages.max { $0.createdAt < $1.createdAt }
+        let change = changes.max { $0.at < $1.at }
+        switch (message, change) {
+        case let (message?, change?): return change.at > message.createdAt ? "change-\(change.id)" : message.id
+        case let (message?, nil): return message.id
+        case let (nil, change?): return "change-\(change.id)"
+        case (nil, nil): return nil
+        }
     }
 
     /// An answer, and what the thread says of its end apart, in small: why it stopped, or that it could not finish.
@@ -255,7 +279,7 @@ struct ColinComposer: View {
                 }
                 .disabled(!enabled)
                 if thread.isAnswering {
-                    RoundButton(symbol: "stop.fill", help: "Arrêter la réponse", prominent: true) { thread.stop() }
+                    RoundButton(symbol: "stop.fill", help: "Arrêter la réponse", prominent: false) { thread.stop() }
                 } else {
                     RoundButton(symbol: "arrow.up", help: "Envoyer à Colin (↩)", prominent: !empty && enabled) { thread.send() }
                         .disabled(!enabled || empty)
@@ -286,6 +310,7 @@ private struct RoundButton: View {
         }
         .buttonStyle(.plain)
         .help(help)
+        .accessibilityLabel(help)
     }
 }
 

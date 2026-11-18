@@ -23,7 +23,8 @@ import Testing
         [.initialized(good), .textDelta("Trois "), .toolStarted(id: "t1", name: "mcp__polhub__mail"),
          .assistant(text: "", tools: ["mcp__polhub__mail"], calls: [ClaudeToolCall(id: "t1", name: "mcp__polhub__mail", arguments: ["quel": "fil-1"])]),
          .toolResult(isError: false, text: "", outcomes: [ClaudeToolOutcome(id: "t1", isError: false)]),
-         .textDelta("projets."), .result(ClaudeResult(durationMs: 900, costUSD: 0.01 + 0.02 * Double(rank - 1), text: "Trois projets."))]
+         // Claude Code's result holds the last message alone: the text after the action.
+         .textDelta("projets."), .result(ClaudeResult(durationMs: 900, costUSD: 0.01 + 0.02 * Double(rank - 1), text: "projets."))]
     }
 
     final class Recorder: @unchecked Sendable {
@@ -62,8 +63,8 @@ import Testing
         called.arguments = ["quel": "fil-1"]
         var done = called
         done.state = .done
-        #expect(seen.events == [.starting, .ready, .delta("Trois "), .step(started), .step(called), .step(done), .delta("projets."),
-                                .answered(ColinTurn(text: "Trois projets.", costUSD: 0.03, interrupted: false, locked: false, tools: ["mcp__polhub__mail"],
+        #expect(seen.events == [.starting, .ready, .delta("Trois "), .step(started), .step(called), .step(done), .delta("\n\nprojets."),
+                                .answered(ColinTurn(text: "Trois \n\nprojets.", costUSD: 0.03, interrupted: false, locked: false, tools: ["mcp__polhub__mail"],
                                                     steps: [done], durationMs: 900))])
     }
 
@@ -236,6 +237,53 @@ import Testing
         try await waitUntil { seen.answers.count == 1 }
         #expect(seen.answers.first?.steps.map(\.state) == [.done])
         #expect(seen.answers.first?.durationMs == nil)
+    }
+
+    /// Final review (18/11): stopped before any word, the answer is empty — never what Claude Code says of its abort.
+    @Test func aStopBeforeAnyWordKeepsNoDiagnostic() async throws {
+        let launcher = FakeLauncher { _, _ in
+            Self.session({ _, _ in [.initialized(Self.good), .toolStarted(id: "t9", name: "mcp__polhub__mails")] }, onInterrupt: { id in
+                [.controlResponse(requestID: id, success: true),
+                 .result(ClaudeResult(subtype: "error_during_execution", isError: true, costUSD: 0.02, text: "[ede_diagnostic] result_type=user"))]
+            })
+        }
+        let (runner, seen) = runner(launcher)
+        await runner.ask("Un", primer: "")
+        try await waitUntil { seen.events.contains { if case .step = $0 { true } else { false } } }
+        await runner.interrupt()
+        try await waitUntil { seen.answers.count == 1 }
+        #expect(seen.answers.first?.text == "")
+    }
+
+    /// Text that resumes after an action is a new paragraph, never glued to the sentence before.
+    @Test func textAfterAnActionIsANewParagraph() async throws {
+        let launcher = FakeLauncher { _, _ in
+            Self.session { _, _ in
+                [.initialized(Self.good), .textDelta("Je regarde."), .toolStarted(id: "t1", name: "mcp__polhub__mails"),
+                 .toolResult(isError: false, outcomes: [ClaudeToolOutcome(id: "t1", isError: false)]),
+                 .textDelta("Trois fils."), .result(ClaudeResult(costUSD: 0.02, text: "Trois fils."))]
+            }
+        }
+        let (runner, seen) = runner(launcher)
+        await runner.ask("Un", primer: "")
+        try await waitUntil { seen.answers.count == 1 }
+        #expect(seen.answers.first?.text == "Je regarde.\n\nTrois fils.")
+        #expect(seen.answers.first?.steps.first?.position == 11)
+    }
+
+    /// The last message not streamed (Claude Code's fallback): the result's text is the answer's end.
+    @Test func aLastMessageNotStreamedIsKept() async throws {
+        let launcher = FakeLauncher { _, _ in
+            Self.session { _, _ in
+                [.initialized(Self.good), .textDelta("Je regarde."), .toolStarted(id: "t1", name: "mcp__polhub__mails"),
+                 .toolResult(isError: false, outcomes: [ClaudeToolOutcome(id: "t1", isError: false)]),
+                 .result(ClaudeResult(costUSD: 0.02, text: "Trois fils."))]
+            }
+        }
+        let (runner, seen) = runner(launcher)
+        await runner.ask("Un", primer: "")
+        try await waitUntil { seen.answers.count == 1 }
+        #expect(seen.answers.first?.text == "Je regarde.\n\nTrois fils.")
     }
 
     @Test func stopKillsAtOnce() async throws {

@@ -2,6 +2,14 @@ import Persistence
 import PolhubDesign
 import SwiftUI
 
+/// The words of « Aujourd'hui ».
+enum TodayText {
+    /// The next meeting's line: when, its hour unless « when » says it, its project (final review, 18/11).
+    static func next(when: String, hour: String, project: String?) -> String {
+        ([when] + (when.contains(hour) ? [] : [hour]) + [project].compactMap { $0 }).joined(separator: " · ")
+    }
+}
+
 /// « Aujourd'hui » (the Accueil's pass, 18/11): the next meeting large — its countdown in the accent from a quarter of
 /// an hour, « Rejoindre » lit ten minutes before —, the others on one line each; when nothing is left, the next one.
 struct TodayCard: View {
@@ -43,15 +51,17 @@ struct TodayCard: View {
         let joinable = event.meetCode != nil && !event.allDay
         let left = minutes(to: event, now: now)
         let soon = left <= 15
-        let detail = [event.startAt.formatted(date: .omitted, time: .shortened), projectName(event.projectID)].compactMap { $0 }.joined(separator: " · ")
+        let when = HomeModel.when(event, now: now)
+        let rest = TodayText.next(when: when, hour: event.startAt.formatted(date: .omitted, time: .shortened), project: projectName(event.projectID))
+            .dropFirst(when.count)
         return RowButton(action: { router.openEvent(event.id) }) {
             HStack(alignment: .center, spacing: Space.m) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(event.title).font(.title3.weight(.semibold)).foregroundStyle(.primary).lineLimit(2)
-                    HStack(spacing: Space.xs) {
-                        Text(HomeModel.when(event, now: now)).foregroundStyle(soon ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
+                    HStack(spacing: 0) {
+                        Text(when).foregroundStyle(soon ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
                             .fontWeight(soon ? .semibold : .regular)
-                        Text("· \(detail)").foregroundStyle(.secondary)
+                        Text(String(rest)).foregroundStyle(.secondary)
                     }
                     .font(.meta.monospacedDigit())
                     .lineLimit(1)

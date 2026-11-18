@@ -36,11 +36,11 @@ public enum ColinStepText {
 
     public static func isWrite(_ tool: String) -> Bool { writes.contains(tool) }
 
-    /// Reads of the same tool in a row fold into one; a write stands alone.
+    /// Reads of the same tool in a row, at the same place, fold into one; a write stands alone.
     public static func groups(_ steps: [ColinStep]) -> [StepGroup] {
         var groups: [StepGroup] = []
         for step in steps {
-            if let last = groups.indices.last, groups[last].tool == step.tool, !isWrite(step.tool) {
+            if let last = groups.indices.last, groups[last].tool == step.tool, groups[last].position == step.position, !isWrite(step.tool) {
                 groups[last].steps.append(step)
             } else {
                 groups.append(StepGroup(steps: [step]))

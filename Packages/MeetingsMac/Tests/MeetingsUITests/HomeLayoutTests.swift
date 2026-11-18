@@ -59,6 +59,13 @@ import Testing
         #expect(!ReviewText.late(line(.draft, "Claire", days: 40), thresholds: thresholds))
     }
 
+    /// Final review (18/11): the next meeting says its hour once.
+    @Test func theNextMeetingSaysItsHourOnce() {
+        #expect(TodayText.next(when: "dans 40 min", hour: "14:00", project: "Studio Nord") == "dans 40 min · 14:00 · Studio Nord")
+        #expect(TodayText.next(when: "à 15:30", hour: "15:30", project: "Studio Nord") == "à 15:30 · Studio Nord")
+        #expect(TodayText.next(when: "en cours", hour: "14:00", project: nil) == "en cours · 14:00")
+    }
+
     @Test func eachLineHasItsButton() {
         #expect(ReviewText.action(.draft) == "Relire")
         #expect(ReviewText.action(.reply) == "Ouvrir")
@@ -118,6 +125,48 @@ import Testing
         let pieces = ColinThreadText.pieces("Je regarde. Trois projets.", groups: ColinStepText.groups([first, second]))
         #expect(pieces == [.text("Je regarde."), .steps(StepGroup(steps: [first])), .text("Trois projets."), .steps(StepGroup(steps: [second]))])
         #expect(ColinThreadText.pieces("", groups: []) == [])
+    }
+
+    /// Final review (18/11): Paul's hand on the thread stops the following at once, even a slow scroll inside the end's
+    /// margin; let go at the end, it follows again. Content that grows while he follows is followed; his question
+    /// always brings him back.
+    @Test func theThreadFollowsPaulsHand() {
+        var follow = ThreadFollow()
+        #expect(follow.scrollsOnTick)
+        follow.userScroll(began: true)
+        #expect(!follow.following && !follow.scrollsOnTick)
+        let duringHand = follow.geometry(atEnd: true)
+        #expect(!duringHand)
+        follow.userScroll(began: false)
+        #expect(follow.following)
+        // Content that grows under the end while he follows: scrolled to.
+        let grown = follow.geometry(atEnd: false)
+        #expect(grown)
+        // Gone up to read: not pulled back; his question brings him back.
+        follow.userScroll(began: true)
+        _ = follow.geometry(atEnd: false)
+        follow.userScroll(began: false)
+        let pulled = follow.geometry(atEnd: false)
+        #expect(!follow.following && !pulled)
+        follow.asked()
+        #expect(follow.following && follow.scrollsOnTick)
+    }
+
+    /// The words of each tick fade in over 0.2 s from their own arrival; older ones are settled.
+    @Test func freshWordsFadeFromTheirArrival() {
+        let start = Date(timeIntervalSince1970: 1_000)
+        let arrivals = [FreshText.Arrival(offset: 5, at: start), FreshText.Arrival(offset: 9, at: start.addingTimeInterval(0.1))]
+        let early = FreshText.segments(count: 14, arrivals: arrivals, now: start.addingTimeInterval(0.15))
+        #expect(early.map(\.range) == [0..<5, 5..<9, 9..<14])
+        #expect(early.map(\.opacity) == [1, 0.75, 0.25])
+        let late = FreshText.segments(count: 14, arrivals: arrivals, now: start.addingTimeInterval(0.5))
+        #expect(late.map(\.range) == [0..<14] && late.first?.opacity == 1)
+    }
+
+    /// « Copier » under an answer copies what Paul reads: no fences, no stars, no line to keep.
+    @Test func copyTakesTheTextAsRead() {
+        let answer = "Voilà, **court** et à ton ton.\n```message\nSalut Marc !\n```\n```retenir\nMarc préfère WhatsApp.\n```"
+        #expect(ColinThreadText.plain(answer) == "Voilà, court et à ton ton.\n\nSalut Marc !")
     }
 
     /// What Colin changed in an answer goes with it; his rules' changes, and an agent's, stay lines at their time.

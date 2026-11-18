@@ -169,10 +169,43 @@ import Testing
         #expect(world.thread.suggestions(review: [waiting], due: ["Cabinet Martin"]).isEmpty)
     }
 
+    /// « Réessayer » asks again without touching what Paul is typing.
+    @Test func retryKeepsWhatPaulTypes() async throws {
+        let world = try world(FakeLauncher { _, _ in Self.session() })
+        ask(world.thread, "Où on en est ?")
+        try await waitUntil { world.thread.messages.last?.state == .done }
+        var stopped = try #require(world.thread.messages.last)
+        stopped.state = .interrupted
+        try ColinStore(world.database).update(stopped)
+        try await waitUntil { world.thread.messages.last?.state == .interrupted }
+        world.thread.draft = "Et Studio Nord"
+        world.thread.retry(stopped)
+        try await waitUntil { world.thread.messages.count == 4 }
+        #expect(world.thread.draft == "Et Studio Nord")
+    }
+
     @Test func fillPutsTheQuestionInTheBar() throws {
         let world = try world(FakeLauncher { _, _ in Self.session() })
         world.thread.fill("Qui attend ma réponse ?")
         #expect(world.thread.draft == "Qui attend ma réponse ?")
+    }
+
+    /// Final review (18/11): an action that begins shows the whole sentence before it — no word held back.
+    @Test func theSentenceBeforeAnActionShowsWhole() async throws {
+        let world = try world(FakeLauncher { _, _ in
+            Self.session { _, _ in [.initialized(Self.good), .textDelta("Je regarde tes mails."), .toolStarted(id: "t1", name: "mcp__polhub__mails")] }
+        })
+        ask(world.thread, "Quoi de neuf ?")
+        try await waitUntil { world.thread.visible == "Je regarde tes mails." }
+        world.thread.stop()
+    }
+
+    /// The answer ended is the answer shown, at once: never « Réfléchit… » for a moment.
+    @Test func anEndedAnswerIsShownAtOnce() async throws {
+        let world = try world(FakeLauncher { _, _ in Self.session() })
+        ask(world.thread, "Où on en est ?")
+        try await waitUntil { world.thread.messages.count == 2 && !world.thread.isAnswering }
+        #expect(world.thread.messages.last?.state == .done && world.thread.messages.last?.text == "Trois projets.")
     }
 
     @Test func aQuestionIsKeptThenAnswered() async throws {

@@ -22,8 +22,11 @@ import Testing
     }
 
     @Test func readsFold() {
-        let groups = ColinStepText.groups([step("mail", position: 4), step("mail"), step("mail"), step("contexte", ["projet": "Studio Nord"])])
+        let groups = ColinStepText.groups([step("mail", position: 4), step("mail", position: 4), step("mail", position: 4),
+                                           step("contexte", ["projet": "Studio Nord"], position: 4)])
         #expect(groups.map(\.steps.count) == [3, 1])
+        // Final review (18/11): reads with text between them stay apart, each at its place.
+        #expect(ColinStepText.groups([step("mail", position: 4), step("mail", position: 30)]).map(\.position) == [4, 30])
         #expect(groups.first?.position == 4)
         #expect(ColinStepText.past(groups[0], subject: subject) == "A lu 3 fils · Cabinet Martin")
     }

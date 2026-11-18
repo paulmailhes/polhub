@@ -82,7 +82,7 @@ struct BriefingCard: View {
                         .font(.rowBody)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: Space.s)
-                    if let see { TextButton("Voir", action: see) }
+                    if let see { TextButton("Voir", quiet: true, action: see) }
                 }
             }
         }

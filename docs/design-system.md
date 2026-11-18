@@ -210,8 +210,8 @@ compte.
   de grand titre : la fenêtre s'appelle « Accueil ». Les titres de section de l'Accueil sont en 15 points semi-gras
   (`HomeSectionHeader`), leur compte à côté en gris.
 - **L'orange (l'accent) pour ce qui compte, seulement** : envoyer (le rond plein de la barre), « Rejoindre » dix
-  minutes avant, « dans N min » à un quart d'heure, le retard d'une ligne à valider (plus de deux fois son seuil),
-  « Voir ». Les actions des lignes sont neutres (`.subtle` : petit, bordé d'un trait, la couleur du texte) ; les
+  minutes avant, « dans N min » à un quart d'heure, le retard d'une ligne à valider (plus de deux fois son seuil).
+  « Voir » et ■ sont neutres. Les actions des lignes sont neutres (`.subtle` : petit, bordé d'un trait, la couleur du texte) ; les
   gestes rares sont des mots gris (`TextButton(quiet:)`) ou dans un menu « … ».
 - **Le verre pour la barre seulement** (et le bouton ↓) : ni les cartes, ni les bulles, ni les lignes.
 
@@ -242,7 +242,7 @@ compte.
   jamais cliquable** (`ColinAnswer.inline`) : son adresse s'écrit en clair.
 - **La barre** (`ColinComposer`) flotte sur le fil, qui passe sous son verre (`safeAreaBar`) : une capsule de 44 points
   (rayon 22 quand elle grandit, jusqu'à huit lignes), le texte en 15 points centré sur une ligne, à son pied « Dicter »
-  (la dictée de macOS) et un rond de 28 points pour envoyer, plein d'orange quand il y a du texte, ■ pendant une
+  (la dictée de macOS) et un rond de 28 points pour envoyer, plein d'orange quand il y a du texte, ■ gris pendant une
   réponse. Entrée envoie, Maj+Entrée va à la ligne, Échap arrête ; un mot en cours de dictée n'est jamais envoyé. Ce
   qui la retient (« Colin attend la fin de ton call. », un réveil du Mac, une panne) se dit au-dessus du champ, dans le
   verre. Au-dessus de la barre, tant que Paul n'a rien demandé aujourd'hui, trois suggestions tirées de sa journée ; un
