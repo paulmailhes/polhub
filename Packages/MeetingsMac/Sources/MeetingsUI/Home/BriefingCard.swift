@@ -25,6 +25,8 @@ struct BriefingCard: View {
     let sentences: [String]
     let preparedAt: Date
     var calendar: Calendar = CalendarView.calendar
+    /// What moved without Paul, to see (step 3, 18/11): « Voir » under the sentences.
+    var see: (() -> Void)?
 
     var body: some View {
         Card(padding: Space.l + Space.xs) {
@@ -39,7 +41,11 @@ struct BriefingCard: View {
                         if let label = part.label {
                             // The label keeps its line; what it says takes the rest of the card, and wraps there.
                             Text(label).font(.rowBody).foregroundStyle(.secondary).lineLimit(1).fixedSize()
-                            Text(part.text).font(.rowTitle).fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity, alignment: .leading)
+                            HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+                                Text(part.text).font(.rowTitle).fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity, alignment: .leading)
+                                // « Voir » at the end of what came since (step 3): what moved without Paul.
+                                if let see, sentence.hasPrefix("Depuis ") { TextButton("Voir", action: see) }
+                            }
                         } else {
                             Text(part.text).font(.rowTitle).fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity, alignment: .leading)
                                 .gridCellColumns(2)
@@ -50,6 +56,6 @@ struct BriefingCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .textSelection(.enabled)
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: see == nil ? .combine : .contain)
     }
 }

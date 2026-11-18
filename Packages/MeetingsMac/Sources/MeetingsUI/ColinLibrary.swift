@@ -19,6 +19,10 @@ public final class ColinLibrary: ObservableObject {
     @Published public private(set) var briefing: [String] = []
     /// When « Le point » was prepared: at a return of Paul's, or when Polhub opened.
     @Published public private(set) var briefingAt: Date?
+    /// What moved without Paul since he last came (step 3, 18/11): behind « Voir », each with « Annuler ».
+    @Published public private(set) var briefingChanges: [ProjectChangeLine] = []
+    /// What « Annuler » did there, by line.
+    @Published public private(set) var changeOutcomes: [String: UndoOutcome] = [:]
 
     private let agenda: AgendaLibrary
     private let mails: MailLibrary?
@@ -245,6 +249,7 @@ public final class ColinLibrary: ObservableObject {
         // « Le point », unless Paul came back again meanwhile: the next computation prepares that one.
         if let point = outcome.point, let asked, wanted?.at == asked.at {
             if point != briefing { briefing = point }
+            if outcome.moved != briefingChanges { briefingChanges = outcome.moved }
             if briefingAt != asked.at { briefingAt = asked.at }
             // Prepared on copies read again, with nothing written meanwhile: closed, it no longer moves.
             if copiesRead, !staleMails, !staleBase { wanted = nil }
@@ -345,6 +350,12 @@ public final class ColinLibrary: ObservableObject {
     /// minutes), so that the cap is not what closes it while Polhub runs.
     private static let pointSettles: TimeInterval = 15 * 60
 
+    /// « Annuler » on a change behind « Voir »: what Colin or an agent wrote is put back, what changed since stays.
+    public func undo(_ line: ProjectChangeLine) {
+        guard changeOutcomes[line.id] == nil, line.undoneAt == nil else { return }
+        changeOutcomes[line.id] = (try? ProjectChanges(agenda.database).undo(line, at: now())) ?? .changedSince
+    }
+
     /// Colin on, and keeping the kanban.
     private static func keepsKanban(_ defaults: UserDefaults) -> Bool {
         defaults.bool(forKey: Preferences.Key.colinOn) && defaults.bool(forKey: Preferences.Key.colinKanban)
@@ -442,6 +453,8 @@ public final class ColinLibrary: ObservableObject {
             var lines: [ReviewRules.Line]
             var point: [String]?
             var kanban: [KanbanEdit] = []
+            /// What moved without Paul since « Le point »'s since.
+            var moved: [ProjectChangeLine] = []
         }
 
         var database: AppDatabase
@@ -466,8 +479,12 @@ public final class ColinLibrary: ObservableObject {
 
         func run() -> Outcome? {
             guard let mails = knownMails ?? (try? readMails()), let base = knownBase ?? (try? readBase()) else { return nil }
-            return Outcome(mails: mails, base: base, lines: lines(mails, base), point: point.map { sentences(mails, base, since: $0.since) },
-                           kanban: kanbanSince.map { kanban(mails, base, since: $0) } ?? [])
+            let moved = point.flatMap(\.since).flatMap { since in
+                try? ProjectChanges(database).lines(since: since, authors: [.colin, .agent]).filter { $0.undoneAt == nil }
+            } ?? []
+            return Outcome(mails: mails, base: base, lines: lines(mails, base),
+                           point: point.map { sentences(mails, base, since: $0.since, moved: Briefing.moved(moved)) },
+                           kanban: kanbanSince.map { kanban(mails, base, since: $0) } ?? [], moved: moved)
         }
 
         /// What the two rules of the kanban change: after Paul's mails in a thread of a project, after a meeting
@@ -533,14 +550,14 @@ public final class ColinLibrary: ObservableObject {
         }
 
         /// « Le point ». A client's mail delivered to two of Paul's mailboxes counts once.
-        private func sentences(_ mails: MailInputs, _ base: BaseInputs, since: Date?) -> [String] {
+        private func sentences(_ mails: MailInputs, _ base: BaseInputs, since: Date?, moved: Int) -> [String] {
             var clients = 0
             if withMails, let since {
                 let threads = Briefing.clientMails(mails.threads.filter { !hiddenAccounts.contains($0.account) }, rules: rules, since: since)
                 clients = Set(threads.map { mails.conversations[$0.id] ?? $0.id }).count
             }
             return Briefing.lines(week: Briefing.week(base.events, now: now, calendar: calendar), due: Briefing.due(base.projects, now: now, calendar: calendar),
-                                  yours: Briefing.yours(base.projects), clientMails: clients, since: since, now: now, calendar: calendar)
+                                  yours: Briefing.yours(base.projects), clientMails: clients, moved: moved, since: since, now: now, calendar: calendar)
         }
     }
 }

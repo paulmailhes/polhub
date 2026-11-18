@@ -49,6 +49,15 @@ import Testing
         #expect(said([row(.journalAdded, nil, "Devis relu"), row(.journalAdded, nil, "Maquette")]) == "« Cabinet Martin » : 2 entrées au journal.")
     }
 
+    /// Behind « Voir », who made each change and when, then why.
+    @Test func whoMadeIt() {
+        var agents = line([row(.todo, nil, "Relire")])
+        agents.who = .agent
+        #expect(ChangeText.byline(agents, now: now, calendar: paris) == "Un agent, aujourd'hui 10:00")
+        #expect(ChangeText.byline(line([], reason: "Rendez-vous du jeudi 19/11"), now: now.addingTimeInterval(86_400), calendar: paris)
+                == "Colin, hier 10:00 · Rendez-vous du jeudi 19/11")
+    }
+
     @Test func whatAnUndoDid() {
         #expect(ChangeText.undone(.undone) == "Annulé.")
         #expect(ChangeText.undone(.partly(kept: 1)) == "Annulé, sauf ce qui a changé depuis.")

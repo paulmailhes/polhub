@@ -31,8 +31,8 @@ import Testing
     }
 
     func lines(week: (count: Int, next: CalendarEventRow?) = (0, nil), due: [ProjectRow] = [], yours: [ProjectRow] = [], clientMails: Int = 0,
-               since: Date? = nil, at date: Date? = nil) -> [String] {
-        Briefing.lines(week: week, due: due, yours: yours, clientMails: clientMails, since: since, now: date ?? now, calendar: calendar)
+               moved: Int = 0, since: Date? = nil, at date: Date? = nil) -> [String] {
+        Briefing.lines(week: week, due: due, yours: yours, clientMails: clientMails, moved: moved, since: since, now: date ?? now, calendar: calendar)
     }
 
     /// « Le point · mardi 9:04 »: the day and the hour it was prepared, said as its sentences say them.
@@ -149,6 +149,29 @@ import Testing
             "À toi de jouer : Cabinet Martin, Studio Nord.",
             "Depuis hier 19:40 : 4 mails de clients.",
         ])
+    }
+
+    /// Step 3 (18/11): the projects that moved without Paul — by Colin or by an agent — join the line « Depuis… »;
+    /// still four lines.
+    @Test func theSinceLineSaysWhatMoved() {
+        let since = at(16, 19, 40), when = at(17, 9, 4)
+        #expect(lines(clientMails: 2, moved: 3, since: since, at: when).last == "Depuis hier 19:40 : 2 mails de clients, 3 projets ont bougé.")
+        #expect(lines(moved: 1, since: since, at: when).last == "Depuis hier 19:40 : 1 projet a bougé.")
+        #expect(lines(moved: 2, at: when).count == 1)
+        let all = lines(week: (5, event("demain", day: 18, hour: 10)), due: [project("Cabinet Martin", due: at(19))],
+                        yours: [project("Cabinet Martin")], clientMails: 4, moved: 2, since: since, at: when)
+        #expect(all.count == 4)
+    }
+
+    /// Only what moved without Paul, not undone, counted by project.
+    @Test func whatMovedIsCountedByProject() {
+        let martin = UUID(), nord = UUID()
+        func line(_ project: UUID, _ who: ChangeAuthor, undone: Bool = false) -> ProjectChangeLine {
+            ProjectChangeLine(id: UUID().uuidString, projectID: project, projectName: "", who: who, at: now, reason: nil, rows: [],
+                              undoneAt: undone ? now : nil)
+        }
+        #expect(Briefing.moved([line(martin, .colin), line(martin, .agent), line(nord, .agent), line(nord, .paul)]) == 2)
+        #expect(Briefing.moved([line(martin, .colin, undone: true), line(nord, .paul)]) == 0)
     }
 
     @Test func aDayIsSaidAsPaulWouldSayIt() {

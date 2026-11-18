@@ -48,6 +48,17 @@ public enum ChangeText {
     /// Why it was made, said apart in small: a rule's event.
     public static func note(_ line: ProjectChangeLine) -> String? { line.reason }
 
+    /// Who made it and when, then why: « Colin, aujourd'hui 10:42 · Après ton mail à Claire, 9:50 ».
+    public static func byline(_ line: ProjectChangeLine, now: Date, calendar: Calendar) -> String {
+        let who = switch line.who {
+        case .colin: "Colin"
+        case .agent: "Un agent"
+        case .paul: "Toi"
+        }
+        let said = "\(who), \(Briefing.dayLabel(line.at, now: now, calendar: calendar))"
+        return line.reason.map { "\(said) · \($0)" } ?? said
+    }
+
     /// What « Annuler » did.
     public static func undone(_ outcome: UndoOutcome) -> String {
         switch outcome {

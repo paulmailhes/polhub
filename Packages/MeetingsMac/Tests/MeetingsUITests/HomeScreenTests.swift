@@ -100,6 +100,14 @@ struct HomeScreenTests {
         let paris = CalendarView.calendar
         let yesterday = try #require(paris.date(bySettingHour: 19, minute: 40, second: 0, of: ago(1)))
         suite.set(try JSONEncoder().encode(Presence.State(lastSeen: yesterday, since: nil, preparedAt: yesterday)), forKey: Preferences.Key.colinPresence)
+        // Step 3 (18/11): since then, one of Colin's rules after a mail of Paul's, and a session that wrote in a project.
+        try projects.edit(KanbanEdit(projectID: nord.id, status: .priorite1, todo: "En attente retour de Marc", dueDate: nil,
+                                     journal: "Mail envoyé à Marc le 18/11", reason: "Après ton mail à Marc, 9:50", source: "mail:capture"),
+                          by: .colin, at: now.addingTimeInterval(-3_570))
+        let session = projects.signed(.agent)
+        try session.saveAction(ActionRow(projectID: leroy.id, text: "Envoyer les plans du rez-de-chaussée", position: 9, createdAt: now.addingTimeInterval(-7_200)))
+        try session.addJournal(ProjectJournalRow(projectID: leroy.id, date: now.addingTimeInterval(-7_200), title: "Plans revus avec l'architecte", body: "",
+                                                 createdAt: now.addingTimeInterval(-7_200)))
 
         let meetingStore = MeetingStore(database)
         let library = MeetingLibrary(store: meetingStore)
@@ -109,7 +117,8 @@ struct HomeScreenTests {
         try await waitUntil { mails.accounts.count == 1 }
         let colin = ColinLibrary(agenda: agenda, mails: mails, defaults: suite, settle: .milliseconds(30))
         colin.seen()
-        try await waitUntil { colin.briefingAt != nil && colin.review.count == 4 }
+        try await waitUntil { colin.briefingAt != nil && colin.review.count == 4 && colin.briefingChanges.count == 2 }
+        #expect(colin.briefing.last?.hasSuffix("2 projets ont bougé.") == true)
         let router = WindowRouter()
         router.section = .home
         let window = MainWindowView(library: library, projects: ProjectLibrary(store: projects, meetings: meetingStore), agenda: agenda, mails: mails, colin: colin,
@@ -129,6 +138,10 @@ struct HomeScreenTests {
             try await LiveWindow.capture(window, to: output.appending(path: "accueil-etroit\(suffix).png"),
                                          size: NSSize(width: MainWindowView<EmptyView>.minimumWidth, height: 900), dark: dark)
         }
+
+        // « Voir »: what moved without Paul, each with « Annuler ».
+        try await LiveWindow.capture(ChangesSheet(colin: colin).background(Color(nsColor: .windowBackgroundColor)),
+                                     to: output.appending(path: "accueil-point-voir.png"), size: NSSize(width: 620, height: 420))
 
         // « Relire » : the answer to Claire opens under her thread, over the Accueil.
         let draft = try #require(mails.drafts.first { $0.origin == .agent })
@@ -165,10 +178,6 @@ struct HomeScreenTests {
             Marc préfère WhatsApp au mail.
             ```
             """, createdAt: asked.addingTimeInterval(15), costUSD: 0.03))
-        // Step 3 (18/11): what Colin changed on the kanban, with « Annuler »: one of his rules after a mail of Paul's.
-        try projects.edit(KanbanEdit(projectID: nord.id, status: .priorite1, todo: "En attente retour de Marc", dueDate: nil,
-                                     journal: "Mail envoyé à Marc le 18/11", reason: "Après ton mail à Marc, 9:50", source: "mail:capture"),
-                          by: .colin, at: asked.addingTimeInterval(30))
         func colinThread(on: Bool, busy: Bool, hanging: Bool) throws -> ColinThread {
             let defaults = try #require(UserDefaults(suiteName: "accueil-colin-\(UUID().uuidString)"))
             defaults.set(on, forKey: Preferences.Key.colinOn)

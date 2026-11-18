@@ -45,8 +45,14 @@ public enum Briefing {
         }
     }
 
-    /// The sentences, four at most: the week always, the others only when they have something to say.
-    public static func lines(week: (count: Int, next: CalendarEventRow?), due: [ProjectRow], yours: [ProjectRow], clientMails: Int,
+    /// How many projects moved without Paul (step 3, 18/11): by Colin or by an agent, and not undone.
+    public static func moved(_ lines: [ProjectChangeLine]) -> Int {
+        Set(lines.filter { $0.who != .paul && $0.undoneAt == nil }.map(\.projectID)).count
+    }
+
+    /// The sentences, four at most: the week always, the others only when they have something to say. `moved`: the
+    /// projects that moved without Paul since he last came.
+    public static func lines(week: (count: Int, next: CalendarEventRow?), due: [ProjectRow], yours: [ProjectRow], clientMails: Int, moved: Int = 0,
                              since: Date?, now: Date, calendar: Calendar) -> [String] {
         var lines: [String] = []
         if week.count == 0 {
@@ -65,8 +71,11 @@ public enum Briefing {
         if !yours.isEmpty {
             lines.append(yours.count <= 3 ? "À toi de jouer : " + yours.map(\.name).joined(separator: ", ") + "." : "À toi de jouer : \(yours.count) projets.")
         }
-        if let since, clientMails > 0 {
-            lines.append("Depuis \(sinceLabel(since, now: now, calendar: calendar)) : \(clientMails) \(clientMails == 1 ? "mail de client" : "mails de clients").")
+        if let since, clientMails > 0 || moved > 0 {
+            var said: [String] = []
+            if clientMails > 0 { said.append("\(clientMails) \(clientMails == 1 ? "mail de client" : "mails de clients")") }
+            if moved > 0 { said.append(moved == 1 ? "1 projet a bougé" : "\(moved) projets ont bougé") }
+            lines.append("Depuis \(sinceLabel(since, now: now, calendar: calendar)) : " + said.joined(separator: ", ") + ".")
         }
         return lines
     }

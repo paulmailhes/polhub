@@ -10,18 +10,21 @@ struct ColinHome: View {
     var thread: ColinThread?
     let mails: MailLibrary?
     @ObservedObject var router: WindowRouter
+    /// « Voir »: what moved without Paul, over the Accueil.
+    @State private var seeing = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.l) {
             if let thread { ColinHeader(thread: thread) }
             if let preparedAt = colin.briefingAt, !colin.briefing.isEmpty {
-                BriefingCard(sentences: colin.briefing, preparedAt: preparedAt)
+                BriefingCard(sentences: colin.briefing, preparedAt: preparedAt, see: colin.briefingChanges.isEmpty ? nil : { seeing = true })
                     .transition(.opacity)
             }
             if let thread { ColinThreadView(thread: thread, mails: mails, router: router) }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .animation(Motion.standard, value: colin.briefingAt)
+        .sheet(isPresented: $seeing) { ChangesSheet(colin: colin) }
     }
 }
 

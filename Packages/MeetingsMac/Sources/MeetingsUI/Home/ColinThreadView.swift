@@ -203,6 +203,8 @@ struct ChangeRow: View {
     let line: ProjectChangeLine
     let outcome: UndoOutcome?
     var calendar: Calendar = CalendarView.calendar
+    /// Who made it and when: behind « Voir », where Colin is not the only one.
+    var byline: String?
     let undo: () -> Void
 
     var body: some View {
@@ -223,11 +225,11 @@ struct ChangeRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// Why it was made; once undone, what « Annuler » did.
+    /// Why it was made (and by whom, behind « Voir »); once undone, what « Annuler » did.
     private var said: String? {
         if let outcome { return ChangeText.undone(outcome) }
         if line.undoneAt != nil { return ChangeText.undone(.undone) }
-        return ChangeText.note(line)
+        return byline ?? ChangeText.note(line)
     }
 }
 
