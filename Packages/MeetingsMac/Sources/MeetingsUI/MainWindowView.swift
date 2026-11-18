@@ -136,7 +136,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .accounts: "Comptes, couleurs, accès à l'agenda et aux mails"
         case .calendar: "Nouveaux rendez-vous, affichage"
         case .mails: "Images distantes"
-        case .colin: "Ce que Colin signale sur l'Accueil"
+        case .colin: "Ce que Colin signale, et la barre"
         case .projects: "Taille des cartes du Kanban"
         case .meetings: "Comptes rendus, langue des transcriptions"
         case .inspiration: "Pages LinkedIn, collecte, catégories"
@@ -464,6 +464,8 @@ public struct MainWindowView<Diagnostic: View>: View {
     let colin: ColinLibrary?
     /// Colin's thread and bar (18/11); none in a window made without it: nothing is ever launched from a capture.
     let thread: ColinThread?
+    /// The probe of Colin, which keeps his account (17/11): Réglages › Colin chooses it too.
+    let colinProbe: ColinProbeControl?
     let inspiration: InspirationLibrary?
     let updates: UpdateService?
     let notifications: NotificationHub?
@@ -475,7 +477,7 @@ public struct MainWindowView<Diagnostic: View>: View {
 
     public init(
         library: MeetingLibrary, projects: ProjectLibrary? = nil, agenda: AgendaLibrary? = nil, mails: MailLibrary? = nil, colin: ColinLibrary? = nil,
-        thread: ColinThread? = nil, inspiration: InspirationLibrary? = nil, updates: UpdateService? = nil, notifications: NotificationHub? = nil,
+        thread: ColinThread? = nil, colinProbe: ColinProbeControl? = nil, inspiration: InspirationLibrary? = nil, updates: UpdateService? = nil, notifications: NotificationHub? = nil,
         startup: StartupControl? = nil, router: WindowRouter, paths: AppPaths, @ViewBuilder diagnostic: () -> Diagnostic
     ) {
         self.notifications = notifications
@@ -487,6 +489,7 @@ public struct MainWindowView<Diagnostic: View>: View {
         // The app keeps its own; a window made without one (a capture, a test) gets one for its Accueil.
         self.colin = colin ?? agenda.map { ColinLibrary(agenda: $0, mails: mails) }
         self.thread = thread
+        self.colinProbe = colinProbe
         self.inspiration = inspiration
         self.updates = updates
         self.router = router
@@ -573,7 +576,7 @@ public struct MainWindowView<Diagnostic: View>: View {
                 .searchable(text: $router.query, placement: .toolbar, prompt: "Chercher dans les transcriptions")
             case .settings:
                 SettingsPage(router: router, updates: updates, projects: projects, agenda: agenda, mails: mails, inspiration: inspiration,
-                             library: library, notifications: notifications, startup: startup) {
+                             library: library, notifications: notifications, startup: startup, colinThread: thread, colinProbe: colinProbe) {
                     diagnostic
                 } journal: {
                     JournalView(entries: library.journal)

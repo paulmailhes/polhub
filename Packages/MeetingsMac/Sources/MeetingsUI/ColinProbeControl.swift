@@ -304,14 +304,7 @@ struct ColinProbeSection: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 8) {
-                Text("Compte : \(control.accountLabel)").font(.callout)
-                Button("Choisir…", action: chooseFolder)
-                if !control.accountFolder.isEmpty {
-                    Button("Compte de Claude Code") { control.choose(nil) }
-                }
-            }
-            .disabled(isRunning)
+            ColinAccountRow(control: control).disabled(isRunning)
             HStack(spacing: 8) {
                 Button("Lancer la sonde de Colin") { Task { await control.launch() } }
                     .disabled(isRunning)
@@ -331,6 +324,23 @@ struct ColinProbeSection: View {
     private var isRefusal: Bool {
         if case .refused = control.phase { return true }
         return false
+    }
+
+
+}
+
+/// The account of Colin (17/11, 18/11): its folder, chosen once, the same in Réglages › Colin and in Diagnostic.
+struct ColinAccountRow: View {
+    @ObservedObject var control: ColinProbeControl
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text("Compte : \(control.accountLabel)").font(.callout)
+            Button("Choisir…", action: chooseFolder)
+            if !control.accountFolder.isEmpty {
+                Button("Compte de Claude Code") { control.choose(nil) }
+            }
+        }
     }
 
     /// The accounts' folders are often hidden ones: the panel shows them.

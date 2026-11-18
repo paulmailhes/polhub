@@ -55,7 +55,7 @@ struct MailSettingsPane: View {
             } header: {
                 Text("Agents")
             } footer: {
-                Text("Tes agents Claude Code lisent la copie de tes mails par le serveur de Polhub (outils mails, mail et brouillon), hors spam et corbeille. Ce qu'ils lisent part chez Anthropic. Ils ne peuvent rien envoyer : leurs brouillons t'attendent ici, marqués « préparé par un agent ».")
+                Text("Tes agents Claude Code, et Colin quand il est allumé, lisent la copie de tes mails par le serveur de Polhub (outils mails, mail et brouillon), hors spam et corbeille. Ce qu'ils lisent part chez Anthropic. Ils ne peuvent rien envoyer : leurs brouillons t'attendent ici, marqués « préparé par un agent ».")
             }
         }
         .formStyle(.grouped)

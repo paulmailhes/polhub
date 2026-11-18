@@ -88,7 +88,7 @@ import Testing
         let families = SettingsPane.families(hasAgenda: true, hasProjects: true, hasMails: true)
         #expect(families[1] == [.accounts, .calendar, .mails, .colin, .projects, .meetings])
         #expect(SettingsPane.colin.title == "Colin")
-        #expect(SettingsPane.colin.subtitle == "Ce que Colin signale sur l'Accueil")
+        #expect(SettingsPane.colin.subtitle == "Ce que Colin signale, et la barre")
         #expect(SettingsPane.colin.icon == "sparkles")
         #expect(!SettingsPane.families(hasAgenda: true, hasProjects: true).flatMap { $0 }.contains(.colin))
         // No two families of one group share their color: Paul finds them by it.

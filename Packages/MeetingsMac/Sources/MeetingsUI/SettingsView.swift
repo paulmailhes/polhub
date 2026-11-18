@@ -18,13 +18,18 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
     @ObservedObject var library: MeetingLibrary
     let notifications: NotificationHub?
     let startup: StartupControl?
+    /// Colin's bar and the account of his probe (18/11), for Réglages › Colin.
+    let colinThread: ColinThread?
+    let colinProbe: ColinProbeControl?
     let diagnostic: Diagnostic
     let journal: Journal
 
     init(router: WindowRouter, updates: UpdateService?, projects: ProjectLibrary?, agenda: AgendaLibrary? = nil, mails: MailLibrary? = nil,
          inspiration: InspirationLibrary? = nil, library: MeetingLibrary,
-         notifications: NotificationHub? = nil, startup: StartupControl? = nil,
+         notifications: NotificationHub? = nil, startup: StartupControl? = nil, colinThread: ColinThread? = nil, colinProbe: ColinProbeControl? = nil,
          @ViewBuilder diagnostic: () -> Diagnostic, @ViewBuilder journal: () -> Journal) {
+        self.colinThread = colinThread
+        self.colinProbe = colinProbe
         self.notifications = notifications
         self.startup = startup
         self.router = router
@@ -87,7 +92,7 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
         case .mails:
             MailSettingsPane(mails: mails)
         case .colin:
-            ColinSettingsPane()
+            ColinSettingsPane(thread: colinThread, probe: colinProbe)
         case .projects:
             ProjectsSettingsPane()
         case .meetings:

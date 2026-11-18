@@ -190,6 +190,10 @@ struct HomeScreenTests {
             try await LiveWindow.capture(colinPage(running), to: output.appending(path: "accueil-colin\(suffix).png"), size: NSSize(width: 928, height: 760), dark: dark)
             try await LiveWindow.capture(colinPage(running), to: output.appending(path: "accueil-colin-etroit\(suffix).png"), size: NSSize(width: narrow, height: 900), dark: dark)
         }
+        // Réglages › Colin, with what Colin knows.
+        try running.saveKnowledge("Écrire court, à mon ton.\nMon lien de rendez-vous : https://exemple.fr/rdv")
+        try await LiveWindow.capture(ColinSettingsPane(thread: running, probe: nil).background(Color(nsColor: .windowBackgroundColor)),
+                                     to: output.appending(path: "reglages-colin-barre.png"), size: NSSize(width: 700, height: 860))
         running.draft = "Et Maison Leroy ?"
         running.send()
         try await waitUntil { !running.streaming.isEmpty }

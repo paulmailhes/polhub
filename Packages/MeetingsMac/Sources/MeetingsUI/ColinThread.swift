@@ -145,6 +145,14 @@ public final class ColinThread: ObservableObject {
         knowledge = text
     }
 
+    /// Colin's answers this week (from Monday), and what they cost.
+    public func week() -> (count: Int, costUSD: Double) {
+        var monday = calendar
+        monday.firstWeekday = 2
+        let start = monday.dateInterval(of: .weekOfYear, for: now())?.start ?? now().addingTimeInterval(-7 * 86_400)
+        return (try? store.answers(since: start)) ?? (0, 0)
+    }
+
     /// The messages before those shown.
     public func loadEarlier() {
         limit += 100
