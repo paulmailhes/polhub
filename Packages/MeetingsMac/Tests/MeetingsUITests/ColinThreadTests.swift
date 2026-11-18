@@ -110,6 +110,25 @@ import Testing
         #expect(world.thread.changes.first?.rows.map(\.field) == [.todo])
     }
 
+    /// The Accueil's pass (18/11): what Colin did shows while he does it, then stays with his answer, with how long he
+    /// worked.
+    @Test func anAnswerKeepsItsSteps() async throws {
+        let world = try world(FakeLauncher { _, _ in
+            Self.session { _, _ in
+                [.initialized(Self.good), .textDelta("Deux "), .toolStarted(id: "t1", name: "mcp__polhub__mails"),
+                 .assistant(text: "", tools: ["mcp__polhub__mails"], calls: [ClaudeToolCall(id: "t1", name: "mcp__polhub__mails", arguments: ["projet": "Cabinet Martin"])]),
+                 .toolResult(isError: false, outcomes: [ClaudeToolOutcome(id: "t1", isError: false)]),
+                 .textDelta("mails."), .result(ClaudeResult(durationMs: 1_200, costUSD: 0.02, text: "Deux mails."))]
+            }
+        })
+        ask(world.thread, "Quoi de neuf ?")
+        try await waitUntil { world.thread.messages.last?.state == .done && world.thread.messages.count == 2 }
+        let answer = try #require(world.thread.messages.last)
+        #expect(answer.steps.map(\.tool) == ["mails"] && answer.steps.first?.state == .done && answer.steps.first?.arguments["projet"] == "Cabinet Martin")
+        #expect(answer.durationMs == 1_200)
+        #expect(world.thread.liveSteps.isEmpty)
+    }
+
     @Test func aQuestionIsKeptThenAnswered() async throws {
         let world = try world(FakeLauncher { _, _ in Self.session() })
         ask(world.thread, "Où on en est ?")

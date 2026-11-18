@@ -30,7 +30,8 @@ import Testing
         defer { try? FileManager.default.removeItem(at: folder) }
         let base = try AppDatabase(path: path)
         let message = try base.writer.read { try $0.columns(in: "colin_message").map(\.name).sorted() }
-        #expect(message == ["author", "costUSD", "createdAt", "drafts", "id", "state", "text"])
+        // Those of v17 (v19 adds two more).
+        #expect(Set(message).isSuperset(of: ["author", "costUSD", "createdAt", "drafts", "id", "state", "text"]))
         let knowledge = try base.writer.read { try $0.columns(in: "colin_knowledge").map(\.name).sorted() }
         #expect(knowledge == ["id", "text", "updatedAt"])
         // The copy of the base made before the migration is named after it.

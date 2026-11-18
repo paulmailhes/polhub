@@ -72,9 +72,13 @@ public struct ColinMessageRow: Codable, FetchableRecord, PersistableRecord, Equa
     public var costUSD: Double?
     /// The drafts that appeared while Colin answered, by identifier.
     public var drafts: [String]
+    /// What Colin did in this answer, in order (base v19); none for an answer of before.
+    public var steps: [ColinStep]
+    /// How long he worked on it, when Claude Code said so (base v19).
+    public var durationMs: Int?
 
     public init(id: String = UUID().uuidString.lowercased(), author: Author, text: String, state: State = .done, createdAt: Date,
-                costUSD: Double? = nil, drafts: [String] = []) {
+                costUSD: Double? = nil, drafts: [String] = [], steps: [ColinStep] = [], durationMs: Int? = nil) {
         self.id = id
         self.author = author
         self.text = text
@@ -82,6 +86,8 @@ public struct ColinMessageRow: Codable, FetchableRecord, PersistableRecord, Equa
         self.createdAt = createdAt
         self.costUSD = costUSD
         self.drafts = drafts
+        self.steps = steps
+        self.durationMs = durationMs
     }
 }
 

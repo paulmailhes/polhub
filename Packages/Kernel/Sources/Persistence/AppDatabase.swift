@@ -606,6 +606,14 @@ public final class AppDatabase: Sendable {
         migrator.registerMigration("v18", foreignKeyChecks: .immediate) { db in
             for sql in ProjectChangeSchema.tables + ProjectChangeSchema.triggers { try db.execute(sql: sql) }
         }
+        // The Accueil's pass (18/11): an answer of Colin's keeps what he did and how long he worked. Only the app reads
+        // his thread.
+        migrator.registerMigration("v19", foreignKeyChecks: .immediate) { db in
+            try db.alter(table: "colin_message") { t in
+                t.add(column: "steps", .text).notNull().defaults(to: "[]")
+                t.add(column: "durationMs", .integer)
+            }
+        }
         return migrator
     }
 }

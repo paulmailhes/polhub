@@ -29,6 +29,8 @@ public final class ColinThread: ObservableObject {
     /// What Colin changed on the projects, the last fortnight (step 3, 18/11), and what an agent changed on a card,
     /// each with « Annuler ».
     @Published public private(set) var changes: [ProjectChangeLine] = []
+    /// What Colin is doing in the answer under way, in order (the Accueil's pass, 18/11).
+    @Published public private(set) var liveSteps: [ColinStep] = []
     /// What « Annuler » did, by line.
     @Published public private(set) var outcomes: [String: UndoOutcome] = [:]
     @Published public private(set) var status: Status = .off
@@ -247,6 +249,7 @@ public final class ColinThread: ObservableObject {
         answer = row
         draftsBefore = newDrafts()
         streaming = ""
+        liveSteps = []
         status = .working(Self.phrase(for: nil))
         await runner.ask(question, primer: primer)
     }
@@ -262,6 +265,7 @@ public final class ColinThread: ObservableObject {
             streaming += text
         case .step(let step):
             guard answer != nil else { return }
+            if let index = liveSteps.firstIndex(where: { $0.id == step.id }) { liveSteps[index] = step } else { liveSteps.append(step) }
             status = .working(Self.phrase(for: step.tool))
         case .answered(let turn):
             guard var row = answer else { return }
@@ -269,19 +273,24 @@ public final class ColinThread: ObservableObject {
             row.state = turn.interrupted ? .interrupted : .done
             row.costUSD = turn.costUSD
             row.drafts = newDrafts().subtracting(draftsBefore).sorted()
+            row.steps = turn.steps
+            row.durationMs = turn.durationMs
             try? store.update(row)
             answer = nil
             streaming = ""
+            liveSteps = []
             lastAnswerAt = now()
             status = isOn ? .idle : .off
         case .failed(let failure):
             if var row = answer {
                 row.text = streaming
                 row.state = .failed
+                row.steps = Self.ended(liveSteps)
                 try? store.update(row)
             }
             answer = nil
             streaming = ""
+            liveSteps = []
             status = .broken(Self.sentence(failure, calendar: calendar))
         }
     }
@@ -296,6 +305,8 @@ public final class ColinThread: ObservableObject {
         guard var row = answer else { return }
         row.text = streaming.isEmpty ? note : streaming + "\n\n" + note
         row.state = .interrupted
+        row.steps = Self.ended(liveSteps)
+        liveSteps = []
         try? store.update(row)
         answer = nil
         streaming = ""
@@ -346,6 +357,15 @@ public final class ColinThread: ObservableObject {
     public func undo(_ line: ProjectChangeLine) {
         guard outcomes[line.id] == nil, line.undoneAt == nil else { return }
         outcomes[line.id] = (try? changeStore.undo(line, at: now())) ?? .changedSince
+    }
+
+    /// Steps of an answer that stopped: none stays « under way ».
+    nonisolated static func ended(_ steps: [ColinStep]) -> [ColinStep] {
+        steps.map { step in
+            var step = step
+            if step.state == .running { step.state = .failed }
+            return step
+        }
     }
 
     // MARK: - Words
