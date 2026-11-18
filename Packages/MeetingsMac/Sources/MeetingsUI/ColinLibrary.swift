@@ -232,12 +232,22 @@ public final class ColinLibrary: ObservableObject {
             let all = ((defaults.array(forKey: Preferences.Key.colinAbsences) as? [Int]) ?? []) + [Int(date.timeIntervalSince(last) / 60)]
             defaults.set(Array(all.suffix(Self.absencesKept)), forKey: Preferences.Key.colinAbsences)
         }
-        if passage.returned || (briefingAt == nil && wanted == nil) {
+        if passage.returned {
             wanted = (since: state.since, at: date)
+            state.preparedAt = date
+        } else if briefingAt == nil, wanted == nil {
+            // Polhub opened again while Paul was there (an update): the point is prepared again, and says only
+            // what came since his last passage. What came before, he has seen.
+            wanted = (since: before.lastSeen ?? state.since, at: date)
             state.preparedAt = date
         }
         presence = state
         refresh()
+    }
+
+    /// Paul leaves the Accueil (another app in front, another page, the Mac going to sleep): his absence starts now.
+    public func left() {
+        presence = Presence.left(presence, at: now())
     }
 
     /// When the Accueil was last before Paul: three dates in the preferences, nothing else.

@@ -30,6 +30,8 @@ extension WindowRouter {
         case .window:
             break
         case .home:
+            // A thread left open over the Accueil would hide the draft that waits.
+            homeMail = nil
             section = .home
         }
         return true

@@ -229,7 +229,13 @@ public final class MailLibrary: ObservableObject {
     @Published public var focused: String?
     /// The last gesture, while it can be undone: one line, one or several threads.
     @Published public private(set) var undoable: (text: String, gestures: [MailGestureRow])?
-    @Published public var message: String?
+    @Published public var message: String? {
+        didSet { if !tellingDraftNews { messageIsDraftNews = false } }
+    }
+    /// The message says that a draft an agent prepared or changed waits in Brouillons: over the Accueil, the line
+    /// « Brouillon prêt » already says it (18/11).
+    public private(set) var messageIsDraftNews = false
+    private var tellingDraftNews = false
     /// The new mails of the main tab, for the notifications (set by the app).
     public var onArrival: (([(threadKey: String, sender: String, subject: String)]) -> Void)?
     /// A mail that did not leave, for the notifications (set by the app): its subject, its thread.
@@ -1402,10 +1408,23 @@ public final class MailLibrary: ObservableObject {
         } else if let gone = pass.discarded.last {
             message = "Un agent a supprimé le brouillon « \(title(gone.subject)) »."
         } else if let draft = pass.changed.last {
-            message = "Un agent a modifié « \(title(draft.subject)) » : il t'attend dans Brouillons."
+            tellDraftNews("Un agent a modifié « \(title(draft.subject)) » : il t'attend dans Brouillons.")
         } else if let draft = pass.adopted.last {
-            message = "Un agent a préparé « \(title(draft.subject)) » : il t'attend dans Brouillons."
+            tellDraftNews("Un agent a préparé « \(title(draft.subject)) » : il t'attend dans Brouillons.")
         }
+    }
+
+    private func tellDraftNews(_ text: String) {
+        tellingDraftNews = true
+        message = text
+        messageIsDraftNews = true
+        tellingDraftNews = false
+    }
+
+    /// What the bar at the bottom may say. `draftNews` is false over the Accueil: the news of a draft that waits is
+    /// said there by its line; everything else (what a gesture answered, a mail that could not leave) is said everywhere.
+    public func barMessage(draftNews: Bool) -> String? {
+        draftNews || !messageIsDraftNews ? message : nil
     }
 
     /// The draft goes, here and in Gmail. A mail waiting to leave is called back first.

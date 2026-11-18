@@ -21,6 +21,21 @@ import Testing
         #expect(seen.state == Presence.State(lastSeen: at(18, 9, 4), since: nil, preparedAt: at(18, 9, 4)))
     }
 
+    /// Paul leaves the Accueil: his absence starts then, not at his last arrival. Nothing is prepared.
+    @Test func leavingStartsTheAbsence() {
+        // On the Accueil from 11:00 to 12:30, back at 14:00: ninety minutes away, not a return.
+        let arrived = Presence.seen(Presence.State(), at: at(18, 11), calendar: calendar).state
+        let gone = Presence.left(arrived, at: at(18, 12, 30))
+        #expect(gone == Presence.State(lastSeen: at(18, 12, 30), since: nil, preparedAt: at(18, 11)))
+        #expect(!Presence.seen(gone, at: at(18, 14), calendar: calendar).returned)
+        // Back at 16:00: a return, since 12:30.
+        let back = Presence.seen(gone, at: at(18, 16), calendar: calendar)
+        #expect(back.returned && back.awayMinutes == 210 && back.state.since == at(18, 12, 30))
+        // A clock that went back, or a departure before any arrival, says nothing.
+        #expect(Presence.left(gone, at: at(18, 9)) == gone)
+        #expect(Presence.left(Presence.State(), at: at(18, 9)) == Presence.State())
+    }
+
     @Test func theFirstPresenceOfTheDayIsAReturn() {
         // Seen at 23:50, back at 0:10: twenty minutes, and another day.
         let before = Presence.State(lastSeen: at(17, 23, 50), since: at(16, 18), preparedAt: at(17, 9))

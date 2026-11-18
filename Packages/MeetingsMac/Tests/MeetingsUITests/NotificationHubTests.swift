@@ -231,5 +231,10 @@ import Testing
         // « Brouillon prêt » : the Accueil.
         #expect(router.perform(.home, agenda: nil, mails: nil))
         #expect(router.section == .home)
+        // A thread left open over the Accueil would hide the draft that waits: it is closed.
+        router.homeMail = "paul@exemple.fr|vieux"
+        router.section = .projects
+        #expect(router.perform(.home, agenda: nil, mails: nil))
+        #expect(router.section == .home && router.homeMail == nil)
     }
 }

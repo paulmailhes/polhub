@@ -78,8 +78,9 @@ struct HomeView: View {
         }
         .windowTitle("Accueil")
         .modifier(HomeMailPanels(mails: mails, router: router))
-        // The Accueil is before Paul: « Le point » is prepared when he is back.
+        // The Accueil is before Paul: « Le point » is prepared when he is back. He goes to another page: his absence starts.
         .onAppear { colin.seen() }
+        .onDisappear { colin.left() }
     }
 
     private var lists: some View {
@@ -99,7 +100,7 @@ private struct HomeMailPanels: ViewModifier {
     func body(content: Content) -> some View {
         if let mails {
             content
-                .mailPanels(mails, router: router, thread: $router.homeMail, browses: false, title: "Accueil")
+                .mailPanels(mails, router: router, thread: $router.homeMail, browses: false, title: "Accueil", draftNews: false)
                 .onAppear { mails.router = router }
         } else {
             content

@@ -64,6 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     /// What the Accueil knows (18/11): « À valider » and « Le point », kept up to date window open or not.
     private var colin: ColinLibrary?
     private var presenceObserver: NSObjectProtocol?
+    private var absenceObserver: NSObjectProtocol?
     /// « Inspiration » (16/11): the sites, the branding and the mock-ups, and their collection.
     private var inspiration: InspirationLibrary?
     private var inspirationAutomation: InspirationAutomation?
@@ -398,6 +399,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         presenceObserver = NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.accueilMayBeSeen() }
         }
+        // Another app comes in front while the Accueil shows: Paul's absence starts then.
+        absenceObserver = NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.accueilLeft() }
+        }
         router.section = .home
         agendaTimer = Timer.scheduledTimer(withTimeInterval: 600, repeats: true) { _ in
             Task { @MainActor in await agenda.syncAll() }
@@ -575,7 +580,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let center = NSWorkspace.shared.notificationCenter
         powerObservers = [
             center.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.colinProbe.macWillSleep() }
+                MainActor.assumeIsolated {
+                    self?.colinProbe.macWillSleep()
+                    // The Mac goes to sleep with the Accueil before Paul: he leaves now.
+                    if NSApp.isActive { self?.accueilLeft() }
+                }
             },
             center.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated {
@@ -590,6 +599,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
     /// The Accueil is before Paul: Polhub in front, its window shown, on the Accueil. « Le point » is prepared when
     /// he is back (the first time of a day, or three hours later).
+    /// Paul leaves the Accueil: its window showed it, and something else takes his eyes. His absence starts now.
+    private func accueilLeft() {
+        guard let window = mainWindow, window.isVisible, !window.isMiniaturized, router.section == .home else { return }
+        colin?.left()
+    }
+
     private func accueilMayBeSeen() {
         guard NSApp.isActive, let window = mainWindow, window.isVisible, !window.isMiniaturized, router.section == .home else { return }
         colin?.seen()

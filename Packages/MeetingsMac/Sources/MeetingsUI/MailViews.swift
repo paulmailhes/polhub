@@ -53,6 +53,8 @@ struct MailSectionView: View {
 /// « Fil archivé · Annuler », for a few seconds; or what went wrong.
 struct MailUndoBar: View {
     @ObservedObject var mails: MailLibrary
+    /// Whether it says that a draft an agent prepared waits: not over the Accueil, whose line says it already.
+    var draftNews = true
 
     var body: some View {
         Group {
@@ -72,7 +74,7 @@ struct MailUndoBar: View {
                     Text(undo.text)
                     undoButton { mails.undo() }
                 }
-            } else if let message = mails.message {
+            } else if let message = mails.barMessage(draftNews: draftNews) {
                 HStack(spacing: Space.m) {
                     Text(message).fixedSize(horizontal: false, vertical: true)
                     IconButton("xmark", help: "Fermer", size: 13) { mails.message = nil }
@@ -83,7 +85,7 @@ struct MailUndoBar: View {
         .padding(.horizontal, Space.xl).padding(.vertical, Space.m)
         .glassEffect(.regular, in: Capsule())
         .padding(.bottom, Space.l)
-        .opacity(mails.undoable == nil && mails.message == nil && mails.sending == nil ? 0 : 1)
+        .opacity(mails.undoable == nil && mails.barMessage(draftNews: draftNews) == nil && mails.sending == nil ? 0 : 1)
         .animation(.snappy, value: mails.undoable?.text)
     }
 

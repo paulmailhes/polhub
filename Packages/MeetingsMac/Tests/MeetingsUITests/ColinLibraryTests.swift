@@ -677,7 +677,8 @@ import Testing
         try await waitUntil { world.colin.briefingAt == clock.now }
         #expect(world.colin.briefing.last == "Depuis 10:00 : 1 mail de client.")
 
-        // Ten minutes later, another library on the same base and the same preferences: the app, opened again.
+        // Ten minutes later, another library on the same base and the same preferences: the app, opened again. Paul
+        // was there all along: the mail of the morning is no news, the point says so no more.
         clock.advance(hours: 1.0 / 6)
         let again = ColinLibrary(agenda: world.agenda, mails: world.mails, defaults: defaults, now: { clock.now }, calendar: paris, settle: .milliseconds(30),
                                  every: .seconds(3_600))
@@ -686,7 +687,56 @@ import Testing
         again.seen()
         try await waitUntil { again.briefingAt != nil }
         #expect(again.briefingAt == clock.now)
-        #expect(again.briefing.last == "Depuis 10:00 : 1 mail de client.")
+        #expect(again.briefing == ["Cette semaine : aucun rendez-vous.", "À toi de jouer : Cabinet Martin."])
+
+        // What came since his last passage is news: Claire writes at 14:15, the app opens again at 14:20.
+        try world.store.apply(account: Self.me, upserts: [received("b3", thread: "b", from: Self.claire, name: "Claire Morel", at: clock.now.addingTimeInterval(5 * 60))])
+        clock.advance(hours: 1.0 / 6)
+        let third = ColinLibrary(agenda: world.agenda, mails: world.mails, defaults: defaults, now: { clock.now }, calendar: paris, settle: .milliseconds(30),
+                                 every: .seconds(3_600))
+        third.seen()
+        try await waitUntil { third.briefingAt != nil }
+        #expect(third.briefing.last == "Depuis 14:10 : 1 mail de client.")
+    }
+
+    /// Paul leaves the Accueil (another app, another page): his absence starts then, not at his last arrival.
+    @Test func leavingTheAccueilStartsTheAbsence() async throws {
+        let world = try await world()
+        defer { try? FileManager.default.removeItem(at: world.root) }
+        world.colin.seen()
+        // An hour and a half on the Accueil, then an hour and a half elsewhere: ninety minutes away, not three hours.
+        world.clock.advance(hours: 1.5)
+        world.colin.left()
+        world.clock.advance(hours: 1.5)
+        let first = world.colin.briefingAt
+        world.colin.seen()
+        #expect(world.defaults.array(forKey: Preferences.Key.colinAbsences) as? [Int] == [90])
+        try await settled(world.colin)
+        // Not a return: the point stays the one of this morning.
+        #expect(world.colin.briefingAt == first || first == nil)
+        // Without the departure noted, the same hours would have been a return.
+        world.clock.advance(hours: 3.5)
+        world.colin.seen()
+        #expect(world.defaults.array(forKey: Preferences.Key.colinAbsences) as? [Int] == [90, 210])
+        try await waitUntil { world.colin.briefingAt == world.clock.now }
+    }
+
+    /// The bar at the bottom of the mails also shows over the Accueil. What it says of a draft an agent prepared is
+    /// already said there by the line « Brouillon prêt »: over the Accueil it is not said again.
+    @Test func theNewsOfADraftIsNotSaidTwiceOnTheAccueil() async throws {
+        let world = try await world()
+        defer { try? FileManager.default.removeItem(at: world.root) }
+        let mails = try #require(world.mails)
+        try world.store.drop(MailAgentDraftRow(mode: .new, account: Self.me, to: [MailAddress(name: "Claire Morel", email: Self.claire)], subject: "Devis d'avril",
+                                               body: "Bonjour Claire, voici le devis.", createdAt: Date()))
+        try await waitUntil { mails.message != nil }
+        #expect(mails.message == "Un agent a préparé « Devis d'avril » : il t'attend dans Brouillons.")
+        #expect(mails.barMessage(draftNews: true) == mails.message)
+        #expect(mails.barMessage(draftNews: false) == nil)
+        // Anything else is said everywhere: what a gesture answered, a mail that could not leave.
+        mails.message = "Envoi annulé : le mail t'attend dans Brouillons."
+        #expect(mails.barMessage(draftNews: false) == "Envoi annulé : le mail t'attend dans Brouillons.")
+        #expect(mails.barMessage(draftNews: true) == "Envoi annulé : le mail t'attend dans Brouillons.")
     }
 
     /// The absences are kept in minutes, the last hundred, from half an hour up: numbers only, to set the threshold

@@ -17,6 +17,8 @@ struct MailPanels: ViewModifier {
     let browses: Bool
     /// The page behind, in the window's title.
     let title: String
+    /// Whether the bar says that a draft an agent prepared waits (Mails), or leaves it to the page's own line (the Accueil).
+    let draftNews: Bool
 
     private func close() { thread = nil }
 
@@ -42,7 +44,7 @@ struct MailPanels: ViewModifier {
             .animation(Motion.standard, value: thread)
             .animation(Motion.standard, value: mails.composing)
             // Above the bar of a draft fixed at the bottom, never over it (review of 17/11).
-            .overlay(alignment: .bottom) { MailUndoBar(mails: mails).padding(.bottom, composeBarShown ? 80 : 0) }
+            .overlay(alignment: .bottom) { MailUndoBar(mails: mails, draftNews: draftNews).padding(.bottom, composeBarShown ? 80 : 0) }
             // One Quick Look for the list's chips and the open thread's files (15/11): two would fight over the
             // window's single preview panel.
             .quickLookPreview($mails.preview)
@@ -66,7 +68,7 @@ struct MailPanels: ViewModifier {
 extension View {
     /// The mails' panels over this page: `thread` is the thread open over it.
     func mailPanels(_ mails: MailLibrary, router: WindowRouter, thread: Binding<String?>, floating: Bool = true, browses: Bool = true,
-                    title: String = "Mails") -> some View {
-        modifier(MailPanels(mails: mails, router: router, thread: thread, floating: floating, browses: browses, title: title))
+                    title: String = "Mails", draftNews: Bool = true) -> some View {
+        modifier(MailPanels(mails: mails, router: router, thread: thread, floating: floating, browses: browses, title: title, draftNews: draftNews))
     }
 }
