@@ -45,9 +45,20 @@ import Testing
         #expect(try store.dismissals().first?.times == 1)
         var second = first
         second.createdAt = now.addingTimeInterval(8 * 86_400)
+        second.lastMessageAt = now.addingTimeInterval(7 * 86_400)
         try store.dismiss(second)
         let rows = try store.dismissals()
         #expect(rows.count == 1 && rows.first?.times == 2 && rows.first?.createdAt == second.createdAt)
+        // The same click received twice (the same message before Paul's eyes) is one saying.
+        try store.dismiss(second)
+        #expect(try store.dismissals().first?.times == 2)
+        // The thread moved to another project: what was said of the first project is not carried over.
+        var moved = second
+        moved.projectID = UUID()
+        moved.lastMessageAt = now.addingTimeInterval(20 * 86_400)
+        try store.dismiss(moved)
+        #expect(try store.dismissals().first?.times == 1)
+        try store.dismiss(second)
         // Another reason starts again from one.
         var later = first
         later.reason = .later

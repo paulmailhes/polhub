@@ -557,9 +557,10 @@ public final class AppDatabase: Sendable {
         }
         // Colin's Accueil (18/11): each thread keeps who spoke last, and Polhub keeps the lines Paul sets aside.
         // A helper of before reads a base of after: two columns it does not know, and a table it never opens.
-        // Nothing here reads a row: it cannot fail on what the base holds. The turns of the threads already there
-        // are counted after it, by `fillMissingTurns`.
-        migrator.registerMigration("v16") { db in
+        // It adds, and reads no row: no check of the links between tables is asked of it either (`.immediate`), so
+        // nothing the base holds can make it fail. The turns of the threads already there are counted after it, by
+        // `fillMissingTurns`.
+        migrator.registerMigration("v16", foreignKeyChecks: .immediate) { db in
             try db.alter(table: "mail_thread") { t in
                 t.add(column: "lastReceivedAt", .datetime)
                 t.add(column: "lastSentAt", .datetime)
@@ -588,9 +589,11 @@ enum MailTurnBackfill {
         (instr(message.labels, '"SENT"') > 0 OR COALESCE(
             lower(json_extract(CASE WHEN json_valid(message.sender) THEN message.sender END, '$.email')) IN (SELECT lower(email) FROM google_account), 0))
         """
-    /// Not in the trash, not in the spam, not a draft.
+    /// Not in the trash, not in the spam, not a draft; and dated by a real date: copied into the thread, anything
+    /// else would make the thread itself unreadable.
     private static let counts = """
         instr(message.labels, '"TRASH"') = 0 AND instr(message.labels, '"SPAM"') = 0 AND instr(message.labels, '"DRAFT"') = 0
+        AND datetime(message.date) IS NOT NULL
         """
 
     static func run(_ db: Database) throws {

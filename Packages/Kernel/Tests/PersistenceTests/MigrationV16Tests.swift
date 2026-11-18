@@ -193,6 +193,45 @@ import Testing
         #expect(try base.writer.read { try AppDatabase.migrator.appliedIdentifiers($0).contains("v16") })
     }
 
+    @Test func aRowLeftWithoutItsParentDoesNotKeepTheBaseShut() throws {
+        // A tool that does not check the links between tables left a message whose thread is gone. The migration
+        // only adds columns and a table: it has no reason to look at that row, and the base opens.
+        let (folder, path) = try baseAtV15 { db in
+            try thread(db, "a")
+            try message(db, "a1", thread: "a", hours: 0, sender: Self.client, labels: #"["INBOX"]"#)
+        }
+        defer { try? FileManager.default.removeItem(at: folder) }
+        do {
+            var configuration = Configuration()
+            configuration.foreignKeysEnabled = false
+            let loose = try DatabaseQueue(path: path, configuration: configuration)
+            try loose.write { db in try message(db, "x1", thread: "parti", hours: 0, sender: Self.client, labels: #"["INBOX"]"#) }
+        }
+        let base = try AppDatabase(path: path)
+        #expect(try base.writer.read { try AppDatabase.migrator.appliedIdentifiers($0).contains("v16") })
+        #expect(try turn(base, "a") == (now, nil))
+    }
+
+    @Test func aDateThatIsNoDateLeavesTheThreadsReadable() throws {
+        // Not a row the app writes. Copied as it is into the thread, it would make every list of threads fail:
+        // the turn stays empty instead.
+        let (folder, path) = try baseAtV15 { db in
+            try thread(db, "a")
+            try message(db, "a1", thread: "a", hours: 0, sender: Self.client, labels: #"["INBOX"]"#)
+            try thread(db, "b")
+            try db.execute(sql: """
+                INSERT INTO mail_message (id, account, messageID, threadKey, date, sender, "to", cc, subject, snippet, labels, authenticated, hasBody, bodyIsHTML, attachments)
+                VALUES ('moi@exemple.fr|b1', 'moi@exemple.fr', 'b1', 'moi@exemple.fr|b', '0 pas une date', NULL, '[]', '[]', 'Maquette', 'extrait', '["INBOX"]', 0, 0, 0, '[]')
+                """)
+        }
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let base = try AppDatabase(path: path)
+        #expect(try turn(base, "a") == (now, nil))
+        let threads = try MailStore(base).allThreads()
+        #expect(threads.count == 2)
+        #expect(threads.first { $0.threadID == "b" }?.lastReceivedAt == nil)
+    }
+
     @Test func whatPaulSetsAsideHasItsTable() throws {
         let (folder, path) = try baseAtV15 { _ in }
         defer { try? FileManager.default.removeItem(at: folder) }

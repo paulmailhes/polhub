@@ -15,8 +15,11 @@ public struct ColinStore: Sendable {
     public func dismiss(_ row: ColinDismissalRow) throws {
         try writer.write { db in
             var row = row
-            if row.reason == .answeredElsewhere, let known = try ColinDismissalRow.fetchOne(db, key: row.id), known.reason == .answeredElsewhere {
-                row.times = known.times + 1
+            // The same thing said again of the same project. The same click received twice (the same message before
+            // Paul's eyes) is one saying; a thread moved to another project starts again.
+            if row.reason == .answeredElsewhere, let known = try ColinDismissalRow.fetchOne(db, key: row.id),
+               known.reason == .answeredElsewhere, known.projectID == row.projectID {
+                row.times = known.lastMessageAt == row.lastMessageAt && row.lastMessageAt != nil ? known.times : known.times + 1
             }
             try row.save(db)
         }

@@ -213,21 +213,33 @@ public struct MailStore: Sendable {
                 """, arguments: [since])
             var parent: [String: String] = [:]
             func root(_ thread: String) -> String {
+                var top = thread
+                while let next = parent[top], next != top { top = next }
+                // Every thread on the way now points at the top: the next reading is one step.
                 var current = thread
-                while let next = parent[current], next != current { current = next }
-                return current
+                while let next = parent[current], next != top {
+                    parent[current] = top
+                    current = next
+                }
+                return top
             }
-            var first: [String: String] = [:]
+            // For each identifier, the threads that hold it, by mailbox.
+            var holders: [String: [String: Set<String>]] = [:]
             for row in rows {
                 guard let identifier = String.fromDatabaseValue(row["rfcMessageID"]), let thread = String.fromDatabaseValue(row["threadKey"]) else { continue }
-                if parent[thread] == nil { parent[thread] = thread }
-                guard let other = first[identifier] else {
-                    first[identifier] = thread
-                    continue
+                holders[identifier, default: [:]][String(thread.prefix { $0 != "|" }), default: []].insert(thread)
+            }
+            for boxes in holders.values {
+                // Copies live in different boxes, one thread in each. An identifier that one box holds in two threads
+                // names no conversation: a sender that gives the same one to every mail.
+                guard boxes.count > 1, boxes.values.allSatisfy({ $0.count == 1 }) else { continue }
+                let copies = boxes.values.compactMap(\.first).sorted()
+                for thread in copies where parent[thread] == nil { parent[thread] = thread }
+                for thread in copies.dropFirst() {
+                    let one = root(copies[0]), two = root(thread)
+                    // The smaller key leads: the group's name does not depend on the order of the reading.
+                    if one != two { parent[max(one, two)] = min(one, two) }
                 }
-                let one = root(other), two = root(thread)
-                // The smaller key leads: the group's name does not depend on the order of the reading.
-                if one != two { parent[max(one, two)] = min(one, two) }
             }
             var sizes: [String: Int] = [:]
             for thread in parent.keys { sizes[root(thread), default: 0] += 1 }

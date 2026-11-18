@@ -116,6 +116,14 @@ import Testing
         try mails.database.writer.write { try $0.execute(sql: "UPDATE mail_message SET date = '0 pas une date'") }
         #expect(try mails.turns(asOf: .distantFuture)[key] == MailTurn())
         #expect(try mails.lastSenders(asOf: .distantFuture)[key] == "camille@exemple.fr")
+        // The same for what Paul sent: who he wrote to is still read.
+        try mails.apply(account: account, upserts: [
+            MailMessageRow(account: account, messageID: "s1", threadID: "t2", date: now, sender: MailAddress(email: account),
+                           to: [MailAddress(email: "jules@exemple.fr")], subject: "Devis", snippet: "", labels: ["SENT"]),
+        ])
+        try mails.database.writer.write { try $0.execute(sql: "UPDATE mail_message SET date = '0 pas une date', cc = x'00ff' WHERE messageID = 's1'") }
+        #expect(try mails.correspondents(asOf: .distantFuture) == ["jules@exemple.fr"])
+        #expect(try mails.correspondents() == ["jules@exemple.fr"])
     }
 
     @Test func whoPaulHadWrittenToAtADate() throws {
@@ -180,6 +188,52 @@ import Testing
         #expect(groups[a] != nil && groups[a] == groups[b])
         // A thread alone, a message without an identifier, and what is older than the date: no group.
         #expect(Set(groups.keys) == [a, b])
+    }
+
+    @Test func anIdentifierOneBoxHoldsTwiceNamesNoConversation() throws {
+        // A sender that gives every mail the same identifier (a form, a script): two threads of one box are two
+        // conversations, and such an identifier joins nothing, in any box.
+        let mails = try store()
+        let second = "moi@atelier.exemple"
+        try CalendarStore(mails.database).addAccount(email: second, at: now)
+        func copy(_ id: String, box: String, thread: String, identifier: String = "<toujours-le-meme@exemple.fr>") -> MailMessageRow {
+            MailMessageRow(account: box, messageID: id, threadID: thread, date: now, sender: MailAddress(email: "formulaire@exemple.fr"),
+                           subject: "Nouveau message", snippet: "", labels: ["INBOX"], rfcMessageID: identifier)
+        }
+        try mails.apply(account: account, upserts: [copy("a1", box: account, thread: "a"), copy("b1", box: account, thread: "b")])
+        try mails.apply(account: second, upserts: [copy("c1", box: second, thread: "c")])
+        #expect(try mails.conversations(since: .distantPast).isEmpty)
+        // A real copy of one of these threads, under its own identifier, still joins it.
+        try mails.apply(account: account, upserts: [copy("a2", box: account, thread: "a", identifier: "<vrai@exemple.fr>")])
+        try mails.apply(account: second, upserts: [copy("c2", box: second, thread: "c", identifier: "<vrai@exemple.fr>")])
+        let groups = try mails.conversations(since: .distantPast)
+        #expect(Set(groups.keys) == [MailThreadRow.key(account: account, threadID: "a"), MailThreadRow.key(account: second, threadID: "c")])
+    }
+
+    @Test func aLongChainOfCopiesIsReadQuickly() throws {
+        // Thousands of threads linked one to the next by real copies, written in decreasing order.
+        let mails = try store()
+        let second = "moi@atelier.exemple"
+        try CalendarStore(mails.database).addAccount(email: second, at: now)
+        func copy(_ id: String, box: String, thread: Int, identifier: String) -> MailMessageRow {
+            MailMessageRow(account: box, messageID: id, threadID: "fil-\(thread)", date: now, sender: MailAddress(email: "camille@exemple.fr"),
+                           subject: "Devis", snippet: "", labels: ["INBOX"], rfcMessageID: identifier)
+        }
+        var first: [MailMessageRow] = [], other: [MailMessageRow] = []
+        for index in stride(from: 1_500, to: 0, by: -1) {
+            // The two copies of mail `index`, then a mail that links the second box's thread to the first box's next one.
+            first.append(copy("m\(index)", box: account, thread: index, identifier: "<\(index)@exemple.fr>"))
+            other.append(copy("n\(index)", box: second, thread: index, identifier: "<\(index)@exemple.fr>"))
+            other.append(copy("o\(index)", box: second, thread: index, identifier: "<lien-\(index)@exemple.fr>"))
+            first.append(copy("p\(index)", box: account, thread: index - 1, identifier: "<lien-\(index)@exemple.fr>"))
+        }
+        try mails.apply(account: account, upserts: first)
+        try mails.apply(account: second, upserts: other)
+        let began = Date()
+        let groups = try mails.conversations(since: .distantPast)
+        #expect(Date().timeIntervalSince(began) < 2)
+        #expect(groups.count == 3_001)
+        #expect(Set(groups.values).count == 1)
     }
 
     @Test func threeBoxesAndAChainOfCopiesAreOneConversation() throws {

@@ -38,10 +38,11 @@ extension MailStore {
             try Row.fetchAll(db, sql: #"SELECT "to", cc, date FROM mail_message WHERE labels LIKE '%"SENT"%' AND date <= ? ORDER BY date"#, arguments: [date])
         } ?? Row.fetchAll(db, sql: #"SELECT "to", cc, date FROM mail_message WHERE labels LIKE '%"SENT"%' ORDER BY date"#)
         for row in rows {
-            let date: Date = row["date"] ?? .distantPast
+            // Read without a trap: a date that is no date, or people that are no text, are read as none.
+            let date = Date.fromDatabaseValue(row["date"]) ?? .distantPast
             var seen: Set<String> = []
             for column in ["to", "cc"] {
-                guard let text: String = row[column], let people = try? decoder.decode([MailAddress].self, from: Data(text.utf8)) else { continue }
+                guard let text = String.fromDatabaseValue(row[column]), let people = try? decoder.decode([MailAddress].self, from: Data(text.utf8)) else { continue }
                 for person in people {
                     let email = person.email.lowercased()
                     // One mail counts once for an address, in To and Cc alike.
