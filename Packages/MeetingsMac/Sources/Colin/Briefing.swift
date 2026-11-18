@@ -122,7 +122,7 @@ public enum Briefing {
         return "\(parts.hour ?? 0):\(minute < 10 ? "0" : "")\(minute)"
     }
 
-    private static let weekdays = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"]
+    static let weekdays = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"]
     private static let months = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"]
 
     static func weekday(_ date: Date, calendar: Calendar) -> String {

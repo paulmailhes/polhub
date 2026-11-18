@@ -35,6 +35,19 @@ import Testing
 
     func key(_ thread: String, box: String = me) -> String { MailThreadRow.key(account: box, threadID: thread) }
 
+    /// Step 3 of Colin (18/11): a mail Paul sent says which message it is — the same in each mailbox that holds a copy
+    /// — and the names its header gives, so that a rule says « Claire ».
+    @Test func anExchangeSaysItsMessageAndItsNames() throws {
+        let mails = try store()
+        var named = sent("s1", thread: "a", to: [Self.claire], daysAgo: 1)
+        named.to = [MailAddress(name: "Claire Morel", email: "Claire@Cabinet.exemple")]
+        named.rfcMessageID = "<devis-1@exemple.fr>"
+        try mails.apply(account: Self.me, upserts: [named, sent("s2", thread: "b", to: [Self.marc], daysAgo: 1)])
+        let found = try mails.exchanges(since: ago(5)).sorted { $0.threadKey < $1.threadKey }
+        #expect(found.map(\.messageKey) == ["<devis-1@exemple.fr>", MailMessageRow.key(account: Self.me, messageID: "s2")])
+        #expect(found.first?.names == [Self.claire: "Claire Morel"])
+    }
+
     @Test func eachMessageSaysWhoWroteToWhomAndWhen() throws {
         let mails = try store()
         try mails.apply(account: Self.me, upserts: [
@@ -46,8 +59,10 @@ import Testing
         #expect(exchanges.count == 2)
         // The oldest first.
         #expect(exchanges.map(\.threadKey) == [key("a"), key("b")])
-        #expect(exchanges[0] == MailExchange(threadKey: key("a"), date: ago(5), mine: false, sender: Self.claire, recipients: [Self.me, Self.marc], calendar: false))
-        #expect(exchanges[1] == MailExchange(threadKey: key("b"), date: ago(2), mine: true, sender: Self.me, recipients: [Self.claire, Self.marc], calendar: false))
+        #expect(exchanges[0] == MailExchange(threadKey: key("a"), date: ago(5), mine: false, sender: Self.claire, recipients: [Self.me, Self.marc], calendar: false,
+                                             messageKey: MailMessageRow.key(account: Self.me, messageID: "a1")))
+        #expect(exchanges[1] == MailExchange(threadKey: key("b"), date: ago(2), mine: true, sender: Self.me, recipients: [Self.claire, Self.marc], calendar: false,
+                                             messageKey: MailMessageRow.key(account: Self.me, messageID: "b1")))
     }
 
     @Test func aMessageOfPaulIsHisWhateverItsBoxOrItsLabel() throws {

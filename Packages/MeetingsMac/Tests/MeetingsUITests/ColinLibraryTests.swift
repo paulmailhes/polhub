@@ -862,4 +862,101 @@ import Testing
         #expect(state.lastSeen == world.clock.now)
         try await settled(world.colin)
     }
+
+    // MARK: - « Colin tient le kanban seul » (step 3, 18/11)
+
+    /// Claire, of « Cabinet Martin », wrote in thread « b », filed in the project.
+    func claireWrote(_ database: AppDatabase, _ project: UUID, _ clock: Clock) throws {
+        try MailStore(database).apply(account: Self.me, upserts: [received("b1", thread: "b", from: Self.claire, name: "Claire Morel", at: clock.ago(3))])
+        try MailStore(database).file(threadKey: key("b"), as: .project(project), at: clock.ago(3))
+    }
+
+    func kanbanDefaults(on: Bool = true, colin: Bool = true, since: Date?) throws -> UserDefaults {
+        let suite = try #require(UserDefaults(suiteName: "colin-\(UUID().uuidString)"))
+        suite.set(colin, forKey: Preferences.Key.colinOn)
+        suite.set(on, forKey: Preferences.Key.colinKanban)
+        if let since { suite.set(since, forKey: Preferences.Key.colinKanbanSince) }
+        return suite
+    }
+
+    func paulAnswersClaire(_ world: World, id: String = "b2", minutesAgo: Double = 10) throws {
+        var mail = sent(id, thread: "b", to: Self.claire, at: world.clock.now.addingTimeInterval(-minutesAgo * 60))
+        mail.to = [MailAddress(name: "Claire Morel", email: Self.claire)]
+        try world.store.apply(account: Self.me, upserts: [mail])
+    }
+
+    @Test func theRulesWriteWhenColinAndTheSwitchAreOn() async throws {
+        let clock = Clock()
+        let world = try await world(defaults: try kanbanDefaults(since: clock.ago(1)), clock: clock) { database, project, clock in
+            try claireWrote(database, project, clock)
+        }
+        defer { try? FileManager.default.removeItem(at: world.root) }
+        try paulAnswersClaire(world)
+        let projects = ProjectStore(world.database)
+        try await waitUntil { (try? projects.project(id: world.project))?.todo == "En attente retour de Claire" }
+        #expect(try projects.project(id: world.project)?.status == .priorite1)
+        let lines = try ProjectChanges(world.database).lines(since: .distantPast, authors: [.colin])
+        #expect(lines.count == 1 && lines.first?.reason == "Après ton mail à Claire, 9:50")
+        // A meeting booked tomorrow in the project: its deadline.
+        let start = world.clock.now.addingTimeInterval(86_400)
+        let event = CalendarEventRow(account: Self.me, eventID: "e9", title: "Point devis", startAt: start, endAt: start.addingTimeInterval(1_800),
+                                     updatedAt: world.clock.now)
+        try CalendarStore(world.database).applyGoogle(account: Self.me, changed: [event], cancelled: [], at: world.clock.now)
+        try CalendarStore(world.database).setProject(eventID: event.id, projectID: world.project, origin: .paul)
+        try await waitUntil { (try? projects.project(id: world.project))?.dueDate == paris.startOfDay(for: start) }
+        try await settled(world.colin)
+    }
+
+    @Test func nothingIsWrittenWhenColinIsOff() async throws {
+        let clock = Clock()
+        let world = try await world(defaults: try kanbanDefaults(colin: false, since: clock.ago(1)), clock: clock) { database, project, clock in
+            try claireWrote(database, project, clock)
+        }
+        defer { try? FileManager.default.removeItem(at: world.root) }
+        try paulAnswersClaire(world)
+        try await settled(world.colin)
+        world.colin.refresh()
+        try await settled(world.colin)
+        #expect(try ProjectStore(world.database).project(id: world.project)?.todo == nil)
+        #expect(try ProjectChanges(world.database).lines(since: .distantPast, authors: [.colin]).isEmpty)
+    }
+
+    /// Computed again and again (the minutes pass, the base is read from memory): the mail is answered once.
+    @Test func aRuleIsWrittenOnceEvenOnCachedInputs() async throws {
+        let clock = Clock()
+        let world = try await world(defaults: try kanbanDefaults(since: clock.ago(1)), clock: clock) { database, project, clock in
+            try claireWrote(database, project, clock)
+        }
+        defer { try? FileManager.default.removeItem(at: world.root) }
+        try paulAnswersClaire(world)
+        let projects = ProjectStore(world.database)
+        try await waitUntil { (try? projects.project(id: world.project))?.todo == "En attente retour de Claire" }
+        for _ in 0..<3 {
+            world.clock.advance(hours: 0.02)
+            world.colin.refresh()
+            try await settled(world.colin)
+        }
+        #expect(try projects.journal(projectID: world.project).map(\.title) == ["Mail envoyé à Claire le 18/11"])
+        #expect(try ProjectChanges(world.database).lines(since: .distantPast, authors: [.colin]).count == 1)
+    }
+
+    /// Turned on now, the switch leaves what was sent before: Colin keeps the cards from now on.
+    @Test func turningTheSwitchOnLeavesTheMailsOfBefore() async throws {
+        let clock = Clock()
+        let defaults = try kanbanDefaults(on: false, since: nil)
+        let world = try await world(defaults: defaults, clock: clock) { database, project, clock in try claireWrote(database, project, clock) }
+        defer { try? FileManager.default.removeItem(at: world.root) }
+        try paulAnswersClaire(world, minutesAgo: 10)
+        try await settled(world.colin)
+        defaults.set(true, forKey: Preferences.Key.colinKanban)
+        try await settled(world.colin)
+        world.colin.refresh()
+        try await settled(world.colin)
+        let projects = ProjectStore(world.database)
+        #expect(try projects.project(id: world.project)?.todo == nil)
+        world.clock.advance(hours: 0.1)
+        try paulAnswersClaire(world, id: "b3", minutesAgo: 1)
+        try await waitUntil { (try? projects.project(id: world.project))?.todo == "En attente retour de Claire" }
+        try await settled(world.colin)
+    }
 }

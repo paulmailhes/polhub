@@ -19,8 +19,13 @@ public struct MailExchange: Equatable, Sendable {
     /// A mail no person wrote, even from a person's address: a list's (it says how to leave it), an answer sent by
     /// an absent mailbox.
     public var automatic: Bool
+    /// Which message it is: its RFC identifier, the same in each mailbox that holds a copy, else its row (step 3).
+    public var messageKey: String
+    /// The names the header gives to the people it was written to, by address in small letters.
+    public var names: [String: String]
 
-    public init(threadKey: String, date: Date, mine: Bool, sender: String?, recipients: [String], calendar: Bool, automatic: Bool = false) {
+    public init(threadKey: String, date: Date, mine: Bool, sender: String?, recipients: [String], calendar: Bool, automatic: Bool = false,
+                messageKey: String = "", names: [String: String] = [:]) {
         self.threadKey = threadKey
         self.date = date
         self.mine = mine
@@ -28,6 +33,8 @@ public struct MailExchange: Equatable, Sendable {
         self.recipients = recipients
         self.calendar = calendar
         self.automatic = automatic
+        self.messageKey = messageKey
+        self.names = names
     }
 
     /// How the subject of an absent mailbox's answer begins, in French, in English and in German.
@@ -70,7 +77,7 @@ extension MailStore {
                 String.fromDatabaseValue(value).flatMap { try? decoder.decode(type, from: Data($0.utf8)) }
             }
             let rows = try Row.fetchAll(db, sql: """
-                SELECT threadKey, date, sender, "to", cc, labels, subject, attachments, listUnsubscribe FROM mail_message
+                SELECT id, rfcMessageID, threadKey, date, sender, "to", cc, labels, subject, attachments, listUnsubscribe FROM mail_message
                 WHERE date > ? AND labels NOT LIKE '%"TRASH"%' AND labels NOT LIKE '%"SPAM"%' AND labels NOT LIKE '%"DRAFT"%'
                 ORDER BY date
                 """, arguments: [since])
@@ -81,17 +88,21 @@ extension MailStore {
                 let sender = decoded(MailAddress.self, row["sender"])?.email.lowercased()
                 let labels = decoded([String].self, row["labels"]) ?? []
                 var recipients: [String] = []
+                var names: [String: String] = [:]
                 for column in ["to", "cc"] {
                     for person in decoded([MailAddress].self, row[column]) ?? [] {
                         let email = person.email.lowercased()
                         if !recipients.contains(email) { recipients.append(email) }
+                        if let name = person.name?.trimmingCharacters(in: .whitespaces), !name.isEmpty, names[email] == nil { names[email] = name }
                     }
                 }
                 let subject = String.fromDatabaseValue(row["subject"]) ?? ""
                 let calendar = MailExchange.isCalendar(subject: subject, attachments: decoded([MailAttachment].self, row["attachments"]) ?? [])
                 let automatic = MailExchange.isAutomatic(subject: subject, listUnsubscribe: String.fromDatabaseValue(row["listUnsubscribe"]))
+                let rfc = String.fromDatabaseValue(row["rfcMessageID"]).flatMap { $0.isEmpty ? nil : $0 }
                 found.append(MailExchange(threadKey: thread, date: date, mine: MailMessageRow.isMine(labels: labels, sender: sender, mine: mine),
-                                          sender: sender, recipients: recipients, calendar: calendar, automatic: automatic))
+                                          sender: sender, recipients: recipients, calendar: calendar, automatic: automatic,
+                                          messageKey: rfc ?? String.fromDatabaseValue(row["id"]) ?? "", names: names))
             }
             return found
         }

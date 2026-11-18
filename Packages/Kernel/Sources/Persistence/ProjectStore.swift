@@ -193,6 +193,31 @@ public struct ProjectStore: Sendable {
         }
     }
 
+    /// A change of a rule (step 3 of Colin, 18/11), in one transaction and one batch of `author`'s: the status (the card
+    /// at the bottom of its new column), the task, the deadline, a line in the journal. Its event is answered once:
+    /// `false` when it already was (undone or not), or when the card is in the trash. Not a sign of Paul's life.
+    @discardableResult
+    public func edit(_ edit: KanbanEdit, by author: ChangeAuthor, at date: Date) throws -> Bool {
+        let store = signed(author, reason: edit.reason, source: edit.source)
+        return try store.write(at: date) { db in
+            if try Bool.fetchOne(db, sql: "SELECT EXISTS(SELECT 1 FROM project_change WHERE source = ?)", arguments: [edit.source]) == true { return false }
+            guard let project = try ProjectRow.fetchOne(db, key: Self.key(edit.projectID)), project.deletedAt == nil else { return false }
+            if let status = edit.status, status != project.status {
+                try Self.place(db, edit.projectID, to: status, before: nil, at: date, edited: false)
+            }
+            if let todo = edit.todo, todo != project.todo {
+                try db.execute(sql: "UPDATE project SET todo = ?, updatedAt = ? WHERE id = ?", arguments: [todo, date, Self.key(edit.projectID)])
+            }
+            if let due = edit.dueDate, due != project.dueDate {
+                try db.execute(sql: "UPDATE project SET dueDate = ?, updatedAt = ? WHERE id = ?", arguments: [due, date, Self.key(edit.projectID)])
+            }
+            if let journal = edit.journal {
+                try ProjectJournalRow(projectID: edit.projectID, date: date, title: journal, body: "", createdAt: date).insert(db)
+            }
+            return true
+        }
+    }
+
     public func observeProjects(onChange: @escaping @MainActor @Sendable ([ProjectRow]) -> Void) -> AnyDatabaseCancellable {
         ValueObservation
             .tracking { try ProjectRow.filter(Column("deletedAt") == nil).order(Column("kanbanOrder"), Column("name")).fetchAll($0) }

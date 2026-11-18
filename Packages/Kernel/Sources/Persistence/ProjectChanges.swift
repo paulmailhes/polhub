@@ -204,6 +204,28 @@ enum ProjectChangeSchema {
     }
 }
 
+/// What a rule changes in a project (step 3 of Colin, 18/11): only what is given; `source` is the event it answers
+/// (`mail:…`, `event:…`), never answered twice; `reason` is what the Accueil says under the change.
+public struct KanbanEdit: Equatable, Sendable {
+    public var projectID: UUID
+    public var status: ProjectStatus?
+    public var todo: String?
+    public var dueDate: Date?
+    public var journal: String?
+    public var reason: String
+    public var source: String
+
+    public init(projectID: UUID, status: ProjectStatus?, todo: String?, dueDate: Date?, journal: String?, reason: String, source: String) {
+        self.projectID = projectID
+        self.status = status
+        self.todo = todo
+        self.dueDate = dueDate
+        self.journal = journal
+        self.reason = reason
+        self.source = source
+    }
+}
+
 /// A field of a project, for the rules: what Paul changed himself is left alone.
 public struct ProjectFieldKey: Hashable, Sendable {
     public var projectID: UUID

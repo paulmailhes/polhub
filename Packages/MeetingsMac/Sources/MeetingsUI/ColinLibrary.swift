@@ -55,6 +55,9 @@ public final class ColinLibrary: ObservableObject {
     private var observations: [AnyDatabaseCancellable] = []
     private var cancellables: Set<AnyCancellable> = []
     private var timer: Task<Void, Never>?
+    /// Whether Colin kept the kanban at the last computation: turned on since, he keeps it from now on, never for
+    /// what was sent before (step 3, 18/11).
+    private var kanbanWasOn: Bool?
 
     /// How many times the lines were computed, and how many times the base was read for it: for the tests.
     private(set) var computations = 0
@@ -103,13 +106,15 @@ public final class ColinLibrary: ObservableObject {
             mails.$gmailDrafts.map(Self.said).removeDuplicates().dropFirst().sink { [weak self] _ in self?.refresh() }.store(in: &cancellables)
             mails.$hidden.dropFirst().sink { [weak self] _ in self?.refresh() }.store(in: &cancellables)
         }
-        // Réglages › Colin: a threshold Paul changes shows at once.
+        // Réglages › Colin: a threshold Paul changes shows at once; Colin, or his kanban, turned on or off, too.
         var thresholds = Self.thresholds(defaults)
+        var kanban = Self.keepsKanban(defaults)
         NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification, object: defaults).receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                let read = Self.thresholds(defaults)
-                guard read != thresholds else { return }
+                let read = Self.thresholds(defaults), keeps = Self.keepsKanban(defaults)
+                guard read != thresholds || keeps != kanban else { return }
                 thresholds = read
+                kanban = keeps
                 self?.refresh()
             }
             .store(in: &cancellables)
@@ -189,6 +194,13 @@ public final class ColinLibrary: ObservableObject {
         if readsMails { staleMails = false }
         if readsBase { staleBase = false }
         if readsMails || readsBase { readings += 1 }
+        // « Colin tient le kanban seul »: from when it was turned on, Colin on.
+        let keepsKanban = Self.keepsKanban(defaults)
+        if keepsKanban, kanbanWasOn == false || defaults.object(forKey: Preferences.Key.colinKanbanSince) == nil {
+            defaults.set(date, forKey: Preferences.Key.colinKanbanSince)
+        }
+        kanbanWasOn = keepsKanban
+        let kanbanSince = keepsKanban ? defaults.object(forKey: Preferences.Key.colinKanbanSince) as? Date : nil
         let hiddenDrafts = Set((mails?.scheduled.keys).map(Array.init) ?? []).union([mails?.sending?.draftID].compactMap { $0 })
         // What left for Gmail and is no longer a draft still says who Paul answered, until its copy comes.
         let drafts = mails?.drafts ?? []
@@ -198,7 +210,7 @@ public final class ColinLibrary: ObservableObject {
                       gmailDrafts: mails?.gmailDrafts ?? [], withMails: mails != nil,
                       knownMails: readsMails ? nil : mailInputs ?? MailInputs(), knownBase: readsBase ? nil : baseInputs, hiddenDrafts: hiddenDrafts,
                       hiddenAccounts: mails?.hidden ?? [], thresholds: Self.thresholds(defaults), now: date, calendar: calendar,
-                      point: asked.map { Job.Point(since: $0.since) })
+                      point: asked.map { Job.Point(since: $0.since) }, kanbanSince: kanbanSince)
         // The time a reading takes, a Mac's sleep apart: a Mac that slept has not been reading.
         let clock = SuspendingClock(), began = clock.now
         let outcome = await Task.detached(priority: .utility) { job.run() }.value
@@ -221,6 +233,15 @@ public final class ColinLibrary: ObservableObject {
             return !copied && !known.contains(left.draft.id) && date.timeIntervalSince(left.at) < Self.departureLasts
         }
         if lines != review { review = lines }
+        // What the rules change on the kanban, written signed Colin's; each event once — the write checks it again, for
+        // a computation made on inputs read before. Written, the base is read again.
+        if !outcome.kanban.isEmpty {
+            let database = agenda.database, edits = outcome.kanban
+            let wrote = await Task.detached(priority: .utility) {
+                edits.reduce(false) { wrote, edit in ((try? ProjectStore(database).edit(edit, by: .colin, at: date)) ?? false) || wrote }
+            }.value
+            if wrote { changed(mails: false) }
+        }
         // « Le point », unless Paul came back again meanwhile: the next computation prepares that one.
         if let point = outcome.point, let asked, wanted?.at == asked.at {
             if point != briefing { briefing = point }
@@ -324,6 +345,11 @@ public final class ColinLibrary: ObservableObject {
     /// minutes), so that the cap is not what closes it while Polhub runs.
     private static let pointSettles: TimeInterval = 15 * 60
 
+    /// Colin on, and keeping the kanban.
+    private static func keepsKanban(_ defaults: UserDefaults) -> Bool {
+        defaults.bool(forKey: Preferences.Key.colinOn) && defaults.bool(forKey: Preferences.Key.colinKanban)
+    }
+
     /// The thresholds of Réglages › Colin, read again at each computation.
     private static func thresholds(_ defaults: UserDefaults) -> ReviewRules.Thresholds {
         let settings = Preferences(defaults: defaults)
@@ -399,6 +425,9 @@ public final class ColinLibrary: ObservableObject {
         var events: [CalendarEventRow] = []
         var projects: [ProjectRow] = []
         var dismissed: [ColinDismissalRow] = []
+        /// The events the rules of the kanban already answered, and what Paul changed himself today.
+        var sources: Set<String> = []
+        var touched: Set<ProjectFieldKey> = []
     }
 
     /// One computation, away from the main thread: what is not known is read in the base, then the rules say the lines.
@@ -412,6 +441,7 @@ public final class ColinLibrary: ObservableObject {
             var base: BaseInputs
             var lines: [ReviewRules.Line]
             var point: [String]?
+            var kanban: [KanbanEdit] = []
         }
 
         var database: AppDatabase
@@ -431,10 +461,26 @@ public final class ColinLibrary: ObservableObject {
         var now: Date
         var calendar: Calendar
         var point: Point?
+        /// Colin keeps the kanban, from then.
+        var kanbanSince: Date?
 
         func run() -> Outcome? {
             guard let mails = knownMails ?? (try? readMails()), let base = knownBase ?? (try? readBase()) else { return nil }
-            return Outcome(mails: mails, base: base, lines: lines(mails, base), point: point.map { sentences(mails, base, since: $0.since) })
+            return Outcome(mails: mails, base: base, lines: lines(mails, base), point: point.map { sentences(mails, base, since: $0.since) },
+                           kanban: kanbanSince.map { kanban(mails, base, since: $0) } ?? [])
+        }
+
+        /// What the two rules of the kanban change: after Paul's mails in a thread of a project, after a meeting
+        /// booked in one.
+        private func kanban(_ mails: MailInputs, _ base: BaseInputs, since: Date) -> [KanbanEdit] {
+            var edits: [KanbanEdit] = []
+            if withMails {
+                let projectOf = ReviewRules.projects(of: mails.threads, rules: rules, recipients: mails.recipients)
+                edits += KanbanRules.afterSends(mails.exchanges, projectOf: projectOf, projects: base.projects, mine: rules.mine, since: since,
+                                                known: base.sources, touched: base.touched, now: now, calendar: calendar)
+            }
+            edits += KanbanRules.afterBookings(base.events, projects: base.projects, now: now, known: base.sources, touched: base.touched, calendar: calendar)
+            return edits
         }
 
         private func readBase() throws -> BaseInputs {
@@ -445,6 +491,9 @@ public final class ColinLibrary: ObservableObject {
             inputs.events = EventCopies.merge(try agenda.events(from: oldest, to: .distantFuture), accounts: try agenda.accounts())
             inputs.projects = try ProjectStore(database).projects()
             inputs.dismissed = try ColinStore(database).dismissals()
+            let changes = ProjectChanges(database)
+            inputs.sources = try changes.sources(since: now.addingTimeInterval(-8 * 86_400))
+            inputs.touched = try changes.paulTouches(since: now.addingTimeInterval(-86_400))
             return inputs
         }
 

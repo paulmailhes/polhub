@@ -138,6 +138,9 @@ public struct Preferences: @unchecked Sendable {
         public static let colinAccount = "colin.dossierDuCompte"
         /// Colin's bar (18/11): on or off, the one switch of the Accueil and of Réglages › Colin. Off by default.
         public static let colinOn = "colin.enMarche"
+        /// « Colin tient le kanban seul » (step 3, 18/11): the two rules after a send and after a booking; and since when.
+        public static let colinKanban = "colin.tableauSeul"
+        public static let colinKanbanSince = "colin.tableauSeul.depuis"
         /// The version of the app that last counted Colin's rules on the mails (18/11).
         public static let colinRulesCount = "colin.releveDesRegles"
         /// Réglages › Colin (18/11): the days after which the Accueil signals a mail left without an answer, and a

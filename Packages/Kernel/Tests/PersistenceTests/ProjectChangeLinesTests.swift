@@ -175,6 +175,30 @@ import Testing
         #expect(project.todo == nil && project.status == .enPause)
     }
 
+    // MARK: - What a rule writes
+
+    /// A rule's change (step 3, 18/11): one batch, in one transaction; its event answered once, never twice; not a sign
+    /// of Paul's life on the project.
+    @Test func aKanbanEditIsOneBatchAndNeverTwice() throws {
+        let (database, store, martin, _) = try world()
+        let edit = KanbanEdit(projectID: martin.id, status: .priorite1, todo: "En attente retour de Claire", dueDate: nil,
+                              journal: "Mail envoyé à Claire le 18/11", reason: "Après ton mail à Claire, 9:50", source: "mail:m-1")
+        #expect(try store.edit(edit, by: .colin, at: now))
+        #expect(try store.edit(edit, by: .colin, at: now.addingTimeInterval(60)) == false)
+        let lines = try ProjectChanges(database).lines(since: .distantPast, authors: [.colin])
+        #expect(lines.count == 1)
+        #expect(Set(lines.first?.rows.map(\.field) ?? []) == [.status, .todo, .journalAdded])
+        #expect(lines.first?.reason == "Après ton mail à Claire, 9:50")
+        let project = try #require(try store.project(id: martin.id))
+        #expect(project.status == .priorite1 && project.todo == "En attente retour de Claire" && project.lastEditedAt == nil)
+        #expect(try store.journal(projectID: martin.id).map(\.title) == ["Mail envoyé à Claire le 18/11"])
+        // A card in the trash is left.
+        try store.moveToTrash(projectID: martin.id, at: now)
+        var other = edit
+        other.source = "mail:m-2"
+        #expect(try store.edit(other, by: .colin, at: now) == false)
+    }
+
     // MARK: - What the rules read
 
     /// What Paul changed himself in the last 24 hours: a rule leaves it.
