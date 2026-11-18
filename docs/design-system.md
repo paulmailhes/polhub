@@ -204,12 +204,17 @@ Passe UX/UI du 18/11 : une conversation à la Claude à gauche, « ta journée �
 compte.
 
 - **Deux zones** à partir de 760 points de contenu (`HomeLayout`) : à gauche la conversation avec Colin
-  (`ColinConversation`), à droite « ta journée », 380 points fixes, sans cartes (le point, « Aujourd'hui », un trait
-  fin, « À valider », « À faire », « Comptes Claude »). Chaque zone défile seule. En fenêtre étroite : une bande du jour
+  (`ColinConversation`), à droite « ta journée », 420 points fixes : le point sur la page, puis des cartes calmes
+  (`HomeCard`, 0.37.0 : « Aujourd'hui » mise en avant, « À valider », « À faire », « Comptes Claude »). Chaque zone défile seule. En fenêtre étroite : une bande du jour
   fixe en haut (la date et « Voir » ; le prochain rendez-vous, « À valider N · À faire M » qui déplie les deux listes
   par-dessus le fil), puis la conversation. Pas
-  de grand titre : la fenêtre s'appelle « Accueil ». Les titres de section de l'Accueil sont en 15 points semi-gras
-  (`HomeSectionHeader`), leur compte à côté en gris.
+  de grand titre : la fenêtre s'appelle « Accueil ». Deux colonnes à partir de 800 points de contenu.
+- **Les cartes de ta journée** (`HomeCard`, 0.37.0 ; Paul : « tout est trop tassé, on peut rien lire ») : la carte du
+  système (`Surface.fill`, un trait, rayon 16 ; 22 pour « Aujourd'hui », la carte mise en avant), 20 points de marge
+  intérieure, 16 entre deux cartes ; jamais de verre sous le texte. Le titre en 17 points semi-gras
+  (`HomeSectionHeader`), son nombre dans une pastille (`Surface.raised`). Un groupe en petites capitales grises de 11
+  points (`HomeGroupLabel`, « EN RETARD »). Un trait fin entre deux lignes (`homeRow`), six points d'air de part et
+  d'autre.
 - **L'orange (l'accent) pour ce qui compte, seulement** : envoyer (le rond plein de la barre), « Rejoindre » dix
   minutes avant, « dans N min » à un quart d'heure, le retard d'une ligne à valider (plus de deux fois son seuil), le
   retard d'une échéance (« depuis 6 j ») et un compte Claude plein ou qui le sera avant sa remise à zéro.
@@ -275,10 +280,14 @@ compte.
   passée ou à sept jours, groupés « En retard », « Aujourd'hui », « Demain », « Cette semaine », « Ensuite » (le titre
   d'un groupe en `.meta` gris, aucun s'il n'y en a qu'un). Une ligne : le projet en `.rowTitle` et « · client » en gris,
   le quand à droite (« depuis 6 j » en orange semi-gras, « vendredi », « lundi 30 », « call demain 9:30 »), la tâche du
-  moment dessous (sinon la première action). L'échéance est la prochaine étape datée : un rendez-vous du projet ce
+  moment dessous (sinon la première action). Un chevron devant le projet : un clic déplie la ligne sur place (une à la
+  fois) — « Tâche · … », les actions ouvertes du projet en puces (huit, puis « + N autres »), « Ouvrir le projet » en mot
+  gris, « Reporter » et « Livré ». L'échéance est la prochaine étape datée : un rendez-vous du projet ce
   jour-là en fait un call, sauf si Paul a posé la date lui-même ; le call passé, l'étape est faite. « Reporter » (un
-  menu : demain, lundi, dans une semaine, une date) et « Livré » en `.subtle` : toujours sous une ligne en retard, au
-  survol à la place du quand ailleurs ; ce sont des gestes de Paul. Après l'un d'eux, « Cabinet Martin livré ·
+  menu : demain, lundi, dans une semaine, une date) et « Livré » en `.subtle` : toujours sous une ligne en retard ou
+  dépliée, au survol à la place du quand ailleurs ; ce sont des gestes de Paul. Quand le projet a un prochain call,
+  « Livré » est un menu (0.37.0) : « Livré, prochaine échéance : call jeudi 9:30 » (l'échéance devient ce jour-là, et
+  reste un call) ou « Livré, sans échéance ». Après l'un d'eux, « Cabinet Martin livré ·
   Annuler » en tête de liste pendant huit secondes. Six lignes, celles d'aujourd'hui et de demain toujours, puis « Voir
   les N autres ». Vide : « Rien à faire. ».
 - **« Comptes Claude »** (`ClaudeAccountsCard`, 0.36.0) : seulement si Vigie est là et répond au jeton de lecture

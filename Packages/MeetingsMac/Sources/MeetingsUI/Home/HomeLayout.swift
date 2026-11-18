@@ -6,10 +6,10 @@ import SwiftUI
 enum HomeLayout: Equatable {
     case columns, stacked
 
-    /// Two columns from this width of the page's content: the threshold of a project's page.
-    static let breakpoint: CGFloat = 760
-    /// The lists' column: « À valider », « Aujourd'hui ».
-    static let listsWidth: CGFloat = 380
+    /// Two columns from this width of the page's content (0.37.0: the day in cards needs a little more).
+    static let breakpoint: CGFloat = 800
+    /// The day's column, in cards: « Aujourd'hui », « À valider », « À faire », « Comptes Claude ».
+    static let listsWidth: CGFloat = 420
 
     static func of(width: CGFloat) -> HomeLayout {
         width >= breakpoint ? .columns : .stacked

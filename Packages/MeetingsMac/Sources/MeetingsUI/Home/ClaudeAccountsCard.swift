@@ -43,10 +43,10 @@ struct ClaudeAccountsCard: View {
     var body: some View {
         if let accounts = model.accounts, !accounts.isEmpty {
             TimelineView(.periodic(from: .now, by: 60)) { context in
-                VStack(alignment: .leading, spacing: Space.s) {
-                    HomeSectionHeader(title: "Comptes Claude")
+                HomeCard("Comptes Claude") {
                     ForEach(accounts) { account in
                         row(ClaudeAccountsText.row(account, now: context.date, calendar: CalendarView.calendar))
+                            .homeRow(first: account.id == accounts.first?.id)
                     }
                 }
             }

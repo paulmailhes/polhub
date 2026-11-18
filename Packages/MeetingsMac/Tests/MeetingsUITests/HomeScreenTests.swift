@@ -52,6 +52,9 @@ struct HomeScreenTests {
         late.todo = "Envoyer les plans du rez-de-chaussée"
         late.client = "Leroy & fils"
         try projects.saveChanges(from: leroy, to: late, at: ago(3))
+        // 0.37.0: what is left to do on Maison Leroy, shown when its line unfolds.
+        try projects.saveAction(ActionRow(projectID: leroy.id, text: "Relire le devis de l'électricien", position: 1, createdAt: ago(5)))
+        try projects.saveAction(ActionRow(projectID: leroy.id, text: "Demander les photos du chantier", position: 2, createdAt: ago(5)))
         _ = try projects.setDue(dupont.id, to: CalendarView.calendar.startOfDay(for: now), journal: nil, at: ago(2))
         let contacts = ContactStore(database)
         for (name, email, project) in [("Claire Morel", "claire@cabinet-martin.exemple", martin.id), ("Marc Dubois", "marc@studio-nord.exemple", nord.id),
@@ -94,6 +97,8 @@ struct HomeScreenTests {
             event("e1", "Atelier Dupont", start: now.addingTimeInterval(40 * 60), minutes: 60, meet: "abc-defg-hij", project: dupont.id),
             event("e2", "Point Studio Nord", start: now.addingTimeInterval(3.5 * 3_600), minutes: 30, project: nord.id),
             event("e3", "Déjeuner équipe", start: now.addingTimeInterval(26 * 3_600), minutes: 60),
+            // Cabinet Martin's next call: « Livré » proposes it (one with Anne would hush « Anne ne répond plus »).
+            event("e4", "Point Cabinet Martin", start: now.addingTimeInterval(3 * 86_400), minutes: 30, project: martin.id),
             past,
         ], cancelled: [], at: now)
         try calendar.setProject(eventID: CalendarEventRow.key(account: Self.me, eventID: "e1"), projectID: dupont.id, origin: .paul)
@@ -166,6 +171,13 @@ struct HomeScreenTests {
         #expect(router.homeMail == MailThreadRow.key(account: Self.me, threadID: "c") && router.section == .home)
         try await LiveWindow.capture(page, to: output.appending(path: "accueil-relire.png"), size: NSSize(width: 928, height: 700))
         router.homeMail = nil
+
+        // 0.37.0: a line of « À faire » unfolded on what is to do.
+        let todoLibrary = TodoLibrary(database: database)
+        try await waitUntil { (todoLibrary.openActions[leroy.id]?.count ?? 0) == 3 }
+        try await LiveWindow.capture(TodoCard(todo: todoLibrary, agenda: agenda, router: router, opened: leroy.id).padding(Space.l)
+                                        .frame(width: HomeLayout.listsWidth + 2 * Space.l).background(Color(nsColor: .windowBackgroundColor)),
+                                     to: output.appending(path: "accueil-a-faire-ouvert.png"), size: NSSize(width: HomeLayout.listsWidth + 2 * Space.l, height: 560))
 
         // The evening (0.36.0): from the hour set, nothing left today, the Accueil shows tomorrow.
         let evening = try AppDatabase.inMemory()

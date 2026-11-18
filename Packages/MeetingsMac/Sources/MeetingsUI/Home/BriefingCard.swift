@@ -30,15 +30,22 @@ enum BriefingText {
     }
 }
 
-/// A title of the Accueil's columns: 15 points, its count beside it (the Accueil's pass, 18/11).
+/// The title of a card of the Accueil (0.37.0): 17 points, semi-bold, its count in a pill beside it.
 struct HomeSectionHeader: View {
     let title: String
     var count: Int?
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-            Text(title).font(.system(size: 15, weight: .semibold))
-            if let count { Text("\(count)").font(.meta.monospacedDigit()).foregroundStyle(.secondary) }
+        HStack(alignment: .center, spacing: Space.s) {
+            Text(title).font(.system(size: 17, weight: .semibold))
+            if let count {
+                Text("\(count)")
+                    .font(.meta.monospacedDigit().weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 1)
+                    .background(Surface.raised, in: Capsule())
+            }
             Spacer(minLength: 0)
         }
     }

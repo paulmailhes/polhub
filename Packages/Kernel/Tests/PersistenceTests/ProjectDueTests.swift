@@ -45,52 +45,89 @@ import Testing
         #expect(try store.journal(projectID: martin.id).isEmpty)
     }
 
-    @Test func dueSettersSaysWhoSetTheDateLast() throws {
+    @Test func paulDeadlinesAreTheDatesHeSetHimself() throws {
         let (database, store, martin) = try world()
         let nord = try store.addProject(name: "Studio Nord", status: .priorite1, at: now)
         let atelier = try store.addProject(name: "Atelier Dupont", status: .priorite1, at: now)
-        _ = try store.signed(.colin, source: "event:a").setDue(martin.id, to: monday, journal: nil, at: now)
-        _ = try store.setDue(martin.id, to: monday.addingTimeInterval(86_400), journal: nil, at: now.addingTimeInterval(120))
+        _ = try store.signed(.colin, source: "event:a").setDue(martin.id, to: monday, journal: nil, at: now.addingTimeInterval(3_600))
+        _ = try store.setDue(martin.id, to: monday.addingTimeInterval(86_400), journal: nil, at: now.addingTimeInterval(7_200))
         _ = try store.signed(.colin, source: "event:b").setDue(nord.id, to: monday, journal: nil, at: now)
-        let setters = try ProjectChanges(database).dueSetters()
-        #expect(setters[martin.id] == .paul)
-        #expect(setters[nord.id] == .colin)
-        #expect(setters[atelier.id] == nil)
+        let deadlines = try ProjectChanges(database).paulDeadlines()
+        #expect(deadlines.contains(martin.id))
+        #expect(!deadlines.contains(nord.id) && !deadlines.contains(atelier.id))
     }
 
-    /// Final review: « Livré » then « Annuler » on a date Colin set leaves it Colin's — the call stays a call.
-    @Test func anUndoneGestureLeavesTheSetterAsItWas() throws {
+    /// 0.37.0: « Livré, prochaine échéance : call jeudi » — a date Paul takes from a meeting is the call, not his deadline.
+    @Test func aDateFromAMeetingIsNoDeadlineOfPauls() throws {
+        let (database, store, martin) = try world()
+        _ = try store.signed(.paul, reason: "Livré", source: "event:x").setDue(martin.id, to: monday, journal: "Livré le 18/11", at: now.addingTimeInterval(3_600))
+        #expect(try !ProjectChanges(database).paulDeadlines().contains(martin.id))
+        _ = try store.setDue(martin.id, to: monday.addingTimeInterval(86_400), journal: nil, at: now.addingTimeInterval(7_200))
+        #expect(try ProjectChanges(database).paulDeadlines().contains(martin.id))
+    }
+
+    /// Final review of 0.36.0: « Livré » then « Annuler » on a date Colin set leaves it Colin's — the call stays a call.
+    @Test func anUndoneGestureLeavesTheDeadlineAsItWas() throws {
         let (database, store, martin) = try world()
         _ = try store.signed(.colin, source: "event:a").setDue(martin.id, to: monday, journal: nil, at: now)
         // An hour later: no earlier keystroke of Paul's to merge with.
         let undo = try #require(try store.setDue(martin.id, to: nil, journal: "Livré le 18/11", at: now.addingTimeInterval(3_600)))
         try store.revert(undo, at: now.addingTimeInterval(3_605))
         #expect(try store.project(id: martin.id)?.dueDate == monday)
-        #expect(try ProjectChanges(database).dueSetters()[martin.id] == .colin)
+        #expect(try !ProjectChanges(database).paulDeadlines().contains(martin.id))
     }
 
-    @MainActor @Test func dueSettersAreObserved() async throws {
+    /// Final review of 0.37.0: Paul's date gestures a few seconds apart merge into one change, which takes the last
+    /// one's source — a date from the next call stays the call's, a date of his own stays his.
+    @Test func aMergedGestureTakesTheLastSource() throws {
         let (database, store, martin) = try world()
-        final class Box: @unchecked Sendable { var setters: [UUID: ChangeAuthor] = [:] }
+        let t = now.addingTimeInterval(3_600)
+        let first = try #require(try store.setDue(martin.id, to: nil, journal: "Livré le 18/11", at: t))
+        try store.revert(first, at: t.addingTimeInterval(5))
+        _ = try store.signed(.paul, reason: "Livré", source: "event:x").setDue(martin.id, to: monday, journal: "Livré le 18/11", at: t.addingTimeInterval(10))
+        #expect(try !ProjectChanges(database).paulDeadlines().contains(martin.id))
+        _ = try store.setDue(martin.id, to: monday.addingTimeInterval(86_400), journal: nil, at: t.addingTimeInterval(20))
+        #expect(try ProjectChanges(database).paulDeadlines().contains(martin.id))
+    }
+
+    /// Final review of 0.37.0: « Livré, prochaine échéance » onto the day already set by Paul still makes it the call's;
+    /// « Annuler » makes it his again.
+    @Test func aSameDayCallMarksTheDate() throws {
+        let (database, store, martin) = try world()
+        _ = try store.setDue(martin.id, to: monday, journal: nil, at: now.addingTimeInterval(3_600))
+        #expect(try ProjectChanges(database).paulDeadlines().contains(martin.id))
+        let undo = try #require(try store.signed(.paul, reason: "Livré", source: "event:x")
+            .setDue(martin.id, to: monday, journal: "Livré le 18/11", at: now.addingTimeInterval(7_200)))
+        #expect(try store.project(id: martin.id)?.dueDate == monday)
+        #expect(try !ProjectChanges(database).paulDeadlines().contains(martin.id))
+        try store.revert(undo, at: now.addingTimeInterval(7_205))
+        #expect(try ProjectChanges(database).paulDeadlines().contains(martin.id))
+        #expect(try store.journal(projectID: martin.id).isEmpty)
+    }
+
+    @MainActor @Test func paulDeadlinesAreObserved() async throws {
+        let (database, store, martin) = try world()
+        final class Box: @unchecked Sendable { var deadlines: Set<UUID> = [] }
         let box = Box()
-        let observation = ProjectChanges(database).observeDueSetters { box.setters = $0 }
-        _ = try store.signed(.colin, source: "event:a").setDue(martin.id, to: monday, journal: nil, at: now)
-        for _ in 0..<100 where box.setters[martin.id] != .colin { try await Task.sleep(for: .milliseconds(20)) }
-        #expect(box.setters[martin.id] == .colin)
+        let observation = ProjectChanges(database).observePaulDeadlines { box.deadlines = $0 }
+        _ = try store.setDue(martin.id, to: monday, journal: nil, at: now.addingTimeInterval(3_600))
+        for _ in 0..<100 where !box.deadlines.contains(martin.id) { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(box.deadlines.contains(martin.id))
         observation.cancel()
     }
 
-    @MainActor @Test func firstOpenActionsSkipTheDone() async throws {
+    @MainActor @Test func openActionsInOrder() async throws {
         let (_, store, martin) = try world()
-        var done = ActionRow(projectID: martin.id, text: "Relire la maquette", position: 0, createdAt: now)
+        var done = ActionRow(projectID: martin.id, text: "première", position: 0, createdAt: now)
         done.done = true
         try store.saveAction(done)
-        try store.saveAction(ActionRow(projectID: martin.id, text: "Envoyer le devis", position: 1, createdAt: now))
-        final class Box: @unchecked Sendable { var first: [UUID: String] = [:] }
+        try store.saveAction(ActionRow(projectID: martin.id, text: "troisième", position: 2, createdAt: now))
+        try store.saveAction(ActionRow(projectID: martin.id, text: "deuxième", position: 1, createdAt: now))
+        final class Box: @unchecked Sendable { var open: [UUID: [String]] = [:] }
         let box = Box()
-        let observation = store.observeFirstOpenActions { box.first = $0 }
-        for _ in 0..<100 where box.first.isEmpty { try await Task.sleep(for: .milliseconds(20)) }
-        #expect(box.first == [martin.id: "Envoyer le devis"])
+        let observation = store.observeOpenActions { box.open = $0 }
+        for _ in 0..<100 where box.open.isEmpty { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(box.open == [martin.id: ["deuxième", "troisième"]])
         observation.cancel()
     }
 }

@@ -27,8 +27,8 @@ struct TodayCard: View {
             let now = context.date
             let shown = HomeModel.dayShown(agenda.shown, now: now, tomorrowFrom: tomorrowFrom, calendar: calendar)
             let next = shown.tomorrow ? shown.events.first { !$0.allDay } : HomeModel.next(agenda.shown, now: now, calendar: calendar)
-            VStack(alignment: .leading, spacing: Space.s) {
-                HomeSectionHeader(title: shown.title)
+            // The card put forward (0.37.0): the first of the day, the roundest.
+            HomeCard(shown.title, hero: true) {
                 if shown.events.isEmpty {
                     let day = shown.tomorrow ? calendar.date(byAdding: .day, value: 1, to: now) ?? now : now
                     if shown.tomorrow, !agenda.accounts.isEmpty { EmptyLine("Rien demain.") }
@@ -38,8 +38,10 @@ struct TodayCard: View {
                         EmptyLine(agenda.accounts.isEmpty ? "Connecte tes agendas dans Calendrier." : "Aucun rendez-vous.")
                     }
                 }
-                if let next, shown.events.contains(where: { $0.id == next.id }) { nextRow(next, now: now) }
-                ShowMoreList(shown.events.filter { $0.id != next?.id }, limit: 5) { event in row(event, now: now) }
+                let hasNext = next.map { next in shown.events.contains { $0.id == next.id } } ?? false
+                if let next, hasNext { nextRow(next, now: now) }
+                let others = shown.events.filter { $0.id != next?.id }
+                ShowMoreList(others, limit: 5) { event in row(event, now: now).homeRow(first: !hasNext && event.id == others.first?.id) }
             }
         }
     }

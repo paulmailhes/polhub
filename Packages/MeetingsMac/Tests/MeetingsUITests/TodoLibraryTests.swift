@@ -51,10 +51,39 @@ import Testing
         let (database, store, martin, library) = try world()
         library.postpone(try line(martin, library: library), to: .monday(at(23)))
         #expect(try store.project(id: martin.id)?.dueDate == at(23))
-        #expect(try ProjectChanges(database).dueSetters()[martin.id] == .paul)
+        #expect(try ProjectChanges(database).paulDeadlines().contains(martin.id))
         #expect(library.settled?.text == "Cabinet Martin reporté à lundi")
         library.postpone(try line(martin, library: library), to: at(25))
         #expect(library.settled?.text == "Cabinet Martin reporté à mercredi 25")
+    }
+
+    func call(_ project: ProjectRow, day: Int, hour: Int, minute: Int = 0) -> CalendarEventRow {
+        CalendarEventRow(account: "moi@exemple.fr", eventID: "point-\(day)", title: "Point", startAt: at(day, hour, minute),
+                         endAt: at(day, hour, minute).addingTimeInterval(1_800),
+                         attendees: [Attendee(email: "moi@exemple.fr", response: "accepted", isSelf: true)], projectID: project.id, updatedAt: at(1))
+    }
+
+    /// Review Focus 1 (0.37.0): « Livré, prochaine échéance » sets the call's day, and the line stays a call.
+    @Test func aNextCallLivreStaysACall() async throws {
+        let (database, store, martin, library) = try world()
+        let next = call(martin, day: 20, hour: 9, minute: 30)
+        library.deliver(try line(martin, library: library), next: next)
+        #expect(try store.project(id: martin.id)?.dueDate == at(20))
+        #expect(try store.journal(projectID: martin.id).map(\.title) == ["Livré le 18/11"])
+        #expect(library.settled?.text == "Cabinet Martin livré · call vendredi 9:30")
+        #expect(try !ProjectChanges(database).paulDeadlines().contains(martin.id))
+        for _ in 0..<100 where library.paulDeadlines.contains(martin.id) { try await Task.sleep(for: .milliseconds(20)) }
+        let moved = try #require(try store.project(id: martin.id))
+        #expect(library.lines(projects: [moved], events: [next]).first?.call == at(20, 9, 30))
+    }
+
+    /// Review Focus 2: « Annuler » puts back the old date and takes the journal line away.
+    @Test func undoLivreWithNextCall() throws {
+        let (_, store, martin, library) = try world()
+        library.deliver(try line(martin, library: library), next: call(martin, day: 20, hour: 9, minute: 30))
+        library.undoSettled()
+        #expect(try store.project(id: martin.id)?.dueDate == at(17))
+        #expect(try store.journal(projectID: martin.id).isEmpty)
     }
 
     @Test func settledClearsItself() async throws {
@@ -68,7 +97,8 @@ import Testing
     @Test func linesFollowTheBase() async throws {
         let (_, store, martin, library) = try world()
         _ = try store.signed(.colin, source: "event:x").setDue(martin.id, to: at(19), journal: nil, at: at(18, 20))
-        for _ in 0..<100 where library.setters[martin.id] != .colin { try await Task.sleep(for: .milliseconds(20)) }
+        // Colin's date, after Paul's own of the fixture: no longer a deadline of Paul's.
+        for _ in 0..<100 where library.paulDeadlines.contains(martin.id) { try await Task.sleep(for: .milliseconds(20)) }
         let moved = try #require(try store.project(id: martin.id))
         let call = CalendarEventRow(account: "moi@exemple.fr", eventID: "point", title: "Point", startAt: at(19, 9, 30), endAt: at(19, 10),
                                     attendees: [Attendee(email: "moi@exemple.fr", response: "accepted", isSelf: true)], projectID: martin.id,

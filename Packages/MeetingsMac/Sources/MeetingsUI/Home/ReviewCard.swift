@@ -97,12 +97,11 @@ struct ReviewCard: View {
     private static let menuWidth: CGFloat = 28
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.s) {
-            HomeSectionHeader(title: "À valider", count: colin.review.isEmpty ? nil : colin.review.count)
+        HomeCard("À valider", count: colin.review.isEmpty ? nil : colin.review.count) {
             if colin.review.isEmpty {
                 Label("Rien à valider.", systemImage: "checkmark.circle").font(.rowBody).foregroundStyle(.secondary)
             }
-            ShowMoreList(colin.review, limit: limit) { line in row(line) }
+            ShowMoreList(colin.review, limit: limit) { line in row(line).homeRow(first: line.id == colin.review.first?.id) }
         }
         .animation(Motion.standard, value: colin.review)
     }

@@ -9,9 +9,10 @@ import Testing
 /// window is narrow.
 @Suite struct HomeLayoutTests {
     @Test func twoColumnsFromTheBreakpoint() {
-        #expect(HomeLayout.breakpoint == 760 && HomeLayout.listsWidth == 380)
-        #expect(HomeLayout.of(width: 760) == .columns)
-        #expect(HomeLayout.of(width: 759) == .stacked)
+        // 0.37.0: the day in cards, a little wider.
+        #expect(HomeLayout.breakpoint == 800 && HomeLayout.listsWidth == 420)
+        #expect(HomeLayout.of(width: 800) == .columns)
+        #expect(HomeLayout.of(width: 799) == .stacked)
         #expect(HomeLayout.of(width: 1_400) == .columns)
     }
 

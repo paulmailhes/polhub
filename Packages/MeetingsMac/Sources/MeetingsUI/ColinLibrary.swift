@@ -445,8 +445,8 @@ public final class ColinLibrary: ObservableObject {
         /// The events the rules of the kanban already answered, and what Paul changed himself today.
         var sources: Set<String> = []
         var touched: Set<ProjectFieldKey> = []
-        /// Who set each deadline last: « À faire » tells a call from a deadline by it (0.36.0).
-        var setters: [UUID: ChangeAuthor] = [:]
+        /// The deadlines Paul set himself: « À faire » tells a call from a deadline by them (0.37.0).
+        var paulDeadlines: Set<UUID> = []
     }
 
     /// One computation, away from the main thread: what is not known is read in the base, then the rules say the lines.
@@ -521,7 +521,7 @@ public final class ColinLibrary: ObservableObject {
             let changes = ProjectChanges(database)
             inputs.sources = try changes.sources(since: now.addingTimeInterval(-8 * 86_400))
             inputs.touched = try changes.paulTouches(since: now.addingTimeInterval(-86_400))
-            inputs.setters = try changes.dueSetters()
+            inputs.paulDeadlines = try changes.paulDeadlines()
             return inputs
         }
 
@@ -577,7 +577,7 @@ public final class ColinLibrary: ObservableObject {
                 clients = Set(threads.map { mails.conversations[$0.id] ?? $0.id }).count
             }
             // What is due is what « À faire » shows with a date: a call already held is no longer late (0.36.0).
-            let todo = TodoRules.lines(projects: base.projects, events: base.events, setters: base.setters, firstActions: [:], now: now, calendar: calendar)
+            let todo = TodoRules.lines(projects: base.projects, events: base.events, paulDeadlines: base.paulDeadlines, firstActions: [:], now: now, calendar: calendar)
             return Briefing.lines(week: Briefing.week(base.events, now: now, calendar: calendar), due: TodoRules.dated(todo, projects: base.projects),
                                   yours: Briefing.yours(base.projects), clientMails: clients, moved: moved, since: since, now: now, calendar: calendar)
         }

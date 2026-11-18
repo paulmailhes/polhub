@@ -614,6 +614,13 @@ public final class AppDatabase: Sendable {
                 t.add(column: "durationMs", .integer)
             }
         }
+        // 0.37.0: Paul's date gestures a few seconds apart merge into one change, which now takes the last one's source:
+        // « Livré, prochaine échéance » right after another gesture stays the call's.
+        migrator.registerMigration("v20", foreignKeyChecks: .immediate) { db in
+            try db.execute(sql: "DROP TRIGGER IF EXISTS project_change_dueDate")
+            try db.execute(sql: "DROP TRIGGER IF EXISTS project_change_todo")
+            for sql in ProjectChangeSchema.typing { try db.execute(sql: sql) }
+        }
         return migrator
     }
 }

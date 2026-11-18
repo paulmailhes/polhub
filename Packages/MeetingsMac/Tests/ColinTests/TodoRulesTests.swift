@@ -35,9 +35,9 @@ import Testing
                          projectID: project.id, updatedAt: at(1))
     }
 
-    func lines(_ projects: [ProjectRow], events: [CalendarEventRow] = [], setters: [UUID: ChangeAuthor] = [:], actions: [UUID: String] = [:],
+    func lines(_ projects: [ProjectRow], events: [CalendarEventRow] = [], paulDeadlines: Set<UUID> = [], actions: [UUID: String] = [:],
                at date: Date? = nil) -> [TodoRules.Line] {
-        TodoRules.lines(projects: projects, events: events, setters: setters, firstActions: actions, now: date ?? now, calendar: calendar)
+        TodoRules.lines(projects: projects, events: events, paulDeadlines: paulDeadlines, firstActions: actions, now: date ?? now, calendar: calendar)
     }
 
     func when(_ line: TodoRules.Line?, at date: Date? = nil) -> String? {
@@ -64,7 +64,7 @@ import Testing
     @Test func aCallSaysItsHour() {
         let martin = project("Cabinet Martin", due: at(19))
         let call = event(martin, day: 19, hour: 9, minute: 30)
-        let byColin = lines([martin], events: [call], setters: [martin.id: .colin]).first
+        let byColin = lines([martin], events: [call]).first
         #expect(byColin?.call == at(19, 9, 30))
         #expect(when(byColin) == "call demain 9:30")
         // Set before the journal: no one known, a call all the same.
@@ -78,10 +78,10 @@ import Testing
     @Test func aDeadlinePaulSetIsNeverACall() {
         let martin = project("Cabinet Martin", due: at(19))
         let call = event(martin, day: 19, hour: 9, minute: 30)
-        let line = lines([martin], events: [call], setters: [martin.id: .paul]).first
+        let line = lines([martin], events: [call], paulDeadlines: [martin.id]).first
         #expect(line?.call == nil)
         #expect(when(line) == "demain")
-        let after = lines([martin], events: [call], setters: [martin.id: .paul], at: at(20, 10)).first
+        let after = lines([martin], events: [call], paulDeadlines: [martin.id], at: at(20, 10)).first
         #expect(after?.group == .late)
         #expect(when(after, at: at(20, 10)) == "depuis 1 j")
     }
@@ -90,7 +90,7 @@ import Testing
         let waiting = project("Cabinet Martin", due: at(18))
         let mine = project("Studio Nord", .priorite2, due: at(18))
         let events = [event(waiting, day: 18, hour: 9, minute: 30, hours: 0.5), event(mine, day: 18, hour: 9, minute: 30, hours: 0.5)]
-        let found = lines([waiting, mine], events: events, setters: [waiting.id: .colin, mine.id: .colin], at: at(18, 11))
+        let found = lines([waiting, mine], events: events, at: at(18, 11))
         #expect(found.map(\.name) == ["Studio Nord"])
         #expect(found.first?.group == .later && found.first?.due == nil && found.first?.call == nil)
         #expect(when(found.first, at: at(18, 11)) == nil)
@@ -98,7 +98,7 @@ import Testing
 
     @Test func aDeclinedMeetingIsNoCall() {
         let martin = project("Cabinet Martin", due: at(19))
-        let line = lines([martin], events: [event(martin, day: 19, hour: 9, declined: true)], setters: [martin.id: .colin]).first
+        let line = lines([martin], events: [event(martin, day: 19, hour: 9, declined: true)]).first
         #expect(line?.call == nil && when(line) == "demain")
     }
 
@@ -142,6 +142,26 @@ import Testing
         // On a Monday, « Lundi » and « Dans une semaine » fall the same day: said once.
         #expect(TodoRules.postpone(due: nil, now: at(23, 9), calendar: calendar) == [.tomorrow(at(24)), .monday(at(30))])
         #expect(TodoRules.postpone(due: nil, now: now, calendar: calendar).map(\.label) == ["Demain", "Lundi", "Dans une semaine"])
+    }
+
+    /// 0.37.0: « Livré » proposes the project's next call as the new deadline.
+    @Test func nextCallSkipsDeclinedWholeDaysAndPast() {
+        let martin = project("Cabinet Martin", due: at(17))
+        var whole = event(martin, day: 19, hour: 0, hours: 24)
+        whole.allDay = true
+        let events = [event(martin, day: 18, hour: 9), event(martin, day: 19, hour: 11, declined: true), whole,
+                      event(martin, day: 23, hour: 10), event(martin, day: 20, hour: 9, minute: 30)]
+        #expect(TodoRules.nextCall(martin.id, events: events, now: now)?.startAt == at(20, 9, 30))
+        #expect(TodoRules.nextCall(martin.id, events: [event(martin, day: 18, hour: 9)], now: now) == nil)
+        #expect(TodoRules.nextCall(UUID(), events: events, now: now) == nil)
+    }
+
+    @Test func deliveredNextSaysTheCall() {
+        let martin = project("Cabinet Martin")
+        #expect(TodoRules.deliveredNext(event(martin, day: 19, hour: 9, minute: 30), now: now, calendar: calendar)
+                == "Livré, prochaine échéance : call demain 9:30")
+        #expect(TodoRules.deliveredNext(event(martin, day: 23, hour: 10), now: now, calendar: calendar)
+                == "Livré, prochaine échéance : call lundi 10:00")
     }
 
     @Test func deliveredSaysTheDay() {

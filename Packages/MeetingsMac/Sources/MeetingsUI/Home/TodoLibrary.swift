@@ -16,8 +16,13 @@ import Persistence
         public var until: Date
     }
 
-    @Published public private(set) var setters: [UUID: ChangeAuthor] = [:]
-    @Published public private(set) var firstActions: [UUID: String] = [:]
+    /// The deadlines Paul set himself: never a call.
+    @Published public private(set) var paulDeadlines: Set<UUID> = []
+    /// The actions left of each project, in their order.
+    @Published public private(set) var openActions: [UUID: [String]] = [:]
+
+    /// The first action left of each project: what a folded line says without a task of the moment.
+    public var firstActions: [UUID: String] { openActions.compactMapValues(\.first) }
     @Published public private(set) var settled: Settled?
 
     private let store: ProjectStore
@@ -34,8 +39,8 @@ import Persistence
         self.now = now
         givenCalendar = calendar
         self.lasts = lasts
-        observations.append(ProjectChanges(database).observeDueSetters { [weak self] in self?.setters = $0 })
-        observations.append(store.observeFirstOpenActions { [weak self] in self?.firstActions = $0 })
+        observations.append(ProjectChanges(database).observePaulDeadlines { [weak self] in self?.paulDeadlines = $0 })
+        observations.append(store.observeOpenActions { [weak self] in self?.openActions = $0 })
     }
 
     deinit {
@@ -44,13 +49,21 @@ import Persistence
 
     /// The list, now.
     public func lines(projects: [ProjectRow], events: [CalendarEventRow]) -> [TodoRules.Line] {
-        TodoRules.lines(projects: projects, events: events, setters: setters, firstActions: firstActions, now: now(), calendar: calendar)
+        TodoRules.lines(projects: projects, events: events, paulDeadlines: paulDeadlines, firstActions: firstActions, now: now(), calendar: calendar)
     }
 
-    /// « Livré »: the deadline cleared, « Livré le 18/11 » in the project's journal.
-    public func deliver(_ line: TodoRules.Line) {
+    /// « Livré »: « Livré le 18/11 » in the project's journal, and the deadline cleared — or, given the project's next
+    /// call (0.37.0), set to its day: a date taken from a meeting, which stays a call.
+    public func deliver(_ line: TodoRules.Line, next call: CalendarEventRow? = nil) {
         let date = now()
-        set(line, to: nil, journal: TodoRules.delivered(date, calendar: calendar), saying: "\(line.name) livré")
+        let journal = TodoRules.delivered(date, calendar: calendar)
+        guard let call else {
+            set(line, to: nil, journal: journal, saying: "\(line.name) livré")
+            return
+        }
+        set(line, to: calendar.startOfDay(for: call.startAt), journal: journal,
+            saying: "\(line.name) livré · \(TodoRules.callWords(call.startAt, now: date, calendar: calendar))",
+            by: store.signed(.paul, reason: "Livré", source: "event:\(call.id)"))
     }
 
     /// « Reporter » to one of its choices.
@@ -72,9 +85,9 @@ import Persistence
         expiry?.cancel()
     }
 
-    private func set(_ line: TodoRules.Line, to due: Date?, journal: String?, saying text: String) {
+    private func set(_ line: TodoRules.Line, to due: Date?, journal: String?, saying text: String, by writer: ProjectStore? = nil) {
         let date = now()
-        guard let undo = try? store.setDue(line.id, to: due, journal: journal, at: date) else { return }
+        guard let undo = try? (writer ?? store).setDue(line.id, to: due, journal: journal, at: date) else { return }
         settled = Settled(undo: undo, text: text, until: date.addingTimeInterval(Double(lasts.components.seconds) + Double(lasts.components.attoseconds) / 1e18))
         expiry?.cancel()
         let lasts = lasts

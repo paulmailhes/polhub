@@ -172,11 +172,11 @@ struct HomeView: View {
                     .overlay(alignment: .top) {
                         if reviewOpen {
                             ScrollView {
-                                VStack(alignment: .leading, spacing: Space.xl) {
+                                VStack(alignment: .leading, spacing: Space.l) {
                                     ReviewCard(colin: colin, agenda: agenda, mails: mails, router: router, thresholds: colin.thresholds)
                                     TodoCard(todo: todo, agenda: agenda, router: router)
                                 }
-                                .padding(Space.l)
+                                .padding(Space.m)
                             }
                             .frame(maxHeight: 340)
                             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
@@ -196,16 +196,17 @@ struct HomeView: View {
         ColinConversation(thread: thread, colin: colin, agenda: agenda, mails: mails, router: router, due: due, barHeight: $barHeight)
     }
 
-    /// « Ta journée »: the point, today, what waits.
+    /// « Ta journée » (0.37.0, in cards): the point on the page, then « Aujourd'hui » put forward, « À valider », « À
+    /// faire », « Comptes Claude ».
     private var day: some View {
-        VStack(alignment: .leading, spacing: Space.xl) {
+        VStack(alignment: .leading, spacing: Space.l) {
             if let preparedAt = colin.briefingAt, !colin.briefing.isEmpty {
                 BriefingCard(sentences: colin.briefing, preparedAt: preparedAt,
                              see: colin.briefingChanges.isEmpty && colin.briefingMails.isEmpty ? nil : { seeing = true })
                     .transition(.opacity)
             }
             TodayCard(agenda: agenda, router: router)
-            Divider()
+                .padding(.top, Space.s)
             ReviewCard(colin: colin, agenda: agenda, mails: mails, router: router, thresholds: colin.thresholds)
             TodoCard(todo: todo, agenda: agenda, router: router)
             if let accounts { ClaudeAccountsCard(model: accounts) }

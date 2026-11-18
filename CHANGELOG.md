@@ -3,6 +3,18 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.37.0 — 19 novembre 2026
+
+**L'Accueil respire : ta journée en cartes, et « À faire » qui se déplie.**
+
+- **Des cartes** pour « Aujourd'hui », « À valider », « À faire » et « Comptes Claude », avec de l'air, un trait fin
+  entre deux lignes, des titres plus grands et leur nombre dans une pastille. « Aujourd'hui » vient en premier, mis en
+  avant. La colonne est un peu plus large.
+- **« À faire » se déplie** : un clic sur un projet montre sa tâche du moment et toutes ses actions en cours, avec
+  « Ouvrir le projet », « Reporter » et « Livré ».
+- **« Livré » propose le prochain call** : quand le projet a un rendez-vous à venir, « Livré, prochaine échéance : call
+  jeudi 9:30 » pose ce jour comme nouvelle échéance ; « Livré, sans échéance » l'efface. Les deux le notent au journal.
+
 ## 0.36.0 — 19 novembre 2026
 
 **Ta journée, en clair : les rendez-vous du jour puis de demain, ce qu'il y a à faire, et tes comptes Claude.**

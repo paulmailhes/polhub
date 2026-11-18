@@ -57,9 +57,9 @@ public enum TodoRules {
     /// The deadlines at most this many days away count.
     static let horizon = 7
 
-    /// The list. `setters`: who set each deadline last (`ProjectChanges.dueSetters`); `firstActions`: the first
-    /// action left of each project.
-    public static func lines(projects: [ProjectRow], events: [CalendarEventRow], setters: [UUID: ChangeAuthor], firstActions: [UUID: String],
+    /// The list. `paulDeadlines`: the projects whose deadline Paul set himself (`ProjectChanges.paulDeadlines`), never a
+    /// call; `firstActions`: the first action left of each project.
+    public static func lines(projects: [ProjectRow], events: [CalendarEventRow], paulDeadlines: Set<UUID>, firstActions: [UUID: String],
                              now: Date, calendar: Calendar) -> [Line] {
         let meetings = Dictionary(grouping: events.filter { event in
             event.projectID != nil && !event.allDay && event.attendees.first(where: \.isSelf)?.response != "declined"
@@ -69,7 +69,7 @@ public enum TodoRules {
             let mine = project.status == .priorite2
             var due = project.dueDate
             var call: Date?
-            if let date = due, setters[project.id] != .paul {
+            if let date = due, !paulDeadlines.contains(project.id) {
                 let thatDay = (meetings[project.id] ?? []).filter { calendar.isDate($0.startAt, inSameDayAs: date) }
                 if !thatDay.isEmpty {
                     if let coming = thatDay.filter({ $0.endAt > now }).min(by: { $0.startAt < $1.startAt }) {
@@ -119,7 +119,7 @@ public enum TodoRules {
         guard let due = line.due else { return nil }
         let away = Briefing.days(from: now, to: due, calendar: calendar)
         if let call = line.call {
-            return "call \(dayWord(call, now: now, calendar: calendar)) \(Briefing.time(call, calendar: calendar))"
+            return callWords(call, now: now, calendar: calendar)
         }
         if away < 0 { return "depuis \(-away) j" }
         return dayWord(due, now: now, calendar: calendar)
@@ -193,6 +193,24 @@ public enum TodoRules {
     public static func dated(_ lines: [Line], projects: [ProjectRow]) -> [ProjectRow] {
         let byID = Dictionary(projects.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         return lines.filter { $0.due != nil && $0.group != .later }.compactMap { byID[$0.id] }
+    }
+
+    /// The project's next call (0.37.0): its first meeting to come, neither declined nor a whole day. « Livré » proposes it
+    /// as the next deadline.
+    public static func nextCall(_ projectID: UUID, events: [CalendarEventRow], now: Date) -> CalendarEventRow? {
+        events
+            .filter { $0.projectID == projectID && !$0.allDay && $0.startAt > now && $0.attendees.first(where: \.isSelf)?.response != "declined" }
+            .min { $0.startAt < $1.startAt }
+    }
+
+    /// « Livré, prochaine échéance : call jeudi 9:30 ».
+    public static func deliveredNext(_ call: CalendarEventRow, now: Date, calendar: Calendar) -> String {
+        "Livré, prochaine échéance : \(callWords(call.startAt, now: now, calendar: calendar))"
+    }
+
+    /// « call jeudi 9:30 ».
+    public static func callWords(_ date: Date, now: Date, calendar: Calendar) -> String {
+        "call \(dayWord(date, now: now, calendar: calendar)) \(Briefing.time(date, calendar: calendar))"
     }
 
     /// The journal's line of « Livré »: « Livré le 18/11 ».

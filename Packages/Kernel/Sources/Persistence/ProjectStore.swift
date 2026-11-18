@@ -295,13 +295,22 @@ public struct ProjectStore: Sendable {
             project.updatedAt = date
             if byPaul { project.lastEditedAt = date }
             try project.update(db)
+            // A date from the next call onto the day already set changes nothing the triggers see: it leaves its mark.
+            var markID: Int64?
+            if before == due, let source = stamp.source, source.hasPrefix("event:"), try db.tableExists("project_change") {
+                try db.execute(sql: """
+                    INSERT INTO project_change (\(ProjectChangeSchema.columns))
+                    SELECT id, 'dueDate', NULL, dueDate, dueDate, NULL, \(ProjectChangeSchema.signed) FROM project WHERE id = ?
+                    """, arguments: [Self.key(projectID)])
+                markID = db.lastInsertedRowID
+            }
             var journalID: UUID?
             if let journal {
                 let entry = ProjectJournalRow(projectID: projectID, date: date, title: journal, body: "", createdAt: date)
                 try entry.insert(db)
                 journalID = entry.id
             }
-            return DueUndo(projectID: projectID, before: before, after: due, journalID: journalID)
+            return DueUndo(projectID: projectID, before: before, after: due, journalID: journalID, markID: markID)
         }
     }
 
@@ -315,24 +324,25 @@ public struct ProjectStore: Sendable {
                 try project.update(db)
             }
             if let journalID = undo.journalID { _ = try ProjectJournalRow.deleteOne(db, key: Self.key(journalID)) }
+            if let markID = undo.markID { try db.execute(sql: "DELETE FROM project_change WHERE id = ?", arguments: [markID]) }
         }
     }
 
-    /// The first action left to do of each project, by its place: what « À faire » says under a project without a task
-    /// of the moment.
-    public func observeFirstOpenActions(onChange: @escaping @MainActor @Sendable ([UUID: String]) -> Void) -> AnyDatabaseCancellable {
+    /// The actions left to do of each project, in their order (0.37.0): « À faire » says the first under a project
+    /// without a task of the moment, and all of them when its line unfolds.
+    public func observeOpenActions(onChange: @escaping @MainActor @Sendable ([UUID: [String]]) -> Void) -> AnyDatabaseCancellable {
         ValueObservation
-            .tracking { db -> [UUID: String] in
-                var first: [UUID: String] = [:]
+            .tracking { db -> [UUID: [String]] in
+                var open: [UUID: [String]] = [:]
                 for action in try ActionRow.filter(Column("done") == false && Column("projectID") != nil).order(Column("position")).fetchAll(db) {
-                    guard let project = action.projectID, first[project] == nil else { continue }
-                    first[project] = action.text
+                    guard let project = action.projectID else { continue }
+                    open[project, default: []].append(action.text)
                 }
-                return first
+                return open
             }
             .removeDuplicates()
-            .start(in: writer, scheduling: .async(onQueue: .main), onError: { _ in }, onChange: { first in
-                MainActor.assumeIsolated { onChange(first) }
+            .start(in: writer, scheduling: .async(onQueue: .main), onError: { _ in }, onChange: { open in
+                MainActor.assumeIsolated { onChange(open) }
             })
     }
 

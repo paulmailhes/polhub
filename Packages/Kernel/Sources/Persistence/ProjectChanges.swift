@@ -119,6 +119,30 @@ enum ProjectChangeSchema {
         ]
     }
 
+    /// Paul's typing in the project's page writes at every key: a minute of it is one change. The change takes the
+    /// last write's source (base v20): a date from the next call merged after one of Paul's stays the call's.
+    static var typing: [String] {
+        ["dueDate", "todo"].map { field in
+            let recent = """
+                SELECT id FROM project_change
+                WHERE projectID = NEW.id AND field = '\(field)' AND who = 'paul' AND undoneAt IS NULL
+                  AND at >= strftime('%Y-%m-%d %H:%M:%f', \(at), '-60 seconds')
+                ORDER BY id DESC LIMIT 1
+                """
+            return """
+                CREATE TRIGGER project_change_\(field) AFTER UPDATE OF \(field) ON project
+                WHEN OLD.\(field) IS NOT NEW.\(field) AND NEW.deletedAt IS NULL
+                BEGIN
+                    UPDATE project_change SET after = NEW.\(field), at = \(at), source = \(stamp("source"))
+                    WHERE \(who) = 'paul' AND id = (\(recent));
+                    INSERT INTO project_change (\(columns))
+                    SELECT NEW.id, '\(field)', NULL, OLD.\(field), NEW.\(field), NULL, \(signed)
+                    WHERE NOT (\(who) = 'paul' AND EXISTS (\(recent)));
+                END
+                """
+        }
+    }
+
     static var triggers: [String] {
         var all: [String] = []
         // The project's row: GRDB writes it whole, so each field is compared. A card in the trash changes nothing.
@@ -136,26 +160,8 @@ enum ProjectChangeSchema {
                         \(signed));
             END
             """)
-        // Paul's typing in the project's page writes at every key: a minute of it is one change.
-        for field in ["dueDate", "todo"] {
-            let recent = """
-                SELECT id FROM project_change
-                WHERE projectID = NEW.id AND field = '\(field)' AND who = 'paul' AND undoneAt IS NULL
-                  AND at >= strftime('%Y-%m-%d %H:%M:%f', \(at), '-60 seconds')
-                ORDER BY id DESC LIMIT 1
-                """
-            all.append("""
-                CREATE TRIGGER project_change_\(field) AFTER UPDATE OF \(field) ON project
-                WHEN OLD.\(field) IS NOT NEW.\(field) AND NEW.deletedAt IS NULL
-                BEGIN
-                    UPDATE project_change SET after = NEW.\(field), at = \(at)
-                    WHERE \(who) = 'paul' AND id = (\(recent));
-                    INSERT INTO project_change (\(columns))
-                    SELECT NEW.id, '\(field)', NULL, OLD.\(field), NEW.\(field), NULL, \(signed)
-                    WHERE NOT (\(who) = 'paul' AND EXISTS (\(recent)));
-                END
-                """)
-        }
+        all += typing
+
         for field in ["client", "notes"] {
             all.append("""
                 CREATE TRIGGER project_change_\(field) AFTER UPDATE OF \(field) ON project
@@ -290,12 +296,15 @@ public struct DueUndo: Equatable, Sendable {
     public var after: Date?
     /// The journal line « Livré le … » it added.
     public var journalID: UUID?
+    /// The mark a date from the next call left on a day that did not move (0.37.0).
+    public var markID: Int64?
 
-    public init(projectID: UUID, before: Date?, after: Date?, journalID: UUID?) {
+    public init(projectID: UUID, before: Date?, after: Date?, journalID: UUID?, markID: Int64? = nil) {
         self.projectID = projectID
         self.before = before
         self.after = after
         self.journalID = journalID
+        self.markID = markID
     }
 }
 
@@ -395,35 +404,33 @@ public struct ProjectChanges: Sendable {
         }
     }
 
-    /// Who set each project's deadline last (0.36.0): a deadline Colin took from a meeting is the next call, one Paul
-    /// set himself is a deadline. A project whose deadline was never journaled has no entry. A change that came back to
-    /// where it began (« Livré », then « Annuler ») says nothing: the one before it still counts.
-    public func dueSetters() throws -> [UUID: ChangeAuthor] {
-        try database.writer.read { try Self.dueSetters($0) }
+    /// The projects whose deadline Paul set himself (0.37.0): his last change of it that changed something, without a
+    /// meeting as its source. A date Colin took from a meeting, or Paul from the next call (« Livré, prochaine
+    /// échéance »), is that call — even onto the day already set, which leaves a mark of its own; a date never journaled
+    /// is no one's. « Livré » then « Annuler » says nothing.
+    public func paulDeadlines() throws -> Set<UUID> {
+        try database.writer.read { try Self.paulDeadlines($0) }
     }
 
     /// The same, now and after every change, on the main queue.
-    public func observeDueSetters(onChange: @escaping @MainActor @Sendable ([UUID: ChangeAuthor]) -> Void) -> AnyDatabaseCancellable {
+    public func observePaulDeadlines(onChange: @escaping @MainActor @Sendable (Set<UUID>) -> Void) -> AnyDatabaseCancellable {
         ValueObservation
-            .tracking { try Self.dueSetters($0) }
+            .tracking { try Self.paulDeadlines($0) }
             .removeDuplicates()
-            .start(in: database.writer, scheduling: .async(onQueue: .main), onError: { _ in }, onChange: { setters in
-                MainActor.assumeIsolated { onChange(setters) }
+            .start(in: database.writer, scheduling: .async(onQueue: .main), onError: { _ in }, onChange: { deadlines in
+                MainActor.assumeIsolated { onChange(deadlines) }
             })
     }
 
-    static func dueSetters(_ db: Database) throws -> [UUID: ChangeAuthor] {
-        guard try db.tableExists("project_change") else { return [:] }
-        let rows = try Row.fetchAll(db, sql: """
-            SELECT projectID, who FROM project_change
-            WHERE id IN (SELECT MAX(id) FROM project_change WHERE field = 'dueDate' AND before IS NOT after GROUP BY projectID)
+    static func paulDeadlines(_ db: Database) throws -> Set<UUID> {
+        guard try db.tableExists("project_change") else { return [] }
+        let ids = try String.fetchAll(db, sql: """
+            SELECT projectID FROM project_change
+            WHERE id IN (SELECT MAX(id) FROM project_change
+                         WHERE field = 'dueDate' AND (before IS NOT after OR source LIKE 'event:%') GROUP BY projectID)
+              AND who = 'paul' AND (source IS NULL OR source NOT LIKE 'event:%')
             """)
-        var setters: [UUID: ChangeAuthor] = [:]
-        for row in rows {
-            guard let id = UUID(uuidString: row["projectID"]), let who = ChangeAuthor(rawValue: row["who"]) else { continue }
-            setters[id] = who
-        }
-        return setters
+        return Set(ids.compactMap { UUID(uuidString: $0) })
     }
 
     /// The events a rule already answered since `since`, undone or not.
