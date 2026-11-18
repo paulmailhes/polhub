@@ -466,6 +466,8 @@ public struct MainWindowView<Diagnostic: View>: View {
     let thread: ColinThread?
     /// The probe of Colin, which keeps his account (17/11): Réglages › Colin chooses it too.
     let colinProbe: ColinProbeControl?
+    /// The Claude accounts Vigie knows (0.36.0): the app's own; a window made without it never reads Vigie.
+    let claudeAccounts: ClaudeAccountsModel?
     let inspiration: InspirationLibrary?
     let updates: UpdateService?
     let notifications: NotificationHub?
@@ -477,7 +479,7 @@ public struct MainWindowView<Diagnostic: View>: View {
 
     public init(
         library: MeetingLibrary, projects: ProjectLibrary? = nil, agenda: AgendaLibrary? = nil, mails: MailLibrary? = nil, colin: ColinLibrary? = nil,
-        thread: ColinThread? = nil, colinProbe: ColinProbeControl? = nil, inspiration: InspirationLibrary? = nil, updates: UpdateService? = nil, notifications: NotificationHub? = nil,
+        thread: ColinThread? = nil, colinProbe: ColinProbeControl? = nil, claudeAccounts: ClaudeAccountsModel? = nil, inspiration: InspirationLibrary? = nil, updates: UpdateService? = nil, notifications: NotificationHub? = nil,
         startup: StartupControl? = nil, router: WindowRouter, paths: AppPaths, @ViewBuilder diagnostic: () -> Diagnostic
     ) {
         self.notifications = notifications
@@ -490,6 +492,7 @@ public struct MainWindowView<Diagnostic: View>: View {
         self.colin = colin ?? agenda.map { ColinLibrary(agenda: $0, mails: mails) }
         self.thread = thread
         self.colinProbe = colinProbe
+        self.claudeAccounts = claudeAccounts
         self.inspiration = inspiration
         self.updates = updates
         self.router = router
@@ -520,7 +523,7 @@ public struct MainWindowView<Diagnostic: View>: View {
         } detail: {
             switch router.section {
             case .home:
-                if let agenda, let colin { HomeView(agenda: agenda, mails: mails, colin: colin, thread: thread, router: router) }
+                if let agenda, let colin { HomeView(agenda: agenda, mails: mails, colin: colin, thread: thread, router: router, accounts: claudeAccounts) }
             case .calendar:
                 if let agenda { CalendarView(agenda: agenda, router: router) }
             case .contacts:

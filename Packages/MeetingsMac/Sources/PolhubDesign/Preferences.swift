@@ -95,6 +95,8 @@ public struct Preferences: @unchecked Sendable {
         public static let eventMeet = "agenda.meetParDefaut"
         public static let showWeekend = "agenda.weekEnd"
         public static let dayStartHour = "agenda.debutDeJournee"
+        /// Réglages › Calendrier (0.36.0): from when, in minutes after midnight, the Accueil shows tomorrow.
+        public static let homeTomorrowFrom = "accueil.demainAPartirDe"
         public static let summariesEnabled = "reunions.comptesRendus"
         public static let transcriptionLanguage = "reunions.langue"
         public static let reminders = "notifications.rappels"
@@ -159,6 +161,7 @@ public struct Preferences: @unchecked Sendable {
     public enum Default {
         public static let eventMinutes = 60
         public static let dayStartHour = 8
+        public static let homeTomorrowFrom = 19 * 60
         /// `auto` lets the engine detect it.
         public static let transcriptionLanguage = "fr"
         /// Ten minutes and one minute before (Paul, 14/11).

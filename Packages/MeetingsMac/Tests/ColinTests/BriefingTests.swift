@@ -174,24 +174,6 @@ import Testing
         #expect(Briefing.moved([line(martin, .colin, undone: true), line(nord, .paul)]) == 0)
     }
 
-    /// The Accueil's pass (18/11): « Le point » in figures — the meetings of the week, what is due, whose turn it is —
-    /// only those that are not nothing.
-    @Test func figuresCountWhatMatters() {
-        let figures = Briefing.figures(week: (5, event("demain", day: 19, hour: 10)), due: [project("Cabinet Martin", due: at(19))],
-                                       yours: [project("Cabinet Martin"), project("Studio Nord")])
-        #expect(figures.tiles == [Briefing.Figure(tile: .meetings, count: 5), Briefing.Figure(tile: .due, count: 1), Briefing.Figure(tile: .yours, count: 2)])
-        #expect(figures.due == ["Cabinet Martin"] && figures.yours == ["Cabinet Martin", "Studio Nord"])
-        #expect(Briefing.figures(week: (0, nil), due: [], yours: []).tiles.isEmpty)
-        #expect(Briefing.label(.meetings, count: 5) == "rendez-vous" && Briefing.label(.due, count: 1) == "à livrer" && Briefing.label(.yours, count: 2) == "à toi")
-    }
-
-    /// A figure clicked puts its question in Colin's bar.
-    @Test func eachTileAsksItsQuestion() {
-        #expect(Briefing.question(for: .meetings) == "Quels sont mes rendez-vous cette semaine ?")
-        #expect(Briefing.question(for: .due) == "Qu'est-ce qui est à livrer ?")
-        #expect(Briefing.question(for: .yours) == "Où en sont les projets où c'est à moi de jouer ?")
-    }
-
     @Test func aDayIsSaidAsPaulWouldSayIt() {
         #expect(Briefing.dayLabel(at(18, 16, 30), now: now, calendar: calendar) == "aujourd'hui 16:30")
         #expect(Briefing.dayLabel(at(19, 10), now: now, calendar: calendar) == "demain 10:00")

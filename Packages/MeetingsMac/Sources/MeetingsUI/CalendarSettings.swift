@@ -11,6 +11,7 @@ struct CalendarSettingsPane: View {
     @AppStorage(Preferences.Key.eventMeet) private var eventMeet = true
     @AppStorage(Preferences.Key.showWeekend) private var showWeekend = true
     @AppStorage(Preferences.Key.dayStartHour) private var dayStartHour = Preferences.Default.dayStartHour
+    @AppStorage(Preferences.Key.homeTomorrowFrom) private var homeTomorrowFrom = Preferences.Default.homeTomorrowFrom
 
     var body: some View {
         Form {
@@ -33,6 +34,12 @@ struct CalendarSettingsPane: View {
                 Toggle("Afficher le week-end", isOn: $showWeekend)
                 Picker("La grille s'ouvre à", selection: $dayStartHour) {
                     ForEach([6, 7, 8, 9, 10], id: \.self) { Text("\($0) h").tag($0) }
+                }
+            }
+            // 0.36.0: in the evening, the Accueil shows tomorrow's meetings, once today's last one is over.
+            Section("Accueil") {
+                Picker("L'Accueil montre demain à partir de", selection: $homeTomorrowFrom) {
+                    ForEach(16...23, id: \.self) { Text("\($0) h").tag($0 * 60) }
                 }
             }
             Section {

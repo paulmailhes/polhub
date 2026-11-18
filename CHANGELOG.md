@@ -3,6 +3,24 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.36.0 — 19 novembre 2026
+
+**Ta journée, en clair : les rendez-vous du jour puis de demain, ce qu'il y a à faire, et tes comptes Claude.**
+
+- **Plus de chiffres flous** : les tuiles « rendez-vous », « à livrer » et « à toi » sont parties. À la place, des
+  listes qui disent quoi, quel projet et quand.
+- **Le soir, demain** : à partir de 19 h, une fois ton dernier rendez-vous fini, l'Accueil montre « Demain · jeudi 19
+  novembre » et tes rendez-vous du lendemain. L'heure se règle dans Réglages › Calendrier.
+- **« À faire »** : tes projets en priorité 2 et ceux dont l'échéance est proche ou passée, rangés « En retard »,
+  « Aujourd'hui », « Demain », « Cette semaine », « Ensuite ». Chaque ligne dit le projet, le client, quand
+  (« depuis 6 j », « vendredi », « call demain 9:30 ») et, dessous, la tâche du moment.
+- **« Reporter » et « Livré »** sur chaque ligne datée : reporter à demain, à lundi, dans une semaine ou à une date ;
+  « Livré » efface l'échéance et le note au journal du projet. « Annuler » reste quelques secondes.
+- **Tes comptes Claude**, lus chez Vigie sur ce Mac : une barre par compte, « tient jusqu'à lundi » ou « plein jeudi
+  14 h ». Sans Vigie, rien ne s'affiche.
+- **Le bouton pour dicter est retiré** de la barre de Colin : la dictée de Polhub viendra plus tard. VoiceInk écrit
+  dans la barre comme partout.
+
 ## 0.35.0 — 18 novembre 2026
 
 **L'Accueil refait : une conversation avec Colin comme dans Claude, et ta journée d'un regard.**

@@ -18,9 +18,9 @@ import Testing
 struct HomeScreenTests {
     static let me = "moi@exemple.fr"
 
-    func waitUntil(_ condition: () -> Bool) async throws {
+    func waitUntil(_ condition: () -> Bool, sourceLocation: SourceLocation = #_sourceLocation) async throws {
         for _ in 0..<300 where !condition() { try await Task.sleep(for: .milliseconds(20)) }
-        #expect(condition())
+        #expect(condition(), sourceLocation: sourceLocation)
     }
 
     @Test func theHome() async throws {
@@ -45,6 +45,14 @@ struct HomeScreenTests {
         let nord = try projects.addProject(name: "Studio Nord", status: .priorite2, at: ago(90))
         let leroy = try projects.addProject(name: "Maison Leroy", status: .priorite2, at: ago(80))
         let dupont = try projects.addProject(name: "Atelier Dupont", status: .priorite1, at: ago(70))
+        // « À faire » (0.36.0): Maison Leroy six days late, with its task; Atelier Dupont due today, set by Paul (a change
+        // of Colin's would show in his thread too).
+        var late = leroy
+        late.dueDate = ago(6)
+        late.todo = "Envoyer les plans du rez-de-chaussée"
+        late.client = "Leroy & fils"
+        try projects.saveChanges(from: leroy, to: late, at: ago(3))
+        _ = try projects.setDue(dupont.id, to: CalendarView.calendar.startOfDay(for: now), journal: nil, at: ago(2))
         let contacts = ContactStore(database)
         for (name, email, project) in [("Claire Morel", "claire@cabinet-martin.exemple", martin.id), ("Marc Dubois", "marc@studio-nord.exemple", nord.id),
                                        ("Anne Leroy", "anne@maison-leroy.exemple", leroy.id)] {
@@ -126,11 +134,20 @@ struct HomeScreenTests {
         let live = ProcessInfo.processInfo.environment["POLHUB_LIVE"] != nil
         // The page alone on the window's ground, at the widths the window gives it: what an offscreen drawing shows
         // faithfully, in the dark too.
-        let page = HomeView(agenda: agenda, mails: mails, colin: colin, router: router).background(Color(nsColor: .windowBackgroundColor))
+        // Two invented Claude accounts, as Vigie would say them (0.36.0).
+        let accounts = ClaudeAccountsModel(accounts: [
+            ClaudeAccount(id: "travail", label: "Travail", isDefault: true, connected: true,
+                          usage: .init(session: .init(pct: 82, resetsAt: now.addingTimeInterval(5_400)),
+                                       week: .init(pct: 71, resetsAt: now.addingTimeInterval(4 * 86_400), fullAt: now.addingTimeInterval(1.6 * 86_400)),
+                                       weekModel: nil, observedAt: now)),
+            ClaudeAccount(id: "perso", label: "Perso", isDefault: false, connected: true,
+                          usage: .init(session: nil, week: .init(pct: 12, resetsAt: now.addingTimeInterval(4 * 86_400), fullAt: nil), weekModel: nil, observedAt: now)),
+        ])
+        let page = HomeView(agenda: agenda, mails: mails, colin: colin, router: router, accounts: accounts).background(Color(nsColor: .windowBackgroundColor))
         let narrow = MainWindowView<EmptyView>.minimumWidth - MainWindowView<EmptyView>.sidebarWidth
         for dark in [false, true] {
             let suffix = dark ? "-sombre" : ""
-            try await LiveWindow.capture(page, to: output.appending(path: "accueil-page\(suffix).png"), size: NSSize(width: 928, height: 700), dark: dark)
+            try await LiveWindow.capture(page, to: output.appending(path: "accueil-page\(suffix).png"), size: NSSize(width: 928, height: 1_050), dark: dark)
             try await LiveWindow.capture(page, to: output.appending(path: "accueil-page-etroit\(suffix).png"), size: NSSize(width: narrow, height: 860), dark: dark)
             // The whole window, with its glass: only on screen.
             guard live else { continue }
@@ -149,6 +166,26 @@ struct HomeScreenTests {
         #expect(router.homeMail == MailThreadRow.key(account: Self.me, threadID: "c") && router.section == .home)
         try await LiveWindow.capture(page, to: output.appending(path: "accueil-relire.png"), size: NSSize(width: 928, height: 700))
         router.homeMail = nil
+
+        // The evening (0.36.0): from the hour set, nothing left today, the Accueil shows tomorrow.
+        let evening = try AppDatabase.inMemory()
+        let eveningCalendar = CalendarStore(evening)
+        try eveningCalendar.addAccount(email: Self.me, at: ago(400))
+        let tomorrow = try #require(CalendarView.calendar.date(byAdding: .day, value: 1, to: CalendarView.calendar.startOfDay(for: now)))
+        try eveningCalendar.applyGoogle(account: Self.me, changed: [
+            event("t1", "Point Cabinet Martin", start: tomorrow.addingTimeInterval(9.5 * 3_600), minutes: 30, meet: "abc-defg-hij"),
+            event("t2", "Atelier Dupont", start: tomorrow.addingTimeInterval(16.5 * 3_600), minutes: 60),
+        ], cancelled: [], at: now)
+        let eveningAgenda = AgendaLibrary(database: evening)
+        let eveningColin = ColinLibrary(agenda: eveningAgenda, mails: nil, defaults: try #require(UserDefaults(suiteName: "accueil-\(UUID().uuidString)")),
+                                        settle: .milliseconds(30))
+        eveningColin.seen()
+        try await waitUntil { eveningColin.briefingAt != nil && eveningAgenda.shown.count == 2 }
+        let switchHour = UserDefaults.standard.object(forKey: Preferences.Key.homeTomorrowFrom)
+        UserDefaults.standard.set(0, forKey: Preferences.Key.homeTomorrowFrom)
+        try await LiveWindow.capture(HomeView(agenda: eveningAgenda, mails: nil, colin: eveningColin, router: router).background(Color(nsColor: .windowBackgroundColor)),
+                                     to: output.appending(path: "accueil-soir.png"), size: NSSize(width: 928, height: 700))
+        UserDefaults.standard.set(switchHour, forKey: Preferences.Key.homeTomorrowFrom)
 
         // Nothing waits, nothing left today: the lists say so.
         let empty = try AppDatabase.inMemory()

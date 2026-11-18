@@ -283,6 +283,59 @@ public struct ProjectStore: Sendable {
         try write(at: entry.createdAt) { try entry.insert($0) }
     }
 
+    // MARK: - Deadline, from « À faire » (0.36.0)
+
+    /// « Reporter » or « Livré » on the Accueil: the deadline set to `due`, a line in the journal when `journal` says
+    /// one, in one transaction. What to put back on « Annuler »; `nil` when the project is gone.
+    public func setDue(_ projectID: UUID, to due: Date?, journal: String?, at date: Date) throws -> DueUndo? {
+        try write(at: date) { db in
+            guard var project = try ProjectRow.fetchOne(db, key: Self.key(projectID)), project.deletedAt == nil else { return nil }
+            let before = project.dueDate
+            project.dueDate = due
+            project.updatedAt = date
+            if byPaul { project.lastEditedAt = date }
+            try project.update(db)
+            var journalID: UUID?
+            if let journal {
+                let entry = ProjectJournalRow(projectID: projectID, date: date, title: journal, body: "", createdAt: date)
+                try entry.insert(db)
+                journalID = entry.id
+            }
+            return DueUndo(projectID: projectID, before: before, after: due, journalID: journalID)
+        }
+    }
+
+    /// « Annuler »: the deadline put back if it is still what `undo` wrote, the journal line it added taken away.
+    public func revert(_ undo: DueUndo, at date: Date) throws {
+        try write(at: date) { db in
+            if var project = try ProjectRow.fetchOne(db, key: Self.key(undo.projectID)), project.dueDate == undo.after {
+                project.dueDate = undo.before
+                project.updatedAt = date
+                if byPaul { project.lastEditedAt = date }
+                try project.update(db)
+            }
+            if let journalID = undo.journalID { _ = try ProjectJournalRow.deleteOne(db, key: Self.key(journalID)) }
+        }
+    }
+
+    /// The first action left to do of each project, by its place: what « À faire » says under a project without a task
+    /// of the moment.
+    public func observeFirstOpenActions(onChange: @escaping @MainActor @Sendable ([UUID: String]) -> Void) -> AnyDatabaseCancellable {
+        ValueObservation
+            .tracking { db -> [UUID: String] in
+                var first: [UUID: String] = [:]
+                for action in try ActionRow.filter(Column("done") == false && Column("projectID") != nil).order(Column("position")).fetchAll(db) {
+                    guard let project = action.projectID, first[project] == nil else { continue }
+                    first[project] = action.text
+                }
+                return first
+            }
+            .removeDuplicates()
+            .start(in: writer, scheduling: .async(onQueue: .main), onError: { _ in }, onChange: { first in
+                MainActor.assumeIsolated { onChange(first) }
+            })
+    }
+
     // MARK: - Meetings
 
     public func meetings(projectID: UUID) throws -> [MeetingRow] {

@@ -12,9 +12,12 @@ enum TodayText {
 
 /// « Aujourd'hui » (the Accueil's pass, 18/11): the next meeting large — its countdown in the accent from a quarter of
 /// an hour, « Rejoindre » lit ten minutes before —, the others on one line each; when nothing is left, the next one.
+/// In the evening (0.36.0), from the hour set in Réglages › Calendrier and once the day's last meeting is over:
+/// « Demain · jeudi 19 novembre », tomorrow's meetings.
 struct TodayCard: View {
     @ObservedObject var agenda: AgendaLibrary
     @ObservedObject var router: WindowRouter
+    @AppStorage(Preferences.Key.homeTomorrowFrom) private var tomorrowFrom = Preferences.Default.homeTomorrowFrom
 
     private var calendar: Calendar { CalendarView.calendar }
 
@@ -22,19 +25,21 @@ struct TodayCard: View {
         // The minutes pass: « dans 12 min », then « en cours ».
         TimelineView(.periodic(from: .now, by: 30)) { context in
             let now = context.date
-            let today = HomeModel.today(agenda.shown, now: now, calendar: calendar)
-            let next = HomeModel.next(agenda.shown, now: now, calendar: calendar)
+            let shown = HomeModel.dayShown(agenda.shown, now: now, tomorrowFrom: tomorrowFrom, calendar: calendar)
+            let next = shown.tomorrow ? shown.events.first { !$0.allDay } : HomeModel.next(agenda.shown, now: now, calendar: calendar)
             VStack(alignment: .leading, spacing: Space.s) {
-                HomeSectionHeader(title: "Aujourd'hui")
-                if today.isEmpty {
-                    if let coming = HomeModel.upcoming(agenda.shown, now: now, calendar: calendar) {
+                HomeSectionHeader(title: shown.title)
+                if shown.events.isEmpty {
+                    let day = shown.tomorrow ? calendar.date(byAdding: .day, value: 1, to: now) ?? now : now
+                    if shown.tomorrow, !agenda.accounts.isEmpty { EmptyLine("Rien demain.") }
+                    if let coming = HomeModel.upcoming(agenda.shown, after: day, calendar: calendar) {
                         upcoming(coming, now: now)
-                    } else {
+                    } else if !shown.tomorrow || agenda.accounts.isEmpty {
                         EmptyLine(agenda.accounts.isEmpty ? "Connecte tes agendas dans Calendrier." : "Aucun rendez-vous.")
                     }
                 }
-                if let next, today.contains(where: { $0.id == next.id }) { nextRow(next, now: now) }
-                ShowMoreList(today.filter { $0.id != next?.id }, limit: 5) { event in row(event, now: now) }
+                if let next, shown.events.contains(where: { $0.id == next.id }) { nextRow(next, now: now) }
+                ShowMoreList(shown.events.filter { $0.id != next?.id }, limit: 5) { event in row(event, now: now) }
             }
         }
     }
@@ -67,12 +72,13 @@ struct TodayCard: View {
                     .lineLimit(1)
                 }
                 Spacer(minLength: 0)
-                if joinable { Color.clear.frame(width: 108, height: 1) }
+                if joinable, left <= 10 || calendar.isDate(event.startAt, inSameDayAs: now) { Color.clear.frame(width: 108, height: 1) }
             }
             .padding(.vertical, Space.xs)
         }
         .overlay(alignment: .trailing) {
-            if joinable {
+            // Far off (tomorrow's first, from the evening): no « Rejoindre » before its last ten minutes.
+            if joinable, left <= 10 || calendar.isDate(event.startAt, inSameDayAs: now) {
                 if left <= 10 {
                     Button { agenda.join(event) } label: { Label("Rejoindre", systemImage: "video.fill") }
                         .buttonStyle(.glassProminent)

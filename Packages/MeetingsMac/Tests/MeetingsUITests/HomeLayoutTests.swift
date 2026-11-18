@@ -238,3 +238,62 @@ import Testing
         #expect(HomeLayout.colinWidth(content: 1_000) == 1_000 - HomeLayout.listsWidth - Space.l)
     }
 }
+
+/// « Aujourd'hui », then « Demain » (0.36.0, 18/11): from the hour Paul set (19:00) and once the day's last meeting is
+/// over, the Accueil shows tomorrow. Every name here is invented.
+@Suite struct HomeDayTests {
+    var calendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Paris")!
+        calendar.locale = Locale(identifier: "fr_FR")
+        calendar.firstWeekday = 2
+        return calendar
+    }
+
+    func at(_ day: Int, _ hour: Int = 0, _ minute: Int = 0) -> Date {
+        calendar.date(from: DateComponents(year: 2026, month: 11, day: day, hour: hour, minute: minute))!
+    }
+
+    func event(_ id: String, day: Int, hour: Int, minute: Int = 0, hours: Double = 1, allDay: Bool = false, declined: Bool = false) -> CalendarEventRow {
+        CalendarEventRow(account: "moi@exemple.fr", eventID: id, title: id, startAt: at(day, hour, minute), endAt: at(day, hour, minute).addingTimeInterval(hours * 3_600),
+                         allDay: allDay, attendees: [Attendee(email: "moi@exemple.fr", response: declined ? "declined" : "accepted", isSelf: true)],
+                         updatedAt: at(1))
+    }
+
+    func shown(_ events: [CalendarEventRow], at date: Date) -> DayShown {
+        HomeModel.dayShown(events, now: date, tomorrowFrom: 19 * 60, calendar: calendar)
+    }
+
+    /// Review Focus 2: a meeting under way keeps today; midnight brings the new today, never the day after.
+    @Test func theSwitchWaitsForTheLastMeetingAndMidnight() {
+        let events = [event("soiree", day: 18, hour: 18, minute: 15, hours: 1.5), event("martin", day: 19, hour: 10),
+                      event("nord", day: 19, hour: 15), event("vendredi", day: 20, hour: 11)]
+        let early = shown(events, at: at(18, 19, 10))
+        #expect(!early.tomorrow && early.title == "Aujourd'hui" && early.events.map(\.eventID) == ["soiree"])
+        let evening = shown(events, at: at(18, 20, 1))
+        #expect(evening.tomorrow && evening.title == "Demain · jeudi 19 novembre")
+        #expect(evening.events.map(\.eventID) == ["martin", "nord"])
+        #expect(shown(events, at: at(18, 23, 59)).events.map(\.eventID) == ["martin", "nord"])
+        let midnight = shown(events, at: at(19, 0, 1))
+        #expect(!midnight.tomorrow && midnight.title == "Aujourd'hui" && midnight.events.map(\.eventID) == ["martin", "nord"])
+        // Before the hour, a day already over stays today's.
+        #expect(!shown([event("matin", day: 18, hour: 9)], at: at(18, 17)).tomorrow)
+    }
+
+    @Test func tomorrowListsWholeDaysFirstAndSkipsDeclined() {
+        let events = [event("martin", day: 19, hour: 10), event("refuse", day: 19, hour: 11, declined: true),
+                      event("salon", day: 19, hour: 0, hours: 24, allDay: true)]
+        #expect(shown(events, at: at(18, 21)).events.map(\.eventID) == ["salon", "martin"])
+    }
+
+    @Test func upcomingAfterTomorrow() {
+        let events = [event("lundi", day: 23, hour: 9, minute: 30), event("journee", day: 21, hour: 0, hours: 24, allDay: true)]
+        #expect(shown(events, at: at(18, 21)).events.isEmpty)
+        #expect(HomeModel.upcoming(events, after: at(19), calendar: calendar)?.eventID == "lundi")
+    }
+
+    @Test func theSwitchHourIsASetting() {
+        #expect(Preferences.Key.homeTomorrowFrom == "accueil.demainAPartirDe")
+        #expect(Preferences.Default.homeTomorrowFrom == 1_140)
+    }
+}

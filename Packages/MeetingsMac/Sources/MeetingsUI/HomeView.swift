@@ -4,6 +4,14 @@ import Persistence
 import PolhubDesign
 import SwiftUI
 
+/// The day the Accueil shows: today, or tomorrow in the evening (0.36.0).
+struct DayShown: Equatable {
+    var tomorrow: Bool
+    /// « Aujourd'hui », « Demain · jeudi 19 novembre ».
+    var title: String
+    var events: [CalendarEventRow]
+}
+
 /// What Accueil puts first (14/11).
 enum HomeModel {
     /// The event under way, else the next one today; neither whole days nor declined ones.
@@ -41,6 +49,33 @@ enum HomeModel {
             .min { $0.startAt < $1.startAt }
     }
 
+    /// The first event after `day`'s end: neither a whole day nor a declined one. Tomorrow shown and empty, the next one.
+    static func upcoming(_ events: [CalendarEventRow], after day: Date, calendar: Calendar) -> CalendarEventRow? {
+        let end = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: day)) ?? day
+        return events
+            .filter { !$0.allDay && $0.startAt >= end && $0.attendees.first(where: \.isSelf)?.response != "declined" }
+            .min { $0.startAt < $1.startAt }
+    }
+
+    /// « Aujourd'hui », or « Demain » (0.36.0): from `tomorrowFrom` (minutes after midnight) and once no meeting of
+    /// today is left, the day shown is tomorrow — its whole days first, then by the hour, never what Paul declined.
+    static func dayShown(_ events: [CalendarEventRow], now: Date, tomorrowFrom: Int, calendar: Calendar) -> DayShown {
+        let parts = calendar.dateComponents([.hour, .minute], from: now)
+        let minutes = (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
+        let today = Self.today(events, now: now, calendar: calendar)
+        guard minutes >= tomorrowFrom, !today.contains(where: { !$0.allDay }),
+              let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) else {
+            return DayShown(tomorrow: false, title: "Aujourd'hui", events: today)
+        }
+        let said = BriefingText.today(tomorrow, calendar: calendar)
+        let shown = events.filter { event in
+            guard event.attendees.first(where: \.isSelf)?.response != "declined" else { return false }
+            return event.allDay ? event.startAt <= tomorrow && event.endAt > tomorrow : calendar.isDate(event.startAt, inSameDayAs: tomorrow)
+        }
+        .sorted { ($0.allDay ? 0 : 1, $0.startAt) < ($1.allDay ? 0 : 1, $1.startAt) }
+        return DayShown(tomorrow: true, title: "Demain · " + said.prefix(1).lowercased() + said.dropFirst(), events: shown)
+    }
+
     /// « Demain 10:00 », « Jeudi 10:00 »: the day as « Le point » says it, at the head of a line.
     static func dayLabel(_ date: Date, now: Date, calendar: Calendar) -> String {
         let label = Briefing.dayLabel(date, now: now, calendar: calendar)
@@ -49,8 +84,9 @@ enum HomeModel {
 }
 
 /// Accueil (the Accueil's pass, 18/11): on the left, the conversation with Colin — his name fixed at its head, his
-/// thread, his bar floating over it; on the right, « ta journée » — « Le point » in figures, « Aujourd'hui », « À
-/// valider ». In a narrow window, a strip of the day stays at the top, « À valider » opens over the thread.
+/// thread, his bar floating over it; on the right, « ta journée » (0.36.0) — the date and what came since, « Aujourd'hui »
+/// (« Demain » in the evening), « À valider », « À faire ». In a narrow window, a strip of the day stays at the top,
+/// « À valider » and « À faire » open over the thread.
 struct HomeView: View {
     @ObservedObject var agenda: AgendaLibrary
     let mails: MailLibrary?
@@ -63,8 +99,28 @@ struct HomeView: View {
     @State private var barHeight: CGFloat = 0
     /// « Voir »: what moved without Paul, over the Accueil.
     @State private var seeing = false
-    /// The narrow window's « À valider », open over the thread.
+    /// The narrow window's « À valider » and « À faire », open over the thread.
     @State private var reviewOpen = false
+    /// « À faire »: who set each deadline, the first actions, Paul's « Reporter » and « Livré ».
+    @StateObject private var todo: TodoLibrary
+    /// The Claude accounts read from Vigie; `nil` in a window made without them: nothing is read from a capture.
+    let accounts: ClaudeAccountsModel?
+
+    init(agenda: AgendaLibrary, mails: MailLibrary?, colin: ColinLibrary, thread: ColinThread? = nil, router: WindowRouter,
+         accounts: ClaudeAccountsModel? = nil) {
+        self.agenda = agenda
+        self.mails = mails
+        self.colin = colin
+        self.thread = thread
+        self.router = router
+        self.accounts = accounts
+        _todo = StateObject(wrappedValue: TodoLibrary(database: agenda.database))
+    }
+
+    /// The projects of « À faire » with a date: what Colin's bar proposes to ask about.
+    private var due: [String] {
+        TodoRules.dated(todo.lines(projects: agenda.projects, events: agenda.shown), projects: agenda.projects).map(\.name)
+    }
 
     var body: some View {
         Group {
@@ -82,6 +138,8 @@ struct HomeView: View {
         // The Accueil is before Paul: « Le point » is prepared when he is back. He goes to another page: his absence starts.
         .onAppear { colin.seen() }
         .onDisappear { colin.left() }
+        // Vigie is read while the Accueil shows, never behind it.
+        .task { await accounts?.watch() }
     }
 
     /// Two columns: the conversation, and the day at a fixed width; each scrolls alone.
@@ -104,7 +162,7 @@ struct HomeView: View {
     /// One column: a strip of the day at the top, the thread under it.
     private var stacked: some View {
         VStack(spacing: 0) {
-            DayStrip(colin: colin, agenda: agenda, thread: thread, reviewOpen: $reviewOpen, seeing: $seeing)
+            DayStrip(colin: colin, agenda: agenda, todo: todo, reviewOpen: $reviewOpen, seeing: $seeing)
                 .padding(.horizontal, PageMetrics.horizontal)
                 .padding(.vertical, Space.m)
             Divider()
@@ -114,7 +172,11 @@ struct HomeView: View {
                     .overlay(alignment: .top) {
                         if reviewOpen {
                             ScrollView {
-                                ReviewCard(colin: colin, agenda: agenda, mails: mails, router: router, thresholds: colin.thresholds).padding(Space.l)
+                                VStack(alignment: .leading, spacing: Space.xl) {
+                                    ReviewCard(colin: colin, agenda: agenda, mails: mails, router: router, thresholds: colin.thresholds)
+                                    TodoCard(todo: todo, agenda: agenda, router: router)
+                                }
+                                .padding(Space.l)
                             }
                             .frame(maxHeight: 340)
                             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
@@ -131,21 +193,22 @@ struct HomeView: View {
 
     /// Colin's name, his thread, his bar: a view of its own, which follows the thread.
     private func conversation(_ thread: ColinThread) -> some View {
-        ColinConversation(thread: thread, colin: colin, agenda: agenda, mails: mails, router: router, barHeight: $barHeight)
+        ColinConversation(thread: thread, colin: colin, agenda: agenda, mails: mails, router: router, due: due, barHeight: $barHeight)
     }
 
     /// « Ta journée »: the point, today, what waits.
     private var day: some View {
         VStack(alignment: .leading, spacing: Space.xl) {
             if let preparedAt = colin.briefingAt, !colin.briefing.isEmpty {
-                BriefingCard(sentences: colin.briefing, preparedAt: preparedAt, figures: colin.briefingFigures,
-                             see: colin.briefingChanges.isEmpty && colin.briefingMails.isEmpty ? nil : { seeing = true },
-                             ask: thread.map { thread in { thread.fill($0) } })
+                BriefingCard(sentences: colin.briefing, preparedAt: preparedAt,
+                             see: colin.briefingChanges.isEmpty && colin.briefingMails.isEmpty ? nil : { seeing = true })
                     .transition(.opacity)
             }
             TodayCard(agenda: agenda, router: router)
             Divider()
             ReviewCard(colin: colin, agenda: agenda, mails: mails, router: router, thresholds: colin.thresholds)
+            TodoCard(todo: todo, agenda: agenda, router: router)
+            if let accounts { ClaudeAccountsCard(model: accounts) }
         }
         .animation(Motion.standard, value: colin.briefingAt)
     }
@@ -160,6 +223,8 @@ private struct ColinConversation: View {
     @ObservedObject var agenda: AgendaLibrary
     let mails: MailLibrary?
     @ObservedObject var router: WindowRouter
+    /// The projects of « À faire » with a date, for the questions over the bar.
+    let due: [String]
     @Binding var barHeight: CGFloat
     @State private var position = ScrollPosition(edge: .bottom)
     /// Whether the thread follows its end: Paul's hand on it, and where the end stands.
@@ -215,37 +280,33 @@ private struct ColinConversation: View {
             .animation(Motion.quick, value: follow.following)
             // The bar floats over the thread, which passes under its glass.
             .safeAreaBar(edge: .bottom) {
-                ColinComposer(thread: thread, review: colin.review,
-                              due: Briefing.due(agenda.projects, now: Date(), calendar: CalendarView.calendar).map(\.name))
+                ColinComposer(thread: thread, review: colin.review, due: due)
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
             }
         }
     }
 }
 
-/// The narrow window's day, in one strip (final review, 18/11): the date, the figures (a click asks Colin), « Voir »,
-/// the next meeting with « Rejoindre », and « À valider » that opens over the thread.
+/// The narrow window's day, in one strip (0.36.0): the date and « Voir »; the next meeting — tomorrow's first in the
+/// evening — with « Rejoindre », and « À valider · À faire », which opens over the thread.
 private struct DayStrip: View {
     @ObservedObject var colin: ColinLibrary
     @ObservedObject var agenda: AgendaLibrary
-    var thread: ColinThread?
+    @ObservedObject var todo: TodoLibrary
     @Binding var reviewOpen: Bool
     @Binding var seeing: Bool
+    @AppStorage(Preferences.Key.homeTomorrowFrom) private var tomorrowFrom = Preferences.Default.homeTomorrowFrom
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
-            let next = HomeModel.next(agenda.shown, now: context.date, calendar: CalendarView.calendar)
-            // Two lines: the day and its figures; the next meeting and what waits.
+            let calendar = CalendarView.calendar
+            let shown = HomeModel.dayShown(agenda.shown, now: context.date, tomorrowFrom: tomorrowFrom, calendar: calendar)
+            let next = shown.tomorrow ? shown.events.first { !$0.allDay } : HomeModel.next(agenda.shown, now: context.date, calendar: calendar)
+            let todoCount = todo.lines(projects: agenda.projects, events: agenda.shown).count
+            // Two lines: the day; the next meeting and what waits.
             VStack(alignment: .leading, spacing: Space.s) {
                 HStack(alignment: .center, spacing: Space.s) {
-                    Text(BriefingText.today(context.date, calendar: CalendarView.calendar)).font(.headline).lineLimit(1).fixedSize()
-                    if let figures = colin.briefingFigures {
-                        ForEach(figures.tiles, id: \.tile) { figure in
-                            Button("\(figure.count) \(Briefing.label(figure.tile, count: figure.count))") { thread?.fill(Briefing.question(for: figure.tile)) }
-                                .buttonStyle(.subtle)
-                                .fixedSize()
-                        }
-                    }
+                    Text(BriefingText.today(context.date, calendar: calendar)).font(.headline).lineLimit(1).fixedSize()
                     if !colin.briefingChanges.isEmpty || !colin.briefingMails.isEmpty {
                         TextButton("Voir", quiet: true) { seeing = true }.fixedSize()
                     }
@@ -253,8 +314,9 @@ private struct DayStrip: View {
                 }
                 HStack(alignment: .center, spacing: Space.s) {
                     if let next {
-                        Text("\(next.startAt.formatted(date: .omitted, time: .shortened)) \(next.title)").font(.meta).foregroundStyle(.secondary).lineLimit(1)
-                        if next.meetCode != nil {
+                        Text("\(shown.tomorrow ? "Demain " : "")\(next.startAt.formatted(date: .omitted, time: .shortened)) \(next.title)")
+                            .font(.meta).foregroundStyle(.secondary).lineLimit(1)
+                        if next.meetCode != nil, !shown.tomorrow || next.startAt.timeIntervalSince(context.date) <= 600 {
                             Group {
                                 if next.startAt.timeIntervalSince(context.date) <= 600 {
                                     Button { agenda.join(next) } label: { Label("Rejoindre", systemImage: "video.fill") }
@@ -267,7 +329,7 @@ private struct DayStrip: View {
                         }
                     }
                     Spacer(minLength: Space.s)
-                    Button("À valider \(colin.review.count)") { withAnimation(Motion.quick) { reviewOpen.toggle() } }
+                    Button("À valider \(colin.review.count) · À faire \(todoCount)") { withAnimation(Motion.quick) { reviewOpen.toggle() } }
                         .buttonStyle(.subtle)
                         .fixedSize()
                 }

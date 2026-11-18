@@ -67,6 +67,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var colin: ColinLibrary?
     /// Colin's bar (18/11): his thread, and the one Claude Code it launches.
     private var colinThread: ColinThread?
+    /// The Claude accounts Vigie knows, on the Accueil (0.36.0).
+    private let claudeAccounts = ClaudeAccountsModel()
     private var presenceObserver: NSObjectProtocol?
     private var absenceObserver: NSObjectProtocol?
     /// « Inspiration » (16/11): the sites, the branding and the mock-ups, and their collection.
@@ -739,7 +741,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         if mainWindow == nil {
             let diagnostic = diagnostic
             let probe = colinProbe
-            let view = MainWindowView(library: library, projects: projects, agenda: agenda, mails: mails, colin: colin, thread: colinThread, colinProbe: colinProbe, inspiration: inspiration,
+            let view = MainWindowView(library: library, projects: projects, agenda: agenda, mails: mails, colin: colin, thread: colinThread, colinProbe: colinProbe, claudeAccounts: claudeAccounts, inspiration: inspiration,
                                       updates: updates, notifications: notifications, startup: startup, router: router, paths: paths) {
                 if let diagnostic {
                     DiagnosticView(model: diagnostic, colin: probe) { [weak self] in self?.showProbeWindow() }

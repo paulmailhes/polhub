@@ -207,7 +207,7 @@ struct ColinThreadView: View {
 }
 
 /// Colin's bar (the Accueil's pass, 18/11): a glass capsule of 44 points, its text centred on one line, growing up
-/// to eight; « Dicter » and the round send button at its foot (■ while he answers). Return sends, Shift-Return goes to
+/// to eight; the round send button at its foot (■ while he answers). Return sends, Shift-Return goes to
 /// the line, Escape stops. Why it waits is said above the field, in the glass; off, a calm card to turn Colin on.
 struct ColinComposer: View {
     @ObservedObject var thread: ColinThread
@@ -272,12 +272,8 @@ struct ColinComposer: View {
                             return press.key == .return && !ComposerKeys.composing ? .handled : .ignored
                         }
                     }
-                RoundButton(symbol: "mic", help: "Dicter", prominent: false) {
-                    focused = true
-                    // macOS's own dictation, in the field that has the focus.
-                    DispatchQueue.main.async { NSApp.sendAction(Selector(("startDictation:")), to: nil, from: nil) }
-                }
-                .disabled(!enabled)
+                // No « Dicter » for now (Paul, 18/11): Polhub's own dictation will come, on Whisper. VoiceInk writes here
+                // as anywhere else.
                 if thread.isAnswering {
                     RoundButton(symbol: "stop.fill", help: "Arrêter la réponse", prominent: false) { thread.stop() }
                 } else {

@@ -19,8 +19,6 @@ public final class ColinLibrary: ObservableObject {
     @Published public private(set) var briefing: [String] = []
     /// When « Le point » was prepared: at a return of Paul's, or when Polhub opened.
     @Published public private(set) var briefingAt: Date?
-    /// « Le point » in figures (the Accueil's pass, 18/11).
-    @Published public private(set) var briefingFigures: Briefing.Figures?
     /// The threads where a client wrote since Paul last came: behind « Voir », with what moved.
     @Published public private(set) var briefingMails: [MailThreadRow] = []
     /// What moved without Paul since he last came (step 3, 18/11): behind « Voir », each with « Annuler ».
@@ -254,7 +252,6 @@ public final class ColinLibrary: ObservableObject {
         if let point = outcome.point, let asked, wanted?.at == asked.at {
             if point != briefing { briefing = point }
             if outcome.moved != briefingChanges { briefingChanges = outcome.moved }
-            if outcome.figures != briefingFigures { briefingFigures = outcome.figures }
             if outcome.clientThreads.map(\.id) != briefingMails.map(\.id) { briefingMails = outcome.clientThreads }
             if briefingAt != asked.at { briefingAt = asked.at }
             // Prepared on copies read again, with nothing written meanwhile: closed, it no longer moves.
@@ -448,6 +445,8 @@ public final class ColinLibrary: ObservableObject {
         /// The events the rules of the kanban already answered, and what Paul changed himself today.
         var sources: Set<String> = []
         var touched: Set<ProjectFieldKey> = []
+        /// Who set each deadline last: « À faire » tells a call from a deadline by it (0.36.0).
+        var setters: [UUID: ChangeAuthor] = [:]
     }
 
     /// One computation, away from the main thread: what is not known is read in the base, then the rules say the lines.
@@ -464,7 +463,6 @@ public final class ColinLibrary: ObservableObject {
             var kanban: [KanbanEdit] = []
             /// What moved without Paul since « Le point »'s since.
             var moved: [ProjectChangeLine] = []
-            var figures: Briefing.Figures?
             var clientThreads: [MailThreadRow] = []
         }
 
@@ -496,10 +494,6 @@ public final class ColinLibrary: ObservableObject {
             return Outcome(mails: mails, base: base, lines: lines(mails, base),
                            point: point.map { sentences(mails, base, since: $0.since, moved: Briefing.moved(moved)) },
                            kanban: kanbanSince.map { kanban(mails, base, since: $0) } ?? [], moved: moved,
-                           figures: point.map { _ in
-                               Briefing.figures(week: Briefing.week(base.events, now: now, calendar: calendar), due: Briefing.due(base.projects, now: now, calendar: calendar),
-                                                yours: Briefing.yours(base.projects))
-                           },
                            clientThreads: point.flatMap(\.since).map { clientThreads(mails, since: $0) } ?? [])
         }
 
@@ -527,6 +521,7 @@ public final class ColinLibrary: ObservableObject {
             let changes = ProjectChanges(database)
             inputs.sources = try changes.sources(since: now.addingTimeInterval(-8 * 86_400))
             inputs.touched = try changes.paulTouches(since: now.addingTimeInterval(-86_400))
+            inputs.setters = try changes.dueSetters()
             return inputs
         }
 
@@ -581,7 +576,9 @@ public final class ColinLibrary: ObservableObject {
                 let threads = Briefing.clientMails(mails.threads.filter { !hiddenAccounts.contains($0.account) }, rules: rules, since: since)
                 clients = Set(threads.map { mails.conversations[$0.id] ?? $0.id }).count
             }
-            return Briefing.lines(week: Briefing.week(base.events, now: now, calendar: calendar), due: Briefing.due(base.projects, now: now, calendar: calendar),
+            // What is due is what « À faire » shows with a date: a call already held is no longer late (0.36.0).
+            let todo = TodoRules.lines(projects: base.projects, events: base.events, setters: base.setters, firstActions: [:], now: now, calendar: calendar)
+            return Briefing.lines(week: Briefing.week(base.events, now: now, calendar: calendar), due: TodoRules.dated(todo, projects: base.projects),
                                   yours: Briefing.yours(base.projects), clientMails: clients, moved: moved, since: since, now: now, calendar: calendar)
         }
     }

@@ -283,6 +283,22 @@ public struct ProjectChangeLine: Identifiable, Equatable, Sendable {
 }
 
 /// What « Annuler » did: everything put back, a part (what changed since stays), or nothing (all of it changed since).
+/// What « Reporter » or « Livré » changed, to put it back (0.36.0).
+public struct DueUndo: Equatable, Sendable {
+    public var projectID: UUID
+    public var before: Date?
+    public var after: Date?
+    /// The journal line « Livré le … » it added.
+    public var journalID: UUID?
+
+    public init(projectID: UUID, before: Date?, after: Date?, journalID: UUID?) {
+        self.projectID = projectID
+        self.before = before
+        self.after = after
+        self.journalID = journalID
+    }
+}
+
 public enum UndoOutcome: Equatable, Sendable {
     case undone
     case partly(kept: Int)
@@ -377,6 +393,37 @@ public struct ProjectChanges: Sendable {
                 return ProjectFieldKey(projectID: id, field: field)
             })
         }
+    }
+
+    /// Who set each project's deadline last (0.36.0): a deadline Colin took from a meeting is the next call, one Paul
+    /// set himself is a deadline. A project whose deadline was never journaled has no entry. A change that came back to
+    /// where it began (« Livré », then « Annuler ») says nothing: the one before it still counts.
+    public func dueSetters() throws -> [UUID: ChangeAuthor] {
+        try database.writer.read { try Self.dueSetters($0) }
+    }
+
+    /// The same, now and after every change, on the main queue.
+    public func observeDueSetters(onChange: @escaping @MainActor @Sendable ([UUID: ChangeAuthor]) -> Void) -> AnyDatabaseCancellable {
+        ValueObservation
+            .tracking { try Self.dueSetters($0) }
+            .removeDuplicates()
+            .start(in: database.writer, scheduling: .async(onQueue: .main), onError: { _ in }, onChange: { setters in
+                MainActor.assumeIsolated { onChange(setters) }
+            })
+    }
+
+    static func dueSetters(_ db: Database) throws -> [UUID: ChangeAuthor] {
+        guard try db.tableExists("project_change") else { return [:] }
+        let rows = try Row.fetchAll(db, sql: """
+            SELECT projectID, who FROM project_change
+            WHERE id IN (SELECT MAX(id) FROM project_change WHERE field = 'dueDate' AND before IS NOT after GROUP BY projectID)
+            """)
+        var setters: [UUID: ChangeAuthor] = [:]
+        for row in rows {
+            guard let id = UUID(uuidString: row["projectID"]), let who = ChangeAuthor(rawValue: row["who"]) else { continue }
+            setters[id] = who
+        }
+        return setters
     }
 
     /// The events a rule already answered since `since`, undone or not.

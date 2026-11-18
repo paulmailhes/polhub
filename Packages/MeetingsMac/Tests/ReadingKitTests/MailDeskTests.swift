@@ -539,7 +539,9 @@ struct MailDeskFixture {
         let package = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         // Nor any way to the programmed sends (wave B): they live in the Keychain, which only the app reads.
         let banned = ["URLSession", "URLRequest", "NSURLConnection", "CFNetwork", "import Network", "import Mail\n", "import GoogleKit", "import Agenda",
-                      "Socket", "nw_connection", "ScheduleVault", "ScheduledSend", "SecItem", "kSecClass", "import Security"]
+                      "Socket", "nw_connection", "ScheduleVault", "ScheduledSend", "SecItem", "kSecClass", "import Security",
+                      // Nor Vigie's read token (0.36.0): only the app reads it.
+                      "read-token", "X-Vigie"]
         // Its own code, and all it is built on: the Kernel's domain and base (second review of 14/11).
         for folder in ["Sources/ReadingKit", "Sources/PolhubCLI", "Sources/MailFormat", "../Kernel/Sources/Persistence", "../Kernel/Sources/Domain"] {
             let files = try FileManager.default.contentsOfDirectory(at: package.appending(path: folder), includingPropertiesForKeys: nil)

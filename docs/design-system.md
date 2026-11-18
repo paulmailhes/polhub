@@ -205,12 +205,14 @@ compte.
 
 - **Deux zones** à partir de 760 points de contenu (`HomeLayout`) : à gauche la conversation avec Colin
   (`ColinConversation`), à droite « ta journée », 380 points fixes, sans cartes (le point, « Aujourd'hui », un trait
-  fin, « À valider »). Chaque zone défile seule. En fenêtre étroite : une bande du jour fixe en haut (la date, les
-  chiffres, le prochain rendez-vous, « À valider N » qui déplie la liste par-dessus le fil), puis la conversation. Pas
+  fin, « À valider », « À faire », « Comptes Claude »). Chaque zone défile seule. En fenêtre étroite : une bande du jour
+  fixe en haut (la date et « Voir » ; le prochain rendez-vous, « À valider N · À faire M » qui déplie les deux listes
+  par-dessus le fil), puis la conversation. Pas
   de grand titre : la fenêtre s'appelle « Accueil ». Les titres de section de l'Accueil sont en 15 points semi-gras
   (`HomeSectionHeader`), leur compte à côté en gris.
 - **L'orange (l'accent) pour ce qui compte, seulement** : envoyer (le rond plein de la barre), « Rejoindre » dix
-  minutes avant, « dans N min » à un quart d'heure, le retard d'une ligne à valider (plus de deux fois son seuil).
+  minutes avant, « dans N min » à un quart d'heure, le retard d'une ligne à valider (plus de deux fois son seuil), le
+  retard d'une échéance (« depuis 6 j ») et un compte Claude plein ou qui le sera avant sa remise à zéro.
   « Voir » et ■ sont neutres. Les actions des lignes sont neutres (`.subtle` : petit, bordé d'un trait, la couleur du texte) ; les
   gestes rares sont des mots gris (`TextButton(quiet:)`) ou dans un menu « … ».
 - **Le verre pour la barre seulement** (et le bouton ↓) : ni les cartes, ni les bulles, ni les lignes.
@@ -241,8 +243,8 @@ compte.
   « Réessayer ». Les mots restent sur la dernière réponse, au survol sur les autres. **Un lien écrit par Colin n'est
   jamais cliquable** (`ColinAnswer.inline`) : son adresse s'écrit en clair.
 - **La barre** (`ColinComposer`) flotte sur le fil, qui passe sous son verre (`safeAreaBar`) : une capsule de 44 points
-  (rayon 22 quand elle grandit, jusqu'à huit lignes), le texte en 15 points centré sur une ligne, à son pied « Dicter »
-  (la dictée de macOS) et un rond de 28 points pour envoyer, plein d'orange quand il y a du texte, ■ gris pendant une
+  (rayon 22 quand elle grandit, jusqu'à huit lignes), le texte en 15 points centré sur une ligne, à son pied un rond
+  de 28 points pour envoyer (pas de bouton pour dicter : la dictée de Polhub viendra, sur Whisper), plein d'orange quand il y a du texte, ■ gris pendant une
   réponse. Entrée envoie, Maj+Entrée va à la ligne, Échap arrête ; un mot en cours de dictée n'est jamais envoyé. Ce
   qui la retient (« Colin attend la fin de ton call. », un réveil du Mac, une panne) se dit au-dessus du champ, dans le
   verre. Au-dessus de la barre, tant que Paul n'a rien demandé aujourd'hui, trois suggestions tirées de sa journée ; un
@@ -252,10 +254,8 @@ compte.
 ### Ta journée
 
 - **« Le point »** (`BriefingCard`, sans carte) : la date en `.title2` semi-gras (« Mercredi 18 novembre »), « Le point
-  · mardi 9:04 » en gris, puis des chiffres en tuiles (`Surface.fill`, rayon 10 : le chiffre en `.title2` à chiffres
-  tabulaires, « rendez-vous », « à livrer », « à toi » dessous) ; un chiffre nul ne s'affiche pas, un chiffre cliqué
-  pose sa question dans la barre (les noms derrière lui au survol). Puis « Depuis hier 19:40 : 1 mail de client, 2
-  projets ont bougé. » et « Voir ». Il se prépare à un retour de Paul (première présence du jour, ou trois heures
+  · mardi 9:04 » en gris, puis « Depuis hier 19:40 : 1 mail de client, 2 projets ont bougé. » et « Voir ». Plus de
+  chiffres en tuiles (0.36.0) : un chiffre seul ne disait rien à Paul ; les listes en dessous disent quoi, où et quand. Il se prépare à un retour de Paul (première présence du jour, ou trois heures
   après), jamais à chaque affichage.
 - **« Voir »** ouvre une feuille (`ChangesSheet`) titrée de la phrase du point : les fils des clients (« Ouvrir »), puis
   ce qui a bougé sans Paul, en cartes signées (« Un agent, aujourd'hui 16:27 ») avec « Annuler », et « Fermer ».
@@ -263,11 +263,29 @@ compte.
   40 min · 14:00 · Studio Nord » dessous, l'attente en orange à un quart d'heure), « Rejoindre » en `.subtle` puis en
   `.glassProminent` dix minutes avant ; les autres sur une ligne (l'heure dans une colonne de 44 points, le titre, le
   projet, l'icône pour rejoindre). S'il ne reste rien, le rendez-vous suivant avec son jour (« Demain 10:00 »).
+  **Le soir** (0.36.0), à partir de l'heure réglée (Réglages › Calendrier, 19 h) et une fois fini le dernier rendez-vous
+  du jour, le titre devient « Demain · jeudi 19 novembre » et la liste celle du lendemain ; « Rejoindre » n'y apparaît
+  que dix minutes avant. Le titre change toujours avec le contenu.
 - **« À valider »** (`ReviewCard`) : une ligne par chose. Le visage de la personne (`PersonAvatar`, aux couleurs du
   projet) ou, pour une réunion à ranger, son symbole ; la phrase avec le nom en semi-gras ; le projet et l'âge dessous,
   l'âge en orange en retard ; l'action en `.subtle` toujours au même bord (« Relire », « Ouvrir », « Ranger ») ; le
   menu « … » au survol. Un clic sur la ligne fait la même chose que son action, sauf pour une réunion : il l'ouvre, et
   « Ranger » propose les projets. Cinq lignes, puis « Voir les N autres ». Vide : « Rien à valider. ».
+- **« À faire »** (`TodoCard`, règles `TodoRules`, 0.36.0) : les projets en priorité 2 et ceux dont l'échéance est
+  passée ou à sept jours, groupés « En retard », « Aujourd'hui », « Demain », « Cette semaine », « Ensuite » (le titre
+  d'un groupe en `.meta` gris, aucun s'il n'y en a qu'un). Une ligne : le projet en `.rowTitle` et « · client » en gris,
+  le quand à droite (« depuis 6 j » en orange semi-gras, « vendredi », « lundi 30 », « call demain 9:30 »), la tâche du
+  moment dessous (sinon la première action). L'échéance est la prochaine étape datée : un rendez-vous du projet ce
+  jour-là en fait un call, sauf si Paul a posé la date lui-même ; le call passé, l'étape est faite. « Reporter » (un
+  menu : demain, lundi, dans une semaine, une date) et « Livré » en `.subtle` : toujours sous une ligne en retard, au
+  survol à la place du quand ailleurs ; ce sont des gestes de Paul. Après l'un d'eux, « Cabinet Martin livré ·
+  Annuler » en tête de liste pendant huit secondes. Six lignes, celles d'aujourd'hui et de demain toujours, puis « Voir
+  les N autres ». Vide : « Rien à faire. ».
+- **« Comptes Claude »** (`ClaudeAccountsCard`, 0.36.0) : seulement si Vigie est là et répond au jeton de lecture
+  qu'il réserve à Polhub ; sinon rien, ni titre ni erreur. Une ligne par compte connecté : le nom (80 points), une
+  barre de six points (`Surface.fill`, le plein en gris) du quota le plus serré (la semaine, ou celle d'un modèle si
+  elle est plus haute), le pourcentage ; dessous « tient · lun. 20 h », ou « plein jeu. 14 h » en orange, et la
+  session de cinq heures au-delà de 75 %. Sans relevé récent : la barre vide, « pas de relevé récent ».
 - **Une ligne par personne, une ligne par projet** (`ReviewRules`) : « attend ta réponse » se lit sur l'échange avec
   la personne dans tous les fils et toutes les boîtes (`Exchanges`), « ne répond plus » sur le projet entier. Lues
   fil par fil, ces deux lignes parlaient dix fois trop : on répond dans un nouveau mail aussi souvent que dans le fil.
@@ -275,7 +293,8 @@ compte.
 - **Un brouillon ou un fil s'ouvre par-dessus l'Accueil** (`mailPanels`, les mêmes panneaux que dans Mails) : on
   relit, on envoie, on ferme, et la ligne suivante est là. « Précédent » referme.
 - **Rien n'est dit deux fois** : ce que disaient l'ancien titre daté, la carte du prochain rendez-vous, « Priorité 2 »,
-  « Dernières réunions » et « À classer » est dans « Le point », « Aujourd'hui » et « À valider ».
+  « Dernières réunions », « À classer » et les tuiles de chiffres est dans « Le point », « Aujourd'hui », « À valider »
+  et « À faire ».
 
 ## Coup d'œil
 
