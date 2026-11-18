@@ -187,8 +187,11 @@ struct ColinThreadView: View {
 /// the line, Escape stops. Why it waits is said above the field, in the glass; off, a calm card to turn Colin on.
 struct ColinComposer: View {
     @ObservedObject var thread: ColinThread
-    /// What to ask, from the day, while the field is empty.
-    var suggestions: [String] = []
+    /// The day, for the suggestions: who waits, what is due.
+    var review: [ReviewRules.Line] = []
+    var due: [String] = []
+    /// Given as they are (captures); else from the day.
+    var suggestions: [String]?
     @FocusState private var focused: Bool
 
     private var empty: Bool { thread.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -199,9 +202,10 @@ struct ColinComposer: View {
             case .turnOn:
                 ColinOffCard { thread.turnOn() }
             case .field(let placeholder, let enabled, let note):
+                let asked = suggestions ?? thread.suggestions(review: review, due: due)
                 VStack(alignment: .leading, spacing: Space.s) {
-                    if enabled, empty, !thread.isAnswering, !suggestions.isEmpty {
-                        SuggestionChips(suggestions: suggestions) { thread.fill($0); focused = true }
+                    if enabled, empty, !thread.isAnswering, !asked.isEmpty {
+                        SuggestionChips(suggestions: asked) { thread.fill($0); focused = true }
                     }
                     field(placeholder: placeholder, enabled: enabled, note: note)
                 }
@@ -291,17 +295,20 @@ private struct SuggestionChips: View {
     let pick: (String) -> Void
 
     var body: some View {
-        HStack(spacing: Space.s) {
-            ForEach(suggestions, id: \.self) { said in
-                Button { pick(said) } label: {
-                    Text(said).font(.meta).lineLimit(1).padding(.horizontal, Space.m).padding(.vertical, 6)
-                        .background(Surface.fill, in: Capsule())
-                        .overlay { Capsule().strokeBorder(Surface.stroke) }
+        // Whole, side by side; scrolled when they do not fit.
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: Space.s) {
+                ForEach(suggestions, id: \.self) { said in
+                    Button { pick(said) } label: {
+                        Text(said).font(.meta).lineLimit(1).fixedSize().padding(.horizontal, Space.m).padding(.vertical, 6)
+                            .background(Surface.fill, in: Capsule())
+                            .overlay { Capsule().strokeBorder(Surface.stroke) }
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
+            .padding(.horizontal, Space.xs)
         }
-        .padding(.horizontal, Space.xs)
     }
 }
 

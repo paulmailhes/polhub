@@ -2,16 +2,13 @@ import Persistence
 import PolhubDesign
 import SwiftUI
 
-/// « Aujourd'hui » (18/11): what is left of the day, the next event first with « Rejoindre »; when nothing is left,
-/// the next one (« Demain 10:00 »).
+/// « Aujourd'hui » (the Accueil's pass, 18/11): the next meeting large — its countdown in the accent from a quarter of
+/// an hour, « Rejoindre » lit ten minutes before —, the others on one line each; when nothing is left, the next one.
 struct TodayCard: View {
     @ObservedObject var agenda: AgendaLibrary
     @ObservedObject var router: WindowRouter
 
     private var calendar: Calendar { CalendarView.calendar }
-    /// The room kept at the end of a line for « Rejoindre », as a word or as an icon.
-    private static let joinWidth: CGFloat = 112
-    private static let iconWidth: CGFloat = 32
 
     var body: some View {
         // The minutes pass: « dans 12 min », then « en cours ».
@@ -19,8 +16,8 @@ struct TodayCard: View {
             let now = context.date
             let today = HomeModel.today(agenda.shown, now: now, calendar: calendar)
             let next = HomeModel.next(agenda.shown, now: now, calendar: calendar)
-            Card {
-                SectionTitle("Aujourd'hui")
+            VStack(alignment: .leading, spacing: Space.s) {
+                HomeSectionHeader(title: "Aujourd'hui")
                 if today.isEmpty {
                     if let coming = HomeModel.upcoming(agenda.shown, now: now, calendar: calendar) {
                         upcoming(coming, now: now)
@@ -28,7 +25,8 @@ struct TodayCard: View {
                         EmptyLine(agenda.accounts.isEmpty ? "Connecte tes agendas dans Calendrier." : "Aucun rendez-vous.")
                     }
                 }
-                ShowMoreList(today, limit: 6) { event in row(event, isNext: event.id == next?.id, now: now) }
+                if let next, today.contains(where: { $0.id == next.id }) { nextRow(next, now: now) }
+                ShowMoreList(today.filter { $0.id != next?.id }, limit: 5) { event in row(event, now: now) }
             }
         }
     }
@@ -37,36 +35,63 @@ struct TodayCard: View {
         id.flatMap { id in agenda.projects.first { $0.id == id }?.name }
     }
 
-    private func row(_ event: CalendarEventRow, isNext: Bool, now: Date) -> some View {
+    /// Minutes before it starts (negative once begun).
+    private func minutes(to event: CalendarEventRow, now: Date) -> Double { event.startAt.timeIntervalSince(now) / 60 }
+
+    /// The next meeting, large.
+    private func nextRow(_ event: CalendarEventRow, now: Date) -> some View {
         let joinable = event.meetCode != nil && !event.allDay
-        // The next one says when (« dans 40 min », « en cours »), beside « Rejoindre »; the others their project.
-        let detail = isNext ? HomeModel.when(event, now: now) : projectName(event.projectID) ?? ""
+        let left = minutes(to: event, now: now)
+        let soon = left <= 15
+        let detail = [event.startAt.formatted(date: .omitted, time: .shortened), projectName(event.projectID)].compactMap { $0 }.joined(separator: " · ")
         return RowButton(action: { router.openEvent(event.id) }) {
-            HStack(alignment: .firstTextBaseline, spacing: Space.m) {
-                ColorDot(agenda.color(for: event.account), size: 8).alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
-                Text(event.allDay ? "Journée" : event.startAt.formatted(date: .omitted, time: .shortened))
-                    .font(.meta.monospacedDigit()).foregroundStyle(.secondary).frame(width: 52, alignment: .leading)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(event.title).font(.rowTitle.weight(isNext ? .medium : .regular)).foregroundStyle(.primary).lineLimit(1)
-                    if !detail.isEmpty { Text(detail).font(.meta).foregroundStyle(.secondary).lineLimit(1) }
+            HStack(alignment: .center, spacing: Space.m) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(event.title).font(.title3.weight(.semibold)).foregroundStyle(.primary).lineLimit(2)
+                    HStack(spacing: Space.xs) {
+                        Text(HomeModel.when(event, now: now)).foregroundStyle(soon ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
+                            .fontWeight(soon ? .semibold : .regular)
+                        Text("· \(detail)").foregroundStyle(.secondary)
+                    }
+                    .font(.meta.monospacedDigit())
+                    .lineLimit(1)
                 }
                 Spacer(minLength: 0)
-                // Room for « Rejoindre », laid over the row so that its highlight runs to the end.
-                if joinable { Color.clear.frame(width: isNext ? Self.joinWidth : Self.iconWidth, height: 1) }
+                if joinable { Color.clear.frame(width: 108, height: 1) }
             }
+            .padding(.vertical, Space.xs)
         }
         .overlay(alignment: .trailing) {
             if joinable {
-                if isNext {
+                if left <= 10 {
                     Button { agenda.join(event) } label: { Label("Rejoindre", systemImage: "video.fill") }
                         .buttonStyle(.glassProminent)
-                        .tint(agenda.color(for: event.account))
                         .controlSize(.small)
                         .help("Ouvre le Meet dans Dia avec le compte \(event.account)")
                 } else {
-                    IconButton("video.fill", help: "Rejoindre avec \(event.account)") { agenda.join(event) }
+                    Button { agenda.join(event) } label: { Label("Rejoindre", systemImage: "video") }
+                        .buttonStyle(.subtle)
+                        .help("Ouvre le Meet dans Dia avec le compte \(event.account)")
                 }
             }
+        }
+    }
+
+    /// Another meeting of the day, on one line: its hour in a column, its title, its project.
+    private func row(_ event: CalendarEventRow, now: Date) -> some View {
+        let joinable = event.meetCode != nil && !event.allDay
+        return RowButton(action: { router.openEvent(event.id) }) {
+            HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+                Text(event.allDay ? "Journée" : event.startAt.formatted(date: .omitted, time: .shortened))
+                    .font(.meta.monospacedDigit()).foregroundStyle(.secondary).frame(width: 44, alignment: .leading)
+                Text(event.title).font(.rowBody).foregroundStyle(.primary).lineLimit(1)
+                Spacer(minLength: Space.s)
+                if let project = projectName(event.projectID) { Text(project).font(.meta).foregroundStyle(.secondary).lineLimit(1) }
+                if joinable { Color.clear.frame(width: 28, height: 1) }
+            }
+        }
+        .overlay(alignment: .trailing) {
+            if joinable { IconButton("video", help: "Rejoindre avec \(event.account)") { agenda.join(event) } }
         }
     }
 
@@ -74,7 +99,6 @@ struct TodayCard: View {
     private func upcoming(_ event: CalendarEventRow, now: Date) -> some View {
         RowButton(action: { router.openEvent(event.id) }) {
             HStack(alignment: .firstTextBaseline, spacing: Space.m) {
-                ColorDot(agenda.color(for: event.account), size: 8).alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
                 VStack(alignment: .leading, spacing: 1) {
                     Text(event.title).font(.rowTitle).foregroundStyle(.primary).lineLimit(1)
                     Text([HomeModel.dayLabel(event.startAt, now: now, calendar: calendar), projectName(event.projectID)].compactMap { $0 }.joined(separator: " · "))

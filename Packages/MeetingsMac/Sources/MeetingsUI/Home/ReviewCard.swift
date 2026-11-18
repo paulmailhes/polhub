@@ -34,6 +34,16 @@ enum ReviewText {
         }
     }
 
+    /// Late: past twice its threshold (the Accueil's pass, 18/11); its age is then said in the accent.
+    static func late(_ line: ReviewRules.Line, thresholds: ReviewRules.Thresholds) -> Bool {
+        guard let days = line.days else { return false }
+        switch line.kind {
+        case .reply: return days > 2 * thresholds.replyDays
+        case .silent: return days > 2 * thresholds.silentDays
+        case .draft, .unfiled: return false
+        }
+    }
+
     static func days(_ count: Int) -> String {
         count <= 0 ? "aujourd'hui" : count == 1 ? "1 jour" : "\(count) jours"
     }
@@ -70,23 +80,29 @@ enum ReviewText {
     }
 }
 
-/// « À valider » (18/11): what waits for Paul's click, one sentence and one button by line. A line leaves by
-/// itself once the thing is done.
+/// « À valider » (the Accueil's pass, 18/11): what waits for Paul's click — the face of the person, one sentence, one
+/// quiet action always at the same edge, the « … » under the pointer; the age in the accent once late. A line leaves
+/// by itself once the thing is done.
 struct ReviewCard: View {
     @ObservedObject var colin: ColinLibrary
     @ObservedObject var agenda: AgendaLibrary
     let mails: MailLibrary?
     @ObservedObject var router: WindowRouter
+    var thresholds = ReviewRules.Thresholds()
+    var limit = 5
+    @State private var hovered: String?
 
     /// The room kept at the end of a line for its button, and for its menu.
-    private static let actionWidth: CGFloat = 66
-    private static let menuWidth: CGFloat = 32
+    private static let actionWidth: CGFloat = 70
+    private static let menuWidth: CGFloat = 28
 
     var body: some View {
-        Card {
-            SectionTitle("À valider", count: colin.review.isEmpty ? nil : colin.review.count)
-            if colin.review.isEmpty { EmptyLine("Rien n'attend ton clic.") }
-            ShowMoreList(colin.review, limit: 5) { line in row(line) }
+        VStack(alignment: .leading, spacing: Space.s) {
+            HomeSectionHeader(title: "À valider", count: colin.review.isEmpty ? nil : colin.review.count)
+            if colin.review.isEmpty {
+                Label("Rien à valider.", systemImage: "checkmark.circle").font(.rowBody).foregroundStyle(.secondary)
+            }
+            ShowMoreList(colin.review, limit: limit) { line in row(line) }
         }
         .animation(Motion.standard, value: colin.review)
     }
@@ -95,32 +111,60 @@ struct ReviewCard: View {
         let dismissals = ReviewText.dismissals(line)
         return RowButton(action: { open(line) }) {
             HStack(alignment: .center, spacing: Space.m) {
-                Image(systemName: ReviewText.symbol(line.kind))
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(line.kind == .draft ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
-                    .frame(width: 20)
+                face(line)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(ReviewText.title(line)).font(.rowTitle).foregroundStyle(.primary).lineLimit(1)
-                    if let detail = ReviewText.detail(line) { Text(detail).font(.meta).foregroundStyle(.secondary).lineLimit(1) }
+                    title(line).font(.rowBody).foregroundStyle(.primary).lineLimit(1)
+                    if let detail = ReviewText.detail(line) {
+                        Text(detail).font(.meta)
+                            .foregroundStyle(ReviewText.late(line, thresholds: thresholds) ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
+                            .lineLimit(1)
+                    }
                 }
                 Spacer(minLength: 0)
                 // Room for the line's button and its menu, laid over the row so that its highlight runs to the end.
-                Color.clear.frame(width: Self.actionWidth + (dismissals.isEmpty ? 0 : Self.menuWidth), height: 1)
+                Color.clear.frame(width: Self.actionWidth + Self.menuWidth, height: 1)
             }
         }
         .overlay(alignment: .trailing) {
-            HStack(spacing: 0) {
+            HStack(spacing: Space.xs) {
                 action(line)
-                if !dismissals.isEmpty {
-                    IconMenu("ellipsis", help: "Écarter cette ligne") {
-                        ForEach(dismissals) { way in
-                            Button(way.title) { colin.dismiss(line, reason: way.reason) }
+                ZStack {
+                    if !dismissals.isEmpty {
+                        IconMenu("ellipsis", help: "Écarter cette ligne") {
+                            ForEach(dismissals) { way in
+                                Button(way.title) { colin.dismiss(line, reason: way.reason) }
+                            }
                         }
+                        .opacity(hovered == line.id ? 1 : 0)
                     }
                 }
+                .frame(width: Self.menuWidth)
             }
         }
+        .onHover { inside in hovered = inside ? line.id : (hovered == line.id ? nil : hovered) }
         .help(ReviewText.title(line))
+    }
+
+    /// The person's name in bold, the rest in regular.
+    private func title(_ line: ReviewRules.Line) -> Text {
+        let said = ReviewText.title(line)
+        guard !line.person.isEmpty, let range = said.range(of: line.person) else { return Text(said) }
+        return Text("\(Text(said[..<range.lowerBound]))\(Text(line.person).fontWeight(.semibold))\(Text(said[range.upperBound...]))")
+    }
+
+    /// The face of the person, in the project's color; a meeting to file, its tray.
+    @ViewBuilder
+    private func face(_ line: ReviewRules.Line) -> some View {
+        if line.kind == .unfiled || line.person.isEmpty {
+            Image(systemName: ReviewText.symbol(line.kind))
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 28, height: 28)
+                .background(Surface.fill, in: Circle())
+        } else {
+            let project = line.projectID.flatMap { id in agenda.projects.first { $0.id == id } }
+            PersonAvatar(initials: PeopleIndex.initials(name: line.person, email: line.person), tint: project.map { PeopleStyle.color(of: $0) } ?? .secondary)
+        }
     }
 
     /// « Relire », « Ouvrir »: the same as a click on the line. « Ranger »: the projects, and « Aucun ».
@@ -134,17 +178,15 @@ struct ReviewCard: View {
                 Divider()
                 Button("Aucun") { Task { await colin.file(line, projectID: nil) } }
             } label: {
-                // Drawn as the other lines' word (`TextButton`).
-                Text(ReviewText.action(line.kind)).font(.meta.weight(.medium)).foregroundStyle(Color.accentColor)
-                    .padding(.horizontal, Space.s).padding(.vertical, 3)
+                Text(ReviewText.action(line.kind))
             }
             .menuStyle(.button)
-            .buttonStyle(.hover(.capsule))
+            .buttonStyle(.subtle)
             .menuIndicator(.hidden)
             .fixedSize()
             .help("Ranger cette réunion dans un projet")
         } else {
-            TextButton(ReviewText.action(line.kind)) { open(line) }
+            Button(ReviewText.action(line.kind)) { open(line) }.buttonStyle(.subtle)
         }
     }
 

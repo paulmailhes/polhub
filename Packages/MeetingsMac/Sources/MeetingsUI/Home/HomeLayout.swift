@@ -9,7 +9,7 @@ enum HomeLayout: Equatable {
     /// Two columns from this width of the page's content: the threshold of a project's page.
     static let breakpoint: CGFloat = 760
     /// The lists' column: « À valider », « Aujourd'hui ».
-    static let listsWidth: CGFloat = 360
+    static let listsWidth: CGFloat = 380
 
     static func of(width: CGFloat) -> HomeLayout {
         width >= breakpoint ? .columns : .stacked

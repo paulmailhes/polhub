@@ -140,7 +140,7 @@ struct HomeScreenTests {
         }
 
         // « Voir »: what moved without Paul, each with « Annuler ».
-        try await LiveWindow.capture(ChangesSheet(colin: colin).background(Color(nsColor: .windowBackgroundColor)),
+        try await LiveWindow.capture(ChangesSheet(colin: colin, router: router).background(Color(nsColor: .windowBackgroundColor)),
                                      to: output.appending(path: "accueil-point-voir.png"), size: NSSize(width: 620, height: 420))
 
         // « Relire » : the answer to Claire opens under her thread, over the Accueil.

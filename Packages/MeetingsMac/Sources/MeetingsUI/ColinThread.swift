@@ -298,7 +298,7 @@ public final class ColinThread: ObservableObject {
             if var row = answer {
                 row.text = streaming
                 row.state = .failed
-                row.steps = Self.ended(liveSteps)
+                row.steps = Self.ended(liveSteps, failed: true)
                 try? store.update(row)
             }
             answer = nil
@@ -440,11 +440,12 @@ public final class ColinThread: ObservableObject {
         visible = ""
     }
 
-    /// Steps of an answer that stopped: none stays « under way ».
-    nonisolated static func ended(_ steps: [ColinStep]) -> [ColinStep] {
+    /// Steps of an answer that ended early: none stays « under way » — stopped (by Paul, a call, the sleep), they end;
+    /// failed (Claude Code), they failed.
+    nonisolated static func ended(_ steps: [ColinStep], failed: Bool = false) -> [ColinStep] {
         steps.map { step in
             var step = step
-            if step.state == .running { step.state = .failed }
+            if step.state == .running { step.state = failed ? .failed : .done }
             return step
         }
     }

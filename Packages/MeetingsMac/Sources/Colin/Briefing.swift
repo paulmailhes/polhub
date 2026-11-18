@@ -45,6 +45,54 @@ public enum Briefing {
         }
     }
 
+    // MARK: - In figures (the Accueil's pass, 18/11)
+
+    /// A figure of « Le point ».
+    public enum Tile: String, Sendable, CaseIterable {
+        case meetings, due, yours
+    }
+
+    public struct Figure: Equatable, Sendable {
+        public var tile: Tile
+        public var count: Int
+
+        public init(tile: Tile, count: Int) {
+            self.tile = tile
+            self.count = count
+        }
+    }
+
+    /// « Le point » in figures: those that are not nothing, and the names behind them.
+    public struct Figures: Equatable, Sendable {
+        public var tiles: [Figure]
+        public var due: [String]
+        public var yours: [String]
+    }
+
+    public static func figures(week: (count: Int, next: CalendarEventRow?), due: [ProjectRow], yours: [ProjectRow]) -> Figures {
+        let tiles = [Figure(tile: .meetings, count: week.count), Figure(tile: .due, count: due.count), Figure(tile: .yours, count: yours.count)]
+            .filter { $0.count > 0 }
+        return Figures(tiles: tiles, due: due.map(\.name), yours: yours.map(\.name))
+    }
+
+    /// Under a figure: « rendez-vous », « à livrer », « à toi ».
+    public static func label(_ tile: Tile, count: Int) -> String {
+        switch tile {
+        case .meetings: "rendez-vous"
+        case .due: "à livrer"
+        case .yours: "à toi"
+        }
+    }
+
+    /// A figure clicked: its question, in Colin's bar.
+    public static func question(for tile: Tile) -> String {
+        switch tile {
+        case .meetings: "Quels sont mes rendez-vous cette semaine ?"
+        case .due: "Qu'est-ce qui est à livrer ?"
+        case .yours: "Où en sont les projets où c'est à moi de jouer ?"
+        }
+    }
+
     /// How many projects moved without Paul (step 3, 18/11): by Colin or by an agent, and not undone.
     public static func moved(_ lines: [ProjectChangeLine]) -> Int {
         Set(lines.filter { $0.who != .paul && $0.undoneAt == nil }.map(\.projectID)).count

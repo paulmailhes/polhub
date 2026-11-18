@@ -9,7 +9,7 @@ import Testing
 /// window is narrow.
 @Suite struct HomeLayoutTests {
     @Test func twoColumnsFromTheBreakpoint() {
-        #expect(HomeLayout.breakpoint == 760 && HomeLayout.listsWidth == 360)
+        #expect(HomeLayout.breakpoint == 760 && HomeLayout.listsWidth == 380)
         #expect(HomeLayout.of(width: 760) == .columns)
         #expect(HomeLayout.of(width: 759) == .stacked)
         #expect(HomeLayout.of(width: 1_400) == .columns)
@@ -47,6 +47,16 @@ import Testing
         #expect(ReviewText.detail(line(.draft, "Claire")) == nil)
         // A meeting to file is named on its second line.
         #expect(ReviewText.detail(line(.unfiled, "Point Cabinet Martin")) == "Point Cabinet Martin")
+    }
+
+    /// The Accueil's pass (18/11): a line is late past twice its threshold; its age is then in the accent.
+    @Test func lateIsTwiceTheThreshold() {
+        let thresholds = ReviewRules.Thresholds(replyDays: 3, silentDays: 7)
+        #expect(!ReviewText.late(line(.reply, "Marc", days: 6), thresholds: thresholds))
+        #expect(ReviewText.late(line(.reply, "Marc", days: 7), thresholds: thresholds))
+        #expect(!ReviewText.late(line(.silent, "Anne", days: 14), thresholds: thresholds))
+        #expect(ReviewText.late(line(.silent, "Anne", days: 15), thresholds: thresholds))
+        #expect(!ReviewText.late(line(.draft, "Claire", days: 40), thresholds: thresholds))
     }
 
     @Test func eachLineHasItsButton() {

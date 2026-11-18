@@ -19,6 +19,10 @@ public final class ColinLibrary: ObservableObject {
     @Published public private(set) var briefing: [String] = []
     /// When « Le point » was prepared: at a return of Paul's, or when Polhub opened.
     @Published public private(set) var briefingAt: Date?
+    /// « Le point » in figures (the Accueil's pass, 18/11).
+    @Published public private(set) var briefingFigures: Briefing.Figures?
+    /// The threads where a client wrote since Paul last came: behind « Voir », with what moved.
+    @Published public private(set) var briefingMails: [MailThreadRow] = []
     /// What moved without Paul since he last came (step 3, 18/11): behind « Voir », each with « Annuler ».
     @Published public private(set) var briefingChanges: [ProjectChangeLine] = []
     /// What « Annuler » did there, by line.
@@ -250,6 +254,8 @@ public final class ColinLibrary: ObservableObject {
         if let point = outcome.point, let asked, wanted?.at == asked.at {
             if point != briefing { briefing = point }
             if outcome.moved != briefingChanges { briefingChanges = outcome.moved }
+            if outcome.figures != briefingFigures { briefingFigures = outcome.figures }
+            if outcome.clientThreads.map(\.id) != briefingMails.map(\.id) { briefingMails = outcome.clientThreads }
             if briefingAt != asked.at { briefingAt = asked.at }
             // Prepared on copies read again, with nothing written meanwhile: closed, it no longer moves.
             if copiesRead, !staleMails, !staleBase { wanted = nil }
@@ -356,6 +362,9 @@ public final class ColinLibrary: ObservableObject {
         changeOutcomes[line.id] = (try? ProjectChanges(agenda.database).undo(line, at: now())) ?? .changedSince
     }
 
+    /// The thresholds of « À valider », as Réglages › Colin has them now.
+    public var thresholds: ReviewRules.Thresholds { Self.thresholds(defaults) }
+
     /// Colin on, and keeping the kanban.
     private static func keepsKanban(_ defaults: UserDefaults) -> Bool {
         defaults.bool(forKey: Preferences.Key.colinOn) && defaults.bool(forKey: Preferences.Key.colinKanban)
@@ -455,6 +464,8 @@ public final class ColinLibrary: ObservableObject {
             var kanban: [KanbanEdit] = []
             /// What moved without Paul since « Le point »'s since.
             var moved: [ProjectChangeLine] = []
+            var figures: Briefing.Figures?
+            var clientThreads: [MailThreadRow] = []
         }
 
         var database: AppDatabase
@@ -484,7 +495,12 @@ public final class ColinLibrary: ObservableObject {
             } ?? []
             return Outcome(mails: mails, base: base, lines: lines(mails, base),
                            point: point.map { sentences(mails, base, since: $0.since, moved: Briefing.moved(moved)) },
-                           kanban: kanbanSince.map { kanban(mails, base, since: $0) } ?? [], moved: moved)
+                           kanban: kanbanSince.map { kanban(mails, base, since: $0) } ?? [], moved: moved,
+                           figures: point.map { _ in
+                               Briefing.figures(week: Briefing.week(base.events, now: now, calendar: calendar), due: Briefing.due(base.projects, now: now, calendar: calendar),
+                                                yours: Briefing.yours(base.projects))
+                           },
+                           clientThreads: point.flatMap(\.since).map { clientThreads(mails, since: $0) } ?? [])
         }
 
         /// What the two rules of the kanban change: after Paul's mails in a thread of a project, after a meeting
@@ -547,6 +563,15 @@ public final class ColinLibrary: ObservableObject {
                                                      exchanges: exchanges, events: base.events, finished: finished, hiddenAccounts: hiddenAccounts,
                                                      dismissed: base.dismissed, now: now, thresholds: thresholds, calendar: calendar)
             return ReviewRules.ordered([drafts, replies, silent, unfiled])
+        }
+
+        /// The threads of clients since Paul's last visit, one by conversation, the newest first.
+        private func clientThreads(_ mails: MailInputs, since: Date) -> [MailThreadRow] {
+            guard withMails else { return [] }
+            var seen: Set<String> = []
+            return Briefing.clientMails(mails.threads.filter { !hiddenAccounts.contains($0.account) }, rules: rules, since: since)
+                .sorted { ($0.lastReceivedAt ?? .distantPast) > ($1.lastReceivedAt ?? .distantPast) }
+                .filter { seen.insert(mails.conversations[$0.id] ?? $0.id).inserted }
         }
 
         /// « Le point ». A client's mail delivered to two of Paul's mailboxes counts once.

@@ -3,10 +3,12 @@ import Persistence
 import PolhubDesign
 import SwiftUI
 
-/// Behind « Voir » in « Le point » (step 3, 18/11): what moved without Paul since he last came — by Colin or by an
-/// agent — the newest first, each with who made it, when, and « Annuler ». Its title is the point's own sentence.
+/// Behind « Voir » in « Le point » (step 3, 18/11; the Accueil's pass, 18/11): what came since Paul last came — the
+/// threads where a client wrote, with « Ouvrir », then what moved without him, by Colin or by an agent, each with who
+/// made it, when, and « Annuler ». Its title is the point's own sentence.
 struct ChangesSheet: View {
     @ObservedObject var colin: ColinLibrary
+    @ObservedObject var router: WindowRouter
     var calendar: Calendar = CalendarView.calendar
     @Environment(\.dismiss) private var dismiss
 
@@ -20,6 +22,21 @@ struct ChangesSheet: View {
             Text(verbatim: title).font(.headline)
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.m) {
+                    ForEach(colin.briefingMails) { thread in
+                        HStack(spacing: Space.m) {
+                            Image(systemName: "envelope").foregroundStyle(.secondary).frame(width: 16)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(thread.subject.isEmpty ? "(sans objet)" : thread.subject).font(.rowBody).lineLimit(1)
+                                Text(thread.senders.last.map { $0.name ?? $0.email } ?? "").font(.meta).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                            Spacer(minLength: Space.s)
+                            Button("Ouvrir") {
+                                router.homeMail = thread.id
+                                dismiss()
+                            }
+                            .buttonStyle(.subtle)
+                        }
+                    }
                     ForEach(colin.briefingChanges.reversed()) { line in
                         ChangeCard(line: line, outcome: colin.changeOutcomes[line.id], calendar: calendar,
                                    byline: ChangeText.byline(line, now: Date(), calendar: calendar)) { colin.undo(line) }

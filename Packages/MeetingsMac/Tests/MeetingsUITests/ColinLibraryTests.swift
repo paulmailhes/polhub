@@ -653,6 +653,9 @@ import Testing
         try await waitUntil { world.colin.briefingAt == back }
         #expect(world.colin.briefing == ["Cette semaine : aucun rendez-vous.", "À livrer : Cabinet Martin vendredi.", "À toi de jouer : Cabinet Martin.",
                                          "Depuis 10:20 : 1 mail de client."])
+        // The Accueil's pass (18/11): the point in figures too, and the threads of clients behind « Voir ».
+        #expect(world.colin.briefingFigures?.due == ["Cabinet Martin"] && world.colin.briefingFigures?.yours == ["Cabinet Martin"])
+        #expect(world.colin.briefingMails.map(\.id) == [key("b")])
     }
 
     /// Paul is back before the mailboxes were read again (the Mac just woke, Polhub just opened): what they bring a

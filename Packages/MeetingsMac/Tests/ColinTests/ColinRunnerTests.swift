@@ -221,7 +221,7 @@ import Testing
         #expect(await !runner.fresh)
     }
 
-    /// A turn stopped while a tool runs: nothing stays « en cours ».
+    /// A turn stopped while a tool runs: nothing stays « en cours »; stopped by Paul is not a failure.
     @Test func aTurnEndsItsSteps() async throws {
         let launcher = FakeLauncher { _, _ in
             Self.session({ _, _ in [.initialized(Self.good), .textDelta("Je "), .toolStarted(id: "t9", name: "mcp__polhub__mails")] }, onInterrupt: { id in
@@ -234,7 +234,7 @@ import Testing
         try await waitUntil { seen.events.contains { if case .step = $0 { true } else { false } } }
         await runner.interrupt()
         try await waitUntil { seen.answers.count == 1 }
-        #expect(seen.answers.first?.steps.map(\.state) == [.failed])
+        #expect(seen.answers.first?.steps.map(\.state) == [.done])
         #expect(seen.answers.first?.durationMs == nil)
     }
 
