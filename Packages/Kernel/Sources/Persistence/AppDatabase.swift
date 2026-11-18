@@ -540,7 +540,54 @@ public final class AppDatabase: Sendable {
                 t.add(column: "agentVersionAt", .datetime)
             }
         }
+        // Colin's Accueil (18/11): each thread keeps who spoke last, and Polhub keeps the lines Paul sets aside.
+        // A helper of before reads a base of after: two columns it does not know, and a table it never opens.
+        migrator.registerMigration("v16") { db in
+            try db.alter(table: "mail_thread") { t in
+                t.add(column: "lastReceivedAt", .datetime)
+                t.add(column: "lastSentAt", .datetime)
+            }
+            try db.create(table: "colin_dismissal") { t in
+                t.primaryKey("id", .text)
+                t.column("kind", .text).notNull()
+                t.column("subject", .text).notNull()
+                t.column("reason", .text).notNull()
+                t.column("projectID", .text)
+                t.column("createdAt", .datetime).notNull()
+            }
+            // The threads already there get their turn in one pass. Whatever would make that pass fail must never
+            // keep Paul's base shut: the turns then stay empty, and fill as the threads change.
+            try? db.inSavepoint {
+                try MailTurnBackfill.run(db)
+                return .commit
+            }
+        }
         return migrator
+    }
+}
+
+/// The turn of every thread, counted from its messages in one pass (migration `v16`). Raw columns only, and its
+/// own copy of the rule: a migration must keep doing what it did, whatever the records become.
+enum MailTurnBackfill {
+    /// A message of Paul's: marked as sent, or written from one of his accounts. A sender that is missing, or not
+    /// what it should be, is not his.
+    private static let isMine = """
+        (message.labels LIKE '%"SENT"%' OR COALESCE(
+            lower(json_extract(CASE WHEN json_valid(message.sender) THEN message.sender END, '$.email')) IN (SELECT lower(email) FROM google_account), 0))
+        """
+    /// Not in the trash, not in the spam, not a draft.
+    private static let counts = """
+        message.labels NOT LIKE '%"TRASH"%' AND message.labels NOT LIKE '%"SPAM"%' AND message.labels NOT LIKE '%"DRAFT"%'
+        """
+
+    static func run(_ db: Database) throws {
+        try db.execute(sql: """
+            UPDATE mail_thread SET
+                lastSentAt = (SELECT MAX(message.date) FROM mail_message AS message
+                              WHERE message.threadKey = mail_thread.id AND \(counts) AND \(isMine)),
+                lastReceivedAt = (SELECT MAX(message.date) FROM mail_message AS message
+                                  WHERE message.threadKey = mail_thread.id AND \(counts) AND NOT \(isMine))
+            """)
     }
 }
 

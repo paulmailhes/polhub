@@ -91,7 +91,7 @@ public struct MailStore: Sendable {
     /// Threads recomputed from their messages; a thread without any message goes.
     private func refresh(_ db: Database, threads: Set<String>) throws {
         guard !threads.isEmpty else { return }
-        let mine = try String.fetchSet(db, sql: "SELECT email FROM google_account")
+        let mine = Set(try String.fetchAll(db, sql: "SELECT email FROM google_account").map { $0.lowercased() })
         for key in threads {
             let messages = try MailMessageRow.filter(Column("threadKey") == key).fetchAll(db)
             guard let first = messages.first,
@@ -144,6 +144,49 @@ public struct MailStore: Sendable {
             if let accounts { request = request.filter(accounts.map { $0.lowercased() }.contains(Column("account"))) }
             return try request.order(Column("lastMessageAt").desc).limit(limit).fetchAll(db)
         }
+    }
+
+    // MARK: - Who spoke last (18/11)
+
+    /// A message of Paul's, said in SQL as `MailMessageRow.isMine` says it: marked as sent, or written from one of
+    /// his accounts. A sender that is missing, or not what it should be, is not his.
+    private static let isMineSQL = """
+        (message.labels LIKE '%"SENT"%' OR COALESCE(
+            lower(json_extract(CASE WHEN json_valid(message.sender) THEN message.sender END, '$.email')) IN (SELECT lower(email) FROM google_account), 0))
+        """
+
+    /// The turn of every thread as it stood at `asOf`: the messages dated after it do not count, nor what is in the
+    /// trash, in the spam, or a draft. Counted from the messages in one pass: the threads' own columns say today.
+    public func turns(asOf: Date) throws -> [String: MailTurn] {
+        try writer.read { db in
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT message.threadKey AS threadKey,
+                    MAX(CASE WHEN \(Self.isMineSQL) THEN message.date END) AS lastSentAt,
+                    MAX(CASE WHEN NOT \(Self.isMineSQL) THEN message.date END) AS lastReceivedAt
+                FROM mail_message AS message
+                WHERE message.labels NOT LIKE '%"TRASH"%' AND message.labels NOT LIKE '%"SPAM"%' AND message.labels NOT LIKE '%"DRAFT"%'
+                    AND message.date <= ?
+                GROUP BY message.threadKey
+                """, arguments: [asOf])
+            return Dictionary(uniqueKeysWithValues: rows.map { row in
+                (row["threadKey"] as String, MailTurn(lastReceivedAt: row["lastReceivedAt"], lastSentAt: row["lastSentAt"]))
+            })
+        }
+    }
+
+    /// Calls `onChange` on the main queue with the threads shown whose last message, received or sent, is after
+    /// `since`: now, and after every change.
+    public func observeTurns(since: Date, onChange: @escaping @MainActor @Sendable ([MailThreadRow]) -> Void) -> AnyDatabaseCancellable {
+        ValueObservation
+            .tracking { db in
+                try MailThreadRow
+                    .filter(Column("hidden") == false && (Column("lastReceivedAt") > since || Column("lastSentAt") > since))
+                    .order(Column("lastMessageAt").desc)
+                    .fetchAll(db)
+            }
+            .start(in: writer, scheduling: .async(onQueue: .main), onError: { _ in }, onChange: { rows in
+                MainActor.assumeIsolated { onChange(rows) }
+            })
     }
 
     /// The files of these threads, as the list shows them under each line: once each, without the images the

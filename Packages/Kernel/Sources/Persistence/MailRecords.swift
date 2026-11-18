@@ -108,9 +108,39 @@ public struct MailMessageRow: Codable, Equatable, Identifiable, Sendable, Fetcha
 
     /// In the trash, in the spam or a draft: kept, but out of what the list shows.
     public var isAside: Bool { labels.contains("TRASH") || labels.contains("SPAM") || labels.contains("DRAFT") }
+
+    /// Of Paul: it carries `SENT`, or its sender is one of his accounts (`mine`, in small letters).
+    public static func isMine(labels: [String], sender: String?, mine: Set<String>) -> Bool {
+        labels.contains("SENT") || sender.map { mine.contains($0.lowercased()) } == true
+    }
     public var isUnread: Bool { labels.contains("UNREAD") }
     /// The files to show under the message: not the images the HTML already shows.
     public var files: [MailAttachment] { attachments.filter { !$0.inline } }
+}
+
+/// Who spoke last in a thread (18/11): the last message received, and the last one of Paul's. What is in the
+/// trash, in the spam, or a draft does not count.
+public struct MailTurn: Equatable, Sendable {
+    public var lastReceivedAt: Date?
+    public var lastSentAt: Date?
+
+    public init(lastReceivedAt: Date? = nil, lastSentAt: Date? = nil) {
+        self.lastReceivedAt = lastReceivedAt
+        self.lastSentAt = lastSentAt
+    }
+
+    /// `mine` holds Paul's own addresses, in small letters.
+    public static func of(_ messages: [MailMessageRow], mine: Set<String>) -> MailTurn {
+        var turn = MailTurn()
+        for message in messages where !message.isAside {
+            if MailMessageRow.isMine(labels: message.labels, sender: message.sender?.email, mine: mine) {
+                turn.lastSentAt = max(turn.lastSentAt ?? message.date, message.date)
+            } else {
+                turn.lastReceivedAt = max(turn.lastReceivedAt ?? message.date, message.date)
+            }
+        }
+        return turn
+    }
 }
 
 /// One thread of one mailbox: what the list shows, recomputed from its messages at each change.
@@ -138,6 +168,10 @@ public struct MailThreadRow: Codable, Equatable, Identifiable, Sendable, Fetchab
     /// The address of the last message Paul did not write.
     public var lastSender: String?
     public var paulWrote: Bool
+    /// Who spoke last (base v16): the last message received, the last one of Paul's. Empty on a base of before, and
+    /// for a thread whose every message is aside.
+    public var lastReceivedAt: Date? = nil
+    public var lastSentAt: Date? = nil
 
     public static func key(account: String, threadID: String) -> String { "\(account.lowercased())|\(threadID)" }
 
@@ -151,8 +185,9 @@ public struct MailThreadRow: Codable, Equatable, Identifiable, Sendable, Fetchab
         let shown = all.filter { !$0.isAside }
         let visible = shown.isEmpty ? all : shown
         func isMine(_ message: MailMessageRow) -> Bool {
-            message.labels.contains("SENT") || message.sender.map { mine.contains($0.email) } == true
+            MailMessageRow.isMine(labels: message.labels, sender: message.sender?.email, mine: mine)
         }
+        let turn = MailTurn.of(all, mine: mine)
         var senders: [MailAddress] = []
         for sender in visible.compactMap(\.sender) where !senders.contains(where: { $0.email == sender.email }) { senders.append(sender) }
         let received = visible.last { !isMine($0) }
@@ -163,7 +198,7 @@ public struct MailThreadRow: Codable, Equatable, Identifiable, Sendable, Fetchab
             lastMessageAt: visible.last?.date ?? first.date, messageCount: visible.count, unread: shown.contains(where: \.isUnread),
             inInbox: shown.contains { $0.labels.contains("INBOX") }, hidden: shown.isEmpty,
             hasAttachment: visible.contains { !$0.files.isEmpty }, category: category, lastSender: received?.sender?.email,
-            paulWrote: visible.contains(where: isMine)
+            paulWrote: visible.contains(where: isMine), lastReceivedAt: turn.lastReceivedAt, lastSentAt: turn.lastSentAt
         )
     }
 }

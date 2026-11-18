@@ -38,6 +38,108 @@ import Testing
         #expect(try mails.messages(threadKey: key).map(\.messageID) == ["m1", "m2", "m3"])
     }
 
+    // MARK: - Who spoke last (base v16, 18/11)
+
+    @Test func aReplyOfPaulMovesTheTurn() throws {
+        let mails = try store()
+        try mails.apply(account: account, upserts: [message("m1")])
+        var thread = try #require(try mails.thread(key))
+        #expect(thread.lastReceivedAt == now && thread.lastSentAt == nil)
+        try mails.apply(account: account, upserts: [message("m2", minutes: 5, from: account, labels: ["SENT"])])
+        thread = try #require(try mails.thread(key))
+        #expect(thread.lastReceivedAt == now)
+        #expect(thread.lastSentAt == now.addingTimeInterval(300))
+        // The client writes again: the turn comes back to Paul.
+        try mails.apply(account: account, upserts: [message("m3", minutes: 9)])
+        thread = try #require(try mails.thread(key))
+        #expect(thread.lastReceivedAt == now.addingTimeInterval(540) && thread.lastSentAt == now.addingTimeInterval(300))
+    }
+
+    @Test func aMessageOfPaulIsKnownByItsAddressToo() throws {
+        // Sent from elsewhere, without Gmail's own mark: his address is enough.
+        let mails = try store()
+        try mails.apply(account: account, upserts: [message("m1"), message("m2", minutes: 5, from: account, labels: ["INBOX"])])
+        let thread = try #require(try mails.thread(key))
+        #expect(thread.lastReceivedAt == now && thread.lastSentAt == now.addingTimeInterval(300))
+    }
+
+    @Test func aGmailDraftIsNoTurn() throws {
+        let mails = try store()
+        try mails.apply(account: account, upserts: [message("m1"), message("m2", minutes: 10, from: account, labels: ["DRAFT"])])
+        let thread = try #require(try mails.thread(key))
+        #expect(thread.lastReceivedAt == now && thread.lastSentAt == nil)
+    }
+
+    @Test func whatIsInTheTrashOrTheSpamIsNoTurn() throws {
+        let mails = try store()
+        try mails.apply(account: account, upserts: [
+            message("m1"),
+            message("m2", minutes: 5, labels: ["TRASH"]),
+            message("m3", minutes: 7, labels: ["SPAM"]),
+            message("m4", minutes: 8, from: account, labels: ["SENT", "TRASH"]),
+        ])
+        let thread = try #require(try mails.thread(key))
+        #expect(thread.lastReceivedAt == now && thread.lastSentAt == nil)
+        #expect(MailTurn.of(try mails.messages(threadKey: key, aside: true), mine: [account]) == MailTurn(lastReceivedAt: now, lastSentAt: nil))
+    }
+
+    @Test func theTurnsAsOfADateIgnoreWhatCameAfter() throws {
+        let mails = try store()
+        let day = 24.0 * 60
+        try mails.apply(account: account, upserts: [message("m1"), message("m2", minutes: 2 * day, from: account, labels: ["SENT"])])
+        #expect(try mails.turns(asOf: now.addingTimeInterval(86_400))[key] == MailTurn(lastReceivedAt: now, lastSentAt: nil))
+        #expect(try mails.turns(asOf: now.addingTimeInterval(3 * 86_400))[key]
+            == MailTurn(lastReceivedAt: now, lastSentAt: now.addingTimeInterval(2 * 86_400)))
+        // Before the first message, the thread has no turn at all.
+        #expect(try mails.turns(asOf: now.addingTimeInterval(-60))[key] == nil)
+    }
+
+    @Test func theTurnsOfTheBaseAreTheOnesOfTheThreads() throws {
+        // Counted by the base in one pass, or kept by each thread: the same answer, for every kind of message.
+        let mails = try store()
+        try mails.apply(account: account, upserts: [
+            message("a1", thread: "a"), message("a2", thread: "a", minutes: 5, from: account, labels: ["SENT"]),
+            message("b1", thread: "b", minutes: 1, from: account, labels: ["INBOX"]),
+            message("c1", thread: "c", minutes: 2), message("c2", thread: "c", minutes: 3, labels: ["TRASH"]),
+            message("c3", thread: "c", minutes: 4, from: account, labels: ["DRAFT"]),
+            message("d1", thread: "d", minutes: 6, from: "MOI@Exemple.fr", labels: ["INBOX"]),
+        ])
+        let turns = try mails.turns(asOf: .distantFuture)
+        let threads = try mails.allThreads()
+        #expect(threads.count == 4)
+        for thread in threads {
+            #expect(turns[thread.id] == MailTurn(lastReceivedAt: thread.lastReceivedAt, lastSentAt: thread.lastSentAt), "\(thread.threadID)")
+        }
+        #expect(turns[MailThreadRow.key(account: account, threadID: "d")] == MailTurn(lastReceivedAt: nil, lastSentAt: now.addingTimeInterval(360)))
+    }
+
+    @Test func theThreadsThatMovedSinceADateAreObserved() async throws {
+        let mails = try store()
+        let day = 24.0 * 60
+        try mails.apply(account: account, upserts: [
+            message("old1", thread: "ancien", minutes: -60 * day),
+            message("new1", thread: "recent", minutes: -2 * day),
+            message("mine1", thread: "relance", minutes: -80 * day), message("mine2", thread: "relance", minutes: -day, from: account, labels: ["SENT"]),
+        ])
+        let seen = Seen()
+        let observation = mails.observeTurns(since: now.addingTimeInterval(-45 * 86_400)) { rows in seen.set(rows.map(\.threadID).sorted()) }
+        for _ in 0..<200 where seen.value == nil { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(seen.value == ["recent", "relance"])
+        // A message arrives in the old thread: it is back among those that moved.
+        try mails.apply(account: account, upserts: [message("old2", thread: "ancien", minutes: 1)])
+        for _ in 0..<200 where seen.value?.count != 3 { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(seen.value == ["ancien", "recent", "relance"])
+        observation.cancel()
+    }
+
+    /// What an observation last gave, read from the test.
+    final class Seen: @unchecked Sendable {
+        private let lock = NSLock()
+        private var rows: [String]?
+        var value: [String]? { lock.withLock { rows } }
+        func set(_ rows: [String]) { lock.withLock { self.rows = rows } }
+    }
+
     /// Paul archives a thread; the client replies before Gmail has heard of the gesture. The reply stays in the
     /// inbox, and an older reading of Gmail's does not bring the archived message back.
     @Test func aGestureNamesItsMessagesAndSurvivesAnOlderReading() throws {
