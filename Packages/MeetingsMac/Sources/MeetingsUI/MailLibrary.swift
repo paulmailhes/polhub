@@ -282,6 +282,8 @@ public final class MailLibrary: ObservableObject {
     @Published public private(set) var correspondents: Set<String> = []
     /// What decides a thread's case and tab (step « Ranger »).
     @Published public private(set) var rules = MailFilingRules.empty
+    /// The rules were read in the base at least once: before, they are empty and say nothing.
+    private(set) var rulesRead = false
     /// The search field's text: from two letters, the list shows what the copy holds that answers (15/11).
     @Published public var query = "" {
         didSet { if query != oldValue { queryChanged() } }
@@ -370,6 +372,7 @@ public final class MailLibrary: ObservableObject {
                 Task { await self.takeAgentDrafts() }
             },
             store.observeFilingRules { [weak self] rules in
+                self?.rulesRead = true
                 self?.rules = rules
                 self?.correspondents = rules.correspondents
             },

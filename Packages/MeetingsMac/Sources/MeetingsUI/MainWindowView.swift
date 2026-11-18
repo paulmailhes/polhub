@@ -456,6 +456,8 @@ public struct MainWindowView<Diagnostic: View>: View {
     let projects: ProjectLibrary?
     let agenda: AgendaLibrary?
     let mails: MailLibrary?
+    /// What the Accueil knows (18/11), kept by the app whether the window shows or not.
+    let colin: ColinLibrary?
     let inspiration: InspirationLibrary?
     let updates: UpdateService?
     let notifications: NotificationHub?
@@ -466,7 +468,7 @@ public struct MainWindowView<Diagnostic: View>: View {
     @State private var columns: NavigationSplitViewVisibility = .all
 
     public init(
-        library: MeetingLibrary, projects: ProjectLibrary? = nil, agenda: AgendaLibrary? = nil, mails: MailLibrary? = nil,
+        library: MeetingLibrary, projects: ProjectLibrary? = nil, agenda: AgendaLibrary? = nil, mails: MailLibrary? = nil, colin: ColinLibrary? = nil,
         inspiration: InspirationLibrary? = nil, updates: UpdateService? = nil, notifications: NotificationHub? = nil,
         startup: StartupControl? = nil, router: WindowRouter, paths: AppPaths, @ViewBuilder diagnostic: () -> Diagnostic
     ) {
@@ -476,6 +478,7 @@ public struct MainWindowView<Diagnostic: View>: View {
         self.projects = projects
         self.agenda = agenda
         self.mails = mails
+        self.colin = colin
         self.inspiration = inspiration
         self.updates = updates
         self.router = router

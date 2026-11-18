@@ -61,6 +61,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     /// Calendars, contacts and the loop of 13/11.
     private var agenda: AgendaLibrary?
     private var mails: MailLibrary?
+    /// What the Accueil knows (18/11): « À valider » and « Le point », kept up to date window open or not.
+    private var colin: ColinLibrary?
+    private var presenceObserver: NSObjectProtocol?
     /// « Inspiration » (16/11): the sites, the branding and the mock-ups, and their collection.
     private var inspiration: InspirationLibrary?
     private var inspirationAutomation: InspirationAutomation?
@@ -389,6 +392,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let mails = MailLibrary(agenda: agenda, root: paths.root, schedules: .keychain)
         self.mails = mails
         mails.start()
+        // What waits for Paul's click and « Le point » (18/11): rules alone, no model, nothing leaves the Mac.
+        colin = ColinLibrary(agenda: agenda, mails: mails)
+        // Polhub comes back in front on the Accueil: Paul is there.
+        presenceObserver = NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.accueilMayBeSeen() }
+        }
         router.section = .home
         agendaTimer = Timer.scheduledTimer(withTimeInterval: 600, repeats: true) { _ in
             Task { @MainActor in await agenda.syncAll() }
@@ -567,9 +576,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                 MainActor.assumeIsolated { self?.colinProbe.macWillSleep() }
             },
             center.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.colinProbe.macWoke() }
+                MainActor.assumeIsolated {
+                    self?.colinProbe.macWoke()
+                    // The thresholds passed while the Mac slept; and Paul is back before the Accueil, if it shows.
+                    self?.colin?.refresh()
+                    self?.accueilMayBeSeen()
+                }
             },
         ]
+    }
+
+    /// The Accueil is before Paul: Polhub in front, its window shown, on the Accueil. « Le point » is prepared when
+    /// he is back (the first time of a day, or three hours later).
+    private func accueilMayBeSeen() {
+        guard NSApp.isActive, let window = mainWindow, window.isVisible, !window.isMiniaturized, router.section == .home else { return }
+        colin?.seen()
     }
 
     /// The app is going, by whatever way: the probe under way stops, and every Claude Code that Polhub launched
@@ -662,11 +683,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         }
         if mainWindow == nil {
             let diagnostic = diagnostic
-            let colin = colinProbe
-            let view = MainWindowView(library: library, projects: projects, agenda: agenda, mails: mails, inspiration: inspiration,
+            let probe = colinProbe
+            let view = MainWindowView(library: library, projects: projects, agenda: agenda, mails: mails, colin: colin, inspiration: inspiration,
                                       updates: updates, notifications: notifications, startup: startup, router: router, paths: paths) {
                 if let diagnostic {
-                    DiagnosticView(model: diagnostic, colin: colin) { [weak self] in self?.showProbeWindow() }
+                    DiagnosticView(model: diagnostic, colin: probe) { [weak self] in self?.showProbeWindow() }
                 }
             }
             // Every logo of a project reads it there; without it, initials (15/11).

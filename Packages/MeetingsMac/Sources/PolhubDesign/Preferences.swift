@@ -142,6 +142,11 @@ public struct Preferences: @unchecked Sendable {
         /// client who no longer answers.
         public static let colinReplyDays = "colin.reponseAttendue.jours"
         public static let colinSilentDays = "colin.clientMuet.jours"
+        /// When the Accueil was last before Paul, and since when (18/11): three dates.
+        public static let colinPresence = "colin.presence"
+        /// How long Paul was away from the Accueil, in minutes, from half an hour up, the last hundred: numbers
+        /// only, to set the threshold of a return.
+        public static let colinAbsences = "colin.presence.absences"
     }
 
     public enum Default {
