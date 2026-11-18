@@ -3,6 +3,20 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.31.3 — 18 novembre 2026
+
+**Polhub recompte les règles du nouvel Accueil, autrement.**
+
+- Rien ne change dans tes écrans.
+- Le premier relevé a montré que les deux règles sur tes mails parlaient beaucoup trop. Elles regardaient fil par fil,
+  alors que tu réponds le plus souvent par un nouveau mail, et que tes clients envoient leurs fichiers dans de nouveaux
+  fils.
+- Polhub refait donc le compte une fois, hors réunion, en regardant l'échange avec la personne : lui as-tu écrit depuis,
+  dans n'importe quel fil ? T'a-t-elle écrit depuis ? Il met à part les invitations d'agenda, et rejoue les règles sur
+  les sept dernières semaines pour voir lesquelles auraient eu raison.
+- Comme la première fois, il n'écrit que des nombres dans le dossier des mesures : aucun objet, aucune adresse, aucun
+  nom. Rien ne sort du Mac, et aucune IA n'est utilisée.
+
 ## 0.31.2 — 18 novembre 2026
 
 **Polhub prépare le nouvel Accueil : il retient qui a parlé en dernier dans chaque fil de mails.**

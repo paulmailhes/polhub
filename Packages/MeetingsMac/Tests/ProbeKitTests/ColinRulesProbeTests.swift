@@ -94,6 +94,81 @@ import Testing
         #expect(replies.numbers["sansSuiteHorsBoite"] == 1)
     }
 
+    /// Read by person: Paul answers in a new mail more often than in the thread. What would be left of the lines,
+    /// filter after filter, and the rule played again on the past weeks.
+    @Test func whoWasAnsweredElsewhereIsCountedApart() throws {
+        let (_, mails, _) = try base()
+        let anne = "anne@maison.exemple", luc = "luc@exemple.org", eve = "eve@exemple.org"
+        try mails.apply(account: Self.me, upserts: [
+            // Paul wrote to each of them long ago.
+            sent("z1", thread: "z1", to: Self.marc, daysAgo: 100, subject: "Bonjour"),
+            sent("z2", thread: "z2", to: Self.claire, daysAgo: 100, subject: "Bonjour"),
+            sent("z3", thread: "z3", to: anne, daysAgo: 100, subject: "Bonjour"),
+            sent("z4", thread: "z4", to: luc, daysAgo: 100, subject: "Bonjour"),
+            sent("z5", thread: "z5", to: eve, daysAgo: 100, subject: "Bonjour"),
+            // Marc wrote four days ago; Paul answered him two days ago, in a new thread.
+            received("a1", thread: "a", from: Self.marc, daysAgo: 4, subject: "Maquette"),
+            sent("n1", thread: "n", to: Self.marc, daysAgo: 2, subject: "Maquette : tes retours sont intégrés"),
+            // An invitation, from Claire's own address.
+            received("b1", thread: "b", from: Self.claire, daysAgo: 5, subject: "Invitation: Point - jeu. 19 nov."),
+            // Anne wrote six days ago, and nothing since: she waits.
+            received("c1", thread: "c", from: anne, daysAgo: 6, subject: "Plans"),
+            // Luc wrote twenty days ago; archived, never answered.
+            received("d1", thread: "d", from: luc, daysAgo: 20, subject: "Logo", labels: ["CATEGORY_PERSONAL"]),
+            // Eve wrote forty days ago; Paul answered her thirty days ago, in a new thread.
+            received("e1", thread: "e", from: eve, daysAgo: 40, subject: "Devis"),
+            sent("f1", thread: "f", to: eve, daysAgo: 30, subject: "Devis : la version corrigée"),
+        ])
+        let replies = try count(mails).replies
+        #expect(replies.numbers["aujourdhui"] == 5)
+        // Marc and Eve were answered elsewhere.
+        #expect(replies.numbers["ecritDepuis"] == 2 && replies.numbers["resteParPersonne"] == 3)
+        #expect(replies.numbers["agenda"] == 1 && replies.numbers["resteSansAgenda"] == 2)
+        // Anne (six days) and not Luc (twenty); Anne's is still in the inbox.
+        #expect(replies.numbers["reste14Jours"] == 1 && replies.numbers["reste14JoursDansLaBoite"] == 1 && replies.numbers["resteDansLaBoite"] == 1)
+        #expect(replies.numbers["aPlusieurs"] == 0 && replies.numbers["collegues"] == 0 && replies.numbers["resteHorsCollegues"] == 2)
+        #expect(replies.numbers["projetEcritDepuis"] == 0 && replies.numbers["resteParProjet"] == 2)
+        // Played again, week after week: Luc's line two weeks ago; Eve's from five to two weeks ago (four weeks).
+        #expect(replies.numbers["passe"] == 5)
+        // Five weeks ago Paul was about to answer Eve: that line was right.
+        #expect(replies.numbers["passeSuivies"] == 1)
+        // Read by person, Eve's line shows only until he answered her: five weeks ago; and Luc's.
+        #expect(replies.numbers["passeParPersonne"] == 2 && replies.numbers["passeParPersonneSuivies"] == 1)
+        #expect(replies.numbers["passeSansAgenda"] == 2 && replies.numbers["passe14Jours"] == 2 && replies.numbers["passe14JoursSuivies"] == 1)
+    }
+
+    /// A client who sent her files in a new thread is not silent; nor, by project, one whose colleague wrote.
+    @Test func aClientWhoWroteElsewhereIsCountedApart() throws {
+        let (database, mails, project) = try base()
+        let dan = "dan@cabinet.exemple", eva = "eva@cabinet.exemple", fay = "fay@cabinet.exemple"
+        let claire = try ContactStore(database).upsert(email: Self.claire, name: "Claire Morel", company: nil, at: ago(100))
+        try ContactStore(database).link(contactID: claire.id, projectID: project, origin: .paul, at: ago(100))
+        try mails.apply(account: Self.me, upserts: [
+            // Paul answered Claire ten days ago; she sent her files four days ago, in a new thread.
+            received("a1", thread: "a", from: Self.claire, daysAgo: 30, subject: "Plans"),
+            sent("a2", thread: "a", to: Self.claire, daysAgo: 10, subject: "Plans"),
+            received("n1", thread: "n", from: Self.claire, daysAgo: 4, subject: "Fichiers"),
+            // Paul answered Dan nine days ago, Eva eight days ago: neither wrote since.
+            received("b1", thread: "b", from: dan, daysAgo: 20, subject: "Logo"),
+            sent("b2", thread: "b", to: dan, daysAgo: 9, subject: "Logo"),
+            received("c1", thread: "c", from: eva, daysAgo: 15, subject: "Textes"),
+            sent("c2", thread: "c", to: eva, daysAgo: 8, subject: "Textes"),
+            // Fay: Paul answered forty days ago, she wrote again twenty days ago, in the thread.
+            received("d1", thread: "d", from: fay, daysAgo: 44, subject: "Photos"),
+            sent("d2", thread: "d", to: fay, daysAgo: 40, subject: "Photos"),
+            received("d3", thread: "d", from: fay, daysAgo: 20, subject: "Photos"),
+        ])
+        for thread in ["a", "b", "c", "d"] { try mails.file(threadKey: key(thread), as: .project(project), at: ago(50)) }
+        let silent = try count(mails).silent
+        #expect(silent.numbers["aujourdhui"] == 3)
+        // Claire wrote since, elsewhere; by project, her mail speaks for the three.
+        #expect(silent.numbers["ontEcritDepuis"] == 1 && silent.numbers["resteParPersonne"] == 2 && silent.numbers["resteParPersonne14Jours"] == 2)
+        #expect(silent.numbers["projetAEcritDepuis"] == 3 && silent.numbers["resteParProjet"] == 0)
+        // Played again: Fay was silent three and four weeks ago, and answered within two weeks each time.
+        #expect(silent.numbers["passe"] == 2 && silent.numbers["passeSuiviesReponse"] == 2 && silent.numbers["passeSuiviesRelance"] == nil)
+        #expect(silent.numbers["passeParPersonne"] == 2 && silent.numbers["passeParPersonneSuiviesReponse"] == 2)
+    }
+
     @Test func aSilentClientWhoAnsweredSinceIsCounted() throws {
         let (_, mails, project) = try base()
         try mails.apply(account: Self.me, upserts: [
@@ -292,6 +367,13 @@ import Testing
         let known: Set<String> = ["fils", "avecTour", "sansTour", "aujourdhui", "dansUnProjet", "de3a7Jours", "de8a14Jours", "de15a45Jours", "ilYA14Jours",
                                   "suiviesDUneReponse", "seuil2Jours", "seuil5Jours", "seuil7Jours", "copies", "lignesAvecCopie", "invitations", "ms",
                                   "dansLaBoite", "nonLus", "sansSuiteHorsBoite",
+                                  "ecritDepuis", "projetEcritDepuis", "agenda", "aPlusieurs", "collegues", "resteParPersonne", "resteSansAgenda",
+                                  "reste14Jours", "reste14JoursDansLaBoite", "resteDansLaBoite", "resteHorsCollegues", "resteParProjet",
+                                  "passe", "passeSuivies", "passeParPersonne", "passeParPersonneSuivies", "passeSansAgenda", "passeSansAgendaSuivies",
+                                  "passe14Jours", "passe14JoursSuivies", "passeParProjet", "passeParProjetSuivies",
+                                  "ontEcritDepuis", "projetAEcritDepuis", "resteParPersonne14Jours", "passeSuiviesReponse", "passeSuiviesRelance",
+                                  "passeParPersonneSuiviesReponse", "passeParPersonneSuiviesRelance", "passeParProjetSuiviesReponse",
+                                  "passeParProjetSuiviesRelance",
                                   "de7a14Jours", "suivisDUneReponse", "suivisDUneRelance", "seuil10Jours", "seuil14Jours", "commencesParPaul"]
         for measure in measures {
             #expect(measure.labels.isEmpty, "\(measure.step)")
