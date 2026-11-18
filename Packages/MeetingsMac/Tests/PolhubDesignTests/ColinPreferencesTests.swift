@@ -53,4 +53,16 @@ import Testing
         #expect(settings.colinReplyDays == 3)
         #expect(settings.colinSilentDays == 7)
     }
+
+    @Test func colinIsOffByDefault() throws {
+        let suite = "colin-tests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        #expect(Preferences.Key.colinOn == "colin.enMarche")
+        #expect(!Preferences(defaults: defaults).colinOn)
+        defaults.set(true, forKey: Preferences.Key.colinOn)
+        #expect(Preferences(defaults: defaults).colinOn)
+        defaults.set("oui", forKey: Preferences.Key.colinOn)
+        #expect(!Preferences(defaults: defaults).colinOn)
+    }
 }

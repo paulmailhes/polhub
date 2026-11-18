@@ -136,6 +136,8 @@ public struct Preferences: @unchecked Sendable {
         public static let inspirationAICategories = "inspiration.categoriesIA"
         /// Réglages › Diagnostic (17/11): the folder of the Claude account Colin uses; empty, Claude Code's own.
         public static let colinAccount = "colin.dossierDuCompte"
+        /// Colin's bar (18/11): on or off, the one switch of the Accueil and of Réglages › Colin. Off by default.
+        public static let colinOn = "colin.enMarche"
         /// The version of the app that last counted Colin's rules on the mails (18/11).
         public static let colinRulesCount = "colin.releveDesRegles"
         /// Réglages › Colin (18/11): the days after which the Accueil signals a mail left without an answer, and a
@@ -198,6 +200,8 @@ public struct Preferences: @unchecked Sendable {
     public var unrecorded: Bool { flag(Key.unrecorded) }
     public var summaryReady: Bool { flag(Key.summaryReady) }
     public var mailNotices: Bool { flag(Key.mailNotices) }
+    /// Colin answers in the bar (off by default: turned on by the user).
+    public var colinOn: Bool { (defaults.object(forKey: Key.colinOn) as? Bool) ?? false }
     /// Colin says a draft an agent prepared is ready (on by default).
     public var colinDraftNotice: Bool { flag(Key.colinDraftNotice) }
     public var sound: Bool { flag(Key.sound) }

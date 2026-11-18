@@ -41,6 +41,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         start: { [weak self] account, onFinish in
             guard let self else { return "Polhub se ferme." }
             guard self.runner.running == nil else { return "Une autre sonde tourne déjà." }
+            // One Claude Code of Colin's at a time (18/11).
+            guard self.colinThread?.isAnswering != true else { return "Colin répond : relance la sonde dans un instant." }
             // What the runner says of a start it could not make (the trace, the probe itself) is shown as it is.
             return self.runner.start(ProbeRequest(probe: .colin, variant: account), onFinish: onFinish)
                 ? nil : (self.runner.message ?? "La sonde n'a pas pu être lancée.")
@@ -63,6 +65,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var mails: MailLibrary?
     /// What the Accueil knows (18/11): « À valider » and « Le point », kept up to date window open or not.
     private var colin: ColinLibrary?
+    /// Colin's bar (18/11): his thread, and the one Claude Code it launches.
+    private var colinThread: ColinThread?
     private var presenceObserver: NSObjectProtocol?
     private var absenceObserver: NSObjectProtocol?
     /// « Inspiration » (16/11): the sites, the branding and the mock-ups, and their collection.
@@ -395,6 +399,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         mails.start()
         // What waits for Paul's click and « Le point » (18/11): rules alone, no model, nothing leaves the Mac.
         colin = ColinLibrary(agenda: agenda, mails: mails)
+        // Colin's bar (18/11): the Claude Code of this Mac, on the account of Réglages › Colin (empty: Claude Code's own),
+        // with Polhub's tools in Colin's profile, on this build's own base. Nothing is launched before Paul asks.
+        let base = paths.database
+        let runner = ColinRunner(launcher: LiveClaudeLauncher(), setup: {
+            guard let binary = ClaudeBinary.find(), let helper = ColinProbe.embeddedHelper() else { return nil }
+            let account = ClaudeCommand.account(folder: UserDefaults.standard.string(forKey: Preferences.Key.colinAccount),
+                                                home: FileManager.default.homeDirectoryForCurrentUser)
+            // An empty folder whose path names no one: the model is told where it works.
+            return ColinSetup(binary: binary, helper: helper, base: base, account: account,
+                              work: FileManager.default.temporaryDirectory.appending(path: "colin-travail", directoryHint: .isDirectory))
+        })
+        colinThread = ColinThread(database: database, runner: runner, review: { [weak self] in ColinThread.sentences(of: self?.colin?.review ?? []) },
+                                  isBusy: { [weak self] in await self?.colinMustWait() ?? true },
+                                  sinceWake: {
+                                      let uptime = ProcessInfo.processInfo.systemUptime
+                                      return min(uptime, ColinProbeControl.systemSinceWake() ?? uptime)
+                                  },
+                                  newDrafts: { [weak mails] in Set(mails?.drafts.filter { $0.origin == .agent }.map(\.id) ?? []) })
         // Polhub comes back in front on the Accueil: Paul is there.
         presenceObserver = NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.accueilMayBeSeen() }
@@ -485,7 +507,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         // A programmed mail that left late, waits for Paul or did not leave (wave B).
         mails?.onScheduleNotice = { notice in Task { await hub.mailScheduleNotice(notice) } }
         // A draft an agent prepared: Colin says it is ready (18/11). A click opens the Accueil.
-        mails?.onAgentDrafts = { drafts in Task { await hub.draftsReady(drafts) } }
+        // One Paul just asked of Colin in the bar does not ring: he is there.
+        mails?.onAgentDrafts = { [weak self] drafts in
+            guard self?.colinThread?.answeredRecently != true else { return }
+            Task { await hub.draftsReady(drafts) }
+        }
         // The card before a Meet: « Rejoindre » opens it in Dia under the event's account, as Coup d'œil does.
         meetingCards = MeetingCardPresenter(join: { [weak agenda] event in agenda?.join(event) },
                                             color: { [weak agenda] account in agenda?.color(for: account) ?? .accentColor })
@@ -562,6 +588,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     }
 
     /// No meeting (from the pop-up to the end) and no transcription under way.
+    /// Colin's bar waits during a call, its transcription, and a probe under way (one Claude Code of Colin's at a time).
+    private func colinMustWait() async -> Bool {
+        if await recordingOrTranscribing() { return true }
+        return runner.running != nil
+    }
+
     private func isQuiet() async -> Bool {
         // What must be waited for is asked first; the app's own state is read after, and nothing waits after it.
         // A collection or the tagging under way: they finish first (16/11).
@@ -570,6 +602,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         if await recordingOrTranscribing() { return false }
         // A probe under way finishes first: an update now would cut it, and leave its Claude Code behind (17/11).
         if runner.running != nil { return false }
+        // Colin answering: an update now would cut his answer (18/11).
+        if colinThread?.isAnswering == true { return false }
         // A mail leaving waits ten seconds in memory: an update now would call it back (14/11).
         if mails?.isSending == true { return false }
         return !collecting && !summarizing
@@ -582,6 +616,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             center.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated {
                     self?.colinProbe.macWillSleep()
+                    self?.colinThread?.macWillSleep()
                     // The Mac goes to sleep with the Accueil before Paul: he leaves now.
                     if NSApp.isActive { self?.accueilLeft() }
                 }
@@ -684,7 +719,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         // A collection or the tagging under way stops at once; its slot stays due (« Inspiration », 16/11).
         if busy { Task { await inspirationAutomation?.stop() } }
         // So does the probe of Colin, and the Claude Code it launched (17/11).
-        if busy { colinProbe.meetingBegan() }
+        if busy {
+            colinProbe.meetingBegan()
+            colinThread?.meetingBegan()
+        }
         if status == .idle {
             // The meeting that ended gets its event's project, title and guests now, not at the next sync.
             Task { await agenda?.runLinks() }
