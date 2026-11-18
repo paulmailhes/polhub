@@ -94,6 +94,111 @@ import Testing
         #expect(try mails.turns(asOf: now.addingTimeInterval(-60))[key] == nil)
     }
 
+    @Test func theLastMessageOfEachSideIsTheOneThatCounts() throws {
+        let mails = try store()
+        let day = 24.0 * 60
+        try mails.apply(account: account, upserts: [
+            message("m1"), message("m2", minutes: day),
+            message("m3", minutes: 2 * day, from: account, labels: ["SENT"]), message("m4", minutes: 3 * day, from: account, labels: ["SENT"]),
+        ])
+        let last = MailTurn(lastReceivedAt: now.addingTimeInterval(86_400), lastSentAt: now.addingTimeInterval(3 * 86_400))
+        #expect(try mails.turns(asOf: now.addingTimeInterval(5 * 86_400))[key] == last)
+        let thread = try #require(try mails.thread(key))
+        #expect(MailTurn(lastReceivedAt: thread.lastReceivedAt, lastSentAt: thread.lastSentAt) == last)
+        // The very instant of a message counts it.
+        #expect(try mails.turns(asOf: now.addingTimeInterval(86_400))[key] == MailTurn(lastReceivedAt: now.addingTimeInterval(86_400), lastSentAt: nil))
+    }
+
+    @Test func aDateThatIsNoDateNeverEndsTheApp() throws {
+        // Not a row the app writes; read all the same without a crash, as no turn.
+        let mails = try store()
+        try mails.apply(account: account, upserts: [message("m1")])
+        try mails.database.writer.write { try $0.execute(sql: "UPDATE mail_message SET date = '0 pas une date'") }
+        #expect(try mails.turns(asOf: .distantFuture)[key] == MailTurn())
+        #expect(try mails.lastSenders(asOf: .distantFuture)[key] == "camille@exemple.fr")
+    }
+
+    @Test func whoPaulHadWrittenToAtADate() throws {
+        let mails = try store()
+        func sent(_ id: String, minutes: Double, to: [String], cc: [String] = [], labels: [String] = ["SENT"]) -> MailMessageRow {
+            MailMessageRow(account: account, messageID: id, threadID: id, date: now.addingTimeInterval(minutes * 60), sender: MailAddress(email: account),
+                           to: to.map { MailAddress(email: $0) }, cc: cc.map { MailAddress(email: $0) }, subject: "Devis", snippet: "", labels: labels)
+        }
+        try mails.apply(account: account, upserts: [
+            sent("s1", minutes: 0, to: ["Camille@Exemple.fr"], cc: ["jules@exemple.fr"]),
+            sent("s2", minutes: 60, to: ["marc@exemple.net"]),
+            // A draft wrote to nobody.
+            sent("s3", minutes: -60, to: ["brouillon@exemple.fr"], labels: ["DRAFT"]),
+        ])
+        #expect(try mails.correspondents(asOf: now.addingTimeInterval(30 * 60)) == ["camille@exemple.fr", "jules@exemple.fr"])
+        #expect(try mails.correspondents(asOf: now.addingTimeInterval(60 * 60)) == ["camille@exemple.fr", "jules@exemple.fr", "marc@exemple.net"])
+        #expect(try mails.correspondents(asOf: now.addingTimeInterval(-600)).isEmpty)
+        // Whatever the date, the same people as the rules know today.
+        #expect(try mails.correspondents(asOf: .distantFuture) == mails.correspondents())
+    }
+
+    @Test func whoWroteLastInAThreadAtADate() throws {
+        let mails = try store()
+        try mails.apply(account: account, upserts: [
+            message("m1", from: "camille@exemple.fr"),
+            message("m2", minutes: 10, from: account, labels: ["SENT"]),
+            message("m3", minutes: 20, from: "jules@exemple.fr"),
+            message("m4", minutes: 30, from: "corbeille@exemple.fr", labels: ["TRASH"]),
+        ])
+        #expect(try mails.lastSenders(asOf: now.addingTimeInterval(15 * 60))[key] == "camille@exemple.fr")
+        #expect(try mails.lastSenders(asOf: now.addingTimeInterval(60 * 60))[key] == "jules@exemple.fr")
+        #expect(try mails.lastSenders(asOf: now.addingTimeInterval(-60))[key] == nil)
+    }
+
+    @Test func theCopiesOfOneConversationAreKnownByTheirMessages() throws {
+        // One mail delivered to two of Paul's boxes is two messages with the same identifier, in two threads.
+        let mails = try store()
+        let second = "moi@atelier.exemple"
+        try CalendarStore(mails.database).addAccount(email: second, at: now)
+        func copy(_ id: String, box: String, thread: String, identifier: String?, minutes: Double = 0, subject: String = "Devis") -> MailMessageRow {
+            MailMessageRow(account: box, messageID: id, threadID: thread, date: now.addingTimeInterval(minutes * 60), sender: MailAddress(email: "camille@exemple.fr"),
+                           subject: subject, snippet: "", labels: ["INBOX"], rfcMessageID: identifier)
+        }
+        try mails.apply(account: account, upserts: [
+            copy("a1", box: account, thread: "a", identifier: "<1@exemple.fr>"),
+            // The conversation goes on in this box only, and under another subject.
+            copy("a2", box: account, thread: "a", identifier: "<2@exemple.fr>", minutes: 60, subject: "Re: Devis"),
+            copy("c1", box: account, thread: "c", identifier: "<9@exemple.fr>"),
+            copy("d1", box: account, thread: "d", identifier: nil),
+            copy("e1", box: account, thread: "e", identifier: ""),
+            copy("vieux", box: account, thread: "v", identifier: "<0@exemple.fr>", minutes: -90 * 24 * 60),
+        ])
+        try mails.apply(account: second, upserts: [
+            // Delivered a second later than its twin.
+            copy("b1", box: second, thread: "b", identifier: "<1@exemple.fr>", minutes: 1.0 / 60),
+            copy("d2", box: second, thread: "d2", identifier: nil),
+            copy("e2", box: second, thread: "e2", identifier: ""),
+            copy("vieux2", box: second, thread: "v2", identifier: "<0@exemple.fr>", minutes: -90 * 24 * 60),
+        ])
+        let groups = try mails.conversations(since: now.addingTimeInterval(-45 * 86_400))
+        let a = MailThreadRow.key(account: account, threadID: "a"), b = MailThreadRow.key(account: second, threadID: "b")
+        #expect(groups[a] != nil && groups[a] == groups[b])
+        // A thread alone, a message without an identifier, and what is older than the date: no group.
+        #expect(Set(groups.keys) == [a, b])
+    }
+
+    @Test func threeBoxesAndAChainOfCopiesAreOneConversation() throws {
+        let mails = try store()
+        let boxes = [account, "moi@atelier.exemple", "moi@perso.exemple"]
+        for box in boxes.dropFirst() { try CalendarStore(mails.database).addAccount(email: box, at: now) }
+        func copy(_ id: String, box: String, identifier: String) -> MailMessageRow {
+            MailMessageRow(account: box, messageID: id, threadID: "fil", date: now, sender: MailAddress(email: "camille@exemple.fr"),
+                           subject: "Devis", snippet: "", labels: ["INBOX"], rfcMessageID: identifier)
+        }
+        // The first and the second box share one mail; the second and the third another.
+        try mails.apply(account: boxes[0], upserts: [copy("m1", box: boxes[0], identifier: "<1@exemple.fr>")])
+        try mails.apply(account: boxes[1], upserts: [copy("m1", box: boxes[1], identifier: "<1@exemple.fr>"), copy("m2", box: boxes[1], identifier: "<2@exemple.fr>")])
+        try mails.apply(account: boxes[2], upserts: [copy("m2", box: boxes[2], identifier: "<2@exemple.fr>")])
+        let groups = try mails.conversations(since: .distantPast)
+        #expect(groups.count == 3)
+        #expect(Set(groups.values).count == 1)
+    }
+
     @Test func theTurnsOfTheBaseAreTheOnesOfTheThreads() throws {
         // Counted by the base in one pass, or kept by each thread: the same answer, for every kind of message.
         let mails = try store()
@@ -132,12 +237,32 @@ import Testing
         observation.cancel()
     }
 
-    /// What an observation last gave, read from the test.
+    @Test func aChangeThatChangesNoThreadIsNotToldAgain() async throws {
+        // Gmail read again, the same message as before: every thread is as it was, and nobody is called.
+        let mails = try store()
+        try mails.apply(account: account, upserts: [message("m1")])
+        let seen = Seen()
+        let observation = mails.observeTurns(since: now.addingTimeInterval(-86_400)) { rows in seen.set(rows.map(\.threadID)) }
+        for _ in 0..<200 where seen.count == 0 { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(seen.count == 1)
+        try mails.apply(account: account, upserts: [message("m1")])
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(seen.count == 1)
+        // A real change is told.
+        try mails.apply(account: account, upserts: [message("m2", minutes: 5)])
+        for _ in 0..<200 where seen.count < 2 { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(seen.count == 2)
+        observation.cancel()
+    }
+
+    /// What an observation last gave, and how many times it called, read from the test.
     final class Seen: @unchecked Sendable {
         private let lock = NSLock()
         private var rows: [String]?
+        private var calls = 0
         var value: [String]? { lock.withLock { rows } }
-        func set(_ rows: [String]) { lock.withLock { self.rows = rows } }
+        var count: Int { lock.withLock { calls } }
+        func set(_ rows: [String]) { lock.withLock { self.rows = rows; calls += 1 } }
     }
 
     /// Paul archives a thread; the client replies before Gmail has heard of the gesture. The reply stays in the

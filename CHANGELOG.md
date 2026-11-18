@@ -7,13 +7,17 @@ GitHub, et l'app la montre dans Réglages › Mises à jour.
 
 **Polhub prépare le nouvel Accueil : il retient qui a parlé en dernier dans chaque fil de mails.**
 
-- Rien ne change à l'écran dans cette version.
+- Rien ne change dans tes écrans de tous les jours. Seule la fenêtre des sondes, dans Réglages › Diagnostic, gagne une
+  ligne : « Colin : les règles sur tes mails ».
 - Pour chaque fil, Polhub retient la date du dernier message reçu et celle de ton dernier message. C'est ce qui dira
   bientôt sur l'Accueil « Marc attend ta réponse » ou « Anne ne répond plus ».
-- Une fois après la mise à jour, hors réunion, Polhub compte sur ton Mac combien de lignes ces deux règles donneraient
-  aujourd'hui, et combien elles en auraient donné il y a deux semaines. Il n'écrit que des nombres, dans le dossier des
-  mesures : aucun objet, aucune adresse, aucun nom. Rien ne sort du Mac, et aucune IA n'est utilisée.
-- Avant de modifier ta base, Polhub en garde une copie, comme à chaque fois.
+- Une fois après la mise à jour, hors réunion, Polhub compte tout seul sur ton Mac combien de lignes ces deux règles
+  donneraient aujourd'hui, et combien elles en auraient donné il y a deux semaines. Il n'écrit que des nombres, dans le
+  dossier des mesures : aucun objet, aucune adresse, aucun nom. Rien ne sort du Mac, et aucune IA n'est utilisée.
+- Un même échange reçu dans deux de tes boîtes est reconnu comme un seul : dès que tu as répondu depuis l'une, il
+  n'attend plus dans l'autre.
+- Avant de modifier ta base, Polhub en garde une copie, comme à chaque fois. La mise à jour de la base ne fait
+  qu'ajouter deux colonnes et une table ; le calcul qui suit ne peut pas empêcher Polhub de s'ouvrir.
 
 ## 0.31.1 — 18 novembre 2026
 

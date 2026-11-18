@@ -10,9 +10,16 @@ public struct ColinStore: Sendable {
         self.database = database
     }
 
-    /// Sets a line aside; a row of the same line is replaced.
+    /// Sets a line aside; a row of the same line is replaced. « Elle a répondu ailleurs » said again of the same
+    /// line counts once more: twice on a project, and Colin stops saying it of that project.
     public func dismiss(_ row: ColinDismissalRow) throws {
-        try writer.write { try row.save($0) }
+        try writer.write { db in
+            var row = row
+            if row.reason == .answeredElsewhere, let known = try ColinDismissalRow.fetchOne(db, key: row.id), known.reason == .answeredElsewhere {
+                row.times = known.times + 1
+            }
+            try row.save(db)
+        }
     }
 
     /// The line may show again.

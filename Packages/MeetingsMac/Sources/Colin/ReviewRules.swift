@@ -77,21 +77,23 @@ public enum ReviewRules {
 
     // MARK: - « Attend ta réponse »
 
-    /// The threads whose last message came from someone Paul already wrote to, three days ago or more, and that he
-    /// has not answered. The oldest first.
-    public static func replies(_ threads: [MailThreadRow], rules: MailFilingRules, dismissed: [ColinDismissalRow], now: Date,
-                               thresholds: Thresholds, calendar: Calendar = .current) -> [Line] {
+    /// The conversations whose last message came from someone Paul already wrote to, three days ago or more, and
+    /// that he has not answered. `conversations`: the copies of one conversation in several of his mailboxes
+    /// (`MailStore.conversations`): its turn is read over all of them, so a copy left behind in another box never
+    /// waits. The oldest first.
+    public static func replies(_ threads: [MailThreadRow], rules: MailFilingRules, conversations: [String: String] = [:],
+                               dismissed: [ColinDismissalRow], now: Date, thresholds: Thresholds, calendar: Calendar = .current) -> [Line] {
         let aside = rows(dismissed, of: .reply)
         var lines: [Line] = []
-        // The same mail in two of Paul's boxes is two threads: one line, and none once he answered from either.
-        for twins in grouped(threads, by: \.lastReceivedAt) {
-            guard let received = twins.first?.lastReceivedAt, !twins.contains(where: { ($0.lastSentAt ?? .distantPast) > received }) else { continue }
+        for copies in grouped(threads, conversations) {
+            let received = copies.compactMap(\.lastReceivedAt).max(), sent = copies.compactMap(\.lastSentAt).max()
+            guard let received, received > (sent ?? .distantPast) else { continue }
             let days = age(of: received, now: now)
             guard days >= thresholds.replyDays, days <= thresholds.maxAgeDays else { continue }
-            guard let thread = twins.first(where: { thread in
-                rules.tab(of: thread) == .personnes && thread.lastSender.map { rules.correspondents.contains($0.lowercased()) } == true
-            }) else { continue }
-            guard !twins.contains(where: { isAside(aside[$0.id], lastMessage: latest($0), now: now, calendar: calendar) }) else { continue }
+            // The box where that last message arrived.
+            guard let thread = copies.first(where: { $0.lastReceivedAt == received }),
+                  rules.tab(of: thread) == .personnes, thread.lastSender.map({ rules.correspondents.contains($0.lowercased()) }) == true else { continue }
+            guard !copies.contains(where: { isAside(aside[$0.id], lastMessage: received, now: now, calendar: calendar) }) else { continue }
             let project = rules.filing(of: thread)?.filing.projectID
             lines.append(Line(id: id(.reply, thread.id), kind: .reply, person: sender(of: thread, rules: rules), detail: name(of: project, rules: rules),
                               days: days, threadKey: thread.id, projectID: project))
@@ -101,29 +103,34 @@ public enum ReviewRules {
 
     // MARK: - « Ne répond plus »
 
-    /// The threads of a project where Paul wrote last, seven days ago or more, with no coming event of that project.
-    /// `recipients`: who Paul wrote to in each thread. The oldest first.
-    public static func silent(_ threads: [MailThreadRow], rules: MailFilingRules, recipients: [String: [MailAddress]], events: [CalendarEventRow],
-                              dismissed: [ColinDismissalRow], now: Date, thresholds: Thresholds, calendar: Calendar = .current) -> [Line] {
+    /// The conversations of a project where Paul wrote last, seven days ago or more, with no coming event of that
+    /// project. `recipients`: who Paul wrote to in each thread; in a thread nobody else wrote in, they say the
+    /// project. The oldest first.
+    public static func silent(_ threads: [MailThreadRow], rules: MailFilingRules, conversations: [String: String] = [:],
+                              recipients: [String: [MailAddress]], events: [CalendarEventRow], dismissed: [ColinDismissalRow], now: Date,
+                              thresholds: Thresholds, calendar: Calendar = .current) -> [Line] {
         let aside = rows(dismissed, of: .silent)
-        // « Elle a répondu ailleurs », twice on one project: Colin no longer says it of this project.
-        let elsewhere = aside.values.filter { $0.reason == .answeredElsewhere }.compactMap(\.projectID)
-        let quiet = Set(Dictionary(grouping: elsewhere, by: { $0 }).filter { $0.value.count >= 2 }.keys)
+        // « Elle a répondu ailleurs », said twice of one project (of two threads, or twice of the same): Colin no
+        // longer says it of this project.
+        var elsewhere: [UUID: Int] = [:]
+        for row in aside.values where row.reason == .answeredElsewhere {
+            if let project = row.projectID { elsewhere[project, default: 0] += max(row.times, 1) }
+        }
+        let quiet = Set(elsewhere.filter { $0.value >= 2 }.keys)
         let coming = Set(events.filter { $0.startAt > now }.compactMap(\.projectID))
         var lines: [Line] = []
-        for twins in grouped(threads, by: \.lastSentAt) {
-            guard let sent = twins.first?.lastSentAt, !twins.contains(where: { ($0.lastReceivedAt ?? .distantPast) > sent }) else { continue }
+        for copies in grouped(threads, conversations) {
+            let received = copies.compactMap(\.lastReceivedAt).max(), sent = copies.compactMap(\.lastSentAt).max()
+            guard let sent, sent > (received ?? .distantPast) else { continue }
             let days = age(of: sent, now: now)
             guard days >= thresholds.silentDays, days <= thresholds.maxAgeDays else { continue }
             // The first of the copies that sits in a project.
-            guard let (thread, project) = twins.lazy.compactMap({ thread in
-                rules.filing(of: thread)?.filing.projectID.map { (thread, $0) }
+            guard let (thread, project) = copies.lazy.compactMap({ thread in
+                self.project(of: thread, rules: rules, recipients: recipients[thread.id] ?? []).map { (thread, $0) }
             }).first else { continue }
             guard !quiet.contains(project), !coming.contains(project) else { continue }
-            guard !twins.contains(where: { isAside(aside[$0.id], lastMessage: latest($0), now: now, calendar: calendar) }) else { continue }
-            let person = recipients[thread.id]?.first { !rules.mine.contains($0.email.lowercased()) }
-                ?? thread.senders.first { !rules.mine.contains($0.email.lowercased()) }
-            lines.append(Line(id: id(.silent, thread.id), kind: .silent, person: person.map { short($0.display) } ?? "",
+            guard !copies.contains(where: { isAside(aside[$0.id], lastMessage: sent, now: now, calendar: calendar) }) else { continue }
+            lines.append(Line(id: id(.silent, thread.id), kind: .silent, person: silentPerson(of: thread, rules: rules, recipients: recipients[thread.id] ?? []),
                               detail: name(of: project, rules: rules), days: days, threadKey: thread.id, projectID: project))
         }
         return lines.sorted { ($0.days ?? 0) > ($1.days ?? 0) }
@@ -131,16 +138,18 @@ public enum ReviewRules {
 
     // MARK: - « Réunion à ranger »
 
-    /// The meetings of the last two weeks that sit in no project, and that Paul did not file under « Aucun ».
-    /// The most recent first.
+    /// The meetings of the last two weeks that sit in no project, and that Paul did not file under « Aucun ». One
+    /// line by meeting, even when its event is in two of his calendars. The most recent first.
     public static func unfiled(_ events: [CalendarEventRow], dismissed: [ColinDismissalRow] = [], now: Date, calendar: Calendar = .current) -> [Line] {
         let aside = rows(dismissed, of: .unfiled)
         let oldest = now.addingTimeInterval(-Double(unfiledDays) * day)
+        var seen: Set<UUID> = []
         return events
             .filter { $0.projectID == nil && $0.meetingID != nil && $0.projectOrigin != .paul && $0.startAt <= now && $0.startAt >= oldest }
             // An event has no later message: set aside, it stays aside (« Plus tard »: until the next day).
             .filter { !isAside(aside[$0.id], lastMessage: .distantPast, now: now, calendar: calendar) }
             .sorted { $0.startAt > $1.startAt }
+            .filter { event in event.meetingID.map { seen.insert($0).inserted } ?? true }
             .map { Line(id: id(.unfiled, $0.id), kind: .unfiled, person: $0.title, eventID: $0.id) }
     }
 
@@ -155,17 +164,23 @@ public enum ReviewRules {
             .map(\.element)
     }
 
-    /// « Claire Morel » → « Claire ». An address, or a single word, stays whole; « MOREL Claire » and
-    /// « Morel, Claire » give the first name too.
+    /// « Claire Morel » → « Claire », « Morel, Claire » too. Whatever does not plainly begin with a first name stays
+    /// whole, rather than be cut at the wrong word: an address, a single word, a title (« Dr. Claire Morel »), a
+    /// name in capitals (« MOREL Claire », « EDF Entreprises »), a first word that is no word.
     static func short(_ name: String) -> String {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = name.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "'\"«»“”‘’")))
         let words = trimmed.split(whereSeparator: \.isWhitespace).map(String.init)
         guard words.count >= 2, !trimmed.contains("@") else { return trimmed }
         let first = words[0], second = words[1]
-        let shouted = first.count > 1 && first == first.uppercased() && first != first.lowercased() && second != second.uppercased()
-        if first.hasSuffix(",") || shouted { return second }
+        if first.hasSuffix(","), first.count > 2 { return second }
+        let letters = first.filter(\.isLetter)
+        let isTitle = first.hasSuffix(".") || titles.contains(first.lowercased())
+        let shouted = letters.count > 1 && first == first.uppercased()
+        guard letters.count >= 2, letters.count == first.filter({ $0 != "-" }).count, !isTitle, !shouted else { return trimmed }
         return first
     }
+
+    private static let titles: Set<String> = ["m", "mr", "mme", "mlle", "mrs", "ms", "me", "dr", "pr", "prof", "maître", "maitre", "docteur", "monsieur", "madame"]
 
     // MARK: - Pieces
 
@@ -178,22 +193,37 @@ public enum ReviewRules {
         Dictionary(dismissed.filter { $0.kind == kind.rawValue }.map { ($0.subject, $0) }, uniquingKeysWith: { $1 })
     }
 
-    /// The threads shown that have this date, gathered when they are copies of one conversation: the same subject
-    /// and the same date. In the order the first of each came.
-    private static func grouped(_ threads: [MailThreadRow], by date: KeyPath<MailThreadRow, Date?>) -> [[MailThreadRow]] {
-        struct Twin: Hashable {
-            let subject: String
-            let date: Date
-        }
-        var groups: [Twin: [MailThreadRow]] = [:]
-        var order: [Twin] = []
+    /// The threads shown, gathered by conversation: the copies named by `conversations` together, any other thread
+    /// alone. In the order the first of each came.
+    private static func grouped(_ threads: [MailThreadRow], _ conversations: [String: String]) -> [[MailThreadRow]] {
+        var groups: [String: [MailThreadRow]] = [:]
+        var order: [String] = []
         for thread in threads where !thread.hidden {
-            guard let when = thread[keyPath: date] else { continue }
-            let key = Twin(subject: thread.subject, date: when)
+            let key = conversations[thread.id] ?? thread.id
             if groups[key] == nil { order.append(key) }
             groups[key, default: []].append(thread)
         }
         return order.compactMap { groups[$0] }
+    }
+
+    /// The project of a thread: the case the mails give it; in a thread nobody but Paul wrote in, the one project
+    /// of the people he wrote to. A thread he filed outside any project stays there.
+    private static func project(of thread: MailThreadRow, rules: MailFilingRules, recipients: [MailAddress]) -> UUID? {
+        if let filing = rules.filing(of: thread) { return filing.filing.projectID }
+        guard !thread.senders.contains(where: { !rules.mine.contains($0.email.lowercased()) }) else { return nil }
+        var found: Set<UUID> = []
+        for person in recipients {
+            let address = person.email.lowercased()
+            guard !rules.mine.contains(address) else { continue }
+            found.formUnion((rules.contactProjects[address] ?? []).subtracting(rules.excludedProjects[address] ?? []))
+        }
+        return found.count == 1 ? found.first.flatMap { id in rules.projects.contains { $0.id == id } ? id : nil } : nil
+    }
+
+    /// Who is silent: the one Paul answered, when someone wrote; else the first he wrote to.
+    private static func silentPerson(of thread: MailThreadRow, rules: MailFilingRules, recipients: [MailAddress]) -> String {
+        if thread.lastSender != nil { return sender(of: thread, rules: rules) }
+        return recipients.first { !rules.mine.contains($0.email.lowercased()) }.map { short($0.display) } ?? ""
     }
 
     /// Whole days gone since `date`.
@@ -201,17 +231,13 @@ public enum ReviewRules {
         Int((now.timeIntervalSince(date) / day).rounded(.down))
     }
 
-    private static func latest(_ thread: MailThreadRow) -> Date {
-        max(thread.lastReceivedAt ?? .distantPast, thread.lastSentAt ?? .distantPast)
-    }
-
-    /// « Pas besoin » and « Elle a répondu ailleurs » hide the line until a message newer than them; « Plus tard »
-    /// until the next day.
+    /// « Pas besoin » and « Elle a répondu ailleurs » hide the line until a message newer than what Paul had
+    /// before him (for a row that did not keep it: newer than his click); « Plus tard » until the next day.
     private static func isAside(_ row: ColinDismissalRow?, lastMessage: Date, now: Date, calendar: Calendar) -> Bool {
         guard let row else { return false }
         switch row.reason {
         case .notNeeded, .answeredElsewhere:
-            return lastMessage <= row.createdAt
+            return lastMessage <= (row.lastMessageAt ?? row.createdAt)
         case .later:
             let start = calendar.startOfDay(for: row.createdAt)
             let tomorrow = calendar.date(byAdding: .day, value: 1, to: start) ?? start.addingTimeInterval(day)

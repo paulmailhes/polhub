@@ -46,17 +46,28 @@ import Testing
         return rules
     }
 
-    func replies(_ threads: [MailThreadRow], dismissed: [ColinDismissalRow] = [], at date: Date? = nil, rules: MailFilingRules? = nil) -> [ReviewRules.Line] {
-        ReviewRules.replies(threads, rules: rules ?? self.rules, dismissed: dismissed, now: date ?? now, thresholds: thresholds, calendar: calendar)
+    /// The threads given are copies of one conversation.
+    func copies(_ threads: MailThreadRow...) -> [String: String] {
+        Dictionary(uniqueKeysWithValues: threads.map { ($0.id, threads[0].id) })
     }
 
-    func silent(_ threads: [MailThreadRow], events: [CalendarEventRow] = [], dismissed: [ColinDismissalRow] = [], at date: Date? = nil) -> [ReviewRules.Line] {
-        let people = Dictionary(uniqueKeysWithValues: threads.map { thread in
+    func replies(_ threads: [MailThreadRow], conversations: [String: String] = [:], dismissed: [ColinDismissalRow] = [], at date: Date? = nil,
+                 rules: MailFilingRules? = nil, calendar: Calendar? = nil) -> [ReviewRules.Line] {
+        ReviewRules.replies(threads, rules: rules ?? self.rules, conversations: conversations, dismissed: dismissed, now: date ?? now,
+                            thresholds: thresholds, calendar: calendar ?? self.calendar)
+    }
+
+    /// `recipients`: who Paul wrote to in each thread; without it, the people who wrote in the thread.
+    func silent(_ threads: [MailThreadRow], conversations: [String: String] = [:], recipients: [String: [MailAddress]]? = nil,
+                events: [CalendarEventRow] = [], dismissed: [ColinDismissalRow] = [], at date: Date? = nil, rules: MailFilingRules? = nil) -> [ReviewRules.Line] {
+        let people = recipients ?? Dictionary(uniqueKeysWithValues: threads.map { thread in
             (thread.id, thread.senders.filter { !Self.mine.contains($0.email) })
         })
-        return ReviewRules.silent(threads, rules: rules, recipients: people, events: events, dismissed: dismissed, now: date ?? now,
-                                  thresholds: thresholds, calendar: calendar)
+        return ReviewRules.silent(threads, rules: rules ?? self.rules, conversations: conversations, recipients: people, events: events,
+                                  dismissed: dismissed, now: date ?? now, thresholds: thresholds, calendar: calendar)
     }
+
+    func person(_ email: String) -> MailAddress { MailAddress(name: Self.names[email], email: email) }
 
     func event(_ id: String, project: UUID? = nil, origin: EventProjectOrigin? = nil, meeting: Bool = true, daysAgo: Double, title: String = "Point Cabinet Martin") -> CalendarEventRow {
         CalendarEventRow(account: Self.me, eventID: id, title: title, startAt: ago(daysAgo), endAt: ago(daysAgo).addingTimeInterval(3_600),
@@ -102,9 +113,24 @@ import Testing
     }
 
     @Test func aHiddenThreadNeverWaits() {
-        let trashed = thread([(Self.marc, 4, ["TRASH"])])
-        #expect(trashed.hidden)
-        #expect(replies([trashed]).isEmpty)
+        // A thread that waits, then hidden with its turn left as it was: it does not show.
+        var hidden = thread([sent(10), received(Self.marc, 4)])
+        #expect(replies([hidden]).count == 1)
+        hidden.hidden = true
+        #expect(replies([hidden]).isEmpty)
+        var quiet = thread([received(Self.claire, 12), sent(9)])
+        quiet.hidden = true
+        #expect(silent([quiet]).isEmpty)
+    }
+
+    @Test func twoThreadsOfOneSubjectAreTwoConversations() {
+        // « Devis » from Marc and « Devis » from Claire: nothing says they are one conversation.
+        let first = thread("t1", subject: "Devis", [sent(30), received(Self.marc, 4)])
+        let second = thread("t2", subject: "Devis", [sent(30), received(Self.claire, 6)])
+        #expect(replies([first, second]).map(\.threadKey) == [second.id, first.id])
+        // Even received at the very same instant.
+        let twin = thread("t3", subject: "Devis", [sent(30), received(Self.claire, 4)])
+        #expect(replies([first, twin]).count == 2)
     }
 
     // MARK: - « Ne répond plus »
@@ -121,6 +147,32 @@ import Testing
         #expect(silent([thread([received(Self.claire, 12), sent(7)])]).first?.days == 7)
         // She answered since: not silent.
         #expect(silent([thread([sent(9), received(Self.claire, 2)])]).isEmpty)
+    }
+
+    @Test func aMailPaulStartedThatNobodyAnsweredIsSilent() {
+        // No one but Paul wrote in the thread: the project is the one of the person he wrote to.
+        let started = thread([sent(9)])
+        #expect(started.lastReceivedAt == nil && started.lastSender == nil)
+        let line = silent([started], recipients: [started.id: [person(Self.claire)]]).first
+        #expect(line?.person == "Claire" && line?.detail == "Cabinet Martin" && line?.projectID == site && line?.days == 9)
+        // His own other address in copy is nobody to wait for.
+        let copied = silent([started], recipients: [started.id: [MailAddress(email: Self.other), person(Self.claire)]]).first
+        #expect(copied?.person == "Claire" && copied?.projectID == site)
+        // Written to someone of no project, or to people of two projects: no project, no line.
+        #expect(silent([started], recipients: [started.id: [person(Self.marc)]]).isEmpty)
+        #expect(silent([started], recipients: [started.id: [person(Self.claire), person(Self.anne)]]).isEmpty)
+        #expect(silent([started], recipients: [:]).isEmpty)
+        // A thread Paul filed himself outside any project stays there.
+        var filed = rules
+        filed.choices = [started.id: .perso]
+        #expect(silent([started], recipients: [started.id: [person(Self.claire)]], rules: filed).isEmpty)
+    }
+
+    @Test func theSilentOneIsWhoPaulAnswered() {
+        // Paul wrote first to Anne, long ago, and last to Claire, who had written: Claire is the one who is silent.
+        let waiting = thread([received(Self.claire, 12), sent(9)])
+        let line = silent([waiting], recipients: [waiting.id: [person(Self.anne), person(Self.claire)]]).first
+        #expect(line?.person == "Claire")
     }
 
     @Test func aComingEventOfTheProjectHidesTheSilence() {
@@ -154,6 +206,32 @@ import Testing
         #expect(replies([waiting], dismissed: [ColinDismissalRow(kind: "silent", subject: waiting.id, reason: .notNeeded, createdAt: ago(1))]).count == 1)
     }
 
+    @Test func aMessageThatCameWhilePaulClickedBringsTheLineBack() {
+        // Paul sets aside what he sees: Marc's mail of four days ago. Marc had written again an hour before the
+        // click, and Polhub only read it after: that message is newer than what Paul saw.
+        let seen = thread([sent(10), received(Self.marc, 4)])
+        let aside = ColinDismissalRow(kind: "reply", subject: seen.id, reason: .notNeeded, createdAt: now, lastMessageAt: ago(4))
+        #expect(replies([seen], dismissed: [aside]).isEmpty)
+        let again = thread([sent(10), received(Self.marc, 4), received(Self.marc, 1.0 / 24)])
+        #expect(replies([again], dismissed: [aside], at: now.addingTimeInterval(3 * 86_400)).count == 1)
+        // A row of before, which kept no such date, goes by the time of the click.
+        let old = ColinDismissalRow(kind: "reply", subject: seen.id, reason: .notNeeded, createdAt: now)
+        #expect(replies([again], dismissed: [old], at: now.addingTimeInterval(3 * 86_400)).isEmpty)
+        // The same instant as what he saw is what he saw.
+        #expect(replies([seen], dismissed: [aside], at: now.addingTimeInterval(86_400)).isEmpty)
+    }
+
+    @Test func laterFollowsTheCalendarItIsGiven() {
+        // 10:00 in Paris is 22:00 in Auckland: there, the next day begins two hours later.
+        let waiting = thread([sent(10), received(Self.marc, 4)])
+        let later = ColinDismissalRow(kind: "reply", subject: waiting.id, reason: .later, createdAt: now)
+        var auckland = Calendar(identifier: .gregorian)
+        auckland.timeZone = TimeZone(identifier: "Pacific/Auckland")!
+        #expect(replies([waiting], dismissed: [later], at: now.addingTimeInterval(1.5 * 3_600), calendar: auckland).isEmpty)
+        #expect(replies([waiting], dismissed: [later], at: now.addingTimeInterval(2.5 * 3_600), calendar: auckland).count == 1)
+        #expect(replies([waiting], dismissed: [later], at: now.addingTimeInterval(2.5 * 3_600)).isEmpty)
+    }
+
     @Test func laterComesBackTheNextDay() {
         let waiting = thread([sent(10), received(Self.marc, 4)])
         let later = ColinDismissalRow(kind: "reply", subject: waiting.id, reason: .later, createdAt: now)
@@ -181,6 +259,14 @@ import Testing
             ColinDismissalRow(kind: "silent", subject: thread.id, reason: .notNeeded, projectID: self.site, createdAt: self.ago(1))
         }
         #expect(silent([first, second, third], dismissed: [notNeeded(first), notNeeded(second)]).map(\.threadKey) == [third.id])
+        // Said twice of the same thread (she answers on her phone, every time): the project is silenced too.
+        let twice = ColinDismissalRow(kind: "silent", subject: first.id, reason: .answeredElsewhere, projectID: site, createdAt: ago(1), times: 2)
+        #expect(silent([first, second, third, anne], dismissed: [twice]).map(\.threadKey) == [anne.id])
+        // Only what was said of a silence counts, and only with its project.
+        let ofAReply = ColinDismissalRow(kind: "reply", subject: first.id, reason: .answeredElsewhere, projectID: site, createdAt: ago(1), times: 2)
+        let withoutProject = ColinDismissalRow(kind: "silent", subject: first.id, reason: .answeredElsewhere, createdAt: ago(1), times: 2)
+        #expect(silent([first, second, third], dismissed: [ofAReply]).count == 3)
+        #expect(silent([first, second, third], dismissed: [withoutProject]).map(\.threadKey) == [second.id, third.id])
     }
 
     // MARK: - « Brouillon prêt »
@@ -219,6 +305,17 @@ import Testing
         #expect(ReviewRules.unfiled([event("vieux", daysAgo: 9), event("neuf", daysAgo: 1)], now: now).compactMap(\.eventID).map { $0.hasSuffix("neuf") } == [true, false])
     }
 
+    @Test func oneMeetingInTwoCalendarsIsOneLine() {
+        // The same recording linked to the copies of one event in two of Paul's calendars.
+        let recording = UUID()
+        func copy(_ account: String) -> CalendarEventRow {
+            CalendarEventRow(account: account, eventID: "e1", title: "Point Cabinet Martin", startAt: ago(2), endAt: ago(2).addingTimeInterval(3_600),
+                             meetingID: recording, updatedAt: now)
+        }
+        #expect(ReviewRules.unfiled([copy(Self.me), copy(Self.other)], now: now).count == 1)
+        #expect(ReviewRules.unfiled([event("e2", daysAgo: 2), event("e3", daysAgo: 3)], now: now).count == 2)
+    }
+
     @Test func aMeetingSetAsideDoesNotComeBack() {
         let toFile = event("e1", daysAgo: 2)
         let notNeeded = ColinDismissalRow(kind: "unfiled", subject: toFile.id, reason: .notNeeded, createdAt: ago(1))
@@ -231,24 +328,44 @@ import Testing
     // MARK: - The same mail in two boxes, the order, the names
 
     @Test func oneLineForAThreadInTwoMailboxes() {
-        // Marc wrote to both of Paul's addresses: one mail, two threads.
+        // Marc wrote to both of Paul's addresses: one mail, two threads, known as copies by the mail's identifier.
         let first = thread("t1", account: Self.me, [received(Self.marc, 4)])
-        let second = thread("t9", account: Self.other, [received(Self.marc, 4)])
-        #expect(replies([first, second]).map(\.threadKey) == [first.id])
-        // Paul answered from one box only: the other box's copy does not wait either.
+        // The other box took its copy a second later, and its thread begins at « Re: ».
+        let second = thread("t9", account: Self.other, subject: "Re: Maquette v2", [received(Self.marc, 4 - 1.0 / 86_400)])
+        #expect(replies([first, second], conversations: copies(first, second)).count == 1)
+        // Nothing says they are copies: two lines.
+        #expect(replies([first, second]).count == 2)
+        // Paul answered from one box only: the other box's copy does not wait either, whatever the order.
         let answered = thread("t1", account: Self.me, [received(Self.marc, 4), sent(3)])
-        #expect(replies([answered, second]).isEmpty)
-        #expect(replies([second, answered]).isEmpty)
+        #expect(replies([answered, second], conversations: copies(answered, second)).isEmpty)
+        #expect(replies([second, answered], conversations: copies(answered, second)).isEmpty)
         // Set aside in one box, it is set aside.
         let aside = ColinDismissalRow(kind: "reply", subject: second.id, reason: .notNeeded, createdAt: ago(1))
-        #expect(replies([first, second], dismissed: [aside]).isEmpty)
+        #expect(replies([first, second], conversations: copies(first, second), dismissed: [aside]).isEmpty)
         // The same for a silence: Paul's mail, seen in his other box too.
         let sentOnce = thread("t2", account: Self.me, subject: "Plans", [received(Self.anne, 20), sent(9)])
         let seenTwice = thread("t8", account: Self.other, subject: "Plans", [received(Self.anne, 20), sent(9, from: Self.me)])
-        #expect(silent([sentOnce, seenTwice]).map(\.threadKey) == [sentOnce.id])
-        // Another subject on the same day is another thread.
-        let apart = thread("t3", account: Self.me, subject: "Autre chose", [received(Self.marc, 4)])
-        #expect(replies([first, apart]).count == 2)
+        #expect(silent([sentOnce, seenTwice], conversations: copies(sentOnce, seenTwice)).count == 1)
+    }
+
+    @Test func aCopyLeftBehindInTheOtherBoxNeverWaits() {
+        // Marc wrote to both addresses ten days ago. Paul answered from the first box; Marc wrote again yesterday,
+        // to the first box only. The copy left in the second box holds a mail answered nine days ago.
+        let alive = thread("t1", account: Self.me, [received(Self.marc, 10), sent(9), received(Self.marc, 1)])
+        let left = thread("t9", account: Self.other, [received(Self.marc, 10)])
+        let conversation = copies(alive, left)
+        #expect(replies([alive, left], conversations: conversation).isEmpty)
+        #expect(replies([left, alive], conversations: conversation).isEmpty)
+        // Three days later, yesterday's mail waits: in the box where it arrived.
+        let later = replies([left, alive], conversations: conversation, at: now.addingTimeInterval(3 * 86_400))
+        #expect(later.map(\.threadKey) == [alive.id])
+        #expect(later.first?.days == 4)
+        // Paul answers it: nothing waits, in either box.
+        let done = thread("t1", account: Self.me, [received(Self.marc, 10), sent(9), received(Self.marc, 1), sent(0.5)])
+        #expect(replies([left, done], conversations: copies(done, left), at: now.addingTimeInterval(3 * 86_400)).isEmpty)
+        // What he set aside in the first box covers the copy of the second.
+        let aside = ColinDismissalRow(kind: "reply", subject: alive.id, reason: .notNeeded, createdAt: now.addingTimeInterval(3 * 86_400))
+        #expect(replies([left, alive], conversations: conversation, dismissed: [aside], at: now.addingTimeInterval(4 * 86_400)).isEmpty)
     }
 
     @Test func theOrderIsDraftsRepliesSilentMeetings() {
@@ -266,11 +383,21 @@ import Testing
     @Test func aPersonIsCalledByTheFirstName() {
         #expect(ReviewRules.short("Claire Morel") == "Claire")
         #expect(ReviewRules.short("Jean-Pierre Durand") == "Jean-Pierre")
-        #expect(ReviewRules.short("MOREL Claire") == "Claire")
         #expect(ReviewRules.short("Morel, Claire") == "Claire")
         #expect(ReviewRules.short("Camille") == "Camille")
         #expect(ReviewRules.short("claire@cabinet.exemple") == "claire@cabinet.exemple")
         #expect(ReviewRules.short("  ") == "")
+        // Quotes some mailers add around a name.
+        #expect(ReviewRules.short("'Claire Morel'") == "Claire")
+        #expect(ReviewRules.short("\"Claire Morel\"") == "Claire")
+        // A title, a first word that is no word, a name in capitals: the whole name, rather than the wrong word.
+        #expect(ReviewRules.short("Dr. Claire Morel") == "Dr. Claire Morel")
+        #expect(ReviewRules.short("Mme Leroy") == "Mme Leroy")
+        #expect(ReviewRules.short("Me Durand") == "Me Durand")
+        #expect(ReviewRules.short("🌿 Atelier Vert") == "🌿 Atelier Vert")
+        #expect(ReviewRules.short("MOREL Claire") == "MOREL Claire")
+        #expect(ReviewRules.short("EDF Entreprises") == "EDF Entreprises")
+        #expect(ReviewRules.short("A B") == "A B")
         // The name a header gave, else the one Paul's own mails gave, else the address.
         var bare = thread([sent(10), received(Self.marc, 4)])
         bare.senders = [MailAddress(email: Self.marc)]

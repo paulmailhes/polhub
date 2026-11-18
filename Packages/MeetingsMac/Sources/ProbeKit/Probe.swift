@@ -24,10 +24,7 @@ public enum ProbeRegistry {
         case .record: RecordProbe()
         case .pipeline: PipelineProbe()
         case .colin: ColinProbe(helper: ColinProbe.embeddedHelper())
-        // Read only: the app has already brought its base up to date, and the count writes nothing in it.
-        case .colinRules: ColinRulesProbe(database: {
-            try AppDatabase.readOnly(path: AppPaths.standard(AppFlavor.current).database.path(percentEncoded: false))
-        })
+        case .colinRules: ColinRulesProbe(path: AppPaths.standard(AppFlavor.current).database.path(percentEncoded: false))
         }
     }
 }

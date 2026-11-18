@@ -151,8 +151,12 @@ public struct MailStore: Sendable {
     /// A message of Paul's, said in SQL as `MailMessageRow.isMine` says it: marked as sent, or written from one of
     /// his accounts. A sender that is missing, or not what it should be, is not his.
     private static let isMineSQL = """
-        (message.labels LIKE '%"SENT"%' OR COALESCE(
+        (instr(message.labels, '"SENT"') > 0 OR COALESCE(
             lower(json_extract(CASE WHEN json_valid(message.sender) THEN message.sender END, '$.email')) IN (SELECT lower(email) FROM google_account), 0))
+        """
+    /// Not in the trash, not in the spam, not a draft: `MailMessageRow.isAside`, with the same exact labels.
+    private static let countsSQL = """
+        instr(message.labels, '"TRASH"') = 0 AND instr(message.labels, '"SPAM"') = 0 AND instr(message.labels, '"DRAFT"') = 0
         """
 
     /// The turn of every thread as it stood at `asOf`: the messages dated after it do not count, nor what is in the
@@ -164,18 +168,80 @@ public struct MailStore: Sendable {
                     MAX(CASE WHEN \(Self.isMineSQL) THEN message.date END) AS lastSentAt,
                     MAX(CASE WHEN NOT \(Self.isMineSQL) THEN message.date END) AS lastReceivedAt
                 FROM mail_message AS message
-                WHERE message.labels NOT LIKE '%"TRASH"%' AND message.labels NOT LIKE '%"SPAM"%' AND message.labels NOT LIKE '%"DRAFT"%'
-                    AND message.date <= ?
+                WHERE \(Self.countsSQL) AND message.date <= ?
                 GROUP BY message.threadKey
                 """, arguments: [asOf])
-            return Dictionary(uniqueKeysWithValues: rows.map { row in
-                (row["threadKey"] as String, MailTurn(lastReceivedAt: row["lastReceivedAt"], lastSentAt: row["lastSentAt"]))
-            })
+            var turns: [String: MailTurn] = [:]
+            for row in rows {
+                guard let key = String.fromDatabaseValue(row["threadKey"]) else { continue }
+                // Read without a trap: a date that is no date is no turn.
+                turns[key] = MailTurn(lastReceivedAt: Date.fromDatabaseValue(row["lastReceivedAt"]), lastSentAt: Date.fromDatabaseValue(row["lastSentAt"]))
+            }
+            return turns
+        }
+    }
+
+    /// Who wrote the last message received in each thread, as it stood at `asOf`: an address in small letters.
+    public func lastSenders(asOf: Date) throws -> [String: String] {
+        try writer.read { db in
+            // With MAX(), SQLite takes the other columns from the row that holds the maximum.
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT message.threadKey AS threadKey,
+                    lower(json_extract(CASE WHEN json_valid(message.sender) THEN message.sender END, '$.email')) AS email,
+                    MAX(message.date) AS date
+                FROM mail_message AS message
+                WHERE \(Self.countsSQL) AND NOT \(Self.isMineSQL) AND message.date <= ?
+                GROUP BY message.threadKey
+                """, arguments: [asOf])
+            var senders: [String: String] = [:]
+            for row in rows {
+                guard let key = String.fromDatabaseValue(row["threadKey"]), let email = String.fromDatabaseValue(row["email"]) else { continue }
+                senders[key] = email
+            }
+            return senders
+        }
+    }
+
+    /// The copies of one conversation in several of Paul's mailboxes: a mail delivered to two boxes is two messages
+    /// with the same identifier (its « Message-ID »), in two threads. For each thread that has such a copy, the key
+    /// of its group; a thread alone is not in the answer. Only the messages dated after `since` are read.
+    public func conversations(since: Date) throws -> [String: String] {
+        try writer.read { db in
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT rfcMessageID, threadKey FROM mail_message
+                WHERE rfcMessageID IS NOT NULL AND rfcMessageID != '' AND date > ? AND instr(labels, '"DRAFT"') = 0
+                """, arguments: [since])
+            var parent: [String: String] = [:]
+            func root(_ thread: String) -> String {
+                var current = thread
+                while let next = parent[current], next != current { current = next }
+                return current
+            }
+            var first: [String: String] = [:]
+            for row in rows {
+                guard let identifier = String.fromDatabaseValue(row["rfcMessageID"]), let thread = String.fromDatabaseValue(row["threadKey"]) else { continue }
+                if parent[thread] == nil { parent[thread] = thread }
+                guard let other = first[identifier] else {
+                    first[identifier] = thread
+                    continue
+                }
+                let one = root(other), two = root(thread)
+                // The smaller key leads: the group's name does not depend on the order of the reading.
+                if one != two { parent[max(one, two)] = min(one, two) }
+            }
+            var sizes: [String: Int] = [:]
+            for thread in parent.keys { sizes[root(thread), default: 0] += 1 }
+            var groups: [String: String] = [:]
+            for thread in parent.keys {
+                let group = root(thread)
+                if sizes[group, default: 0] > 1 { groups[thread] = group }
+            }
+            return groups
         }
     }
 
     /// Calls `onChange` on the main queue with the threads shown whose last message, received or sent, is after
-    /// `since`: now, and after every change.
+    /// `since`: now, and after every change of one of them. A writing that changes none of them calls nobody.
     public func observeTurns(since: Date, onChange: @escaping @MainActor @Sendable ([MailThreadRow]) -> Void) -> AnyDatabaseCancellable {
         ValueObservation
             .tracking { db in
@@ -184,6 +250,7 @@ public struct MailStore: Sendable {
                     .order(Column("lastMessageAt").desc)
                     .fetchAll(db)
             }
+            .removeDuplicates()
             .start(in: writer, scheduling: .async(onQueue: .main), onError: { _ in }, onChange: { rows in
                 MainActor.assumeIsolated { onChange(rows) }
             })

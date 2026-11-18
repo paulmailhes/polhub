@@ -20,14 +20,24 @@ public struct MailCorrespondent: Equatable, Sendable {
 extension MailStore {
     /// The people Paul wrote to, by lowercased address.
     public func correspondentStats() throws -> [String: MailCorrespondent] {
-        try database.writer.read(Self.correspondentStats)
+        try database.writer.read { try Self.correspondentStats($0) }
+    }
+
+    /// The people Paul had written to at `asOf` (To and Cc of what he had sent by then), by lowercased address:
+    /// who « someone he already wrote to » was on that day.
+    public func correspondents(asOf: Date) throws -> Set<String> {
+        try database.writer.read { Set(try Self.correspondentStats($0, asOf: asOf).keys) }
     }
 
     /// One reading of what Paul sent, in date order: the count, the last date and the last name of each address.
-    static func correspondentStats(_ db: Database) throws -> [String: MailCorrespondent] {
+    /// `asOf`: only what he had sent by then.
+    static func correspondentStats(_ db: Database, asOf: Date? = nil) throws -> [String: MailCorrespondent] {
         let decoder = JSONDecoder()
         var found: [String: MailCorrespondent] = [:]
-        for row in try Row.fetchAll(db, sql: #"SELECT "to", cc, date FROM mail_message WHERE labels LIKE '%"SENT"%' ORDER BY date"#) {
+        let rows = try asOf.map { date in
+            try Row.fetchAll(db, sql: #"SELECT "to", cc, date FROM mail_message WHERE labels LIKE '%"SENT"%' AND date <= ? ORDER BY date"#, arguments: [date])
+        } ?? Row.fetchAll(db, sql: #"SELECT "to", cc, date FROM mail_message WHERE labels LIKE '%"SENT"%' ORDER BY date"#)
+        for row in rows {
             let date: Date = row["date"] ?? .distantPast
             var seen: Set<String> = []
             for column in ["to", "cc"] {

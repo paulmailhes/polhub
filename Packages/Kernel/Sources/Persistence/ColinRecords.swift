@@ -25,14 +25,21 @@ public struct ColinDismissalRow: Codable, FetchableRecord, PersistableRecord, Eq
     public var reason: Reason
     public var projectID: UUID?
     public var createdAt: Date
+    /// The date of the last message Paul had before him when he set the line aside: a message that reached Gmail
+    /// before his click and Polhub after it is newer than what he saw, and brings the line back.
+    public var lastMessageAt: Date?
+    /// How many times in a row this line was set aside as « Elle a répondu ailleurs ».
+    public var times: Int
 
-    public init(kind: String, subject: String, reason: Reason, projectID: UUID? = nil, createdAt: Date) {
+    public init(kind: String, subject: String, reason: Reason, projectID: UUID? = nil, createdAt: Date, lastMessageAt: Date? = nil, times: Int = 1) {
         self.id = Self.key(kind: kind, subject: subject)
         self.kind = kind
         self.subject = subject
         self.reason = reason
         self.projectID = projectID
         self.createdAt = createdAt
+        self.lastMessageAt = lastMessageAt
+        self.times = times
     }
 
     public static func key(kind: String, subject: String) -> String { "\(kind):\(subject)" }

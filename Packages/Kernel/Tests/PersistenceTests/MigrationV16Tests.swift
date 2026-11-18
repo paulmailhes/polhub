@@ -4,7 +4,8 @@ import Testing
 @testable import Persistence
 
 /// Base v16 (18/11): each thread keeps who spoke last (the last message received, the last one of Paul's), and
-/// Polhub keeps what Paul sets aside on the Accueil. The threads already there get their turn in one pass. A helper
+/// Polhub keeps what Paul sets aside on the Accueil. The migration only adds columns and a table; the threads
+/// already there get their turn right after it, in a pass of its own that can never keep the base shut. A helper
 /// that never migrates still reads a base of before.
 @Suite struct MigrationV16Tests {
     let now = Date(timeIntervalSince1970: 1_794_960_000)   // 18/11/2026
@@ -67,6 +68,15 @@ import Testing
             // Everything aside: no turn at all.
             try thread(db, "d")
             try message(db, "d1", thread: "d", hours: 7, sender: Self.client, labels: #"["TRASH"]"#)
+            // Several messages on each side: the last of each counts.
+            try thread(db, "e")
+            try message(db, "e1", thread: "e", hours: 10, sender: Self.client, labels: #"["INBOX"]"#)
+            try message(db, "e2", thread: "e", hours: 11, sender: Self.client, labels: #"["INBOX"]"#)
+            try message(db, "e3", thread: "e", hours: 12, sender: Self.mine, labels: #"["SENT"]"#)
+            try message(db, "e4", thread: "e", hours: 13, sender: Self.mine, labels: #"["SENT"]"#)
+            // A label that only looks like Gmail's own, in small letters, is not it.
+            try thread(db, "f")
+            try message(db, "f1", thread: "f", hours: 14, sender: Self.client, labels: #"["sent","trash"]"#)
         }
         defer { try? FileManager.default.removeItem(at: folder) }
         let base = try AppDatabase(path: path)
@@ -75,6 +85,8 @@ import Testing
         #expect(try turn(base, "b") == (nil, now.addingTimeInterval(2 * hour)))
         #expect(try turn(base, "c") == (now.addingTimeInterval(3 * hour), nil))
         #expect(try turn(base, "d") == (nil, nil))
+        #expect(try turn(base, "e") == (now.addingTimeInterval(11 * hour), now.addingTimeInterval(13 * hour)))
+        #expect(try turn(base, "f") == (now.addingTimeInterval(14 * hour), nil))
         // The threads read as records carry the same turn, and a change after the migration keeps them right.
         let mails = MailStore(base)
         let answered = try #require(try mails.thread("\(Self.me)|a"))
@@ -84,6 +96,12 @@ import Testing
                            sender: MailAddress(name: "Camille Martin", email: "camille@exemple.fr"), subject: "Maquette", snippet: "extrait", labels: ["INBOX"]),
         ])
         #expect(try turn(base, "a") == (now.addingTimeInterval(9 * hour), now.addingTimeInterval(hour)))
+        // Opened again, nothing is counted a second time: what the threads hold stays.
+        try base.writer.write { try $0.execute(sql: "UPDATE mail_thread SET lastSentAt = NULL WHERE id = ?", arguments: ["\(Self.me)|b"]) }
+        let again = try AppDatabase(path: path)
+        #expect(try turn(again, "a") == (now.addingTimeInterval(9 * hour), now.addingTimeInterval(hour)))
+        // A thread shown that lost its turn gets it back at the next opening.
+        #expect(try turn(again, "b") == (nil, now.addingTimeInterval(2 * hour)))
     }
 
     @Test func aBaseStillAtV15ReadsItsThreads() throws {
@@ -119,16 +137,59 @@ import Testing
 
     @Test func aTurnThatCannotBeCountedNeverKeepsTheBaseShut() throws {
         // Whatever makes the count fail (here, a column that is not where it should be): Paul's app must open. The
-        // threads keep an empty turn, which fills as they change.
+        // threads keep an empty turn, and get it at the first opening where the count can be made.
         let (folder, path) = try baseAtV15 { db in
             try thread(db, "a")
             try message(db, "a1", thread: "a", hours: 0, sender: Self.client, labels: #"["INBOX"]"#)
             try db.execute(sql: "ALTER TABLE mail_message RENAME COLUMN labels TO etiquettes")
         }
         defer { try? FileManager.default.removeItem(at: folder) }
+        do {
+            let base = try AppDatabase(path: path)
+            #expect(try turn(base, "a") == (nil, nil))
+            #expect(try base.writer.read { try $0.tableExists("colin_dismissal") })
+            #expect(try base.writer.read { try AppDatabase.migrator.appliedIdentifiers($0).contains("v16") })
+            try base.writer.write { try $0.execute(sql: "ALTER TABLE mail_message RENAME COLUMN etiquettes TO labels") }
+        }
+        let healed = try AppDatabase(path: path)
+        #expect(try turn(healed, "a") == (now, nil))
+    }
+
+    @Test func aCountThatDropsTheWholeTransactionNeverKeepsTheBaseShut() throws {
+        // The worst a count can do: SQLite itself drops the transaction it runs in (a disk that fills, here a
+        // trigger). The migration has its own transaction, already kept: the base opens, at v16.
+        let (folder, path) = try baseAtV15 { db in
+            try thread(db, "a")
+            try message(db, "a1", thread: "a", hours: 0, sender: Self.client, labels: #"["INBOX"]"#)
+            try db.execute(sql: "CREATE TRIGGER casse BEFORE UPDATE ON mail_thread BEGIN SELECT RAISE(ROLLBACK, 'plus de place'); END")
+        }
+        defer { try? FileManager.default.removeItem(at: folder) }
+        do {
+            let base = try AppDatabase(path: path)
+            #expect(try base.writer.read { try AppDatabase.migrator.appliedIdentifiers($0).contains("v16") })
+            #expect(try base.writer.read { try $0.tableExists("colin_dismissal") })
+            #expect(try turn(base, "a") == (nil, nil))
+            // The base works: what Paul sets aside is kept.
+            try ColinStore(base).dismiss(ColinDismissalRow(kind: "reply", subject: "\(Self.me)|a", reason: .notNeeded, createdAt: now))
+            try base.writer.write { try $0.execute(sql: "DROP TRIGGER casse") }
+        }
+        let healed = try AppDatabase(path: path)
+        #expect(try turn(healed, "a") == (now, nil))
+        #expect(try ColinStore(healed).dismissals().count == 1)
+    }
+
+    @Test func aCountThatFailsMidwayWritesNothing() throws {
+        // The second thread makes the count fail: no thread keeps half a count, and the base opens.
+        let (folder, path) = try baseAtV15 { db in
+            for id in ["a", "b", "c"] {
+                try thread(db, id)
+                try message(db, "\(id)1", thread: id, hours: 0, sender: Self.client, labels: #"["INBOX"]"#)
+            }
+            try db.execute(sql: "CREATE TRIGGER casse BEFORE UPDATE ON mail_thread WHEN NEW.id = '\(Self.me)|b' BEGIN SELECT RAISE(ABORT, 'non'); END")
+        }
+        defer { try? FileManager.default.removeItem(at: folder) }
         let base = try AppDatabase(path: path)
-        #expect(try turn(base, "a") == (nil, nil))
-        #expect(try base.writer.read { try $0.tableExists("colin_dismissal") })
+        for id in ["a", "b", "c"] { #expect(try turn(base, id) == (nil, nil), "\(id)") }
         #expect(try base.writer.read { try AppDatabase.migrator.appliedIdentifiers($0).contains("v16") })
     }
 
@@ -138,7 +199,7 @@ import Testing
         #expect(try AppDatabase.forTools(path: path).writer.read { try !$0.tableExists("colin_dismissal") })
         let base = try AppDatabase(path: path)
         let columns = try base.writer.read { try $0.columns(in: "colin_dismissal").map(\.name).sorted() }
-        #expect(columns == ["createdAt", "id", "kind", "projectID", "reason", "subject"])
+        #expect(columns == ["createdAt", "id", "kind", "lastMessageAt", "projectID", "reason", "subject", "times"])
         // The copy of the base made before the migration is named after it.
         let backups = try FileManager.default.contentsOfDirectory(atPath: folder.appending(path: "Sauvegardes").path(percentEncoded: false))
         #expect(backups.contains { $0.hasPrefix("Polhub-avant-v16-") })

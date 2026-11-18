@@ -36,6 +36,42 @@ import Testing
         #expect(rows[0].projectID == nil)
     }
 
+    @Test func aLineSetAsideAgainAsAnsweredElsewhereIsCounted() throws {
+        // « Elle a répondu ailleurs », a second time on the same thread: the row is the same, and it counts two.
+        let store = ColinStore(try AppDatabase.inMemory())
+        let project = UUID()
+        let first = ColinDismissalRow(kind: "silent", subject: thread, reason: .answeredElsewhere, projectID: project, createdAt: now)
+        try store.dismiss(first)
+        #expect(try store.dismissals().first?.times == 1)
+        var second = first
+        second.createdAt = now.addingTimeInterval(8 * 86_400)
+        try store.dismiss(second)
+        let rows = try store.dismissals()
+        #expect(rows.count == 1 && rows.first?.times == 2 && rows.first?.createdAt == second.createdAt)
+        // Another reason starts again from one.
+        var later = first
+        later.reason = .later
+        try store.dismiss(later)
+        #expect(try store.dismissals().first?.times == 1)
+        try store.dismiss(first)
+        #expect(try store.dismissals().first?.times == 1)
+    }
+
+    @Test func aDismissalKeepsTheLastMessagePaulHadBeforeHim() throws {
+        // The click says « nothing to do about what I see »: what he saw is kept, to the millisecond, beside the row.
+        let database = try AppDatabase.inMemory()
+        let store = ColinStore(database)
+        let seen = now.addingTimeInterval(-3_600.5)
+        let project = UUID()
+        try store.dismiss(ColinDismissalRow(kind: "reply", subject: thread, reason: .notNeeded, projectID: project, createdAt: now, lastMessageAt: seen))
+        #expect(try store.dismissals().first?.lastMessageAt == seen)
+        try store.dismiss(ColinDismissalRow(kind: "unfiled", subject: "e1", reason: .later, createdAt: now))
+        #expect(try store.dismissals().last?.lastMessageAt == nil)
+        // A project is kept as the other tables keep it: its identifier in small letters.
+        let stored = try database.writer.read { try String.fetchOne($0, sql: "SELECT projectID FROM colin_dismissal WHERE kind = 'reply'") }
+        #expect(stored == project.uuidString.lowercased())
+    }
+
     @Test func theDismissalsAreObserved() async throws {
         let store = ColinStore(try AppDatabase.inMemory())
         let seen = Seen()

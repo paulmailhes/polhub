@@ -29,6 +29,20 @@ public final class AppDatabase: Sendable {
             try Self.protect(writer, backups: folder.appending(path: "Sauvegardes", directoryHint: .isDirectory), now: Date())
         }
         try Self.migrator.migrate(writer)
+        Self.fillMissingTurns(writer)
+    }
+
+    /// The threads shown that have no turn yet (base v16) get it from their messages, in one pass and in a
+    /// transaction of its own: right after the migration that added the columns, and at any later opening where
+    /// some still lack it. It never throws: whatever happens here, even SQLite dropping the transaction (a disk
+    /// that fills), Paul's base is open, and the count is made again at the next opening.
+    static func fillMissingTurns(_ writer: any DatabaseWriter) {
+        try? writer.write { db in
+            let missing = try Bool.fetchOne(db, sql: """
+                SELECT EXISTS(SELECT 1 FROM mail_thread WHERE hidden = 0 AND lastReceivedAt IS NULL AND lastSentAt IS NULL)
+                """) ?? false
+            if missing { try MailTurnBackfill.run(db) }
+        }
     }
 
     /// Before any migration of a base that already holds Paul's data (review of 15/11): a base left by a newer
@@ -76,6 +90,7 @@ public final class AppDatabase: Sendable {
     private init(writer: any DatabaseWriter) throws {
         self.writer = writer
         try Self.migrator.migrate(writer)
+        Self.fillMissingTurns(writer)
     }
 
     /// For the command line and Claude Code: never writes, never migrates, waits up to 5 s for the app's
@@ -542,6 +557,8 @@ public final class AppDatabase: Sendable {
         }
         // Colin's Accueil (18/11): each thread keeps who spoke last, and Polhub keeps the lines Paul sets aside.
         // A helper of before reads a base of after: two columns it does not know, and a table it never opens.
+        // Nothing here reads a row: it cannot fail on what the base holds. The turns of the threads already there
+        // are counted after it, by `fillMissingTurns`.
         migrator.registerMigration("v16") { db in
             try db.alter(table: "mail_thread") { t in
                 t.add(column: "lastReceivedAt", .datetime)
@@ -554,30 +571,26 @@ public final class AppDatabase: Sendable {
                 t.column("reason", .text).notNull()
                 t.column("projectID", .text)
                 t.column("createdAt", .datetime).notNull()
-            }
-            // The threads already there get their turn in one pass. Whatever would make that pass fail must never
-            // keep Paul's base shut: the turns then stay empty, and fill as the threads change.
-            try? db.inSavepoint {
-                try MailTurnBackfill.run(db)
-                return .commit
+                t.column("lastMessageAt", .datetime)
+                t.column("times", .integer).notNull().defaults(to: 1)
             }
         }
         return migrator
     }
 }
 
-/// The turn of every thread, counted from its messages in one pass (migration `v16`). Raw columns only, and its
-/// own copy of the rule: a migration must keep doing what it did, whatever the records become.
+/// The turn of every thread that has none, counted from its messages in one pass (base v16): the last message
+/// received, the last one of Paul's. Raw columns only.
 enum MailTurnBackfill {
     /// A message of Paul's: marked as sent, or written from one of his accounts. A sender that is missing, or not
     /// what it should be, is not his.
     private static let isMine = """
-        (message.labels LIKE '%"SENT"%' OR COALESCE(
+        (instr(message.labels, '"SENT"') > 0 OR COALESCE(
             lower(json_extract(CASE WHEN json_valid(message.sender) THEN message.sender END, '$.email')) IN (SELECT lower(email) FROM google_account), 0))
         """
     /// Not in the trash, not in the spam, not a draft.
     private static let counts = """
-        message.labels NOT LIKE '%"TRASH"%' AND message.labels NOT LIKE '%"SPAM"%' AND message.labels NOT LIKE '%"DRAFT"%'
+        instr(message.labels, '"TRASH"') = 0 AND instr(message.labels, '"SPAM"') = 0 AND instr(message.labels, '"DRAFT"') = 0
         """
 
     static func run(_ db: Database) throws {
@@ -587,6 +600,7 @@ enum MailTurnBackfill {
                               WHERE message.threadKey = mail_thread.id AND \(counts) AND \(isMine)),
                 lastReceivedAt = (SELECT MAX(message.date) FROM mail_message AS message
                                   WHERE message.threadKey = mail_thread.id AND \(counts) AND NOT \(isMine))
+            WHERE lastReceivedAt IS NULL AND lastSentAt IS NULL
             """)
     }
 }

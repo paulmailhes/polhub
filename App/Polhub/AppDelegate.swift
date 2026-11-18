@@ -278,20 +278,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     /// after the launch, then at the first quiet moment. Numbers only, written among the measures: no model, and
     /// nothing leaves the Mac. The development version, which has its own base, counts nothing.
     private func countColinRulesOnce() {
+        let key = Preferences.Key.colinRulesCount
         guard AppFlavor.current != .dev, let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
-              UserDefaults.standard.string(forKey: Preferences.Key.colinRulesCount) != version else { return }
+              UserDefaults.standard.string(forKey: key) != version else { return }
         Task { [weak self] in
             var wait = Duration.seconds(60)
-            // Never beside a meeting: asked again every five minutes, for a day at most.
+            var attempts = 0
+            // Never beside a meeting: asked again every five minutes, for a day at most. The version is noted once
+            // a count went to its end; one that could not read the base is tried again, three times in all.
             for _ in 0..<288 {
                 try? await Task.sleep(for: wait)
                 wait = .seconds(300)
-                guard let self else { return }
+                guard let self, UserDefaults.standard.string(forKey: key) != version, attempts < 3 else { return }
                 guard await self.isQuiet() else { continue }
-                if self.runner.start(ProbeRequest(probe: .colinRules)) {
-                    UserDefaults.standard.set(version, forKey: Preferences.Key.colinRulesCount)
-                    return
+                let started = self.runner.start(ProbeRequest(probe: .colinRules)) { [weak self] _ in
+                    if let directory = self?.runner.lastDirectory, ColinRulesProbe.completed(in: directory) {
+                        UserDefaults.standard.set(version, forKey: key)
+                    }
                 }
+                if started { attempts += 1 }
             }
         }
     }
