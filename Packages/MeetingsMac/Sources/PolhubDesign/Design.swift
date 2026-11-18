@@ -63,6 +63,10 @@ public enum Surface {
     public static let raised = Color.primary.opacity(0.07)
     public static let stroke = Color.primary.opacity(0.08)
     public static let selected = Color.accentColor.opacity(0.12)
+    /// Paul's bubble in Colin's thread: a light grey, a little more in the dark (the Accueil's pass, 18/11).
+    public static let bubble = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? NSColor.white.withAlphaComponent(0.11) : NSColor.black.withAlphaComponent(0.055)
+    })
 }
 
 /// The mails' list, as Gmail's (Paul, 15/11: « quand le mail n'est pas ouvert il est bien blanc, ouvert un peu

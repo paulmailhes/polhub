@@ -50,6 +50,54 @@ enum ColinThreadText {
         return sections
     }
 
+    /// A piece of an answer: its text, or the actions it did there.
+    enum Piece: Equatable {
+        case text(String)
+        case steps(StepGroup)
+    }
+
+    /// The text cut where each action began; an action not reached yet by the words shown waits at the end.
+    static func pieces(_ text: String, groups: [StepGroup]) -> [Piece] {
+        var pieces: [Piece] = []
+        var from = text.startIndex
+        func add(upTo end: String.Index) {
+            let said = text[from..<end].trimmingCharacters(in: .whitespacesAndNewlines)
+            if !said.isEmpty { pieces.append(.text(said)) }
+            from = end
+        }
+        for group in groups.sorted(by: { $0.position < $1.position }) {
+            let cut = text.index(text.startIndex, offsetBy: min(max(group.position, 0), text.count))
+            add(upTo: max(cut, from))
+            pieces.append(.steps(group))
+        }
+        add(upTo: text.endIndex)
+        return pieces
+    }
+
+    /// « a travaillé 9 s », « a travaillé 1 min 12 ».
+    static func worked(_ milliseconds: Int) -> String {
+        let seconds = max(1, Int((Double(milliseconds) / 1_000).rounded()))
+        return seconds < 60 ? "a travaillé \(seconds) s" : "a travaillé \(seconds / 60) min \(String(format: "%02d", seconds % 60))"
+    }
+
+    /// What Colin changed while he answered goes with that answer (made between the question and the next message,
+    /// by him, with no rule's reason); the rest — his rules, an agent's changes — stays lines at their time.
+    static func attach(_ changes: [ProjectChangeLine], to messages: [ColinMessageRow]) -> (inAnswers: [String: [ProjectChangeLine]], loose: [ProjectChangeLine]) {
+        let sorted = messages.sorted { $0.createdAt < $1.createdAt }
+        var inAnswers: [String: [ProjectChangeLine]] = [:]
+        var loose: [ProjectChangeLine] = []
+        for change in changes {
+            guard change.who == .colin, change.reason == nil,
+                  let index = sorted.lastIndex(where: { $0.author == .colin && $0.createdAt <= change.at }),
+                  index + 1 >= sorted.count || sorted[index + 1].createdAt > change.at else {
+                loose.append(change)
+                continue
+            }
+            inAnswers[sorted[index].id, default: []].append(change)
+        }
+        return (inAnswers, loose)
+    }
+
     /// The last thing of the thread, where it scrolls to.
     static func lastID(_ messages: [ColinMessageRow], changes: [ProjectChangeLine]) -> String? {
         sections(messages, changes: changes, now: Date(), calendar: Calendar(identifier: .gregorian)).last?.items.last?.id
@@ -88,8 +136,9 @@ enum ColinThreadText {
     }
 }
 
-/// Colin's thread (18/11): the days, Paul's questions, Colin's answers (a message to copy, a line to keep, the drafts
-/// of the answer), and the answer being written with what Colin is doing.
+/// Colin's thread (the Accueil's pass, 18/11): a reading column, the days between two lines, Paul's questions in
+/// bubbles, Colin's answers in clear text with his actions in their places and the cards of what he changed; the
+/// changes of his rules and of the agents at their time.
 struct ColinThreadView: View {
     @ObservedObject var thread: ColinThread
     let mails: MailLibrary?
@@ -97,143 +146,39 @@ struct ColinThreadView: View {
     var calendar: Calendar = CalendarView.calendar
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.m) {
+        let split = ColinThreadText.attach(thread.changes, to: thread.messages)
+        let sections = ColinThreadText.sections(thread.messages, changes: split.loose, now: Date(), calendar: calendar)
+        let lastAnswer = thread.messages.last(where: { $0.author == .colin })?.id
+        VStack(alignment: .leading, spacing: 0) {
             if thread.messages.count >= 100 {
-                TextButton("Voir les échanges d'avant") { thread.loadEarlier() }
+                TextButton("Voir les échanges d'avant", quiet: true) { thread.loadEarlier() }
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, Space.s)
             }
-            ForEach(ColinThreadText.sections(thread.messages, changes: thread.changes, now: Date(), calendar: calendar), id: \.day) { section in
-                Text(section.day)
-                    .font(.meta.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.top, Space.s)
+            ForEach(Array(sections.enumerated()), id: \.element.day) { index, section in
+                DaySeparator(day: section.day).padding(.top, index == 0 ? 0 : ThreadMetrics.turn)
                 ForEach(section.items) { item in
                     switch item {
-                    case .message(let message): row(message).id(item.id)
+                    case .message(let message) where message.author == .paul:
+                        PaulBubble(message: message, calendar: calendar).padding(.top, ThreadMetrics.turn).id(item.id)
+                    case .message(let message):
+                        ColinAnswerView(message: message, thread: thread, mails: mails, router: router, changes: split.inAnswers[message.id] ?? [],
+                                        isLast: message.id == lastAnswer, calendar: calendar)
+                            .padding(.top, ThreadMetrics.inTurn)
+                            .id(item.id)
                     case .change(let line):
-                        // An agent's change says who made it; Colin's, why.
-                        ChangeRow(line: line, outcome: thread.outcomes[line.id], calendar: calendar,
-                                  byline: line.who == .colin ? nil : ChangeText.byline(line, now: Date(), calendar: calendar)) { thread.undo(line) }
+                        // A rule's change says why; an agent's, who made it.
+                        ChangeCard(line: line, outcome: thread.outcomes[line.id], calendar: calendar,
+                                   byline: line.who == .colin ? nil : ChangeText.byline(line, now: Date(), calendar: calendar)) { thread.undo(line) }
+                            .padding(.top, ThreadMetrics.inTurn)
                             .id(item.id)
                     }
                 }
             }
-            if case .working(let phrase) = thread.status {
-                if !thread.streaming.isEmpty { answerText(thread.streaming) }
-                Text(phrase).font(.meta).foregroundStyle(.secondary).id("colin-travaille")
-            }
         }
+        .frame(maxWidth: ThreadMetrics.column)
+        .frame(maxWidth: .infinity)
         .animation(Motion.standard, value: thread.messages.count + thread.changes.count)
-    }
-
-    @ViewBuilder
-    private func row(_ message: ColinMessageRow) -> some View {
-        switch message.author {
-        case .paul:
-            Text(message.text)
-                .font(.rowBody)
-                .textSelection(.enabled)
-                .padding(.horizontal, Space.m)
-                .padding(.vertical, Space.s)
-                .background(Surface.fill, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
-                .frame(maxWidth: .infinity, alignment: .trailing)
-        case .colin:
-            // The answer being written shows apart, under the thread.
-            if message.state != .answering {
-                let (said, note) = ColinThreadText.note(of: message)
-                VStack(alignment: .leading, spacing: Space.s) {
-                    ForEach(Array(ColinAnswer.blocks(said).enumerated()), id: \.offset) { _, block in
-                        self.block(block)
-                    }
-                    ForEach(message.drafts, id: \.self) { id in draftLine(id) }
-                    if let note { Text(note).font(.meta).foregroundStyle(.secondary) }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func block(_ block: ColinAnswer.Block) -> some View {
-        switch block {
-        case .text(let text):
-            answerText(text)
-        case .message(let text):
-            VStack(alignment: .leading, spacing: Space.s) {
-                Text(text).font(.rowBody).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
-                TextButton("Copier") {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(text, forType: .string)
-                }
-            }
-            .padding(Space.m)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .cardSurface()
-        case .keep(let line):
-            HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-                Text(line).font(.rowBody).foregroundStyle(.secondary)
-                Spacer(minLength: Space.s)
-                if !thread.knows(line) {
-                    TextButton("Garder") { try? thread.keep(line) }
-                }
-            }
-        }
-    }
-
-    private func answerText(_ text: String) -> some View {
-        Text(ColinAnswer.inline(text))
-            .font(.rowTitle)
-            .textSelection(.enabled)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// A draft the answer prepared, still a draft: « Relire » opens it over the Accueil.
-    @ViewBuilder
-    private func draftLine(_ id: String) -> some View {
-        if let mails, let draft = mails.drafts.first(where: { $0.id == id }) {
-            HStack(spacing: Space.s) {
-                Image(systemName: "sparkles").foregroundStyle(Color.accentColor)
-                Text(verbatim: "Brouillon prêt pour \(draft.to.first.map { ReviewRules.short($0.display) } ?? "toi")").font(.rowBody)
-                Spacer(minLength: Space.s)
-                TextButton("Relire") { mails.open(draft) { router.homeMail = $0 } }
-            }
-        }
-    }
-}
-
-/// A change Colin made on a project (step 3, 18/11): one sentence, why in small, and « Annuler » — or what it did.
-struct ChangeRow: View {
-    let line: ProjectChangeLine
-    let outcome: UndoOutcome?
-    var calendar: Calendar = CalendarView.calendar
-    /// Who made it and when: behind « Voir », where Colin is not the only one.
-    var byline: String?
-    let undo: () -> Void
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-            Image(systemName: "arrow.triangle.2.circlepath").foregroundStyle(.secondary)
-            VStack(alignment: .leading, spacing: Space.xs) {
-                Text(verbatim: ChangeText.sentence(line, calendar: calendar))
-                    .font(.rowBody)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-                if let said = said { Text(verbatim: said).font(.meta).foregroundStyle(.secondary) }
-            }
-            Spacer(minLength: Space.s)
-            if outcome == nil, line.undoneAt == nil {
-                TextButton("Annuler", action: undo)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// Why it was made (and by whom, behind « Voir »); once undone, what « Annuler » did.
-    private var said: String? {
-        if let outcome { return ChangeText.undone(outcome) }
-        if line.undoneAt != nil { return ChangeText.undone(.undone) }
-        return byline ?? ChangeText.note(line)
     }
 }
 

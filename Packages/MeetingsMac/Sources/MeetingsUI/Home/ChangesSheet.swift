@@ -21,8 +21,8 @@ struct ChangesSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.m) {
                     ForEach(colin.briefingChanges.reversed()) { line in
-                        ChangeRow(line: line, outcome: colin.changeOutcomes[line.id], calendar: calendar,
-                                  byline: ChangeText.byline(line, now: Date(), calendar: calendar)) { colin.undo(line) }
+                        ChangeCard(line: line, outcome: colin.changeOutcomes[line.id], calendar: calendar,
+                                   byline: ChangeText.byline(line, now: Date(), calendar: calendar)) { colin.undo(line) }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

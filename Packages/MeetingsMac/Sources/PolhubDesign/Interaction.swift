@@ -166,10 +166,13 @@ public struct RowButton<Label: View>: View {
 /// its text lined up with the card's, as « Voir les N autres ».
 public struct TextButton: View {
     let title: String
+    let quiet: Bool
     let action: () -> Void
 
-    public init(_ title: String, action: @escaping () -> Void) {
+    /// `quiet`: grey, not orange — a gesture that is there, not one that calls (the Accueil's pass, 18/11).
+    public init(_ title: String, quiet: Bool = false, action: @escaping () -> Void) {
         self.title = title
+        self.quiet = quiet
         self.action = action
     }
 
@@ -178,9 +181,46 @@ public struct TextButton: View {
             Text(title).font(.meta.weight(.medium)).padding(.horizontal, Space.s).padding(.vertical, 3)
         }
         .buttonStyle(.hover(.capsule))
-        .foregroundStyle(Color.accentColor)
+        .foregroundStyle(quiet ? Color.secondary : Color.accentColor)
         .padding(.horizontal, -Space.s)
     }
+}
+
+/// The action of a line, quiet (the Accueil's pass, 18/11): small, a thin border, the text's own color, a fill
+/// under the pointer. One by line; the orange is kept for what matters.
+public struct SubtleButtonStyle: ButtonStyle {
+    public init() {}
+
+    public func makeBody(configuration: Configuration) -> some View {
+        SubtleButtonBody(configuration: configuration)
+    }
+}
+
+private struct SubtleButtonBody: View {
+    let configuration: ButtonStyleConfiguration
+    @State private var hovering = false
+    @Environment(\.isEnabled) private var enabled
+
+    var body: some View {
+        configuration.label
+            .font(.tag.weight(.medium))
+            .foregroundStyle(enabled ? Color.primary : Color.secondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background {
+                RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
+                    .fill(hovering ? Surface.raised : Color.clear)
+                    .overlay { RoundedRectangle(cornerRadius: Radius.small, style: .continuous).strokeBorder(Color(nsColor: .separatorColor)) }
+            }
+            .opacity(configuration.isPressed ? 0.7 : 1)
+            .contentShape(Rectangle())
+            .onHover { hovering = $0 }
+            .animation(Motion.quick, value: hovering)
+    }
+}
+
+extension ButtonStyle where Self == SubtleButtonStyle {
+    public static var subtle: SubtleButtonStyle { SubtleButtonStyle() }
 }
 
 /// A full-width line of a list, as Gmail's (the mails, the drafts): on its own ground, a shadow under the pointer

@@ -41,4 +41,12 @@ import Testing
         #expect(String(bold.characters) == "C'est urgent.")
         #expect(bold.runs.contains { $0.inlinePresentationIntent?.contains(.stronglyEmphasized) == true })
     }
+
+    /// The Accueil's pass (18/11): while Colin writes, a block begun is already its card; done, a block never closed is
+    /// text.
+    @Test func anOpenBlockShowsWhileWritten() {
+        let writing = "Voilà.\n```message\nSalut Marc, je t'envoie"
+        #expect(ColinAnswer.blocks(writing, open: true) == [.text("Voilà."), .message("Salut Marc, je t'envoie")])
+        #expect(ColinAnswer.blocks(writing) == [.text("Voilà.\n```message\nSalut Marc, je t'envoie")])
+    }
 }

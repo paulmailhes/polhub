@@ -91,6 +91,43 @@ import Testing
         return calendar
     }
 
+    /// The Accueil's pass (18/11): the thread follows its end only when Paul is there, 32 pt or less from it.
+    @Test func theThreadFollowsOnlyAtTheBottom() {
+        #expect(ThreadScroll.follows(contentHeight: 2_000, offset: 1_400, visibleHeight: 600))
+        #expect(ThreadScroll.follows(contentHeight: 2_000, offset: 1_370, visibleHeight: 600))
+        #expect(!ThreadScroll.follows(contentHeight: 2_000, offset: 1_300, visibleHeight: 600))
+        // A thread shorter than the window: at its end.
+        #expect(ThreadScroll.follows(contentHeight: 300, offset: 0, visibleHeight: 600))
+    }
+
+    /// Colin's actions take their place in his text: where the text stood when each began; one not reached yet by the
+    /// words shown waits at the end.
+    @Test func stepsTakeTheirPlaceInTheText() {
+        let first = ColinStep(id: "t1", tool: "mails", state: .done, position: 11)
+        let second = ColinStep(id: "t2", tool: "projet", state: .running, position: 40)
+        let pieces = ColinThreadText.pieces("Je regarde. Trois projets.", groups: ColinStepText.groups([first, second]))
+        #expect(pieces == [.text("Je regarde."), .steps(StepGroup(steps: [first])), .text("Trois projets."), .steps(StepGroup(steps: [second]))])
+        #expect(ColinThreadText.pieces("", groups: []) == [])
+    }
+
+    /// What Colin changed in an answer goes with it; his rules' changes, and an agent's, stay lines at their time.
+    @Test func changesMadeInAnAnswerGoWithIt() {
+        let question = ColinMessageRow(author: .paul, text: "Passe Studio Nord en priorité 1", createdAt: now.addingTimeInterval(-300))
+        let answer = ColinMessageRow(author: .colin, text: "C'est fait.", createdAt: now.addingTimeInterval(-299.999))
+        let next = ColinMessageRow(author: .paul, text: "Merci", createdAt: now.addingTimeInterval(-60))
+        func line(_ id: String, _ who: ChangeAuthor, at seconds: Double, reason: String? = nil) -> ProjectChangeLine {
+            ProjectChangeLine(id: id, projectID: UUID(), projectName: "Studio Nord", who: who, at: now.addingTimeInterval(seconds), reason: reason, rows: [],
+                              undoneAt: nil)
+        }
+        let made = line("c1", .colin, at: -280)
+        let rule = line("c2", .colin, at: -270, reason: "Après ton mail à Marc, 9:50")
+        let agent = line("c3", .agent, at: -265)
+        let later = line("c4", .colin, at: -30)
+        let split = ColinThreadText.attach([made, rule, agent, later], to: [question, answer, next])
+        #expect(split.inAnswers == [answer.id: [made]])
+        #expect(split.loose.map(\.id) == ["c2", "c3", "c4"])
+    }
+
     @Test func theDaySeparatorsSayTodayYesterdayThenTheDate() {
         #expect(ColinThreadText.day(now.addingTimeInterval(-3_600), now: now, calendar: paris) == "Aujourd'hui")
         #expect(ColinThreadText.day(now.addingTimeInterval(-86_400), now: now, calendar: paris) == "Hier")

@@ -58,6 +58,20 @@ import Testing
                 == "Colin, hier 10:00 · Rendez-vous du jeudi 19/11")
     }
 
+    /// The Accueil's pass (18/11): a change as a small card, a line by field, before → after.
+    @Test func fieldsSayBeforeAndAfter() {
+        let fields = ChangeText.fields(line([row(.status, "priorité 2", "priorité 1"), row(.dueDate, nil, "2026-11-18 23:00:00.000"),
+                                             row(.todo, "Appeler", nil), row(.actionDone, "0", "1", detail: #"{"text":"Envoyer le devis"}"#),
+                                             row(.journalAdded, nil, "Devis relu")]), calendar: paris)
+        #expect(fields == [
+            ChangeField(label: "Statut", before: "priorité 2", after: "priorité 1"),
+            ChangeField(label: "Échéance", before: nil, after: "19/11"),
+            ChangeField(label: "Tâche", before: "Appeler", after: nil),
+            ChangeField(label: "Action", before: "Envoyer le devis", after: "faite"),
+            ChangeField(label: "Journal", before: nil, after: "Devis relu"),
+        ])
+    }
+
     @Test func whatAnUndoDid() {
         #expect(ChangeText.undone(.undone) == "Annulé.")
         #expect(ChangeText.undone(.partly(kept: 1)) == "Annulé, sauf ce qui a changé depuis.")

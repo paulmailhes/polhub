@@ -59,6 +59,10 @@ public final class ColinThread: ObservableObject {
     private var observation: AnyDatabaseCancellable?
     private var changesObservation: AnyDatabaseCancellable?
     private let changeStore: ProjectChanges
+    private let database: AppDatabase
+    /// What each step was about, once said (a thread's subject and project are read once).
+    private var subjects: [String: StepSubject] = [:]
+    private var rules: (read: Date, rules: MailFilingRules)?
     /// Colin's changes are shown this far back.
     static let changesShown: TimeInterval = 14 * 86_400
     private var cancellables: Set<AnyCancellable> = []
@@ -85,6 +89,7 @@ public final class ColinThread: ObservableObject {
                 newDrafts: @escaping @MainActor () -> Set<String> = { [] }) {
         store = ColinStore(database)
         changeStore = ProjectChanges(database)
+        self.database = database
         self.runner = runner
         self.review = review
         self.defaults = defaults
@@ -361,6 +366,36 @@ public final class ColinThread: ObservableObject {
     nonisolated static func shown(_ lines: [ProjectChangeLine]) -> [ProjectChangeLine] {
         let card: Set<ProjectChangeField> = [.status, .dueDate, .todo, .client, .notes, .actionRemoved]
         return lines.filter { $0.who == .colin || $0.rows.contains { card.contains($0.field) } }
+    }
+
+    /// What a step was about, as Polhub's own base says it (the Accueil's pass, 18/11): a thread by its subject and
+    /// its person, and its project; else the project named. Never what the tool gave back.
+    public func subject(_ step: ColinStep) -> StepSubject {
+        if let known = subjects[step.id] { return known }
+        var said = StepSubject(title: nil, project: step.arguments["projet"])
+        if step.tool == "mail", let which = step.arguments["quel"], let thread = try? MailStore(database).thread(matching: which) {
+            let person = thread.senders.last.map { ReviewRules.short($0.name ?? $0.email) }
+            said.title = [thread.subject.isEmpty ? nil : thread.subject, person].compactMap { $0 }.joined(separator: " · ")
+            if rules.map({ now().timeIntervalSince($0.read) > 300 }) ?? true, let read = try? MailStore(database).filingRules() { rules = (now(), read) }
+            if let project = rules?.rules.filing(of: thread)?.filing.projectID { said.project = (try? ProjectStore(database).project(id: project))?.name }
+        }
+        // Kept once its arguments are known.
+        if !step.arguments.isEmpty { subjects[step.id] = said }
+        return said
+    }
+
+    /// « Réessayer » (the Accueil's pass, 18/11): the question of an answer that stopped or failed, asked again at the
+    /// end of the thread. An answer that ended is not asked again: it may have written something.
+    public func retry(_ answer: ColinMessageRow) {
+        guard answer.author == .colin, answer.state == .interrupted || answer.state == .failed, !isAnswering,
+              let question = messages.last(where: { $0.author == .paul && $0.createdAt < answer.createdAt }) else { return }
+        draft = question.text
+        send()
+    }
+
+    /// A suggestion, or a figure of « Le point »: its question in the bar, not sent.
+    public func fill(_ text: String) {
+        draft = text
     }
 
     /// « Annuler » on a change of Colin's: what he wrote is put back, what changed since stays.

@@ -61,6 +61,9 @@ struct HomeView: View {
     @State private var layout = HomeLayout.columns
     /// The bar's height, for the bar of a sending to stay above it.
     @State private var barHeight: CGFloat = 0
+    /// Where Colin's thread stands; it follows its end only while Paul is there (the Accueil's pass, 18/11).
+    @State private var threadPosition = ScrollPosition(edge: .bottom)
+    @State private var following = true
 
     var body: some View {
         Group {
@@ -83,21 +86,33 @@ struct HomeView: View {
     private var columns: some View {
         HStack(alignment: .top, spacing: Space.l) {
             VStack(spacing: 0) {
-                ScrollViewReader { scroll in
-                    ScrollView {
-                        ColinHome(colin: colin, thread: thread, mails: mails, router: router)
-                            .padding(.top, PageMetrics.top)
-                            .padding(.bottom, Space.l)
-                    }
-                    // Opened on the last exchanges; a short thread stays at the top.
-                    .defaultScrollAnchor(.bottom, for: .initialOffset)
-                    .defaultScrollAnchor(.bottom, for: .sizeChanges)
-                    .scrollIndicators(.automatic)
-                    .onChange(of: thread.flatMap { ColinThreadText.lastID($0.messages, changes: $0.changes) }) { _, last in
-                        if let last { withAnimation(Motion.standard) { scroll.scrollTo(last, anchor: .bottom) } }
-                    }
-                    .onChange(of: thread?.streaming) { _, _ in scroll.scrollTo("colin-travaille", anchor: .bottom) }
+                ScrollView {
+                    ColinHome(colin: colin, thread: thread, mails: mails, router: router)
+                        .padding(.top, PageMetrics.top)
+                        .padding(.bottom, Space.l)
                 }
+                // Opened on the last exchanges; a short thread stays at the top.
+                .scrollPosition($threadPosition)
+                .defaultScrollAnchor(.bottom, for: .initialOffset)
+                .scrollIndicators(.automatic)
+                .onScrollGeometryChange(for: Bool.self) { geometry in
+                    ThreadScroll.follows(contentHeight: geometry.contentSize.height, offset: geometry.visibleRect.minY, visibleHeight: geometry.visibleRect.height)
+                } action: { _, atEnd in
+                    following = atEnd
+                }
+                // What Colin writes is followed only while Paul is at the end; a question of his always brings him there.
+                .onChange(of: thread?.visible) { _, _ in if following { threadPosition.scrollTo(edge: .bottom) } }
+                .onChange(of: thread.flatMap { ColinThreadText.lastID($0.messages, changes: $0.changes) }) { _, _ in
+                    if following || thread?.messages.last?.author == .paul { withAnimation(Motion.standard) { threadPosition.scrollTo(edge: .bottom) } }
+                }
+                .overlay(alignment: .bottom) {
+                    if !following {
+                        JumpToEnd { withAnimation(Motion.standard) { threadPosition.scrollTo(edge: .bottom) } }
+                            .padding(.bottom, Space.s)
+                            .transition(.opacity)
+                    }
+                }
+                .animation(Motion.quick, value: following)
                 if let thread { bar(thread) }
             }
             ScrollView {

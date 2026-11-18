@@ -4,6 +4,22 @@ import Testing
 
 /// Base v8 (14/11): the copy of the mailboxes follows Gmail; a gesture changes it at once and names its messages.
 @Suite struct MailStoreTests {
+    /// The Accueil's pass (18/11): a thread named by Colin's tools is found by its key, or by Gmail's identifier alone.
+    @Test func aThreadIsFoundByItsKeyOrItsGmailID() throws {
+        let database = try AppDatabase.inMemory()
+        let store = MailStore(database)
+        try CalendarStore(database).addAccount(email: "moi@exemple.fr", at: Date(timeIntervalSince1970: 1_790_000_000))
+        try store.apply(account: "moi@exemple.fr", upserts: [
+            MailMessageRow(account: "moi@exemple.fr", messageID: "m1", threadID: "fil-devis", date: Date(timeIntervalSince1970: 1_794_900_000),
+                           sender: MailAddress(name: "Claire Morel", email: "claire@cabinet.exemple"), to: [MailAddress(email: "moi@exemple.fr")],
+                           subject: "Devis", snippet: "extrait", labels: ["INBOX"]),
+        ])
+        let key = MailThreadRow.key(account: "moi@exemple.fr", threadID: "fil-devis")
+        #expect(try store.thread(matching: key)?.subject == "Devis")
+        #expect(try store.thread(matching: "fil-devis")?.id == key)
+        #expect(try store.thread(matching: "inconnu") == nil)
+    }
+
     let now = Date(timeIntervalSince1970: 1_794_562_920)
     let account = "moi@exemple.fr"
 

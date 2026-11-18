@@ -9,7 +9,8 @@ public enum ColinAnswer {
         case keep(String)
     }
 
-    public static func blocks(_ answer: String) -> [Block] {
+    /// `open`: the answer is being written — a block begun is already what it will be (the Accueil's pass, 18/11).
+    public static func blocks(_ answer: String, open: Bool = false) -> [Block] {
         var blocks: [Block] = []
         var text: [String] = []
         var fenced: (kind: String, lines: [String], opening: String)?
@@ -35,8 +36,16 @@ public enum ColinAnswer {
                 text.append(line)
             }
         }
-        // A block never closed is what it looks like: text.
-        if let open = fenced { text += [open.opening] + open.lines }
+        // A block never closed is what it looks like: text; while it is written, what it will be.
+        if let begun = fenced {
+            if open {
+                flush()
+                let body = begun.lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+                blocks.append(begun.kind == "message" ? .message(body) : .keep(body))
+                return blocks
+            }
+            text += [begun.opening] + begun.lines
+        }
         flush()
         return blocks
     }

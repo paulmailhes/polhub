@@ -132,6 +132,14 @@ public struct MailStore: Sendable {
         try writer.read { try MailThreadRow.fetchOne($0, key: key) }
     }
 
+    /// A thread named by a tool: by its key (« compte|fil »), or by Gmail's identifier alone (the Accueil's pass, 18/11).
+    public func thread(matching identifier: String) throws -> MailThreadRow? {
+        try writer.read { db in
+            try MailThreadRow.fetchOne(db, key: identifier)
+                ?? MailThreadRow.fetchOne(db, sql: "SELECT * FROM mail_thread WHERE threadID = ? ORDER BY lastMessageAt DESC LIMIT 1", arguments: [identifier])
+        }
+    }
+
     public func threads(keys: [String]) throws -> [MailThreadRow] {
         try writer.read { try MailThreadRow.filter(keys: keys).order(Column("lastMessageAt").desc).fetchAll($0) }
     }

@@ -1,9 +1,40 @@
 import Foundation
 import Persistence
 
+/// One field of a change, as a small card says it: before → after (the Accueil's pass, 18/11).
+public struct ChangeField: Equatable, Sendable {
+    public var label: String
+    public var before: String?
+    public var after: String?
+
+    public init(label: String, before: String?, after: String?) {
+        self.label = label
+        self.before = before
+        self.after = after
+    }
+}
+
 /// How a change of a project reads on the Accueil (step 3, 18/11): one sentence, the project first, what it was and
 /// what it became, then « Annuler ». Plain text: what an agent wrote is never a link.
 public enum ChangeText {
+    /// A line by field, in the journal's order: the card of a change.
+    public static func fields(_ line: ProjectChangeLine, calendar: Calendar) -> [ChangeField] {
+        line.rows.compactMap { row in
+            switch row.field {
+            case .status: ChangeField(label: "Statut", before: row.before, after: row.after)
+            case .dueDate: ChangeField(label: "Échéance", before: row.before.flatMap { day($0, calendar) }, after: row.after.flatMap { day($0, calendar) })
+            case .todo: ChangeField(label: "Tâche", before: text(row.before), after: text(row.after))
+            case .client: ChangeField(label: "Client", before: text(row.before), after: text(row.after))
+            case .notes: ChangeField(label: "Notes", before: nil, after: "réécrites")
+            case .actionAdded: ChangeField(label: "Action", before: nil, after: row.after)
+            case .actionDone: ChangeField(label: "Action", before: actionText(row), after: row.after == "1" ? "faite" : "à faire")
+            case .actionText: ChangeField(label: "Action", before: row.before, after: row.after)
+            case .actionRemoved: ChangeField(label: "Action", before: row.before, after: nil)
+            case .journalAdded: ChangeField(label: "Journal", before: nil, after: row.after)
+            }
+        }
+    }
+
     public static func sentence(_ line: ProjectChangeLine, calendar: Calendar) -> String {
         var parts: [String] = []
         let rows = line.rows

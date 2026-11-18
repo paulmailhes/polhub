@@ -249,7 +249,9 @@ public actor ColinRunner {
             if result.isError, !interrupted {
                 return fail(ColinFailure.of(result: result, rateLimit: rate, errors: "", initialized: initialized) ?? .noAnswer)
             }
-            let text = interrupted || result.text.isEmpty ? turnText : result.text
+            // What was written, all of it (the text before a tool too, where the steps take their place); the result's
+            // text only when nothing came in pieces.
+            let text = turnText.isEmpty ? result.text : turnText
             // Nothing stays « under way »: a turn that ended well finished its steps; one stopped or failed, not.
             let ended = !(interrupted || result.isError)
             let steps = turnSteps.map { step in

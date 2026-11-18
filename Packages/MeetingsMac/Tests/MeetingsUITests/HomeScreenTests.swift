@@ -166,8 +166,14 @@ struct HomeScreenTests {
         let colinStore = ColinStore(database)
         let asked = now.addingTimeInterval(-3_600)
         try colinStore.add(ColinMessageRow(author: .paul, text: "Où on en est sur Cabinet Martin ?", createdAt: ago(1)))
-        try colinStore.add(ColinMessageRow(author: .colin, text: "Claire attend la maquette v2, à livrer jeudi. Le devis est parti lundi, sans réponse.",
-                                           createdAt: ago(1).addingTimeInterval(20), costUSD: 0.04))
+        // The Accueil's pass (18/11): an answer keeps what Colin did, where he did it, and how long he worked.
+        try colinStore.add(ColinMessageRow(author: .colin, text: "Je regarde le projet et ses mails.\n\nClaire attend la maquette v2, à livrer jeudi. Le devis est parti lundi, sans réponse.",
+                                           createdAt: ago(1).addingTimeInterval(20), costUSD: 0.04,
+                                           steps: [ColinStep(id: "s1", tool: "contexte", arguments: ["projet": "Cabinet Martin"], state: .done, position: 0),
+                                                   ColinStep(id: "s2", tool: "mails", arguments: ["projet": "Cabinet Martin"], state: .done, position: 35),
+                                                   ColinStep(id: "s3", tool: "mail", arguments: ["quel": "c"], state: .done, position: 35),
+                                                   ColinStep(id: "s4", tool: "mail", arguments: ["quel": "a"], state: .done, position: 35)],
+                                           durationMs: 9_400))
         try colinStore.add(ColinMessageRow(author: .paul, text: "Écris-moi un WhatsApp pour Marc : je lui envoie la maquette ce soir.", createdAt: asked))
         try colinStore.add(ColinMessageRow(author: .colin, text: """
             Voilà, court et à ton ton.

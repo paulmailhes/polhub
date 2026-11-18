@@ -138,6 +138,31 @@ import Testing
         world.thread.stop()
     }
 
+    /// « Réessayer » asks again only an answer that stopped or failed: one that ended may have written something.
+    @Test func retryAsksAgainOnlyAfterAStop() async throws {
+        let world = try world(FakeLauncher { _, _ in Self.session() })
+        ask(world.thread, "Où on en est ?")
+        try await waitUntil { world.thread.messages.last?.state == .done }
+        let done = try #require(world.thread.messages.last)
+        world.thread.retry(done)
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(world.thread.messages.count == 2)
+        var stopped = done
+        stopped.state = .interrupted
+        try ColinStore(world.database).update(stopped)
+        try await waitUntil { world.thread.messages.last?.state == .interrupted }
+        world.thread.retry(stopped)
+        // The clock of these tests stands still: the new question and its answer come with the same times.
+        try await waitUntil { world.thread.messages.count == 4 && world.thread.messages.filter { $0.author == .colin && $0.state == .done }.count == 1 }
+        #expect(world.thread.messages.filter { $0.author == .paul }.map(\.text) == ["Où on en est ?", "Où on en est ?"])
+    }
+
+    @Test func fillPutsTheQuestionInTheBar() throws {
+        let world = try world(FakeLauncher { _, _ in Self.session() })
+        world.thread.fill("Qui attend ma réponse ?")
+        #expect(world.thread.draft == "Qui attend ma réponse ?")
+    }
+
     @Test func aQuestionIsKeptThenAnswered() async throws {
         let world = try world(FakeLauncher { _, _ in Self.session() })
         ask(world.thread, "Où on en est ?")
