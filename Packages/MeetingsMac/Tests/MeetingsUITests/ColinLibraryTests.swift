@@ -199,7 +199,7 @@ import Testing
         defer { try? FileManager.default.removeItem(at: world.root) }
         try await waitUntil { world.colin.review.count == 1 }
         let line = try #require(world.colin.review.first)
-        #expect(line.id == "reply:\(key("a"))" && line.person == "Marc" && line.days == 4)
+        #expect(line.id == "reply:\(Self.marc)" && line.threadKey == key("a") && line.person == "Marc" && line.days == 4)
         world.colin.dismiss(line, reason: .notNeeded)
         // At once: before the base is read again.
         #expect(world.colin.review.isEmpty)
@@ -207,7 +207,7 @@ import Testing
         #expect(world.colin.review.isEmpty)
         // The base keeps it, with the last message Paul had before him.
         let rows = try ColinStore(world.database).dismissals()
-        #expect(rows.map(\.id) == ["reply:\(key("a"))"])
+        #expect(rows.map(\.id) == ["reply:\(Self.marc)"])
         #expect(rows.first?.reason == .notNeeded && rows.first?.lastMessageAt == world.clock.ago(4) && rows.first?.createdAt == world.clock.now)
         // Marc writes again; three days later the line is back.
         try world.store.apply(account: Self.me, upserts: [received("a3", thread: "a", from: Self.marc, at: world.clock.now.addingTimeInterval(60))])
@@ -215,8 +215,32 @@ import Testing
         #expect(world.colin.review.isEmpty)
         world.clock.advance(days: 3.1)
         world.colin.refresh()
-        try await waitUntil { world.colin.review.map(\.id) == ["reply:\(key("a"))"] }
+        try await waitUntil { world.colin.review.map(\.id) == ["reply:\(Self.marc)"] }
         #expect(world.colin.review.first?.days == 3)
+    }
+
+    /// The count on Paul's own mails: he answers in a new mail more often than in the thread, and his clients write
+    /// in new threads too.
+    @Test func whoWasAnsweredInANewThreadLeavesTheList() async throws {
+        let world = try await world { database, project, clock in
+            try marcWaits(database, clock)
+            // Paul wrote to Claire eight days ago, in a thread of the project: she is silent.
+            try MailStore(database).apply(account: Self.me, upserts: [
+                received("b1", thread: "b", from: Self.claire, name: "Claire Morel", at: clock.ago(20)),
+                sent("b2", thread: "b", to: Self.claire, at: clock.ago(8)),
+            ])
+            try MailStore(database).file(threadKey: key("b"), as: .project(project), at: clock.ago(20))
+            let claire = try ContactStore(database).upsert(email: Self.claire, name: "Claire Morel", company: nil, at: clock.ago(100))
+            try ContactStore(database).link(contactID: claire.id, projectID: project, origin: .paul, at: clock.ago(100))
+        }
+        defer { try? FileManager.default.removeItem(at: world.root) }
+        try await waitUntil { world.colin.review.map(\.kind) == [.reply, .silent] }
+        // Paul answers Marc in a new mail, not in the thread: Marc no longer waits.
+        try world.store.apply(account: Self.me, upserts: [sent("n1", thread: "n", to: Self.marc, at: world.clock.now.addingTimeInterval(-600))])
+        try await waitUntil { world.colin.review.map(\.kind) == [.silent] }
+        // Claire sends her files in a new thread: she is not silent.
+        try world.store.apply(account: Self.me, upserts: [received("f1", thread: "f", from: Self.claire, name: "Claire Morel", at: world.clock.now.addingTimeInterval(-300))])
+        try await waitUntil { world.colin.review.isEmpty }
     }
 
     @Test func aLineSetAsideForLaterComesBackTheNextDay() async throws {
@@ -285,11 +309,11 @@ import Testing
         }
         defer { try? FileManager.default.removeItem(at: world.root) }
         try await waitUntil { world.colin.review.count == 2 }
-        #expect(world.colin.review.map(\.id) == ["reply:\(key("a"))", "silent:\(key("b"))"])
+        #expect(world.colin.review.map(\.id) == ["reply:\(Self.marc)", "silent:\(world.project.uuidString.lowercased())"])
         #expect(world.colin.review.last?.person == "Claire" && world.colin.review.last?.detail == "Cabinet Martin" && world.colin.review.last?.days == 8)
         // Réglages › Colin : five days for an answer.
         world.defaults.set(5, forKey: Preferences.Key.colinReplyDays)
-        try await waitUntil { world.colin.review.map(\.id) == ["silent:\(key("b"))"] }
+        try await waitUntil { world.colin.review.map(\.kind) == [.silent] }
         world.defaults.set(10, forKey: Preferences.Key.colinSilentDays)
         try await waitUntil { world.colin.review.isEmpty }
         world.defaults.set(2, forKey: Preferences.Key.colinReplyDays)
@@ -387,10 +411,10 @@ import Testing
         try await waitUntil { world.colin.review.count == 1 }
         mails.hidden = [Self.other]
         try await settled(world.colin)
-        #expect(world.colin.review.map(\.id) == ["reply:\(key("a"))"])
+        #expect(world.colin.review.map(\.threadKey) == [key("a")])
         // Hidden the other way round: said from the other mailbox.
         mails.hidden = [Self.me]
-        try await waitUntil { world.colin.review.map(\.id) == ["reply:\(key("x", box: Self.other))"] }
+        try await waitUntil { world.colin.review.map(\.threadKey) == [key("x", box: Self.other)] }
     }
 
     /// Without the mails (no mailbox yet), the Accueil still says the meetings to file and the day.
@@ -426,7 +450,8 @@ import Testing
         for index in 0..<10 {
             try world.store.apply(account: Self.me, upserts: [received("n\(index)", thread: "n\(index)", from: Self.marc, at: world.clock.ago(Double(index) + 3.5))])
         }
-        try await waitUntil { world.colin.review.count == 11 }
+        // One person, one line: on his oldest thread that waits.
+        try await waitUntil { world.colin.review.count == 1 && world.colin.review.first?.days == 12 }
         try await settled(world.colin)
         #expect(world.colin.computations - before <= 2)
         #expect(world.colin.readings - readings <= 2)

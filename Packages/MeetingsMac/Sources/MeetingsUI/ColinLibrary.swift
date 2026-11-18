@@ -1,6 +1,7 @@
 import Agenda
 import Colin
 import Combine
+import Domain
 import Foundation
 import GRDB
 import Persistence
@@ -43,8 +44,6 @@ public final class ColinLibrary: ObservableObject {
     private var wanted: (since: Date?, at: Date)?
     private var pending: Task<Void, Never>?
     private var again = false
-    /// The last message of each line's conversation, as Paul has it before him: kept with a line he sets aside.
-    private var lastMessages: [String: Date] = [:]
     /// The lines Paul set aside or filed by hand, with the number of the last computation begun before: a
     /// computation that began before his gesture never brings them back.
     private var removed: [String: Int] = [:]
@@ -196,7 +195,6 @@ public final class ColinLibrary: ObservableObject {
         if readsMails || readsBase { readingCost = clock.now - began }
         mailInputs = outcome.mails
         baseInputs = outcome.base
-        lastMessages = outcome.lastMessages
         // A line Paul set aside while this was computed stays out; a later computation knows what he did.
         let lines = outcome.lines.filter { (removed[$0.id] ?? 0) < number }
         removed = removed.filter { $0.value >= number }
@@ -264,9 +262,11 @@ public final class ColinLibrary: ObservableObject {
     /// « Pas besoin », « Plus tard », « Anne a répondu ailleurs »: the line leaves at once, and the base keeps why,
     /// with the last message Paul had before him. A draft is not set aside: it leaves when sent, deleted or programmed.
     public func dismiss(_ line: ReviewRules.Line, reason: ColinDismissalRow.Reason) {
-        guard line.kind != .draft, let subject = line.threadKey ?? line.eventID else { return }
+        // Set aside under what the line is about: a person for an answer awaited, a project for a silence.
+        let subject = ReviewRules.subject(of: line)
+        guard line.kind != .draft, !subject.isEmpty else { return }
         let row = ColinDismissalRow(kind: line.kind.rawValue, subject: subject, reason: reason, projectID: line.projectID, createdAt: now(),
-                                    lastMessageAt: lastMessages[line.id])
+                                    lastMessageAt: line.lastMessageAt)
         guard (try? ColinStore(agenda.database).dismiss(row)) != nil else { return }
         remove(line)
     }
@@ -303,13 +303,15 @@ public final class ColinLibrary: ObservableObject {
         return ReviewRules.Thresholds(replyDays: settings.colinReplyDays, silentDays: settings.colinSilentDays)
     }
 
-    /// What a line says of the drafts an agent prepared: which, for whom (the people say the project), under which
-    /// thread, on what subject. Never its text.
+    /// What the lines say of the drafts: of those an agent prepared, which, for whom (the people say the project),
+    /// under which thread, on what subject; of all of them, who they are written to (nobody « waits for an answer »
+    /// that is being written). Never their text.
     private nonisolated static func said(_ drafts: [MailDraftRow]) -> [String] {
-        drafts.filter { $0.origin == .agent }.map { draft in
+        let ready = drafts.filter { $0.origin == .agent }.map { draft in
             let people = (draft.to + draft.cc).map(\.email).joined(separator: ",")
             return [draft.id, draft.to.first?.display ?? "", people, draft.threadKey ?? "", draft.subject].joined(separator: "\u{1F}")
         }
+        return ready + Set(drafts.flatMap { $0.to + $0.cc }.map { $0.email.lowercased() }).sorted()
     }
 
     /// What the rules read of a thread: who wrote, when, and what files it. Not whether it is read, in the inbox,
@@ -354,11 +356,13 @@ public final class ColinLibrary: ObservableObject {
         var conversations: [String: String] = [:]
         /// Who Paul wrote to, in the threads where he wrote last.
         var recipients: [String: [MailAddress]] = [:]
+        /// Who wrote to whom, message by message: Paul answers in a new mail more often than in the thread.
+        var exchanges: [MailExchange] = []
     }
 
     /// What a reading of the rest of the base gives.
     struct BaseInputs: Sendable {
-        /// One row per event, from two weeks ago on.
+        /// One row per event, from as far back as the mails are read.
         var events: [CalendarEventRow] = []
         var projects: [ProjectRow] = []
         var dismissed: [ColinDismissalRow] = []
@@ -374,7 +378,6 @@ public final class ColinLibrary: ObservableObject {
             var mails: MailInputs
             var base: BaseInputs
             var lines: [ReviewRules.Line]
-            var lastMessages: [String: Date]
             var point: [String]?
         }
 
@@ -394,15 +397,14 @@ public final class ColinLibrary: ObservableObject {
 
         func run() -> Outcome? {
             guard let mails = knownMails ?? (try? readMails()), let base = knownBase ?? (try? readBase()) else { return nil }
-            let said = lines(mails, base)
-            return Outcome(mails: mails, base: base, lines: said.lines, lastMessages: said.lastMessages,
-                           point: point.map { sentences(mails, base, since: $0.since) })
+            return Outcome(mails: mails, base: base, lines: lines(mails, base), point: point.map { sentences(mails, base, since: $0.since) })
         }
 
         private func readBase() throws -> BaseInputs {
             var inputs = BaseInputs()
             let agenda = CalendarStore(database)
-            let oldest = now.addingTimeInterval(-Double(ReviewRules.unfiledDays + 1) * 86_400)
+            // As far back as the mails: a meeting held with someone since their mail answers it.
+            let oldest = now.addingTimeInterval(-ColinLibrary.window)
             inputs.events = EventCopies.merge(try agenda.events(from: oldest, to: .distantFuture), accounts: try agenda.accounts())
             inputs.projects = try ProjectStore(database).projects()
             inputs.dismissed = try ColinStore(database).dismissals()
@@ -415,6 +417,7 @@ public final class ColinLibrary: ObservableObject {
             let mails = MailStore(database)
             inputs.threads = threads
             inputs.conversations = try mails.conversations(since: now.addingTimeInterval(-ColinLibrary.window))
+            inputs.exchanges = try mails.exchanges(since: now.addingTimeInterval(-ColinLibrary.window))
             let wroteLast = threads.filter { ($0.lastSentAt ?? .distantPast) > ($0.lastReceivedAt ?? .distantPast) }.map(\.id)
             for index in stride(from: 0, to: wroteLast.count, by: 400) {
                 inputs.recipients.merge(try mails.sentRecipients(threadKeys: Array(wroteLast[index..<min(index + 400, wroteLast.count)]))) { first, _ in first }
@@ -423,34 +426,23 @@ public final class ColinLibrary: ObservableObject {
         }
 
         /// « À valider ». The mailboxes Paul hid from his mails are not signaled, but what he answered from them
-        /// counts; an agent's draft waits for him whatever its mailbox.
-        private func lines(_ mails: MailInputs, _ base: BaseInputs) -> (lines: [ReviewRules.Line], lastMessages: [String: Date]) {
+        /// counts; an agent's draft waits for him whatever its mailbox. The mails are read by person and by project:
+        /// he answers in a new mail more often than in the thread.
+        private func lines(_ mails: MailInputs, _ base: BaseInputs) -> [ReviewRules.Line] {
             let unfiled = ReviewRules.unfiled(base.events, dismissed: base.dismissed, now: now, calendar: calendar)
-            guard withMails else { return (ReviewRules.ordered([unfiled]), [:]) }
+            guard withMails else { return ReviewRules.ordered([unfiled]) }
             // The copies in a mailbox shown come first: a conversation is said from the box Paul looks at.
             let threads = mails.threads.filter { !hiddenAccounts.contains($0.account) } + mails.threads.filter { hiddenAccounts.contains($0.account) }
             let drafts = ReviewRules.drafts(self.drafts, hidden: hiddenDrafts, threads: threads, rules: rules)
-            let boxes = Dictionary(threads.map { ($0.id, $0.account) }, uniquingKeysWith: { first, _ in first })
-            func shown(_ line: ReviewRules.Line) -> Bool {
-                line.threadKey.flatMap { boxes[$0] }.map { !hiddenAccounts.contains($0) } ?? true
-            }
-            let replies = ReviewRules.replies(threads, rules: rules, conversations: mails.conversations, dismissed: base.dismissed, now: now,
-                                              thresholds: thresholds, calendar: calendar).filter(shown)
-            let silent = ReviewRules.silent(threads, rules: rules, conversations: mails.conversations, recipients: mails.recipients,
-                                            events: base.events, dismissed: base.dismissed, now: now, thresholds: thresholds, calendar: calendar).filter(shown)
-            // The last message of each conversation, whoever wrote it.
-            var last: [String: Date] = [:]
-            for thread in threads {
-                guard let date = [thread.lastReceivedAt, thread.lastSentAt].compactMap({ $0 }).max() else { continue }
-                let conversation = mails.conversations[thread.id] ?? thread.id
-                last[conversation] = max(last[conversation] ?? .distantPast, date)
-            }
-            var lastMessages: [String: Date] = [:]
-            for line in replies + silent {
-                guard let key = line.threadKey else { continue }
-                lastMessages[line.id] = last[mails.conversations[key] ?? key]
-            }
-            return (ReviewRules.ordered([drafts, replies, silent, unfiled]), lastMessages)
+            let exchanges = Exchanges(mails.exchanges, projects: ReviewRules.projects(of: threads, rules: rules, recipients: mails.recipients))
+            let finished = Set(base.projects.filter { $0.status == .termine }.map(\.id))
+            let replies = ReviewRules.repliesByPerson(threads, rules: rules, conversations: mails.conversations, exchanges: exchanges, drafts: self.drafts,
+                                                      events: base.events, hiddenAccounts: hiddenAccounts, dismissed: base.dismissed, now: now,
+                                                      thresholds: thresholds, calendar: calendar)
+            let silent = ReviewRules.silentByProject(threads, rules: rules, conversations: mails.conversations, recipients: mails.recipients,
+                                                     exchanges: exchanges, events: base.events, finished: finished, hiddenAccounts: hiddenAccounts,
+                                                     dismissed: base.dismissed, now: now, thresholds: thresholds, calendar: calendar)
+            return ReviewRules.ordered([drafts, replies, silent, unfiled])
         }
 
         /// « Le point ». A client's mail delivered to two of Paul's mailboxes counts once.

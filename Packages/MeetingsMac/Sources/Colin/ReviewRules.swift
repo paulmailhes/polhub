@@ -11,11 +11,15 @@ public enum ReviewRules {
         public var silentDays: Int
         /// Older than this, a thread is no longer said: it is history.
         public var maxAgeDays: Int
+        /// « Attend ta réponse », read by person: a message older than this no longer waits. Counted on Paul's own
+        /// mails, what he has not answered in two weeks he never answers.
+        public var replyMaxDays: Int
 
-        public init(replyDays: Int = 3, silentDays: Int = 7, maxAgeDays: Int = 45) {
+        public init(replyDays: Int = 3, silentDays: Int = 7, maxAgeDays: Int = 45, replyMaxDays: Int = 14) {
             self.replyDays = replyDays
             self.silentDays = silentDays
             self.maxAgeDays = maxAgeDays
+            self.replyMaxDays = replyMaxDays
         }
     }
 
@@ -43,9 +47,12 @@ public enum ReviewRules {
         public var draftID: String?
         public var eventID: String?
         public var projectID: UUID?
+        /// The last message Paul has before him when the line shows: kept with the line when he sets it aside, which
+        /// then hides until a newer one.
+        public var lastMessageAt: Date?
 
         public init(id: String, kind: Kind, person: String, detail: String? = nil, days: Int? = nil, threadKey: String? = nil,
-                    draftID: String? = nil, eventID: String? = nil, projectID: UUID? = nil) {
+                    draftID: String? = nil, eventID: String? = nil, projectID: UUID? = nil, lastMessageAt: Date? = nil) {
             self.id = id
             self.kind = kind
             self.person = person
@@ -55,6 +62,7 @@ public enum ReviewRules {
             self.draftID = draftID
             self.eventID = eventID
             self.projectID = projectID
+            self.lastMessageAt = lastMessageAt
         }
     }
 
@@ -145,6 +153,132 @@ public enum ReviewRules {
                               detail: name(of: project, rules: rules), days: days, threadKey: thread.id, projectID: project))
         }
         return lines.sorted { ($0.days ?? 0) > ($1.days ?? 0) }
+    }
+
+    // MARK: - Read by person and by project
+
+    /// « Attend ta réponse », read by person and no longer by thread (18/11). Counted on Paul's own mails, the thread
+    /// alone speaks ten times too much: he answers a client in a new mail, or in a meeting. A person waits when:
+    /// - a thread ends on a message of theirs, three days old or more and two weeks at most (`replies`);
+    /// - Paul wrote nothing to them since, in whatever thread of whatever mailbox (`exchanges`);
+    /// - that message is neither a calendar's own nor an automatic one, and they are no colleague of his;
+    /// - no draft is being written to them (`drafts`: all of them, Paul's own too);
+    /// - no meeting with them was held since, nor comes within a week (`events`).
+    /// One line by person, on their oldest thread that waits, set aside by person; the oldest first. Never said from
+    /// a mailbox Paul hid (`hiddenAccounts`), though what he wrote from it counts.
+    public static func repliesByPerson(_ threads: [MailThreadRow], rules: MailFilingRules, conversations: [String: String] = [:], exchanges: Exchanges,
+                                       drafts: [MailDraftRow] = [], events: [CalendarEventRow] = [], hiddenAccounts: Set<String> = [],
+                                       dismissed: [ColinDismissalRow], now: Date,
+                                       thresholds: Thresholds, calendar: Calendar = .current) -> [Line] {
+        var window = thresholds
+        window.maxAgeDays = thresholds.replyMaxDays
+        let byKey = Dictionary(threads.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let aside = rows(dismissed, of: .reply)
+        let colleagues = ownDomains(rules)
+        let writing = Set(drafts.flatMap { $0.to + $0.cc }.map { $0.email.lowercased() })
+        var byPerson: [String: (line: Line, last: Date)] = [:]
+        var order: [String] = []
+        for line in replies(threads, rules: rules, conversations: conversations, dismissed: [], now: now, thresholds: window, calendar: calendar) {
+            guard let key = line.threadKey, let thread = byKey[key], let address = thread.lastSender?.lowercased(),
+                  let received = thread.lastReceivedAt, !hiddenAccounts.contains(thread.account) else { continue }
+            if let domain = PublicMailDomains.domain(of: address), colleagues.contains(domain) { continue }
+            guard !exchanges.wrote(to: address, after: received, until: now) else { continue }
+            if let last = exchanges.lastReceived(in: key, asOf: now), last.calendar || last.automatic { continue }
+            guard !writing.contains(address), !met(address, since: received, events: events, now: now) else { continue }
+            if let known = byPerson[address] {
+                // Their oldest thread that waits says the line; their latest message says until when it is set aside.
+                byPerson[address] = (line: (line.days ?? 0) > (known.line.days ?? 0) ? line : known.line, last: max(known.last, received))
+            } else {
+                order.append(address)
+                byPerson[address] = (line, received)
+            }
+        }
+        return order.compactMap { address -> Line? in
+            guard let found = byPerson[address], !isAside(aside[address], lastMessage: found.last, now: now, calendar: calendar) else { return nil }
+            var line = found.line
+            line.id = id(.reply, address)
+            line.lastMessageAt = found.last
+            return line
+        }
+        .sorted { ($0.days ?? 0, $1.id) > ($1.days ?? 0, $0.id) }
+    }
+
+    /// « Ne répond plus », read by project and no longer by thread (18/11): his clients answer in new threads. A
+    /// project is silent when Paul's last mail in it is seven days old or more, and since then:
+    /// - nobody wrote to him in a thread of the project, nor any of the people he wrote to, in whatever thread;
+    /// - he wrote nothing more in the project (a later mail of his starts the wait again);
+    /// - no meeting of the project was held, and none is to come.
+    /// One line by project, set aside by project; never for a finished one (`finished`), nor said from a mailbox
+    /// Paul hid (`hiddenAccounts`). The oldest first.
+    public static func silentByProject(_ threads: [MailThreadRow], rules: MailFilingRules, conversations: [String: String] = [:],
+                                       recipients: [String: [MailAddress]], exchanges: Exchanges, events: [CalendarEventRow], finished: Set<UUID> = [],
+                                       hiddenAccounts: Set<String> = [], dismissed: [ColinDismissalRow], now: Date, thresholds: Thresholds,
+                                       calendar: Calendar = .current) -> [Line] {
+        let byKey = Dictionary(threads.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let aside = rows(dismissed, of: .silent)
+        // « A répondu ailleurs », said twice of one project: Colin no longer says it of this project.
+        var elsewhere: [UUID: Int] = [:]
+        for row in aside.values where row.reason == .answeredElsewhere {
+            if let project = row.projectID { elsewhere[project, default: 0] += max(row.times, 1) }
+        }
+        let quiet = Set(elsewhere.filter { $0.value >= 2 }.keys)
+        // The threads where Paul wrote last, without the events nor what he set aside: both are read by project.
+        var latest: [UUID: (line: Line, sent: Date)] = [:]
+        for line in silent(threads, rules: rules, conversations: conversations, recipients: recipients, events: [], dismissed: [], now: now,
+                           thresholds: thresholds, calendar: calendar) {
+            guard let project = line.projectID, let key = line.threadKey, let thread = byKey[key], let sent = thread.lastSentAt,
+                  !hiddenAccounts.contains(thread.account) else { continue }
+            if let known = latest[project], known.sent >= sent { continue }
+            latest[project] = (line, sent)
+        }
+        var lines: [Line] = []
+        for (project, found) in latest {
+            guard !finished.contains(project), !quiet.contains(project) else { continue }
+            // Paul wrote again in the project since, or someone wrote in it: the exchange goes on in another thread.
+            guard !exchanges.wrote(in: project, after: found.sent, until: now), !exchanges.heard(in: project, after: found.sent, until: now) else { continue }
+            let people = (exchanges.lastSent(in: found.line.threadKey ?? "", asOf: now)?.recipients ?? []).filter { !rules.mine.contains($0) }
+            guard !people.contains(where: { exchanges.heard(from: $0, after: found.sent, until: now) }) else { continue }
+            // A meeting of the project, held since or to come: they speak.
+            guard !events.contains(where: { $0.projectID == project && !$0.allDay && $0.startAt > found.sent }) else { continue }
+            let subject = project.uuidString.lowercased()
+            guard !isAside(aside[subject], lastMessage: found.sent, now: now, calendar: calendar) else { continue }
+            var line = found.line
+            line.id = id(.silent, subject)
+            line.lastMessageAt = found.sent
+            lines.append(line)
+        }
+        return lines.sorted { ($0.days ?? 0, $1.id) > ($1.days ?? 0, $0.id) }
+    }
+
+    /// The project of each thread that has one, as the silences read it (a thread only Paul wrote in takes the one
+    /// project of the people he wrote to): what says « in a thread of the project » to `Exchanges`.
+    public static func projects(of threads: [MailThreadRow], rules: MailFilingRules, recipients: [String: [MailAddress]]) -> [String: UUID] {
+        var found: [String: UUID] = [:]
+        for thread in threads {
+            if let project = project(of: thread, rules: rules, recipients: recipients[thread.id] ?? []) { found[thread.id] = project }
+        }
+        return found
+    }
+
+    /// The part of a line's name after its kind: what it is set aside under (a person's address, a project, an event).
+    public static func subject(of line: Line) -> String {
+        String(line.id.dropFirst(line.kind.rawValue.count + 1))
+    }
+
+    /// Paul's own domains, those of everyone apart: who writes from one of them is a colleague, with whom he speaks
+    /// elsewhere.
+    private static func ownDomains(_ rules: MailFilingRules) -> Set<String> {
+        Set(rules.mine.compactMap { PublicMailDomains.domain(of: $0) }).subtracting(PublicMailDomains.all)
+    }
+
+    /// A meeting with this person, held since `date` or to come within a week: neither a whole day, nor one Paul
+    /// declined.
+    private static func met(_ address: String, since date: Date, events: [CalendarEventRow], now: Date) -> Bool {
+        let soon = now.addingTimeInterval(7 * day)
+        return events.contains { event in
+            guard !event.allDay, event.startAt > date, event.startAt <= soon, event.attendees.first(where: \.isSelf)?.response != "declined" else { return false }
+            return event.attendees.contains { !$0.isSelf && $0.email.lowercased() == address }
+        }
     }
 
     // MARK: - « Réunion à ranger »

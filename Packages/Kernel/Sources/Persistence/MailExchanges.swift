@@ -16,14 +16,29 @@ public struct MailExchange: Equatable, Sendable {
     /// A calendar's own mail (an invitation, an answer to one), even sent from a person's address: nobody expects
     /// an answer to it.
     public var calendar: Bool
+    /// A mail no person wrote, even from a person's address: a list's (it says how to leave it), an answer sent by
+    /// an absent mailbox.
+    public var automatic: Bool
 
-    public init(threadKey: String, date: Date, mine: Bool, sender: String?, recipients: [String], calendar: Bool) {
+    public init(threadKey: String, date: Date, mine: Bool, sender: String?, recipients: [String], calendar: Bool, automatic: Bool = false) {
         self.threadKey = threadKey
         self.date = date
         self.mine = mine
         self.sender = sender
         self.recipients = recipients
         self.calendar = calendar
+        self.automatic = automatic
+    }
+
+    /// How the subject of an absent mailbox's answer begins, in French, in English and in German.
+    static let automaticWords = ["réponse automatique", "automatic reply", "auto-reply", "autoreply", "out of office", "absent du bureau",
+                                 "absence du bureau", "abwesenheitsnotiz", "abwesend"]
+
+    /// A list's mail by its header, an absent mailbox's answer by how its subject begins.
+    static func isAutomatic(subject: String, listUnsubscribe: String?) -> Bool {
+        if let listUnsubscribe, !listUnsubscribe.trimmingCharacters(in: .whitespaces).isEmpty { return true }
+        let start = subject.trimmingCharacters(in: .whitespaces).lowercased()
+        return automaticWords.contains { start.hasPrefix($0) }
     }
 
     /// How the subject of a calendar's mail begins, at Google and at Outlook, in French and in English: one of these
@@ -55,7 +70,7 @@ extension MailStore {
                 String.fromDatabaseValue(value).flatMap { try? decoder.decode(type, from: Data($0.utf8)) }
             }
             let rows = try Row.fetchAll(db, sql: """
-                SELECT threadKey, date, sender, "to", cc, labels, subject, attachments FROM mail_message
+                SELECT threadKey, date, sender, "to", cc, labels, subject, attachments, listUnsubscribe FROM mail_message
                 WHERE date > ? AND labels NOT LIKE '%"TRASH"%' AND labels NOT LIKE '%"SPAM"%' AND labels NOT LIKE '%"DRAFT"%'
                 ORDER BY date
                 """, arguments: [since])
@@ -72,10 +87,11 @@ extension MailStore {
                         if !recipients.contains(email) { recipients.append(email) }
                     }
                 }
-                let calendar = MailExchange.isCalendar(subject: String.fromDatabaseValue(row["subject"]) ?? "",
-                                                       attachments: decoded([MailAttachment].self, row["attachments"]) ?? [])
+                let subject = String.fromDatabaseValue(row["subject"]) ?? ""
+                let calendar = MailExchange.isCalendar(subject: subject, attachments: decoded([MailAttachment].self, row["attachments"]) ?? [])
+                let automatic = MailExchange.isAutomatic(subject: subject, listUnsubscribe: String.fromDatabaseValue(row["listUnsubscribe"]))
                 found.append(MailExchange(threadKey: thread, date: date, mine: MailMessageRow.isMine(labels: labels, sender: sender, mine: mine),
-                                          sender: sender, recipients: recipients, calendar: calendar))
+                                          sender: sender, recipients: recipients, calendar: calendar, automatic: automatic))
             }
             return found
         }

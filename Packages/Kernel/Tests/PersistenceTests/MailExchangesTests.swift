@@ -18,10 +18,10 @@ import Testing
     }
 
     func received(_ id: String, thread: String, from: String, daysAgo: Double, to: [String] = [me], cc: [String] = [], subject: String = "Maquette",
-                  box: String = me, labels: [String] = ["INBOX", "CATEGORY_PERSONAL"], files: [MailAttachment] = []) -> MailMessageRow {
+                  box: String = me, labels: [String] = ["INBOX", "CATEGORY_PERSONAL"], files: [MailAttachment] = [], list: String? = nil) -> MailMessageRow {
         MailMessageRow(account: box, messageID: id, threadID: thread, date: ago(daysAgo), sender: MailAddress(name: "Quelqu'un Exemple", email: from),
                        to: to.map { MailAddress(email: $0) }, cc: cc.map { MailAddress(email: $0) }, subject: subject, snippet: "extrait", labels: labels,
-                       attachments: files)
+                       listUnsubscribe: list, attachments: files)
     }
 
     func sent(_ id: String, thread: String, to: [String], cc: [String] = [], daysAgo: Double, box: String = me, labels: [String] = ["SENT"]) -> MailMessageRow {
@@ -91,6 +91,20 @@ import Testing
             received("g1", thread: "g", from: Self.claire, daysAgo: 3, subject: "Accepté par le client", files: [file("devis.pdf", "application/pdf")]),
         ])
         #expect(try mails.exchanges(since: ago(30)).map(\.calendar) == [true, true, true, true, true, false, false])
+    }
+
+    /// A mail no person wrote, even from a person's address: a list's, by its header; an absent mailbox's answer, by
+    /// how its subject begins. A subject that only speaks of an absence is a person's.
+    @Test func anAutomaticMailIsKnownByItsHeaderOrItsSubject() throws {
+        let mails = try store()
+        try mails.apply(account: Self.me, upserts: [
+            received("a1", thread: "a", from: Self.claire, daysAgo: 9, subject: "La lettre du cabinet", list: "<https://cabinet.exemple/quitter>"),
+            received("b1", thread: "b", from: Self.claire, daysAgo: 8, subject: "Réponse automatique : Maquette v2"),
+            received("c1", thread: "c", from: Self.claire, daysAgo: 7, subject: "Automatic reply: Maquette v2"),
+            received("d1", thread: "d", from: Self.claire, daysAgo: 6, subject: "Mon absence de la semaine prochaine"),
+            received("e1", thread: "e", from: Self.claire, daysAgo: 5, subject: "Maquette v2", list: "  "),
+        ])
+        #expect(try mails.exchanges(since: ago(30)).map(\.automatic) == [true, true, true, false, false])
     }
 
     /// Read without a trap: people that are no list, a sender that is no person, a date that is no date.
