@@ -84,6 +84,8 @@ public struct MCPServer: Sendable {
     let version: String
     /// Who the server is for: the conversations of Claude Code, or Colin (`--colin`, 18/11).
     let profile: Profile
+    /// Colin's lock: what he read of a third party, for the life of this process (one context of his).
+    let guardian: ColinGuard?
 
     public init(reader: MeetingReader, desk: ProjectDesk? = nil, mails: MailDesk? = nil, agenda: AgendaDesk? = nil, version: String = "0.0.0",
                 profile: Profile = .agents, onWrite: @escaping @Sendable () -> Void = {}) {
@@ -93,6 +95,7 @@ public struct MCPServer: Sendable {
         self.agenda = agenda
         self.version = version
         self.profile = profile
+        guardian = profile == .colin ? ColinGuard() : nil
         self.onWrite = onWrite
     }
 
@@ -328,7 +331,7 @@ public struct MCPServer: Sendable {
 
     /// The answer's blocks: text, and for an image attachment the image itself, which the agent sees (16/11).
     func content(_ name: String, _ arguments: [String: Any]) throws -> [[String: Any]] {
-        if profile == .colin { try admitForColin(name, arguments) }
+        if profile == .colin { return try colinContent(name, arguments) }
         if let blocks = try projectCreationOrInspiration(name, arguments) { return blocks }
         guard name == "piece_jointe", let mails else { return [["type": "text", "text": try call(name, arguments)]] }
         guard let which = Self.text(arguments["quel"]) else { throw ToolError("Il manque « quel » : l'identifiant d'un fil (outil `mails`).") }

@@ -1,5 +1,6 @@
 import Domain
 import Foundation
+import Persistence
 
 /// Colin's profile (`polhub mcp --colin`, 18/11): the agent of the Accueil reads what the agents read, and writes
 /// drafts only, in plain text. His texts are short (each tool weighs on every launch) and name no one: they are
@@ -60,6 +61,143 @@ extension MCPServer {
         guard let tool = ColinTool(rawValue: name) else { throw ToolError("Cet outil n'est pas ouvert à Colin. Rien n'a été fait.") }
         if tool == .brouillon, arguments["fichiers"] != nil || arguments["format"] != nil {
             throw ToolError("Colin écrit ses brouillons en texte simple, sans fichier joint. Rien n'a été fait.")
+        }
+    }
+}
+
+// MARK: - The lock
+
+/// What a read put before Colin (18/11): a project's texts, a thread outside any project, or something wider (many
+/// projects at once, a search, the agenda).
+public enum ColinScope: Hashable, Sendable {
+    case project(UUID)
+    case thread(String)
+    case wide
+}
+
+/// What Colin read of a third party, for the life of the server's process: one context of his. A mail can carry an
+/// instruction; what it could make him write stays in its own thread, or its own project.
+final class ColinGuard: @unchecked Sendable {
+    private let lock = NSLock()
+    private var touched: Set<ColinScope> = []
+
+    func read(_ scopes: some Sequence<ColinScope>) {
+        lock.withLock { touched.formUnion(scopes) }
+    }
+
+    /// Nothing read of a third party; or all of it of this one target. `nil`: a new mail to nobody's project.
+    func mayWrite(to target: ColinScope?) -> Bool {
+        lock.withLock {
+            guard !touched.isEmpty else { return true }
+            guard let target, target != .wide else { return false }
+            return touched.allSatisfy { $0 == target }
+        }
+    }
+
+    static let refusal = "\(ColinTool.lockMark) : après ce qu'il a lu, ce brouillon sortirait de son fil ou de son projet. Rien n'a été écrit."
+}
+
+extension MCPServer {
+    /// Colin's calls: admitted by the profile; a draft checked against what was read before anything is written; a
+    /// read noted once it has been given. A read whose reach cannot be said counts as wide.
+    func colinContent(_ name: String, _ arguments: [String: Any]) throws -> [[String: Any]] {
+        try admitForColin(name, arguments)
+        if name == ColinTool.brouillon.rawValue {
+            let target = try mails.map { try colinTarget(arguments, mails: $0) } ?? nil
+            guard guardian?.mayWrite(to: target) ?? true else { throw ToolError(ColinGuard.refusal) }
+        }
+        let text = try call(name, arguments)
+        if name != ColinTool.brouillon.rawValue { guardian?.read((try? colinScopes(name, arguments)) ?? [.wide]) }
+        return [["type": "text", "text": text]]
+    }
+
+    /// What a read of Colin's put before him. Paul's own data (the projects, their actions, the contacts) is none.
+    func colinScopes(_ name: String, _ arguments: [String: Any]) throws -> [ColinScope] {
+        guard let tool = ColinTool(rawValue: name) else { return [.wide] }
+        let projectName = Self.text(arguments["projet"])
+        func project() throws -> [ColinScope] {
+            guard let desk else { return [.wide] }
+            return [.project(try desk.resolve(projectName).id)]
+        }
+        switch tool {
+        case .projets, .actions, .contacts, .brouillon:
+            return []
+        case .contexte:
+            return try project()
+        case .reunions, .agenda:
+            return projectName == nil ? [.wide] : try project()
+        case .chercher:
+            return [.wide]
+        case .reunion:
+            return [try reader.resolve(Self.text(arguments["quelle"]) ?? "").projectID.map(ColinScope.project) ?? .wide]
+        case .mail:
+            guard let mails else { return [.wide] }
+            let rules = try mails.store.filingRules()
+            return [mails.colinScope(of: try mails.find(Self.text(arguments["quel"]) ?? "", rules: rules), rules: rules)]
+        case .mails:
+            guard let mails else { return [.wide] }
+            let rules = try mails.store.filingRules()
+            if arguments["brouillons"] as? Bool == true { return try mails.draftScopes(rules: rules) }
+            let threads = try mails.listed(project: projectName, text: Self.text(arguments["texte"]), unreadOnly: arguments["non_lus"] as? Bool ?? false,
+                                           rules: rules).threads
+            return threads.prefix(MailDesk.shown(arguments["limite"] as? Int ?? 20)).map { mails.colinScope(of: $0, rules: rules) }
+        }
+    }
+
+    /// Where a draft of Colin's would write: the thread it answers, the thread of the draft it changes, or for a new
+    /// mail the one project of its people.
+    func colinTarget(_ arguments: [String: Any], mails: MailDesk) throws -> ColinScope? {
+        let rules = try mails.store.filingRules()
+        if let which = Self.text(arguments["identifiant"]) {
+            let threadKey: String?, people: [MailAddress]
+            switch try mails.changeable(which) {
+            case .waiting(let drop): (threadKey, people) = (drop.threadKey, drop.to + drop.cc)
+            case .draft(let draft): (threadKey, people) = (draft.threadKey, draft.to + draft.cc)
+            }
+            if let threadKey { return try mails.colinScope(ofKey: threadKey, rules: rules) }
+            return mails.colinScope(of: people, rules: rules)
+        }
+        if let which = Self.text(arguments["quel"]) { return mails.colinScope(of: try mails.find(which, rules: rules), rules: rules) }
+        func strings(_ key: String) -> [String] {
+            if let list = arguments[key] as? [Any] { return list.compactMap { $0 as? String } }
+            return (arguments[key] as? String).map { [$0] } ?? []
+        }
+        let people = (try? MailDesk.addresses(strings("a"), "a")) ?? []
+        let copied = (try? MailDesk.addresses(strings("cc"), "cc")) ?? []
+        return mails.colinScope(of: people + copied, rules: rules)
+    }
+}
+
+extension MailDesk {
+    /// A thread's project, else the thread itself.
+    func colinScope(of thread: MailThreadRow, rules: MailFilingRules) -> ColinScope {
+        rules.filing(of: thread)?.filing.projectID.map(ColinScope.project) ?? .thread(thread.id)
+    }
+
+    /// The same, by the thread's key; a thread no longer readable is wide.
+    func colinScope(ofKey key: String, rules: MailFilingRules) throws -> ColinScope {
+        guard let thread = try readable(rules).first(where: { $0.id == key }) else { return .wide }
+        return colinScope(of: thread, rules: rules)
+    }
+
+    /// The one project of these people (the contacts of a project, those Paul took out of it apart); none when they
+    /// are of several, or of none.
+    func colinScope(of people: [MailAddress], rules: MailFilingRules) -> ColinScope? {
+        var found: Set<UUID> = []
+        for person in people {
+            let address = person.email.lowercased()
+            found.formUnion((rules.contactProjects[address] ?? []).subtracting(rules.excludedProjects[address] ?? []))
+        }
+        return found.count == 1 ? found.first.map(ColinScope.project) : nil
+    }
+
+    /// What a list of the drafts puts before Colin: each draft's thread, or the project of its people.
+    func draftScopes(rules: MailFilingRules) throws -> [ColinScope] {
+        let waiting = try store.agentDrafts().filter { $0.replaces == nil }.map { ($0.threadKey, $0.to + $0.cc) }
+        let kept = try store.drafts().filter { $0.origin == .agent }.map { ($0.threadKey, $0.to + $0.cc) }
+        return try (kept + waiting).compactMap { threadKey, people in
+            if let threadKey { return try colinScope(ofKey: threadKey, rules: rules) }
+            return colinScope(of: people, rules: rules)
         }
     }
 }

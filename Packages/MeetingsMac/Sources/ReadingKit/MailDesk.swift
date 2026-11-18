@@ -61,24 +61,8 @@ public struct MailDesk: Sendable {
     /// The threads of the copy, the most recent first: those of a project, those with some words, the unread.
     public func list(project: String?, text: String?, unreadOnly: Bool, limit: Int) throws -> String {
         let rules = try store.filingRules()
-        var threads = try readable(rules)
-        var title = "Les mails"
-        if let project {
-            guard let projects else { throw ToolError("Les projets ne sont pas lisibles ici.") }
-            let row = try projects.resolve(project)
-            threads = threads.filter { rules.filing(of: $0)?.filing == .project(row.id) }
-            title += " du projet « \(row.name) »"
-        }
-        if let text = text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty {
-            let words = ProjectNames.tokens(text)
-            threads = threads.filter { thread in
-                let haystack = ProjectNames.tokens(([thread.subject, thread.snippet] + thread.senders.flatMap { [$0.name ?? "", $0.email] }).joined(separator: " "))
-                return words.allSatisfy { word in haystack.contains { $0.hasPrefix(word) } }
-            }
-            title += " qui contiennent « \(text) »"
-        }
-        if unreadOnly { threads = threads.filter(\.unread) }
-        let shown = threads.prefix(min(max(limit, 1), 100))
+        let (threads, title) = try listed(project: project, text: text, unreadOnly: unreadOnly, rules: rules)
+        let shown = threads.prefix(Self.shown(limit))
         var lines = [Self.reminder, "", "# \(title) (\(threads.count))"]
         let only = scope == .projets
         if only { lines.append("Paul ne laisse lire que les fils rangés dans un projet.") }
@@ -96,6 +80,31 @@ public struct MailDesk: Sendable {
         lines.append("")
         lines.append("Pour lire un fil : `mail` avec son identifiant entre crochets.")
         return lines.joined(separator: "\n")
+    }
+
+    /// How many threads a list shows, of the `limit` asked.
+    static func shown(_ limit: Int) -> Int { min(max(limit, 1), 100) }
+
+    /// The threads a list gives (those of a project, those with some words, the unread), with its title.
+    func listed(project: String?, text: String?, unreadOnly: Bool, rules: MailFilingRules) throws -> (threads: [MailThreadRow], title: String) {
+        var threads = try readable(rules)
+        var title = "Les mails"
+        if let project {
+            guard let projects else { throw ToolError("Les projets ne sont pas lisibles ici.") }
+            let row = try projects.resolve(project)
+            threads = threads.filter { rules.filing(of: $0)?.filing == .project(row.id) }
+            title += " du projet « \(row.name) »"
+        }
+        if let text = text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty {
+            let words = ProjectNames.tokens(text)
+            threads = threads.filter { thread in
+                let haystack = ProjectNames.tokens(([thread.subject, thread.snippet] + thread.senders.flatMap { [$0.name ?? "", $0.email] }).joined(separator: " "))
+                return words.allSatisfy { word in haystack.contains { $0.hasPrefix(word) } }
+            }
+            title += " qui contiennent « \(text) »"
+        }
+        if unreadOnly { threads = threads.filter(\.unread) }
+        return (threads, title)
     }
 
     /// A thread, its messages the oldest first, as text, page by page.
