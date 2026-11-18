@@ -99,12 +99,36 @@ import Testing
 
     @Test func anAssistantMessageGivesItsTextAndItsTools() {
         #expect(event(#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Bonjour."},{"type":"tool_use","id":"t1","name":"mcp__polhub__projets","input":{}}]},"parent_tool_use_id":null}"#)
-            == .assistant(text: "Bonjour.", tools: ["mcp__polhub__projets"]))
+            == .assistant(text: "Bonjour.", tools: ["mcp__polhub__projets"], calls: [ClaudeToolCall(id: "t1", name: "mcp__polhub__projets", arguments: [:])]))
+    }
+
+    /// The Accueil's pass (18/11): a tool's start is said the moment the model begins to write it, before its
+    /// arguments; a text block's start is nothing.
+    @Test func aToolStartIsSaid() {
+        #expect(event(#"{"type":"stream_event","event":{"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_1","name":"mcp__polhub__mails","input":{}}}}"#)
+            == .toolStarted(id: "toolu_1", name: "mcp__polhub__mails"))
+        #expect(event(#"{"type":"stream_event","event":{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}}"#)
+            == .other("stream_event/content_block_start"))
+    }
+
+    /// A call's arguments, as short texts: numbers and switches written, lists joined, 60 characters at most.
+    @Test func aCallSaysItsArguments() {
+        let long = String(repeating: "a", count: 80)
+        #expect(event(#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_1","name":"mcp__polhub__mails","input":{"projet":"Cabinet Martin","limite":5,"non_lus":true,"numeros":[1,2],"texte":"\#(long)","objet":{"a":1}}}]}}"#)
+            == .assistant(text: "", tools: ["mcp__polhub__mails"], calls: [ClaudeToolCall(id: "toolu_1", name: "mcp__polhub__mails", arguments: [
+                "projet": "Cabinet Martin", "limite": "5", "non_lus": "true", "numeros": "1, 2", "texte": String(long.prefix(59)) + "…"])]))
+    }
+
+    @Test func eachResultSaysItsTool() {
+        #expect(event(#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"ok","is_error":false},{"type":"tool_result","tool_use_id":"t2","content":"non","is_error":true}]}}"#)
+            == .toolResult(isError: true, text: "non", outcomes: [ClaudeToolOutcome(id: "t1", isError: false), ClaudeToolOutcome(id: "t2", isError: true)]))
     }
 
     @Test func aToolResultSaysWhetherItFailed() {
-        #expect(event(#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"3 projets","is_error":false}]}}"#) == .toolResult(isError: false))
-        #expect(event(#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"refusé","is_error":true}]}}"#) == .toolResult(isError: true, text: "refusé"))
+        #expect(event(#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"3 projets","is_error":false}]}}"#)
+            == .toolResult(isError: false, outcomes: [ClaudeToolOutcome(id: "t1", isError: false)]))
+        #expect(event(#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"refusé","is_error":true}]}}"#)
+            == .toolResult(isError: true, text: "refusé", outcomes: [ClaudeToolOutcome(id: "t1", isError: true)]))
         #expect(event(#"{"type":"user","message":{"role":"user","content":"un message rejoué"}}"#) == .other("user"))
     }
 
@@ -112,13 +136,13 @@ import Testing
     @Test func aToolErrorKeepsItsText() {
         let long = String(repeating: "é", count: 400)
         #expect(event(#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"Verrou de Colin : non","is_error":true}]}}"#)
-            == .toolResult(isError: true, text: "Verrou de Colin : non"))
+            == .toolResult(isError: true, text: "Verrou de Colin : non", outcomes: [ClaudeToolOutcome(id: "t1", isError: true)]))
         #expect(event(#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":[{"type":"text","text":"Verrou de Colin"}],"is_error":true}]}}"#)
-            == .toolResult(isError: true, text: "Verrou de Colin"))
+            == .toolResult(isError: true, text: "Verrou de Colin", outcomes: [ClaudeToolOutcome(id: "t1", isError: true)]))
         #expect(event(#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"\#(long)","is_error":true}]}}"#)
-            == .toolResult(isError: true, text: String(long.prefix(300))))
+            == .toolResult(isError: true, text: String(long.prefix(300)), outcomes: [ClaudeToolOutcome(id: "t1", isError: true)]))
         #expect(event(#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"Claire écrit…","is_error":false}]}}"#)
-            == .toolResult(isError: false, text: ""))
+            == .toolResult(isError: false, text: "", outcomes: [ClaudeToolOutcome(id: "t1", isError: false)]))
     }
 
     /// What Claude Code 2.1.304 writes itself when a turn is interrupted (measured on 17/11): not a message of anyone.

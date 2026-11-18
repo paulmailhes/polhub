@@ -185,7 +185,7 @@ struct HomeScreenTests {
             let launcher = FakeLauncher { _, _ in
                 FakeSession(onSend: { _, rank in
                     rank == 1 ? [.initialized(good), .result(ClaudeResult(text: "prêt"))]
-                        : [.initialized(good), .assistant(text: "", tools: ["mcp__polhub__mails"]), .textDelta("Marc t'a écrit lundi ") ] + (hanging ? [] : [])
+                        : [.initialized(good), .assistant(text: "", tools: ["mcp__polhub__mails"], calls: [ClaudeToolCall(id: "t1", name: "mcp__polhub__mails", arguments: [:])]), .textDelta("Marc t'a écrit lundi ") ] + (hanging ? [] : [])
                 })
             }
             let work = root.appending(path: "colin-travail", directoryHint: .isDirectory)

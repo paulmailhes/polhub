@@ -1,4 +1,5 @@
 import Domain
+import Persistence
 import Foundation
 import Testing
 @testable import Colin
@@ -19,8 +20,10 @@ import Testing
 
     /// Each question costs 0.02 more than the one before, as Claude Code counts its cost: from the process's start.
     static func answer(_ text: String, _ rank: Int) -> [ClaudeEvent] {
-        [.initialized(good), .textDelta("Trois "), .assistant(text: "", tools: ["mcp__polhub__mail"]), .toolResult(isError: false, text: ""),
-         .textDelta("projets."), .result(ClaudeResult(costUSD: 0.01 + 0.02 * Double(rank - 1), text: "Trois projets."))]
+        [.initialized(good), .textDelta("Trois "), .toolStarted(id: "t1", name: "mcp__polhub__mail"),
+         .assistant(text: "", tools: ["mcp__polhub__mail"], calls: [ClaudeToolCall(id: "t1", name: "mcp__polhub__mail", arguments: ["quel": "fil-1"])]),
+         .toolResult(isError: false, text: "", outcomes: [ClaudeToolOutcome(id: "t1", isError: false)]),
+         .textDelta("projets."), .result(ClaudeResult(durationMs: 900, costUSD: 0.01 + 0.02 * Double(rank - 1), text: "Trois projets."))]
     }
 
     final class Recorder: @unchecked Sendable {
@@ -52,8 +55,16 @@ import Testing
         let (runner, seen) = runner(launcher)
         await runner.ask("Où on en est ?", primer: Self.primer)
         try await waitUntil { !seen.answers.isEmpty }
-        #expect(seen.events == [.starting, .ready, .delta("Trois "), .tool("mcp__polhub__mail"), .delta("projets."),
-                                .answered(ColinTurn(text: "Trois projets.", costUSD: 0.03, interrupted: false, locked: false, tools: ["mcp__polhub__mail"]))])
+        // The Accueil's pass (18/11): each action as a step — begun where the text stood, its arguments, its end — and
+        // the turn says its steps and how long it worked.
+        let started = ColinStep(id: "t1", tool: "mail", arguments: [:], state: .running, position: 6)
+        var called = started
+        called.arguments = ["quel": "fil-1"]
+        var done = called
+        done.state = .done
+        #expect(seen.events == [.starting, .ready, .delta("Trois "), .step(started), .step(called), .step(done), .delta("projets."),
+                                .answered(ColinTurn(text: "Trois projets.", costUSD: 0.03, interrupted: false, locked: false, tools: ["mcp__polhub__mail"],
+                                                    steps: [done], durationMs: 900))])
     }
 
     @Test func thePrimerGoesWithTheFirstQuestionOnly() async throws {
@@ -208,6 +219,23 @@ import Testing
         #expect(seen.failures.isEmpty)
         #expect(launcher.all.first?.stopped == false)
         #expect(await !runner.fresh)
+    }
+
+    /// A turn stopped while a tool runs: nothing stays « en cours ».
+    @Test func aTurnEndsItsSteps() async throws {
+        let launcher = FakeLauncher { _, _ in
+            Self.session({ _, _ in [.initialized(Self.good), .textDelta("Je "), .toolStarted(id: "t9", name: "mcp__polhub__mails")] }, onInterrupt: { id in
+                [.controlResponse(requestID: id, success: true), .other("user/interruption"),
+                 .result(ClaudeResult(subtype: "error_during_execution", isError: true, costUSD: 0.02))]
+            })
+        }
+        let (runner, seen) = runner(launcher)
+        await runner.ask("Un", primer: "")
+        try await waitUntil { seen.events.contains { if case .step = $0 { true } else { false } } }
+        await runner.interrupt()
+        try await waitUntil { seen.answers.count == 1 }
+        #expect(seen.answers.first?.steps.map(\.state) == [.failed])
+        #expect(seen.answers.first?.durationMs == nil)
     }
 
     @Test func stopKillsAtOnce() async throws {

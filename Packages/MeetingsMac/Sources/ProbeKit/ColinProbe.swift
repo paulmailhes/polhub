@@ -600,7 +600,7 @@ private struct Run {
                     outcome.initMs = milliseconds(clock.now - start)
                 case .textDelta:
                     if outcome.firstWordMs == nil { outcome.firstWordMs = milliseconds(clock.now - start) }
-                case .assistant(_, let tools):
+                case .assistant(_, let tools, _):
                     outcome.tools += tools
                 case .rateLimit(let limit):
                     outcome.limits.append(limit)
@@ -814,7 +814,7 @@ private actor Conversation {
             sawWord = true
             numbers["premierMot\(turn)Ms"] = milliseconds(clock.now - turnStart)
             if turn == 3 { interruptSoon() }
-        case .assistant(_, let tools):
+        case .assistant(_, let tools, _):
             if turn == 2 { numbers["appels2", default: 0] += Double(tools.count) }
         case .controlResponse(let requestID, let success) where requestID == Self.interruptID:
             numbers["interruptionRecue"] = success ? 1 : 0

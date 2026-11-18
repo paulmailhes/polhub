@@ -23,7 +23,7 @@ import Testing
     }
 
     /// A Claude Code that starts answering and never ends.
-    nonisolated static let hanging: @Sendable (String, Int) -> [ClaudeEvent] = { _, _ in [.initialized(good), .assistant(text: "", tools: ["mcp__polhub__mails"]), .textDelta("Trois ")] }
+    nonisolated static let hanging: @Sendable (String, Int) -> [ClaudeEvent] = { _, _ in [.initialized(good), .assistant(text: "", tools: ["mcp__polhub__mails"], calls: [ClaudeToolCall(id: "t1", name: "mcp__polhub__mails", arguments: [:])]), .textDelta("Trois ")] }
 
     final class Flag: @unchecked Sendable {
         private let lock = NSLock()

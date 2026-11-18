@@ -260,9 +260,9 @@ public final class ColinThread: ObservableObject {
         case .delta(let text):
             guard answer != nil else { return }
             streaming += text
-        case .tool(let name):
+        case .step(let step):
             guard answer != nil else { return }
-            status = .working(Self.phrase(for: name))
+            status = .working(Self.phrase(for: step.tool))
         case .answered(let turn):
             guard var row = answer else { return }
             row.text = turn.text

@@ -105,14 +105,41 @@ public struct ClaudeRateLimit: Equatable, Sendable {
     }
 }
 
+/// A tool the model calls, with its arguments as short texts (the Accueil's pass, 18/11): what the screen says of it.
+public struct ClaudeToolCall: Equatable, Sendable {
+    public var id: String
+    public var name: String
+    public var arguments: [String: String]
+
+    public init(id: String, name: String, arguments: [String: String]) {
+        self.id = id
+        self.name = name
+        self.arguments = arguments
+    }
+}
+
+/// How one tool's call ended.
+public struct ClaudeToolOutcome: Equatable, Sendable {
+    public var id: String
+    public var isError: Bool
+
+    public init(id: String, isError: Bool) {
+        self.id = id
+        self.isError = isError
+    }
+}
+
 public enum ClaudeEvent: Equatable, Sendable {
     case initialized(ClaudeInit)
     /// A few words of the answer being written (a conversation only).
     case textDelta(String)
-    /// A whole message of the model: its text, and the tools it calls.
-    case assistant(text: String, tools: [String])
+    /// The model begins to write a call of a tool: its name now, its arguments with the whole message.
+    case toolStarted(id: String, name: String)
+    /// A whole message of the model: its text, and the tools it calls, with their arguments.
+    case assistant(text: String, tools: [String], calls: [ClaudeToolCall] = [])
     /// `text`: the beginning of what a tool that failed said (Colin's lock says itself there); empty otherwise.
-    case toolResult(isError: Bool, text: String = "")
+    /// `outcomes`: how each call ended, by its identifier.
+    case toolResult(isError: Bool, text: String = "", outcomes: [ClaudeToolOutcome] = [])
     case rateLimit(ClaudeRateLimit)
     case result(ClaudeResult)
     case controlResponse(requestID: String, success: Bool)
@@ -137,12 +164,22 @@ public enum ClaudeStream {
             if event["type"] as? String == "content_block_delta", delta["type"] as? String == "text_delta", let text = delta["text"] as? String {
                 return .textDelta(text)
             }
+            let block = event["content_block"] as? [String: Any] ?? [:]
+            if event["type"] as? String == "content_block_start", block["type"] as? String == "tool_use",
+               let id = block["id"] as? String, let name = block["name"] as? String {
+                return .toolStarted(id: id, name: name)
+            }
             return .other(named("stream_event", event["type"] as? String))
         case "assistant":
             let blocks = content(object)
             let text = blocks.filter { $0["type"] as? String == "text" }.compactMap { $0["text"] as? String }.joined()
-            let tools = blocks.filter { $0["type"] as? String == "tool_use" }.compactMap { $0["name"] as? String }
-            return .assistant(text: text, tools: tools)
+            let uses = blocks.filter { $0["type"] as? String == "tool_use" }
+            let tools = uses.compactMap { $0["name"] as? String }
+            let calls = uses.compactMap { use -> ClaudeToolCall? in
+                guard let id = use["id"] as? String, let name = use["name"] as? String else { return nil }
+                return ClaudeToolCall(id: id, name: name, arguments: arguments(use["input"] as? [String: Any] ?? [:]))
+            }
+            return .assistant(text: text, tools: tools, calls: calls)
         case "user":
             let blocks = content(object)
             let results = blocks.filter { $0["type"] as? String == "tool_result" }
@@ -153,7 +190,10 @@ public enum ClaudeStream {
                     let parts = (result["content"] as? [[String: Any]]) ?? []
                     return parts.filter { $0["type"] as? String == "text" }.compactMap { $0["text"] as? String }.joined(separator: " ")
                 }.joined(separator: " ")
-                return .toolResult(isError: !failed.isEmpty, text: String(said.prefix(300)))
+                let outcomes = results.compactMap { result in
+                    (result["tool_use_id"] as? String).map { ClaudeToolOutcome(id: $0, isError: result["is_error"] as? Bool == true) }
+                }
+                return .toolResult(isError: !failed.isEmpty, text: String(said.prefix(300)), outcomes: outcomes)
             }
             // What Claude Code writes itself when a turn is interrupted: nobody's message. The mark and nothing else:
             // any other line of this kind was not asked for.
@@ -182,6 +222,27 @@ public enum ClaudeStream {
     /// The blocks of a message; a message whose content is plain text has none.
     private static func content(_ object: [String: Any]) -> [[String: Any]] {
         (object["message"] as? [String: Any])?["content"] as? [[String: Any]] ?? []
+    }
+
+    /// A call's arguments as the screen says them: texts, numbers and switches written, lists of them joined; never
+    /// longer than 60 characters; what is nested is left out.
+    static func arguments(_ input: [String: Any]) -> [String: String] {
+        func text(_ value: Any) -> String? {
+            switch value {
+            case let string as String: return string
+            case let number as NSNumber: return CFGetTypeID(number) == CFBooleanGetTypeID() ? (number.boolValue ? "true" : "false") : number.stringValue
+            case let list as [Any]:
+                let parts = list.compactMap { $0 is [Any] || $0 is [String: Any] ? nil : text($0) }
+                return parts.isEmpty ? nil : parts.joined(separator: ", ")
+            default: return nil
+            }
+        }
+        var said: [String: String] = [:]
+        for (key, value) in input {
+            guard let value = text(value) else { continue }
+            said[key] = value.count > 60 ? String(value.prefix(59)) + "…" : value
+        }
+        return said
     }
 
     private static func int(_ value: Any?) -> Int { (value as? NSNumber)?.intValue ?? 0 }

@@ -1,4 +1,5 @@
 import Domain
+import Persistence
 import Foundation
 
 /// Where Colin's Claude Code runs (18/11): the binary, Polhub's tools server and its base, the account (`nil`: Claude
@@ -30,13 +31,19 @@ public struct ColinTurn: Equatable, Sendable {
     public var locked: Bool
     /// The tools used, in order.
     public var tools: [String]
+    /// What Colin did, in order, each where it came in the text (the Accueil's pass, 18/11).
+    public var steps: [ColinStep]
+    /// How long Claude Code worked on it, when it said so.
+    public var durationMs: Int?
 
-    public init(text: String, costUSD: Double?, interrupted: Bool, locked: Bool, tools: [String]) {
+    public init(text: String, costUSD: Double?, interrupted: Bool, locked: Bool, tools: [String], steps: [ColinStep] = [], durationMs: Int? = nil) {
         self.text = text
         self.costUSD = costUSD
         self.interrupted = interrupted
         self.locked = locked
         self.tools = tools
+        self.steps = steps
+        self.durationMs = durationMs
     }
 }
 
@@ -49,7 +56,8 @@ public actor ColinRunner {
         case starting
         case ready
         case delta(String)
-        case tool(String)
+        /// An action of Colin's begins, gets its arguments, or ends.
+        case step(ColinStep)
         case answered(ColinTurn)
         case failed(ColinFailure)
     }
@@ -76,6 +84,7 @@ public actor ColinRunner {
     private var rate: ClaudeRateLimit?
     private var turnText = ""
     private var turnTools: [String] = []
+    private var turnSteps: [ColinStep] = []
     private var locked = false
     private var interrupted = false
     /// The quiet minutes, or the turn's limit.
@@ -161,7 +170,7 @@ public actor ColinRunner {
     private func send(_ text: String) {
         guard let session else { return }
         timer?.cancel()
-        (phase, primed, turnText, turnTools, locked, interrupted) = (.answering, true, "", [], false, false)
+        (phase, primed, turnText, turnTools, turnSteps, locked, interrupted) = (.answering, true, "", [], [], false, false)
         session.send(text)
         let mine = generation
         arm(turnLimit, mine) { await $0.silent(mine) }
@@ -179,14 +188,32 @@ public actor ColinRunner {
             guard phase == .answering else { return }
             turnText += text
             continuation.yield(.delta(text))
-        case .assistant(_, let tools):
+        case .toolStarted(let id, let name):
+            guard phase == .answering, !turnSteps.contains(where: { $0.id == id }) else { return }
+            let step = ColinStep(id: id, tool: Self.short(name), position: turnText.count)
+            turnSteps.append(step)
+            continuation.yield(.step(step))
+        case .assistant(_, let tools, let calls):
             guard phase == .answering else { return }
-            for tool in tools {
-                turnTools.append(tool)
-                continuation.yield(.tool(tool))
+            turnTools += tools
+            for call in calls {
+                if let index = turnSteps.firstIndex(where: { $0.id == call.id }) {
+                    turnSteps[index].arguments = call.arguments
+                    continuation.yield(.step(turnSteps[index]))
+                } else {
+                    let step = ColinStep(id: call.id, tool: Self.short(call.name), arguments: call.arguments, position: turnText.count)
+                    turnSteps.append(step)
+                    continuation.yield(.step(step))
+                }
             }
-        case .toolResult(let isError, let text):
+        case .toolResult(let isError, let text, let outcomes):
             if isError, text.contains(ColinTool.lockMark) { locked = true }
+            guard phase == .answering else { return }
+            for outcome in outcomes {
+                guard let index = turnSteps.firstIndex(where: { $0.id == outcome.id }) else { continue }
+                turnSteps[index].state = outcome.isError ? .failed : .done
+                continuation.yield(.step(turnSteps[index]))
+            }
         case .rateLimit(let limit):
             rate = limit
         case .result(let result):
@@ -223,12 +250,25 @@ public actor ColinRunner {
                 return fail(ColinFailure.of(result: result, rateLimit: rate, errors: "", initialized: initialized) ?? .noAnswer)
             }
             let text = interrupted || result.text.isEmpty ? turnText : result.text
-            continuation.yield(.answered(ColinTurn(text: text, costUSD: cost, interrupted: interrupted, locked: locked, tools: turnTools)))
+            // Nothing stays « under way »: a turn that ended well finished its steps; one stopped or failed, not.
+            let ended = !(interrupted || result.isError)
+            let steps = turnSteps.map { step in
+                var step = step
+                if step.state == .running { step.state = ended ? .done : .failed }
+                return step
+            }
+            continuation.yield(.answered(ColinTurn(text: text, costUSD: cost, interrupted: interrupted, locked: locked, tools: turnTools, steps: steps,
+                                                   durationMs: result.durationMs > 0 ? result.durationMs : nil)))
             phase = .ready
             if locked { stop() } else { armIdle() }
         default:
             break
         }
+    }
+
+    /// « mcp__polhub__mails » → « mails ».
+    static func short(_ name: String) -> String {
+        name.hasPrefix("mcp__polhub__") ? String(name.dropFirst("mcp__polhub__".count)) : name
     }
 
     /// Stopped for a reason that will go on: the process goes, the reason is said, nothing is tried again.

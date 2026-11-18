@@ -85,6 +85,29 @@ public struct ColinMessageRow: Codable, FetchableRecord, PersistableRecord, Equa
     }
 }
 
+/// One action of Colin's in an answer (the Accueil's pass, 18/11): a tool he called, its arguments as short texts, how
+/// it went, and where it came in the answer (the characters written before it). Never what the tool gave back.
+public struct ColinStep: Codable, Equatable, Identifiable, Sendable {
+    public enum State: String, Codable, Sendable {
+        case running, done, failed
+    }
+
+    public var id: String
+    /// The tool's short name (« mails », « projet »).
+    public var tool: String
+    public var arguments: [String: String]
+    public var state: State
+    public var position: Int
+
+    public init(id: String, tool: String, arguments: [String: String] = [:], state: State = .running, position: Int = 0) {
+        self.id = id
+        self.tool = tool
+        self.arguments = arguments
+        self.state = state
+        self.position = position
+    }
+}
+
 /// « Ce que Colin sait » (base v17): one text, which Paul alone changes.
 struct ColinKnowledgeRow: Codable, FetchableRecord, PersistableRecord, Sendable {
     static let databaseTableName = "colin_knowledge"
