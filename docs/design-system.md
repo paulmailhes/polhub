@@ -222,6 +222,19 @@ qu'il montre est calculé hors de l'affichage par `ColinLibrary`, par règles se
   reste rien, le rendez-vous suivant avec son jour (« Demain 10:00 »).
 - **Un brouillon ou un fil s'ouvre par-dessus l'Accueil** (`mailPanels`, les mêmes panneaux que dans Mails) : on
   relit, on envoie, on ferme, et la ligne suivante est là. « Précédent » referme.
+- **La colonne de Colin** (`ColinHome`, 18/11) : en tête, « Colin » avec un point vert et « en marche », et
+  « Mettre à l'arrêt » (`TextButton`) ; puis « Le point », puis le fil (`ColinThreadView`), par jour (« Aujourd'hui »,
+  « Hier », « lundi 16 novembre », en `.meta` gras gris, centrés). Les questions de Paul à droite, sur `Surface.fill`
+  en `.rowBody` ; les réponses de Colin à gauche, en clair, en `.rowTitle`. Un message à copier est une carte avec
+  « Copier » ; une ligne à garder, en gris avec « Garder » ; un brouillon de la réponse, une ligne avec « Relire ».
+  Ce que Colin fait pendant qu'il répond (« Colin lit tes mails… ») et la fin d'une réponse (« Arrêté : … ») en
+  `.meta` gris. **Un lien écrit par Colin n'est jamais cliquable** (`ColinAnswer.inline`) : son adresse s'écrit en
+  clair.
+- **La barre de Colin** (`ColinComposer`) : un champ qui grandit (une à huit lignes) dans une `FloatingBar` de verre
+  au rayon `Radius.hero`, ↑ pour envoyer (`IconButton`, ⌘↩ quand le champ a le focus), le carré d'arrêt pendant une
+  réponse. En deux colonnes, chaque colonne défile seule et la barre reste sous celle de Colin ; en fenêtre étroite,
+  elle flotte en bas de la page. À l'arrêt, « Allumer Colin » (`.glassProminent`) prend sa place ; pendant un call,
+  le champ est grisé : « Colin attend la fin de ton call ». Le bandeau d'un envoi de mail reste au-dessus.
 - **Rien n'est dit deux fois** : ce que disaient l'ancien titre daté, la carte du prochain rendez-vous, « Priorité 2 »,
   « Dernières réunions » et « À classer » est dans « Le point », « Aujourd'hui » et « À valider ».
 

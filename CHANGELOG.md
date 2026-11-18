@@ -3,6 +3,31 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.33.0 — 18 novembre 2026
+
+**Colin te répond : une barre sur l'Accueil, et un fil unique.**
+
+- **Sur l'Accueil**, sous « Le point », le fil de Colin et sa barre : « Écris ou dicte à Colin… ». Il répond en cinq
+  lignes au plus : « où on en est sur Cabinet Martin », « sur quoi je me lance demain », « raccourcis le brouillon
+  pour Claire ». Il lit tes projets, tes réunions, tes mails (ceux que tu laisses lire à tes agents) et ton agenda.
+- **Il prépare, raccourcit ou supprime un brouillon** préparé par un agent ; « Relire » l'ouvre par-dessus l'Accueil.
+  Il n'envoie jamais rien. Un brouillon que tu viens de lui demander ne sonne pas.
+- **Un message à copier** (un WhatsApp pour Marc) arrive avec « Copier ». **Une chose à retenir** arrive avec
+  « Garder » : un clic l'ajoute à « Ce que Colin sait ».
+- **Il ne touche pas encore au tableau des projets** : ça vient avec « Annuler », à la prochaine étape.
+- **Colin est à l'arrêt par défaut.** « Allumer Colin » sur l'Accueil, ou Réglages › Colin. « Mettre à l'arrêt »
+  coupe une réponse en cours.
+- **Pendant un call ou sa transcription, la barre attend** (« Colin attend la fin de ton call »), et un call qui
+  commence arrête une réponse. Après un réveil du Mac, une question attend quelques minutes avant de partir.
+- **Réglages › Colin** : l'interrupteur, le compte de Claude Code, « Ce que Colin sait » (ce qu'il relit à chaque
+  échange : ta façon d'écrire, ton lien de rendez-vous…) et ce qu'il a fait cette semaine.
+- **Ce qui part chez Anthropic, et seulement Colin allumé** : ce que tu lui écris, « Ce que Colin sait », vos derniers
+  échanges, les lignes de l'Accueil et ce qu'il lit pour te répondre, par le Claude Code de ton Mac et ton abonnement.
+  Jamais l'audio, les pièces jointes ni tes jetons. Les pages publiques le disent.
+- **Garde-fous** : Colin n'a que des outils de lecture et le brouillon, en texte simple. Ce qu'il lit d'un client
+  verrouille ses brouillons sur ce fil ou ce projet : un mail piégé ne peut rien lui faire écrire ailleurs. Un lien
+  qu'il écrit n'est jamais cliquable. Claude Code est vérifié à chaque échange, et arrêté au moindre écart.
+
 ## 0.32.0 — 18 novembre 2026
 
 **Un nouvel Accueil : d'un regard, ce qui attend ton clic et où tu en es.**

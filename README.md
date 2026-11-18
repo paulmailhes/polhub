@@ -1,8 +1,9 @@
 # Polhub
 
 Une application macOS qui enregistre seule les réunions Google Meet ouvertes dans le navigateur
-[Dia](https://www.diabrowser.com/), les transcrit sur le Mac et les range dans des projets. **Rien ne
-quitte la machine** : ni l'audio, ni le texte.
+[Dia](https://www.diabrowser.com/), les transcrit sur le Mac et les range dans des projets. **L'audio ne
+quitte jamais la machine**, et le texte n'en sort que si l'utilisateur le veut : vers un assistant qu'il branche
+lui-même, ou vers Colin, l'agent de l'Accueil, quand il l'allume (il est à l'arrêt par défaut).
 
 C'est le logiciel personnel d'un designer indépendant, publié tel quel. Il vise un seul Mac et un seul
 usage : il n'est ni configurable pour d'autres navigateurs, ni traduit.
@@ -25,6 +26,10 @@ usage : il n'est ni configurable pour d'autres navigateurs, ni traduit.
   les réunions, les mails, l'agenda, les contacts et l'inspiration à lire ; des actions, des notes
   et des brouillons à préparer, et des rendez-vous créés dans l'agenda à sa demande, sans aucun
   invité. Aucun mail ne part sans l'utilisateur : il relit et envoie lui-même.
+- **Colin**, sur l'Accueil : ce qui attend un clic (un brouillon prêt, un mail sans réponse, un client muet, une
+  réunion à ranger), « Le point » au retour, et une barre pour lui parler. Colin passe par le Claude Code du Mac et
+  reste à l'arrêt tant que l'utilisateur ne l'allume pas. Allumé, ce qu'on lui écrit et ce qu'il lit pour répondre
+  partent chez Anthropic ; il prépare des brouillons, il n'envoie rien.
 - **Se met à jour seul** à partir des versions publiées ici, et jamais pendant une réunion.
 
 ## Configuration requise

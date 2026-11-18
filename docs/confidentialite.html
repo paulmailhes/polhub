@@ -10,7 +10,7 @@
 <main>
   <p><a href="index.html">← Polhub</a></p>
   <h1>Règles de confidentialité</h1>
-  <p class="meta">En vigueur le 16 novembre 2026.</p>
+  <p class="meta">En vigueur le 18 novembre 2026.</p>
 
   <p>Polhub est une application macOS installée sur l'ordinateur de son utilisateur. Elle n'a pas de serveur :
   l'éditeur de Polhub ne reçoit, ne voit et ne stocke aucune donnée de ses utilisateurs.</p>
@@ -51,12 +51,14 @@
     <li>Les rendez-vous et les contacts sont enregistrés dans la base de données locale de l'application, sur le
     Mac de l'utilisateur. Les messages des boîtes autorisées y sont copiés aussi ; leur contenu et les pièces
     jointes que l'utilisateur ouvre sont rangés en fichiers à côté de cette base, sur le même Mac.</li>
-    <li>Le jeton d'accès au compte Google est conservé dans le Trousseau de macOS. Il n'est jamais écrit ailleurs.</li>
+    <li>Le jeton d'accès au compte Google est conservé dans le Trousseau de macOS. Il n'est jamais écrit ailleurs.
+    Polhub ne lit ni ne copie la connexion de Claude Code.</li>
     <li>Rien n'est envoyé à un serveur de l'éditeur ni à un tiers. Les seules connexions réseau vont aux services de
     Google, pour lire les agendas et les boîtes autorisées et y écrire ce que l'utilisateur fait lui-même ou
-    demande à un assistant qu'il a branché, et à
+    demande à un assistant qu'il a branché, à
     GitHub, pour vérifier
-    qu'une nouvelle version de l'application existe (sans aucune donnée de l'utilisateur).</li>
+    qu'une nouvelle version de l'application existe (sans aucune donnée de l'utilisateur), et, quand l'utilisateur a
+    allumé Colin, à Anthropic, par le programme Claude Code de son Mac (voir « Colin »).</li>
     <li>Première exception : afficher les images distantes d'un message contacte le serveur de son expéditeur, qui
     voit alors l'adresse IP du Mac et l'heure d'ouverture. Polhub ne les charge que pour les expéditeurs que
     l'utilisateur connaît (ses contacts, les personnes à qui il a écrit) quand Gmail confirme l'origine du message,
@@ -73,8 +75,8 @@
   d'intelligence artificielle installé sur son Mac, comme Claude Code. Dans ce cas, et seulement à la demande de
   l'utilisateur, cet assistant peut lire les projets, les contacts, les rendez-vous et la copie locale des mails
   de Polhub (hors spam et corbeille, ou seulement les mails rangés dans un projet si l'utilisateur le choisit), et
-  les transmettre au service de son éditeur selon les conditions de cet assistant. Polhub ne le fait jamais de
-  lui-même.</p>
+  les transmettre au service de son éditeur selon les conditions de cet assistant. En dehors de Colin, quand
+  l'utilisateur l'a allumé (voir plus bas), Polhub ne le fait jamais de lui-même.</p>
   <p>Un assistant peut aussi préparer un brouillon de mail, et y joindre des fichiers du Mac que l'utilisateur lui
   désigne. Le serveur de Polhub qu'il utilise n'a ni accès au réseau ni jeton Google : le brouillon est déposé dans
   Polhub, marqué « préparé par un agent ». Il ne devient un
@@ -84,8 +86,19 @@
   « préparé par un agent » dans sa description. Il n'y a jamais d'invité : un assistant ne peut inviter
   personne.</p>
 
+  <h2>Colin</h2>
+  <p>Colin est l'agent de l'Accueil de Polhub. Il est à l'arrêt tant que l'utilisateur ne l'allume pas, dans
+  Réglages › Colin. Allumé, il répond à ce que l'utilisateur lui écrit : Polhub lance alors le programme Claude Code
+  que l'utilisateur a installé et connecté sur son Mac, qui transmet à Anthropic, selon les conditions du compte
+  Claude de l'utilisateur, le message de l'utilisateur, le texte « Ce que Colin sait » qu'il a écrit, leurs
+  derniers échanges, les lignes de l'Accueil, et ce que Colin lit pour répondre par le même serveur local, sans
+  réseau : projets, réunions, rendez-vous, contacts et copie des mails (dans le choix « Ce que lisent tes
+  agents »). Jamais l'audio, les pièces jointes ni le jeton Google. Colin ne peut qu'écrire des brouillons, que
+  l'utilisateur relit et envoie lui-même. Que ces textes servent ou non à améliorer les modèles d'Anthropic dépend
+  du réglage du compte Claude de l'utilisateur.</p>
+
   <h2>Partage</h2>
-  <p>En dehors de ce que l'utilisateur choisit de faire lire à ses propres assistants, aucune donnée n'est vendue,
+  <p>En dehors de ce que l'utilisateur choisit de faire lire à ses propres assistants, ou à Colin s'il l'allume, aucune donnée n'est vendue,
   louée, partagée ni transmise à quiconque, ni utilisée pour de la publicité ou pour entraîner un modèle
   d'intelligence artificielle.</p>
   <p>L'utilisation et le transfert à toute autre application des informations reçues des API Google respectent la

@@ -11,9 +11,10 @@
   <h1>Polhub</h1>
   <p class="lead">Une application macOS personnelle : elle enregistre, transcrit et résume les réunions Google Meet,
   range les projets, et lit les agendas Google pour relier rendez-vous, contacts et projets. Si son utilisateur
-  l'autorise, elle lit aussi ses boîtes Gmail et y écrit ses réponses. <strong>Tout reste sur le Mac</strong> :
-  aucun serveur ; rien ne part ailleurs que chez Google, pour les agendas et les boîtes de l'utilisateur, et
-  seulement ce qu'il y fait lui-même ou ce qu'il demande à un assistant qu'il a branché.</p>
+  l'autorise, elle lit aussi ses boîtes Gmail et y écrit ses réponses. <strong>Aucun serveur de l'éditeur</strong> :
+  les données restent sur le Mac et ne partent que chez Google, pour les agendas et les boîtes de l'utilisateur
+  (ce qu'il y fait lui-même ou ce qu'il demande à un assistant qu'il a branché), et chez Anthropic quand il parle à
+  Colin, l'agent de l'Accueil, qui est à l'arrêt tant qu'il ne l'allume pas.</p>
 
   <h2>Ce que Polhub fait des agendas Google</h2>
   <ul>
@@ -25,7 +26,8 @@
     <a href="confidentialite.html">règles de confidentialité</a>, « Assistants branchés par l'utilisateur »).</li>
     <li>Il s'en sert pour relier chaque rendez-vous à un projet et à sa réunion enregistrée, et pour tenir à jour
     les contacts (les invités).</li>
-    <li>Ces informations restent dans la base de l'application, sur le Mac.</li>
+    <li>Ces informations restent dans la base de l'application, sur le Mac. Colin, s'il est allumé, peut les lire
+    pour répondre à l'utilisateur (voir plus bas).</li>
   </ul>
 
   <h2>Ce que Polhub fait des messages Gmail</h2>
@@ -37,6 +39,9 @@
     aussi enregistrés dans Gmail, pour qu'il les retrouve ailleurs.</li>
     <li>Pour se désabonner d'une liste, il suit ce que l'expéditeur indique dans son message, à la demande de
     l'utilisateur et après lui avoir montré le domaine concerné.</li>
+    <li>Colin, l'agent de l'Accueil, est à l'arrêt par défaut. Si l'utilisateur l'allume, il lit pour lui répondre
+    les messages que l'utilisateur laisse lire à ses agents, et ce qu'il lit part chez Anthropic par le programme
+    Claude Code du Mac. Il prépare des brouillons, sans jamais rien envoyer.</li>
     <li>Il en garde une copie sur le Mac pour les afficher ; cette copie suit Gmail. Les images distantes d'un
     message ne se chargent que pour les expéditeurs connus de l'utilisateur, ou à sa demande.</li>
   </ul>
