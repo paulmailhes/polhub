@@ -5,8 +5,9 @@ import Persistence
 
 /// The rules of « À valider », counted on the mails of the base (18/11), before the Accueil shows them: how many
 /// lines « attend ta réponse » and « ne répond plus » would give today, and how many they would have given two weeks
-/// ago — with what followed: did Paul answer, did the client, did Paul write again? Numbers only: no subject, no
-/// address, no name. No model, nothing leaves the Mac, and nothing is written in the base.
+/// ago — with what followed: did Paul answer, did the client, did Paul write again? And how many of those lines are
+/// for a mail he took out of his inbox without answering. Numbers only: no subject, no address, no name. No model,
+/// nothing leaves the Mac, and nothing is written in the base.
 public struct ColinRulesProbe: Probe {
     private let database: @Sendable () throws -> AppDatabase
     private let now: @Sendable () -> Date
@@ -121,6 +122,15 @@ public struct ColinRulesProbe: Probe {
             "ilYA14Jours": Double(awaitedThen.count), "suiviesDUneReponse": followed(awaitedThen, by: sentSince),
             // How many threads have a copy in another box, and how many of today's lines are of those.
             "copies": Double(conversations.count), "lignesAvecCopie": Double(awaited.filter { $0.threadKey.map { conversations[$0] != nil } ?? false }.count),
+            // What Paul left in his inbox, and what he has not read: a line for a mail he archived without answering
+            // may be one he already classed. Among the lines of two weeks ago he never answered, those out of the
+            // inbox today.
+            "dansLaBoite": Double(awaited.filter { $0.threadKey.flatMap { byKey[$0] }?.inInbox == true }.count),
+            "nonLus": Double(awaited.filter { $0.threadKey.flatMap { byKey[$0] }?.unread == true }.count),
+            "sansSuiteHorsBoite": Double(awaitedThen.filter { line in
+                guard let key = line.threadKey, !sentSince.contains(conversation(key)) else { return false }
+                return byKey[key]?.inInbox == false
+            }.count),
             // Lines that look like a calendar's own mails, by the first words of their subject (read, never written).
             "invitations": Double(awaited.filter { line in
                 guard let subject = line.threadKey.flatMap({ byKey[$0]?.subject.lowercased() }) else { return false }

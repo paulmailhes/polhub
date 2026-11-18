@@ -73,6 +73,27 @@ import Testing
         #expect(replies.labels.isEmpty)
     }
 
+    /// What Paul archived without answering: the inbox says whether a line would nag him for a mail he already
+    /// classed. Counted today, and among the lines of two weeks ago that he never answered.
+    @Test func theInboxSaysWhatPaulAlreadyClassed() throws {
+        let (_, mails, _) = try base()
+        try mails.apply(account: Self.me, upserts: [
+            sent("z1", thread: "z", to: Self.marc, daysAgo: 90, subject: "Bonjour"),
+            // Still in the inbox, unread: waits today.
+            received("a1", thread: "a", from: Self.marc, daysAgo: 4, subject: "Maquette", labels: ["INBOX", "UNREAD", "CATEGORY_PERSONAL"]),
+            // Archived twenty days ago without an answer: it waited two weeks ago, still waits today, out of the inbox.
+            received("d1", thread: "d", from: Self.marc, daysAgo: 20, subject: "Logo", labels: ["CATEGORY_PERSONAL"]),
+            // Left in the inbox for twenty-two days, never answered either.
+            received("e1", thread: "e", from: Self.marc, daysAgo: 22, subject: "Devis"),
+        ])
+        let replies = try count(mails).replies
+        #expect(replies.numbers["aujourdhui"] == 3)
+        #expect(replies.numbers["dansLaBoite"] == 2)
+        #expect(replies.numbers["nonLus"] == 1)
+        #expect(replies.numbers["ilYA14Jours"] == 2 && replies.numbers["suiviesDUneReponse"] == 0)
+        #expect(replies.numbers["sansSuiteHorsBoite"] == 1)
+    }
+
     @Test func aSilentClientWhoAnsweredSinceIsCounted() throws {
         let (_, mails, project) = try base()
         try mails.apply(account: Self.me, upserts: [
@@ -270,6 +291,7 @@ import Testing
         #expect(measures.map(\.step) == ["regles-reponses", "regles-muets"])
         let known: Set<String> = ["fils", "avecTour", "sansTour", "aujourdhui", "dansUnProjet", "de3a7Jours", "de8a14Jours", "de15a45Jours", "ilYA14Jours",
                                   "suiviesDUneReponse", "seuil2Jours", "seuil5Jours", "seuil7Jours", "copies", "lignesAvecCopie", "invitations", "ms",
+                                  "dansLaBoite", "nonLus", "sansSuiteHorsBoite",
                                   "de7a14Jours", "suivisDUneReponse", "suivisDUneRelance", "seuil10Jours", "seuil14Jours", "commencesParPaul"]
         for measure in measures {
             #expect(measure.labels.isEmpty, "\(measure.step)")
