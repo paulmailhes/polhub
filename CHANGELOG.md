@@ -3,6 +3,27 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.35.0 — 18 novembre 2026
+
+**L'Accueil refait : une conversation avec Colin comme dans Claude, et ta journée d'un regard.**
+
+- **La conversation avec Colin**, à gauche : une colonne de lecture, tes questions en bulles, les jours entre deux
+  traits, l'heure au survol. Le texte de Colin s'écrit mot à mot, en fondu, sans saut à la fin.
+- **Ce que fait Colin, dans son texte** : « Lit le fil « Devis · Claire Morel »… » pendant qu'il travaille, puis « A lu
+  2 fils › », qui se déplie. Ce qu'il change sur un projet devient une carte « avant → après » avec « Annuler » ; un
+  brouillon, une carte avec « Relire ». Sous chaque réponse : combien de temps il a travaillé, « Copier », et
+  « Réessayer » après un arrêt.
+- **La barre est réparée** : le texte est centré, elle grandit jusqu'à huit lignes, le fil passe sous son verre. Un
+  bouton pour dicter, un rond orange pour envoyer, ■ pour arrêter. Entrée envoie, Maj+Entrée va à la ligne, Échap
+  arrête. Au-dessus, tant que tu n'as rien demandé aujourd'hui, trois questions tirées de ta journée.
+- **Le fil ne te ramène plus en bas** quand tu remontes lire : une flèche ↓ apparaît.
+- **À droite, ta journée** : la date et des chiffres (rendez-vous, à livrer, à toi) qui posent leur question à Colin
+  d'un clic ; « Depuis… » et « Voir », qui liste aussi les mails des clients ; le prochain rendez-vous en grand, avec
+  « Rejoindre » qui s'allume dix minutes avant ; « À valider » avec le visage de la personne et une seule action par
+  ligne.
+- **Une seule couleur pour ce qui compte** : l'orange ne sert plus qu'à envoyer, rejoindre, et dire un retard.
+- **En fenêtre étroite**, une bande du jour en haut ; « À valider » se déplie par-dessus la conversation.
+
 ## 0.34.0 — 18 novembre 2026
 
 **« Annuler » : ce qu'un agent change sur un projet se voit et s'annule, et Colin tient le kanban.**

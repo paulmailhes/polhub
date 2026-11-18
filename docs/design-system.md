@@ -200,48 +200,80 @@ touchent jamais le logo.
 
 L'Accueil dit d'un regard ce qui attend le clic de Paul et où il en est (`HomeView`, dossier `MeetingsUI/Home`). Ce
 qu'il montre est calculé hors de l'affichage par `ColinLibrary`, par règles seules : aucun modèle, rien ne sort du Mac.
+Passe UX/UI du 18/11 : une conversation à la Claude à gauche, « ta journée » à droite, une seule couleur pour ce qui
+compte.
 
-- **Deux colonnes** à partir de 760 points de contenu (`HomeLayout`) : à gauche la colonne de Colin (ce qui est fait,
-  où on en est), à droite les listes (ce qui attend), larges de 360 points. En fenêtre étroite, les listes passent
-  au-dessus, la colonne de Colin dessous. Pas de grand titre : la fenêtre s'appelle « Accueil ».
-- **« Le point »** (`BriefingCard`) : quatre phrases au plus, en deux colonnes (de quoi la phrase parle en gris, ce
-  qu'elle dit en 15 points), avec le jour et l'heure où il a été préparé (« mardi 9:04 »). Il se prépare à un retour
-  de Paul (première présence du jour, ou trois heures après), jamais à chaque affichage.
-- **« À valider »** (`ReviewCard`) : une phrase et un bouton par ligne. Le symbole de la sorte de ligne à gauche (celui
-  d'un brouillon prêt dans la couleur d'accent), la phrase en `.rowTitle`, le projet et les jours dessous en `.meta`,
-  puis le mot à cliquer (`TextButton` : « Relire », « Ouvrir », « Ranger ») et, pour une ligne qui peut s'écarter, un
-  menu « … ». Un clic sur la ligne fait la même chose que son mot, sauf pour une réunion : il l'ouvre, et « Ranger »
-  propose les projets. Cinq lignes, puis « Voir les N autres ». Une ligne part seule quand la chose est faite ;
-  écartée ou rangée à la main, elle part tout de suite.
+- **Deux zones** à partir de 760 points de contenu (`HomeLayout`) : à gauche la conversation avec Colin
+  (`ColinConversation`), à droite « ta journée », 380 points fixes, sans cartes (le point, « Aujourd'hui », un trait
+  fin, « À valider »). Chaque zone défile seule. En fenêtre étroite : une bande du jour fixe en haut (la date, les
+  chiffres, le prochain rendez-vous, « À valider N » qui déplie la liste par-dessus le fil), puis la conversation. Pas
+  de grand titre : la fenêtre s'appelle « Accueil ». Les titres de section de l'Accueil sont en 15 points semi-gras
+  (`HomeSectionHeader`), leur compte à côté en gris.
+- **L'orange (l'accent) pour ce qui compte, seulement** : envoyer (le rond plein de la barre), « Rejoindre » dix
+  minutes avant, « dans N min » à un quart d'heure, le retard d'une ligne à valider (plus de deux fois son seuil),
+  « Voir ». Les actions des lignes sont neutres (`.subtle` : petit, bordé d'un trait, la couleur du texte) ; les
+  gestes rares sont des mots gris (`TextButton(quiet:)`) ou dans un menu « … ».
+- **Le verre pour la barre seulement** (et le bouton ↓) : ni les cartes, ni les bulles, ni les lignes.
+
+### La conversation
+
+- **L'en-tête** reste en haut, hors du défilement : « Colin », un point vert et « en marche » (gris et « à l'arrêt »),
+  un menu « … » avec « Mettre à l'arrêt » et « Réglages… ».
+- **Le fil** (`ColinThreadView`) est une colonne de lecture de 680 points au plus. Les jours entre deux traits fins
+  (`DaySeparator`). Les questions de Paul en bulles à droite (`PaulBubble` : 15 points, rayon 18, `Surface.bubble`,
+  jamais plus que la colonne moins 140 points), l'heure au survol. Les réponses de Colin en clair, 15 points sur 22.
+  24 points entre deux tours, 10 dans un tour.
+- **Les actions de Colin dans son texte** (`StepRow`), là où il les a faites : une icône grise (une enveloppe, un
+  dossier, un agenda…) qui bat pendant l'action, et une phrase en `.meta` gris, au présent pendant (« Lit le fil
+  « Devis · Claire Morel »… »), au passé ensuite (« A lu 2 fils › »). Des lectures qui se suivent se replient en une
+  ligne qui se déplie au clic. Une panne : l'icône rouge et « (raté) ». Avant le premier mot : « Réfléchit… ». Jamais
+  un nom d'outil, jamais ce que l'outil a rendu.
+- **Le texte s'écrit mot à mot** : les mots reçus sortent à un rythme régulier (`StreamPacer`), les nouveaux
+  apparaissent en fondu d'un cinquième de seconde (`FreshRenderer`), sans saut à la fin (la réponse en cours est la
+  ligne même du message). Le fil ne suit la fin que si Paul y est ; s'il remonte lire, un rond de verre ↓ le ramène.
+  « Réduire les animations » coupe le fondu.
+- **Les cartes de ce que Colin a fait** (`ThreadCard` : `Surface.fill`, un trait, rayon 12) : un message à copier
+  (« Copier », puis « Copié »), un brouillon (« Brouillon prêt pour Claire », « Relire »), un changement de projet
+  (`ChangeCard` : le projet, pourquoi ou qui, une ligne par champ « avant → après », « Annuler » ; annulé, la carte
+  pâlit). Les changements faits dans une réponse vont avec elle ; ceux des règles et des agents sont des cartes à leur
+  heure. Une chose à retenir : une ligne grise avec un signet et « Garder ».
+- **Le pied d'une réponse** : « a travaillé 9 s », « Copier » ; sous une réponse arrêtée ou ratée, « Arrêté : … » et
+  « Réessayer ». Les mots restent sur la dernière réponse, au survol sur les autres. **Un lien écrit par Colin n'est
+  jamais cliquable** (`ColinAnswer.inline`) : son adresse s'écrit en clair.
+- **La barre** (`ColinComposer`) flotte sur le fil, qui passe sous son verre (`safeAreaBar`) : une capsule de 44 points
+  (rayon 22 quand elle grandit, jusqu'à huit lignes), le texte en 15 points centré sur une ligne, à son pied « Dicter »
+  (la dictée de macOS) et un rond de 28 points pour envoyer, plein d'orange quand il y a du texte, ■ pendant une
+  réponse. Entrée envoie, Maj+Entrée va à la ligne, Échap arrête ; un mot en cours de dictée n'est jamais envoyé. Ce
+  qui la retient (« Colin attend la fin de ton call. », un réveil du Mac, une panne) se dit au-dessus du champ, dans le
+  verre. Au-dessus de la barre, tant que Paul n'a rien demandé aujourd'hui, trois suggestions tirées de sa journée ; un
+  clic remplit la barre, rien ne part. Colin à l'arrêt : une carte calme, « Colin est à l'arrêt », « Allumer Colin »
+  (`.glassProminent`).
+
+### Ta journée
+
+- **« Le point »** (`BriefingCard`, sans carte) : la date en `.title2` semi-gras (« Mercredi 18 novembre »), « Le point
+  · mardi 9:04 » en gris, puis des chiffres en tuiles (`Surface.fill`, rayon 10 : le chiffre en `.title2` à chiffres
+  tabulaires, « rendez-vous », « à livrer », « à toi » dessous) ; un chiffre nul ne s'affiche pas, un chiffre cliqué
+  pose sa question dans la barre (les noms derrière lui au survol). Puis « Depuis hier 19:40 : 1 mail de client, 2
+  projets ont bougé. » et « Voir ». Il se prépare à un retour de Paul (première présence du jour, ou trois heures
+  après), jamais à chaque affichage.
+- **« Voir »** ouvre une feuille (`ChangesSheet`) titrée de la phrase du point : les fils des clients (« Ouvrir »), puis
+  ce qui a bougé sans Paul, en cartes signées (« Un agent, aujourd'hui 16:27 ») avec « Annuler », et « Fermer ».
+- **« Aujourd'hui »** (`TodayCard`) avant « À valider » : le prochain rendez-vous en grand (`.title3` semi-gras ; « dans
+  40 min · 14:00 · Studio Nord » dessous, l'attente en orange à un quart d'heure), « Rejoindre » en `.subtle` puis en
+  `.glassProminent` dix minutes avant ; les autres sur une ligne (l'heure dans une colonne de 44 points, le titre, le
+  projet, l'icône pour rejoindre). S'il ne reste rien, le rendez-vous suivant avec son jour (« Demain 10:00 »).
+- **« À valider »** (`ReviewCard`) : une ligne par chose. Le visage de la personne (`PersonAvatar`, aux couleurs du
+  projet) ou, pour une réunion à ranger, son symbole ; la phrase avec le nom en semi-gras ; le projet et l'âge dessous,
+  l'âge en orange en retard ; l'action en `.subtle` toujours au même bord (« Relire », « Ouvrir », « Ranger ») ; le
+  menu « … » au survol. Un clic sur la ligne fait la même chose que son action, sauf pour une réunion : il l'ouvre, et
+  « Ranger » propose les projets. Cinq lignes, puis « Voir les N autres ». Vide : « Rien à valider. ».
 - **Une ligne par personne, une ligne par projet** (`ReviewRules`) : « attend ta réponse » se lit sur l'échange avec
   la personne dans tous les fils et toutes les boîtes (`Exchanges`), « ne répond plus » sur le projet entier. Lues
   fil par fil, ces deux lignes parlaient dix fois trop : on répond dans un nouveau mail aussi souvent que dans le fil.
   Écarter une ligne vaut donc pour la personne ou pour le projet.
-- **« Aujourd'hui »** (`TodayCard`) : ce qui reste de la journée. Le prochain rendez-vous dit « dans 40 min » ou « en
-  cours » et porte « Rejoindre » en `.glassProminent` à la couleur de son compte ; les autres gardent l'icône. S'il ne
-  reste rien, le rendez-vous suivant avec son jour (« Demain 10:00 »).
 - **Un brouillon ou un fil s'ouvre par-dessus l'Accueil** (`mailPanels`, les mêmes panneaux que dans Mails) : on
   relit, on envoie, on ferme, et la ligne suivante est là. « Précédent » referme.
-- **La colonne de Colin** (`ColinHome`, 18/11) : en tête, « Colin » avec un point vert et « en marche », et
-  « Mettre à l'arrêt » (`TextButton`) ; puis « Le point », puis le fil (`ColinThreadView`), par jour (« Aujourd'hui »,
-  « Hier », « lundi 16 novembre », en `.meta` gras gris, centrés). Les questions de Paul à droite, sur `Surface.fill`
-  en `.rowBody` ; les réponses de Colin à gauche, en clair, en `.rowTitle`. Un message à copier est une carte avec
-  « Copier » ; une ligne à garder, en gris avec « Garder » ; un brouillon de la réponse, une ligne avec « Relire ».
-  Ce que Colin fait pendant qu'il répond (« Colin lit tes mails… ») et la fin d'une réponse (« Arrêté : … ») en
-  `.meta` gris. **Un lien écrit par Colin n'est jamais cliquable** (`ColinAnswer.inline`) : son adresse s'écrit en
-  clair. **Ce que Colin a changé sur un projet** (`ChangeRow`, 18/11) prend sa place dans le fil à son heure : une
-  icône grise (`arrow.triangle.2.circlepath`), une phrase en `.rowBody` (« « Studio Nord » : priorité 2 → priorité 1,
-  tâche « En attente retour de Marc ». »), la raison en `.meta` gris dessous, et « Annuler » (`TextButton`) à droite ;
-  annulé, « Annulé. » prend la place de la raison. Ce qu'un agent a changé sur une carte s'y affiche aussi, signé
-  (« Un agent, aujourd'hui 14:00 ») à la place de la raison.
-- **« Le point » et « Voir »** (18/11) : la ligne « Depuis… » compte aussi les projets qui ont bougé sans Paul (Colin
-  ou un agent) ; « Voir », au bout de cette ligne, ouvre une feuille (`ChangesSheet`) titrée de la phrase du point,
-  avec les mêmes lignes que le fil, signées (« Un agent, aujourd'hui 16:27 »), et « Fermer ».
-- **La barre de Colin** (`ColinComposer`) : un champ qui grandit (une à huit lignes) dans une `FloatingBar` de verre
-  au rayon `Radius.hero`, ↑ pour envoyer (`IconButton`, ⌘↩ quand le champ a le focus), le carré d'arrêt pendant une
-  réponse. En deux colonnes, chaque colonne défile seule et la barre reste sous celle de Colin ; en fenêtre étroite,
-  elle flotte en bas de la page. À l'arrêt, « Allumer Colin » (`.glassProminent`) prend sa place ; pendant un call,
-  le champ est grisé : « Colin attend la fin de ton call ». Le bandeau d'un envoi de mail reste au-dessus.
 - **Rien n'est dit deux fois** : ce que disaient l'ancien titre daté, la carte du prochain rendez-vous, « Priorité 2 »,
   « Dernières réunions » et « À classer » est dans « Le point », « Aujourd'hui » et « À valider ».
 
