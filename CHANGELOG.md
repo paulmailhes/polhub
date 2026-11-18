@@ -3,6 +3,18 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.31.2 — 18 novembre 2026
+
+**Polhub prépare le nouvel Accueil : il retient qui a parlé en dernier dans chaque fil de mails.**
+
+- Rien ne change à l'écran dans cette version.
+- Pour chaque fil, Polhub retient la date du dernier message reçu et celle de ton dernier message. C'est ce qui dira
+  bientôt sur l'Accueil « Marc attend ta réponse » ou « Anne ne répond plus ».
+- Une fois après la mise à jour, hors réunion, Polhub compte sur ton Mac combien de lignes ces deux règles donneraient
+  aujourd'hui, et combien elles en auraient donné il y a deux semaines. Il n'écrit que des nombres, dans le dossier des
+  mesures : aucun objet, aucune adresse, aucun nom. Rien ne sort du Mac, et aucune IA n'est utilisée.
+- Avant de modifier ta base, Polhub en garde une copie, comme à chaque fois.
+
 ## 0.31.1 — 18 novembre 2026
 
 **Une sonde pour préparer Colin, l'agent qui arrive sur l'Accueil.**

@@ -136,6 +136,8 @@ public struct Preferences: @unchecked Sendable {
         public static let inspirationAICategories = "inspiration.categoriesIA"
         /// Réglages › Diagnostic (17/11): the folder of the Claude account Colin uses; empty, Claude Code's own.
         public static let colinAccount = "colin.dossierDuCompte"
+        /// The version of the app that last counted Colin's rules on the mails (18/11).
+        public static let colinRulesCount = "colin.releveDesRegles"
     }
 
     public enum Default {

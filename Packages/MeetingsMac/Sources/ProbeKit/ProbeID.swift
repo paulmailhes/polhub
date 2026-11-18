@@ -11,6 +11,8 @@ public enum ProbeID: String, CaseIterable, Sendable, Codable {
     case pipeline
     /// Step 0 of Colin (17/11): Claude Code launched by Polhub, on invented texts.
     case colin
+    /// The rules of « À valider », counted on the mails of the base (18/11): numbers only, no model, nothing sent.
+    case colinRules = "colin-regles"
 
     /// The probes offered in the window of the probes. Colin's is not: it has its own button on the Diagnostic page,
     /// with the account it uses and its guards (never during a meeting).
@@ -30,6 +32,7 @@ public enum ProbeID: String, CaseIterable, Sendable, Codable {
         case .record: "Enregistreur de réunion"
         case .pipeline: "Chaîne complète (enregistrer, finaliser, relire)"
         case .colin: "Colin : Claude Code depuis Polhub"
+        case .colinRules: "Colin : les règles sur tes mails"
         }
     }
 }

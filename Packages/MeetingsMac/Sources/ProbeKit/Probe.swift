@@ -1,5 +1,7 @@
+import Domain
 import Foundation
 import Observability
+import Persistence
 
 /// A measurement run. It writes its findings to `trace` and its files under `directory`.
 /// It returns after `request.seconds`, or earlier when its Swift task is cancelled.
@@ -22,6 +24,10 @@ public enum ProbeRegistry {
         case .record: RecordProbe()
         case .pipeline: PipelineProbe()
         case .colin: ColinProbe(helper: ColinProbe.embeddedHelper())
+        // Read only: the app has already brought its base up to date, and the count writes nothing in it.
+        case .colinRules: ColinRulesProbe(database: {
+            try AppDatabase.readOnly(path: AppPaths.standard(AppFlavor.current).database.path(percentEncoded: false))
+        })
         }
     }
 }

@@ -271,6 +271,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         // « Coup d'œil » reads what these already hold in memory, from now on.
         coupDoeil.attach(library: library, agenda: agenda, mails: mails, projects: projects, projectLogos: projectLogos,
                          notifications: notifications, updates: updates)
+        countColinRulesOnce()
+    }
+
+    /// Colin's rules, counted on Paul's own mails before the Accueil shows them (18/11): once per version, a minute
+    /// after the launch, then at the first quiet moment. Numbers only, written among the measures: no model, and
+    /// nothing leaves the Mac. The development version, which has its own base, counts nothing.
+    private func countColinRulesOnce() {
+        guard AppFlavor.current != .dev, let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
+              UserDefaults.standard.string(forKey: Preferences.Key.colinRulesCount) != version else { return }
+        Task { [weak self] in
+            var wait = Duration.seconds(60)
+            // Never beside a meeting: asked again every five minutes, for a day at most.
+            for _ in 0..<288 {
+                try? await Task.sleep(for: wait)
+                wait = .seconds(300)
+                guard let self else { return }
+                guard await self.isQuiet() else { continue }
+                if self.runner.start(ProbeRequest(probe: .colinRules)) {
+                    UserDefaults.standard.set(version, forKey: Preferences.Key.colinRulesCount)
+                    return
+                }
+            }
+        }
     }
 
     /// What the menu bar needs besides the coordinator (« Coup d'œil », 15/11): the next Meet, from the events as they
