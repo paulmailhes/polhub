@@ -35,6 +35,12 @@ import Testing
         Briefing.lines(week: week, due: due, yours: yours, clientMails: clientMails, since: since, now: date ?? now, calendar: calendar)
     }
 
+    /// « Le point · mardi 9:04 »: the day and the hour it was prepared, said as its sentences say them.
+    @Test func thePointCarriesItsDayAndItsHour() {
+        #expect(Briefing.stamp(at(17, 9, 4), calendar: calendar) == "mardi 9:04")
+        #expect(Briefing.stamp(at(20, 19, 40), calendar: calendar) == "vendredi 19:40")
+    }
+
     // MARK: - The week
 
     @Test func theWeekCountsNeitherWholeDaysNorDeclined() {

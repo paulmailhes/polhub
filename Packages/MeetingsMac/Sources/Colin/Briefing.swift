@@ -105,6 +105,11 @@ public enum Briefing {
         days(from: now, to: date, calendar: calendar) == 0 ? time(date, calendar: calendar) : dayLabel(date, now: now, calendar: calendar)
     }
 
+    /// « mardi 9:04 »: the day and the hour « Le point » was prepared, at its head.
+    public static func stamp(_ date: Date, calendar: Calendar) -> String {
+        "\(weekday(date, calendar: calendar)) \(time(date, calendar: calendar))"
+    }
+
     /// Whole days between two dates, as a calendar counts them: from one day to the next, whatever the hours.
     static func days(from: Date, to: Date, calendar: Calendar) -> Int {
         calendar.dateComponents([.day], from: calendar.startOfDay(for: from), to: calendar.startOfDay(for: to)).day ?? 0

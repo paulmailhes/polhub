@@ -478,7 +478,8 @@ public struct MainWindowView<Diagnostic: View>: View {
         self.projects = projects
         self.agenda = agenda
         self.mails = mails
-        self.colin = colin
+        // The app keeps its own; a window made without one (a capture, a test) gets one for its Accueil.
+        self.colin = colin ?? agenda.map { ColinLibrary(agenda: $0, mails: mails) }
         self.inspiration = inspiration
         self.updates = updates
         self.router = router
@@ -509,7 +510,7 @@ public struct MainWindowView<Diagnostic: View>: View {
         } detail: {
             switch router.section {
             case .home:
-                if let agenda { HomeView(agenda: agenda, library: library, router: router) }
+                if let agenda, let colin { HomeView(agenda: agenda, mails: mails, colin: colin, router: router) }
             case .calendar:
                 if let agenda { CalendarView(agenda: agenda, router: router) }
             case .contacts:

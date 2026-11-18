@@ -279,7 +279,8 @@ import Testing
 
     @Test func aProgrammedOrLeavingDraftIsNotReady() {
         let ready = draft("d1", thread: "moi@exemple.fr|t1")
-        let expected = ReviewRules.Line(id: "draft:d1", kind: .draft, person: "Claire", threadKey: "moi@exemple.fr|t1", draftID: "d1")
+        // Without a project, the line says the subject of the mail.
+        let expected = ReviewRules.Line(id: "draft:d1", kind: .draft, person: "Claire", detail: "Devis", threadKey: "moi@exemple.fr|t1", draftID: "d1")
         #expect(ReviewRules.drafts([ready], hidden: []) == [expected])
         // Programmed, or on its way out.
         #expect(ReviewRules.drafts([ready], hidden: ["d1"]).isEmpty)
@@ -289,6 +290,26 @@ import Testing
         let lines = ReviewRules.drafts([draft("vieux", minutesAgo: 90), draft("neuf", minutesAgo: 5), draft("seul", to: [], minutesAgo: 30)], hidden: [])
         #expect(lines.map(\.draftID) == ["neuf", "seul", "vieux"])
         #expect(lines[1].person.isEmpty)
+    }
+
+    /// « Brouillon prêt pour Claire · Cabinet Martin »: the project of the thread it answers; for a new mail, the
+    /// one project of the people it is written to; else the subject of the mail.
+    @Test func aDraftSaysItsProjectElseItsSubject() {
+        // A reply in a thread Paul filed in « Maison Leroy », written to Claire (of « Cabinet Martin »): the thread wins.
+        let filed = thread("t1", [received(Self.claire, 2)])
+        var chosen = rules
+        chosen.choices[filed.id] = .project(house)
+        let reply = ReviewRules.drafts([draft("d1", thread: filed.id)], hidden: [], threads: [filed], rules: chosen)
+        #expect(reply.first?.detail == "Maison Leroy" && reply.first?.projectID == house)
+        // A new mail to Claire: her one project.
+        let new = ReviewRules.drafts([draft("d2")], hidden: [], threads: [], rules: rules)
+        #expect(new.first?.detail == "Cabinet Martin" && new.first?.projectID == site)
+        // To Claire and Anne, of two projects: no project is said, the subject is.
+        let both = ReviewRules.drafts([draft("d3", to: [person(Self.claire), person(Self.anne)])], hidden: [], threads: [], rules: rules)
+        #expect(both.first?.detail == "Devis" && both.first?.projectID == nil)
+        // To Marc, of no project; and a reply whose thread is not among those read.
+        #expect(ReviewRules.drafts([draft("d4", to: [person(Self.marc)])], hidden: [], threads: [], rules: rules).first?.detail == "Devis")
+        #expect(ReviewRules.drafts([draft("d5", to: [person(Self.marc)], thread: "moi@exemple.fr|ailleurs")], hidden: [], threads: [filed], rules: chosen).first?.detail == "Devis")
     }
 
     // MARK: - « Réunion à ranger »

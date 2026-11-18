@@ -257,7 +257,8 @@ struct WindowSnapshotTests {
                                                         paths: AppPaths(root: root, logs: root)) { EmptyView() },
                                          to: output.appending(path: "\(name).png"))
         }
-        // 15/11: at the window's smallest width, Accueil's cards go one under the other.
+        // 18/11: at the window's smallest width, the lists of the Accueil come above Colin's column (the Accueil with
+        // its mails and its lines is in `HomeScreenTests`).
         router.section = .home
         try await LiveWindow.capture(MainWindowView(library: library, projects: projects, agenda: agenda, router: router,
                                                     paths: AppPaths(root: root, logs: root)) { EmptyView() },

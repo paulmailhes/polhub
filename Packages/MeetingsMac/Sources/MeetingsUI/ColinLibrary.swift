@@ -52,15 +52,16 @@ public final class ColinLibrary: ObservableObject {
     /// Nothing left to compute.
     var isIdle: Bool { pending == nil }
 
-    /// `settle`: how long a change waits for the others of its burst. `every`: how often the thresholds are looked
-    /// at again, without reading the base.
+    /// `calendar`: the app's own when none is given (weeks begin on Monday, as in Calendrier). `settle`: how long a
+    /// change waits for the others of its burst. `every`: how often the thresholds are looked at again, without
+    /// reading the base.
     public init(agenda: AgendaLibrary, mails: MailLibrary?, defaults: UserDefaults = .standard, now: @escaping () -> Date = Date.init,
-                calendar: Calendar = .current, settle: Duration = .milliseconds(300), every: Duration = .seconds(60)) {
+                calendar: Calendar? = nil, settle: Duration = .milliseconds(300), every: Duration = .seconds(60)) {
         self.agenda = agenda
         self.mails = mails
         self.defaults = defaults
         self.now = now
-        self.calendar = calendar
+        self.calendar = calendar ?? CalendarView.calendar
         self.settle = settle
         let database = agenda.database
         // What is written in the base: each change asks for a reading, and a burst of them for one.
@@ -246,9 +247,13 @@ public final class ColinLibrary: ObservableObject {
         return ReviewRules.Thresholds(replyDays: settings.colinReplyDays, silentDays: settings.colinSilentDays)
     }
 
-    /// What a line says of the drafts an agent prepared: which, for whom, under which thread.
+    /// What a line says of the drafts an agent prepared: which, for whom (the people say the project), under which
+    /// thread, on what subject. Never its text.
     private nonisolated static func said(_ drafts: [MailDraftRow]) -> [String] {
-        drafts.filter { $0.origin == .agent }.map { "\($0.id)\u{1F}\($0.to.first?.display ?? "")\u{1F}\($0.threadKey ?? "")" }
+        drafts.filter { $0.origin == .agent }.map { draft in
+            let people = (draft.to + draft.cc).map(\.email).joined(separator: ",")
+            return [draft.id, draft.to.first?.display ?? "", people, draft.threadKey ?? "", draft.subject].joined(separator: "\u{1F}")
+        }
     }
 
     /// What one reading of the base gives.
@@ -317,11 +322,11 @@ public final class ColinLibrary: ObservableObject {
         /// « À valider ». The mailboxes Paul hid from his mails are not signaled, but what he answered from them
         /// counts; an agent's draft waits for him whatever its mailbox.
         private func lines(_ inputs: Inputs) -> (lines: [ReviewRules.Line], lastMessages: [String: Date]) {
-            let drafts = ReviewRules.drafts(self.drafts, hidden: hiddenDrafts)
             let unfiled = ReviewRules.unfiled(inputs.events, dismissed: inputs.dismissed, now: now, calendar: calendar)
             guard withMails else { return (ReviewRules.ordered([unfiled]), [:]) }
             // The copies in a mailbox shown come first: a conversation is said from the box Paul looks at.
             let threads = inputs.threads.filter { !hiddenAccounts.contains($0.account) } + inputs.threads.filter { hiddenAccounts.contains($0.account) }
+            let drafts = ReviewRules.drafts(self.drafts, hidden: hiddenDrafts, threads: threads, rules: rules)
             let boxes = Dictionary(threads.map { ($0.id, $0.account) }, uniquingKeysWith: { first, _ in first })
             func shown(_ line: ReviewRules.Line) -> Bool {
                 line.threadKey.flatMap { boxes[$0] }.map { !hiddenAccounts.contains($0) } ?? true

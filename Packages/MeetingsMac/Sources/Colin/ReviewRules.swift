@@ -36,7 +36,7 @@ public enum ReviewRules {
         public var kind: Kind
         /// « Claire », or the title of the event; empty for a draft without a recipient.
         public var person: String
-        /// The project's name.
+        /// What the line is about: the project's name; for a draft without one, the subject of its mail.
         public var detail: String?
         public var days: Int?
         public var threadKey: String?
@@ -65,13 +65,23 @@ public enum ReviewRules {
     // MARK: - « Brouillon prêt »
 
     /// The drafts an agent prepared, the most recent first. `hidden`: the programmed ones and the one on its way out,
-    /// which no longer wait for Paul.
-    public static func drafts(_ drafts: [MailDraftRow], hidden: Set<String>) -> [Line] {
-        drafts.filter { $0.origin == .agent && !hidden.contains($0.id) }
+    /// which no longer wait for Paul. Each says its project: the one of the thread it answers (among `threads`); for
+    /// a new mail, the one project of the people it is written to; without a project, the subject of the mail.
+    public static func drafts(_ drafts: [MailDraftRow], hidden: Set<String>, threads: [MailThreadRow] = [], rules: MailFilingRules = .empty) -> [Line] {
+        let known = Dictionary(threads.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return drafts.filter { $0.origin == .agent && !hidden.contains($0.id) }
             .sorted { $0.updatedAt > $1.updatedAt }
             .map { draft in
-                Line(id: id(.draft, draft.id), kind: .draft, person: draft.to.first.map { short($0.display) } ?? "",
-                     threadKey: draft.threadKey, draftID: draft.id)
+                let project: UUID?
+                if let thread = draft.threadKey.flatMap({ known[$0] }) {
+                    project = rules.filing(of: thread)?.filing.projectID
+                } else {
+                    project = self.project(of: draft.to + draft.cc, rules: rules)
+                }
+                let subject = draft.subject.trimmingCharacters(in: .whitespacesAndNewlines)
+                return Line(id: id(.draft, draft.id), kind: .draft, person: draft.to.first.map { short($0.display) } ?? "",
+                            detail: name(of: project, rules: rules) ?? (subject.isEmpty ? nil : subject), threadKey: draft.threadKey, draftID: draft.id,
+                            projectID: project)
             }
     }
 
@@ -211,8 +221,14 @@ public enum ReviewRules {
     private static func project(of thread: MailThreadRow, rules: MailFilingRules, recipients: [MailAddress]) -> UUID? {
         if let filing = rules.filing(of: thread) { return filing.filing.projectID }
         guard !thread.senders.contains(where: { !rules.mine.contains($0.email.lowercased()) }) else { return nil }
+        return project(of: recipients, rules: rules)
+    }
+
+    /// The one project of these people: the contacts of a project, those Paul took out of it apart. None when they
+    /// are of several projects, or of none.
+    private static func project(of people: [MailAddress], rules: MailFilingRules) -> UUID? {
         var found: Set<UUID> = []
-        for person in recipients {
+        for person in people {
             let address = person.email.lowercased()
             guard !rules.mine.contains(address) else { continue }
             found.formUnion((rules.contactProjects[address] ?? []).subtracting(rules.excludedProjects[address] ?? []))
