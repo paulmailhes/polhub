@@ -16,8 +16,12 @@ public enum AppDatabaseError: Error, LocalizedError, Equatable {
 /// Tables are created when a step needs them; step 1 needs the four of migration `v1`.
 public final class AppDatabase: Sendable {
     public let writer: any DatabaseWriter
+    /// Who writes the projects through this opening (step 3 of Colin, 18/11): Paul in the app; a session's helper
+    /// (`polhub mcp`) an agent, or Colin. The base journals it with each change.
+    public let author: ChangeAuthor
 
     public init(path: String) throws {
+        author = .paul
         let folder = URL(fileURLWithPath: path).deletingLastPathComponent()
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let existed = FileManager.default.fileExists(atPath: path)
@@ -87,8 +91,9 @@ public final class AppDatabase: Sendable {
         return "Polhub-avant-\(migration)-\(formatter.string(from: date)).sqlite"
     }
 
-    private init(writer: any DatabaseWriter) throws {
+    private init(writer: any DatabaseWriter, author: ChangeAuthor = .paul) throws {
         self.writer = writer
+        self.author = author
         try Self.migrator.migrate(writer)
         Self.fillMissingTurns(writer)
     }
@@ -104,10 +109,10 @@ public final class AppDatabase: Sendable {
 
     /// For `polhub mcp`, whose project tools write (13/11): reads and writes, waits up to 5 s for the app,
     /// and never migrates — only the app does. The base must already be at the app's version.
-    public static func forTools(path: String) throws -> AppDatabase {
+    public static func forTools(path: String, author: ChangeAuthor = .agent) throws -> AppDatabase {
         var configuration = Configuration()
         configuration.busyMode = .timeout(5)
-        return AppDatabase(unmigrated: try DatabasePool(path: path, configuration: configuration))
+        return AppDatabase(unmigrated: try DatabasePool(path: path, configuration: configuration), author: author)
     }
 
     /// For the command line's reading: read-only when the app runs; when it is closed, SQLite has removed
@@ -135,12 +140,13 @@ public final class AppDatabase: Sendable {
         try writer.read { try $0.tableExists("job") && $0.tableExists("utterance") }
     }
 
-    private init(unmigrated writer: any DatabaseWriter) {
+    private init(unmigrated writer: any DatabaseWriter, author: ChangeAuthor = .agent) {
         self.writer = writer
+        self.author = author
     }
 
-    public static func inMemory() throws -> AppDatabase {
-        try AppDatabase(writer: DatabaseQueue())
+    public static func inMemory(author: ChangeAuthor = .paul) throws -> AppDatabase {
+        try AppDatabase(writer: DatabaseQueue(), author: author)
     }
 
     static var migrator: DatabaseMigrator {
@@ -593,6 +599,12 @@ public final class AppDatabase: Sendable {
                 t.column("text", .text).notNull()
                 t.column("updatedAt", .datetime).notNull()
             }
+        }
+        // « Annuler » (step 3 of Colin, 18/11): the base journals each change of a project itself, with who made it.
+        // Triggers, so that the helpers already running in open sessions, which never migrate and keep their program
+        // of before, are journaled too, as agents. Nothing else changes: those helpers still read and write.
+        migrator.registerMigration("v18", foreignKeyChecks: .immediate) { db in
+            for sql in ProjectChangeSchema.tables + ProjectChangeSchema.triggers { try db.execute(sql: sql) }
         }
         return migrator
     }

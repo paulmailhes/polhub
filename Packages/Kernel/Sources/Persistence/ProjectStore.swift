@@ -2,13 +2,61 @@ import Domain
 import Foundation
 import GRDB
 
+public enum ProjectStoreError: Error, Equatable, LocalizedError {
+    /// A helper newer than the base: the app has not opened it since its update, and the base cannot yet say who
+    /// changes a project.
+    case needsApp
+
+    public var errorDescription: String? {
+        switch self {
+        case .needsApp: "Polhub doit être ouvert une fois : sa base n'a pas encore le journal des changements. Rien n'a été écrit."
+        }
+    }
+}
+
 /// The projects, their actions and journal, and the meetings filed in them.
+/// Every write says who makes it (step 3 of Colin, 18/11): the base journals the change with it.
 public struct ProjectStore: Sendable {
     public let database: AppDatabase
     private var writer: any DatabaseWriter { database.writer }
+    /// Who writes through this store, and in which batch.
+    public private(set) var stamp: ChangeStamp
 
     public init(_ database: AppDatabase) {
         self.database = database
+        stamp = ChangeStamp(author: database.author)
+    }
+
+    /// The same store, writing as `author`, in a batch of its own: what it writes is one change, undone together.
+    public func signed(_ author: ChangeAuthor, reason: String? = nil, source: String? = nil) -> ProjectStore {
+        var store = self
+        store.stamp = ChangeStamp(author: author, batch: UUID().uuidString.lowercased(), reason: reason, source: source)
+        return store
+    }
+
+    /// The same author, a new batch: one tool call, one gesture.
+    public func batch() -> ProjectStore {
+        signed(stamp.author, reason: stamp.reason, source: stamp.source)
+    }
+
+    /// Whether the author is Paul: only his writes are a sign of his life on the project (`lastEditedAt`).
+    private var byPaul: Bool { stamp.author == .paul }
+
+    /// A write that says who makes it: the stamp first, the change, and the stamp gone, in one transaction — none is
+    /// ever left for the next writer, a helper of before, to pass for. A base not yet journaled takes only Paul's
+    /// writes (the app migrates it as it opens); a helper has to wait for the app.
+    private func write<T>(at date: Date = Date(), _ body: (Database) throws -> T) throws -> T {
+        try writer.write { db in
+            let journaled = try db.tableExists("change_stamp")
+            guard journaled || byPaul else { throw ProjectStoreError.needsApp }
+            if journaled {
+                try db.execute(sql: "INSERT OR REPLACE INTO change_stamp (id, who, batch, reason, source, at) VALUES (1, ?, ?, ?, ?, ?)",
+                               arguments: [stamp.author.rawValue, stamp.batch, stamp.reason, stamp.source, date])
+            }
+            let result = try body(db)
+            if journaled { try db.execute(sql: "DELETE FROM change_stamp") }
+            return result
+        }
     }
 
     private static func key(_ id: UUID) -> String { id.uuidString.lowercased() }
@@ -26,9 +74,9 @@ public struct ProjectStore: Sendable {
     /// A change made by Paul in the app: it counts as a sign of life.
     public func save(_ project: ProjectRow, at date: Date) throws {
         var project = project
-        project.lastEditedAt = date
+        if byPaul { project.lastEditedAt = date }
         project.updatedAt = date
-        try writer.write { try project.save($0) }
+        try write(at: date) { try project.save($0) }
     }
 
     /// What Paul changed on the project's page, and only that, over the project as it is now: a note a
@@ -38,7 +86,7 @@ public struct ProjectStore: Sendable {
         func fields(_ project: ProjectRow) throws -> [String: Any] {
             try JSONSerialization.jsonObject(with: encoder.encode(project)) as? [String: Any] ?? [:]
         }
-        try writer.write { db in
+        try write(at: date) { db in
             guard let current = try ProjectRow.fetchOne(db, key: Self.key(edited.id)) else { return }
             let before = try fields(original), after = try fields(edited)
             var merged = try fields(current)
@@ -46,7 +94,7 @@ public struct ProjectStore: Sendable {
                 merged[key] = after[key] ?? NSNull()
             }
             var project = try decoder.decode(ProjectRow.self, from: JSONSerialization.data(withJSONObject: merged))
-            project.lastEditedAt = date
+            if byPaul { project.lastEditedAt = date }
             project.updatedAt = date
             try project.update(db)
         }
@@ -65,19 +113,19 @@ public struct ProjectStore: Sendable {
     /// « Supprimer le projet » (15/11): it leaves the board and every list, its meetings, mails and contacts stay;
     /// `restore` brings it back as it was.
     public func moveToTrash(projectID: UUID, at date: Date) throws {
-        try writer.write { db in
+        try write(at: date) { db in
             try db.execute(sql: "UPDATE project SET deletedAt = ?, updatedAt = ? WHERE id = ?", arguments: [date, date, Self.key(projectID)])
         }
     }
 
     public func restore(projectID: UUID, at date: Date) throws {
-        try writer.write { db in
+        try write(at: date) { db in
             try db.execute(sql: "UPDATE project SET deletedAt = NULL, updatedAt = ? WHERE id = ?", arguments: [date, Self.key(projectID)])
         }
     }
 
     public func saveNotes(_ project: ProjectRow) throws {
-        try writer.write { db in
+        try write(at: project.updatedAt) { db in
             try db.execute(sql: "UPDATE project SET notes = ?, updatedAt = ? WHERE id = ?",
                            arguments: [project.notes, project.updatedAt, Self.key(project.id)])
         }
@@ -86,7 +134,7 @@ public struct ProjectStore: Sendable {
     /// Something of the project changed beside its row (a contact linked by a session, 16/11): its row says so, and the
     /// page open on it hears it. Not a change of Paul's: `lastEditedAt` stays.
     public func touch(_ id: UUID, at date: Date) throws {
-        try writer.write { db in
+        try write(at: date) { db in
             try db.execute(sql: "UPDATE project SET updatedAt = ? WHERE id = ?", arguments: [date, Self.key(id)])
         }
     }
@@ -94,7 +142,7 @@ public struct ProjectStore: Sendable {
     /// A new project at the bottom of its column.
     @discardableResult
     public func addProject(name: String, status: ProjectStatus, at date: Date) throws -> ProjectRow {
-        try writer.write { db in
+        try write(at: date) { db in
             let last = try Double.fetchOne(db, sql: "SELECT MAX(kanbanOrder) FROM project WHERE status = ? AND deletedAt IS NULL",
                                            arguments: [status.rawValue])
             let project = ProjectRow(name: name, status: status, kanbanOrder: (last ?? -1) + 1, createdAt: date)
@@ -107,34 +155,39 @@ public struct ProjectStore: Sendable {
     /// A move is Paul's doing: it counts as a sign of life, as a change of the note does in Obsidian.
     public func move(_ id: UUID, to status: ProjectStatus, before: UUID?, at date: Date = Date()) throws {
         guard before != id else { return }
-        try writer.write { db in
-            guard var project = try ProjectRow.fetchOne(db, key: Self.key(id)) else { return }
-            var column = try ProjectRow
-                .filter(Column("status") == status.rawValue && Column("deletedAt") == nil && Column("id") != Self.key(id))
-                .order(Column("kanbanOrder"), Column("name")).fetchAll(db)
-            let index = before.flatMap { target in column.firstIndex { $0.id == target } } ?? column.count
-            let previous = index > 0 ? column[index - 1].kanbanOrder : nil
-            let next = index < column.count ? column[index].kanbanOrder : nil
-            let position: Double = switch (previous, next) {
-            case let (p?, n?): (p + n) / 2
-            case let (nil, n?): n - 1
-            case let (p?, nil): p + 1
-            case (nil, nil): 0
+        let edited = byPaul
+        try write(at: date) { db in try Self.place(db, id, to: status, before: before, at: date, edited: edited) }
+    }
+
+    /// The card in its column, just above `before`, or at the bottom, inside a transaction: a move, and the undoing of
+    /// a change of status. `edited`: a sign of Paul's life on the project.
+    static func place(_ db: Database, _ id: UUID, to status: ProjectStatus, before: UUID?, at date: Date, edited: Bool) throws {
+        guard before != id, var project = try ProjectRow.fetchOne(db, key: key(id)) else { return }
+        var column = try ProjectRow
+            .filter(Column("status") == status.rawValue && Column("deletedAt") == nil && Column("id") != key(id))
+            .order(Column("kanbanOrder"), Column("name")).fetchAll(db)
+        let index = before.flatMap { target in column.firstIndex { $0.id == target } } ?? column.count
+        let previous = index > 0 ? column[index - 1].kanbanOrder : nil
+        let next = index < column.count ? column[index].kanbanOrder : nil
+        let position: Double = switch (previous, next) {
+        case let (p?, n?): (p + n) / 2
+        case let (nil, n?): n - 1
+        case let (p?, nil): p + 1
+        case (nil, nil): 0
+        }
+        project.status = status
+        project.kanbanOrder = position
+        if edited { project.lastEditedAt = date }
+        project.updatedAt = date
+        if let p = previous, let n = next, n - p < 1e-6 {
+            // Too close: the column is numbered again, the card in its place.
+            column.insert(project, at: index)
+            for (rank, var card) in column.enumerated() {
+                card.kanbanOrder = Double(rank)
+                try card.update(db)
             }
-            project.status = status
-            project.kanbanOrder = position
-            project.lastEditedAt = date
-            project.updatedAt = date
-            if let p = previous, let n = next, n - p < 1e-6 {
-                // Too close: the column is numbered again, the card in its place.
-                column.insert(project, at: index)
-                for (rank, var card) in column.enumerated() {
-                    card.kanbanOrder = Double(rank)
-                    try card.update(db)
-                }
-            } else {
-                try project.update(db)
-            }
+        } else {
+            try project.update(db)
         }
     }
 
@@ -154,7 +207,7 @@ public struct ProjectStore: Sendable {
 
     /// The actions of a meeting's summary, replaced together, in the meeting's project.
     public func replaceMeetingActions(meetingID: UUID, projectID: UUID?, actions: [ActionRow]) throws {
-        try writer.write { db in
+        try write { db in
             try db.execute(sql: "DELETE FROM action WHERE meetingID = ?", arguments: [Self.key(meetingID)])
             for var action in actions {
                 action.meetingID = meetingID
@@ -169,11 +222,11 @@ public struct ProjectStore: Sendable {
     }
 
     public func saveAction(_ action: ActionRow) throws {
-        try writer.write { try action.save($0) }
+        try write(at: action.updatedAt) { try action.save($0) }
     }
 
     public func deleteAction(id: UUID) throws {
-        _ = try writer.write { try ActionRow.deleteOne($0, key: Self.key(id)) }
+        _ = try write { try ActionRow.deleteOne($0, key: Self.key(id)) }
     }
 
     /// The newest first.
@@ -184,7 +237,7 @@ public struct ProjectStore: Sendable {
     }
 
     public func addJournal(_ entry: ProjectJournalRow) throws {
-        try writer.write { try entry.insert($0) }
+        try write(at: entry.createdAt) { try entry.insert($0) }
     }
 
     // MARK: - Meetings
@@ -247,7 +300,7 @@ public struct ProjectStore: Sendable {
     }
 
     public func setProject(meetingID: UUID, projectID: UUID?) throws {
-        try writer.write { db in
+        try write { db in
             try db.execute(sql: "UPDATE meeting SET projectID = ? WHERE id = ?", arguments: [projectID.map(Self.key), Self.key(meetingID)])
         }
     }
