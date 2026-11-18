@@ -77,6 +77,7 @@ struct HomeView: View {
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { layout = HomeLayout.of(width: $0) }
         }
         .windowTitle("Accueil")
+        .modifier(HomeMailPanels(mails: mails, router: router))
         // The Accueil is before Paul: « Le point » is prepared when he is back.
         .onAppear { colin.seen() }
     }
@@ -85,6 +86,23 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: Space.l) {
             ReviewCard(colin: colin, agenda: agenda, mails: mails, router: router)
             TodayCard(agenda: agenda, router: router)
+        }
+    }
+}
+
+/// A draft to read, a thread to answer: they open over the Accueil, which stays behind (18/11). Without the mails,
+/// nothing opens.
+private struct HomeMailPanels: ViewModifier {
+    let mails: MailLibrary?
+    @ObservedObject var router: WindowRouter
+
+    func body(content: Content) -> some View {
+        if let mails {
+            content
+                .mailPanels(mails, router: router, thread: $router.homeMail, browses: false, title: "Accueil")
+                .onAppear { mails.router = router }
+        } else {
+            content
         }
     }
 }

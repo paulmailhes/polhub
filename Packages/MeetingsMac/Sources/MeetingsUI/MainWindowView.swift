@@ -173,6 +173,8 @@ public final class WindowRouter: ObservableObject {
     @Published public var projectSelection: UUID?
     /// The thread open in Mails (`account|threadID`); `nil` for the list (14/11).
     @Published public var mailSelection: String? { didSet { moved() } }
+    /// The thread open over the Accueil (18/11: « Relire », « Ouvrir »): its own, the one of Mails stays as it is.
+    @Published public var homeMail: String? { didSet { moved() } }
     /// A new event asked for (« Coup d'œil », Calendrier's « + »): Calendrier opens its editor, then clears it. A new
     /// value per request, so that two requests in a row open two editors.
     @Published public var newEventRequest: UUID?
@@ -284,6 +286,7 @@ public final class WindowRouter: ObservableObject {
         var project: UUID?
         var inspirationPage: InspirationKind
         var inspirationItem: UUID?
+        var homeMail: String?
     }
 
     /// The steps kept behind: a long morning of clicks.
@@ -306,7 +309,7 @@ public final class WindowRouter: ObservableObject {
 
     var location: Location {
         Location(section: section, meeting: selection, mail: mailSelection, mailFolder: mailFolder, settingsPane: settingsPane,
-                 contact: contactSelection, project: project, inspirationPage: inspirationPage, inspirationItem: inspirationItem)
+                 contact: contactSelection, project: project, inspirationPage: inspirationPage, inspirationItem: inspirationItem, homeMail: homeMail)
     }
 
     /// Projets opened a project, or went back to the grid.
@@ -384,6 +387,7 @@ public final class WindowRouter: ObservableObject {
         section = place.section
         selection = place.meeting
         mailSelection = place.mail
+        homeMail = place.homeMail
         settingsPane = place.settingsPane
         contactSelection = place.contact
         inspirationPage = place.inspirationPage

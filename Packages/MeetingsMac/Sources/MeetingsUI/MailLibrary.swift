@@ -1556,8 +1556,14 @@ public final class MailLibrary: ObservableObject {
 
     /// A draft from the list: a reply opens in its thread, a new mail over the list.
     public func open(_ draft: MailDraftRow, router: WindowRouter) {
+        open(draft) { router.mailSelection = $0 }
+    }
+
+    /// A draft to read, from wherever threads show (the list of Mails, the Accueil): a reply opens in its thread,
+    /// given to `select`; a new mail, or a reply whose thread left the copy, in the composer.
+    public func open(_ draft: MailDraftRow, select: (String) -> Void) {
         if let thread = draft.threadKey, (try? store.thread(thread)) != nil {
-            router.mailSelection = thread
+            select(thread)
         } else {
             composing = draft.id
         }

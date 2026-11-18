@@ -130,6 +130,13 @@ struct HomeScreenTests {
                                          size: NSSize(width: MainWindowView<EmptyView>.minimumWidth, height: 900), dark: dark)
         }
 
+        // « Relire » : the answer to Claire opens under her thread, over the Accueil.
+        let draft = try #require(mails.drafts.first { $0.origin == .agent })
+        mails.open(draft) { router.homeMail = $0 }
+        #expect(router.homeMail == MailThreadRow.key(account: Self.me, threadID: "c") && router.section == .home)
+        try await LiveWindow.capture(page, to: output.appending(path: "accueil-relire.png"), size: NSSize(width: 928, height: 700))
+        router.homeMail = nil
+
         // Nothing waits, nothing left today: the lists say so.
         let empty = try AppDatabase.inMemory()
         try CalendarStore(empty).addAccount(email: Self.me, at: ago(400))

@@ -156,12 +156,12 @@ struct ReviewCard: View {
     private func open(_ line: ReviewRules.Line) {
         switch line.kind {
         case .draft:
-            // For now the draft opens in Mails: a reply under its thread, a new mail over the list.
+            // Over the Accueil: a reply under its thread, a new mail in its panel.
             guard let mails, let draft = mails.drafts.first(where: { $0.id == line.draftID }) else { return }
-            router.section = .mails
-            mails.open(draft, router: router)
+            mails.open(draft) { router.homeMail = $0 }
         case .reply, .silent:
-            router.openMail(line.threadKey)
+            // The thread over the Accueil too: Paul answers, closes, and the next line is there.
+            router.homeMail = line.threadKey
         case .unfiled:
             if let id = line.eventID { router.openEvent(id) }
         }

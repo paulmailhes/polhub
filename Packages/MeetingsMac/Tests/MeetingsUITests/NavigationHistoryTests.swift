@@ -35,6 +35,44 @@ import Testing
         #expect(router.section == .meetings)
     }
 
+    /// 18/11: a draft read over the Accueil (« Relire ») is a step: « Précédent » closes it, « Suivant » opens it again.
+    @Test func backClosesTheDraftOpenOverHome() {
+        let router = WindowRouter()
+        router.section = .home
+        router.settle()
+        router.clearHistory()
+        router.homeMail = "moi@exemple.fr|t1"
+        router.settle()
+        #expect(router.canGoBack)
+        router.goBack()
+        #expect(router.section == .home && router.homeMail == nil)
+        #expect(!router.canGoBack && router.canGoForward)
+        router.goForward()
+        #expect(router.section == .home && router.homeMail == "moi@exemple.fr|t1")
+    }
+
+    /// The thread open over the Accueil is not the one open in Mails: each keeps its own.
+    @Test func aThreadOpenOverHomeLeavesTheMailsSelectionAlone() {
+        let router = WindowRouter()
+        router.openMail("moi@exemple.fr|a")
+        router.settle()
+        router.section = .home
+        router.settle()
+        router.homeMail = "moi@exemple.fr|b"
+        router.settle()
+        #expect(router.mailSelection == "moi@exemple.fr|a" && router.homeMail == "moi@exemple.fr|b")
+        // Closed over the Accueil: Mails still has its thread open.
+        router.homeMail = nil
+        router.settle()
+        #expect(router.mailSelection == "moi@exemple.fr|a")
+        router.goBack()
+        #expect(router.section == .home && router.homeMail == "moi@exemple.fr|b")
+        router.goBack()
+        #expect(router.section == .home && router.homeMail == nil)
+        router.goBack()
+        #expect(router.section == .mails && router.mailSelection == "moi@exemple.fr|a" && router.homeMail == nil)
+    }
+
     /// One gesture that changes several things (a page of Inspiration and its item) is one step; going back and
     /// forward is never a step itself.
     @Test func oneGestureIsOneStep() {

@@ -17,13 +17,6 @@ struct MailSectionView: View {
     @ObservedObject var router: WindowRouter
     @AppStorage(Preferences.Key.floatingPages) private var floating = true
 
-    private func close() { router.mailSelection = nil }
-
-    /// A draft's bar is fixed at the bottom: a new mail, or an open thread with a reply below.
-    private var composeBarShown: Bool {
-        mails.composing != nil || router.mailSelection.map { key in mails.drafts.contains { $0.threadKey == key } } == true
-    }
-
     var body: some View {
         Group {
             if mails.accounts.isEmpty {
@@ -39,27 +32,11 @@ struct MailSectionView: View {
                 MailThreadView(key: key, mails: mails, router: router, close: nil).id(key)
             } else {
                 MailListView(mails: mails, router: router)
-                    .overlay {
-                        if floating, let key = router.mailSelection {
-                            FloatingPanel(close: close) {
-                                MailThreadView(key: key, mails: mails, router: router, close: close).id(key)
-                            }
-                        }
-                    }
             }
         }
-        .overlay {
-            if let draft = mails.composing {
-                FloatingPanel(close: { mails.closeComposer() }) { NewMailPanel(draftID: draft, mails: mails).id(draft) }
-            }
-        }
-        .animation(Motion.standard, value: router.mailSelection)
-        .animation(Motion.standard, value: mails.composing)
-        // Above the bar of a draft fixed at the bottom, never over it (review of 17/11).
-        .overlay(alignment: .bottom) { MailUndoBar(mails: mails).padding(.bottom, composeBarShown ? 80 : 0) }
-        // One Quick Look for the list's chips and the open thread's files (15/11): two would fight over the
-        // window's single preview panel.
-        .quickLookPreview($mails.preview)
+        // The thread over the list, the new mail, the bar that calls a mail back, the files' preview and the
+        // dialogs: the same panels as over the Accueil (18/11).
+        .mailPanels(mails, router: router, thread: $router.mailSelection, floating: floating && !mails.accounts.isEmpty)
         // ⌘N writes a new mail from Mails only; the button is at the top of « Mails », in the sidebar (15/11).
         .background {
             Button("Nouveau mail") { mails.writeNewMail(router: router) }
@@ -70,20 +47,6 @@ struct MailSectionView: View {
                 .accessibilityHidden(true)
         }
         .onAppear { mails.router = router }
-        .confirmationDialog("Se désabonner de \(mails.unsubscribeRequest?.name ?? "") ?",
-                            isPresented: Binding(get: { mails.unsubscribeRequest != nil }, set: { if !$0 { mails.unsubscribeRequest = nil } }),
-                            presenting: mails.unsubscribeRequest) { request in
-            Button("Se désabonner") { mails.unsubscribe(from: request.sender, by: request.method) }
-        } message: { request in
-            switch request.method {
-            case .oneClick: Text("La demande part vers \(request.method.domain), le serveur de l'expéditeur. Les mails déjà reçus restent.")
-            case .mail(let to, _): Text("Un mail de désinscription vers \(to) est préparé : tu l'envoies toi-même.")
-            case .page: Text("La page de désinscription de \(request.method.domain) s'ouvre dans ton navigateur.")
-            }
-        }
-        .sheet(isPresented: Binding(get: { mails.original != nil }, set: { if !$0 { mails.original = nil } })) {
-            if let original = mails.original { MailOriginalSheet(title: original.title, text: original.text) { mails.original = nil } }
-        }
     }
 }
 
@@ -446,11 +409,18 @@ enum MailThreadItem: Identifiable {
 
 /// An open thread: its subject and mailbox, the way to the previous and next threads, the gestures, then its
 /// messages (the read ones folded). In a floating panel it closes itself; in a page, the toolbar leads back.
+/// Over the Accueil (18/11) it is one thread alone: no way to its neighbours (`browses`), and another one to show
+/// goes to who opened it (`select`).
 struct MailThreadView: View {
     let key: String
     @ObservedObject var mails: MailLibrary
     @ObservedObject var router: WindowRouter
     let close: (() -> Void)?
+    /// Shows another thread, or none: in Mails, the router's selection.
+    let select: (String?) -> Void
+    let browses: Bool
+    /// The page behind, in the window's title.
+    let title: String
     @StateObject private var model: MailThreadModel
     @State private var thread: MailThreadRow?
     /// The draft just begun: the page scrolls to it.
@@ -460,16 +430,20 @@ struct MailThreadView: View {
     /// The replies being written below, each with its editor and its bar.
     @StateObject private var sessions = ComposeSessions()
 
-    init(key: String, mails: MailLibrary, router: WindowRouter, close: (() -> Void)?) {
+    init(key: String, mails: MailLibrary, router: WindowRouter, close: (() -> Void)?, select: ((String?) -> Void)? = nil, browses: Bool = true,
+         title: String = "Mails") {
         self.key = key
         self.mails = mails
         self.router = router
         self.close = close
+        self.select = select ?? { [router] in router.mailSelection = $0 }
+        self.browses = browses
+        self.title = title
         _model = StateObject(wrappedValue: MailThreadModel(key: key, library: mails))
     }
 
     private func back() {
-        if let close { close() } else { router.mailSelection = nil }
+        if let close { close() } else { select(nil) }
     }
 
     /// The last message of the thread, the one a reply answers.
@@ -483,9 +457,9 @@ struct MailThreadView: View {
     }
 
     private func go(_ offset: Int) {
-        guard let next = mails.neighbor(of: key, offset: offset) else { return }
+        guard browses, let next = mails.neighbor(of: key, offset: offset) else { return }
         mails.focused = next
-        router.mailSelection = next
+        select(next)
     }
 
     /// Archived or deleted: what Réglages › Mails says, as Gmail's « Avance automatique » — the next thread by
@@ -493,7 +467,8 @@ struct MailThreadView: View {
     private func gesture(_ kind: MailGestureKind) {
         guard let thread else { return }
         let next: String?
-        switch Preferences().mailAfterGesture {
+        // One thread alone (over the Accueil) has no next one: it closes.
+        switch browses ? Preferences().mailAfterGesture : .liste {
         case .suivant: next = mails.neighbor(of: key, offset: 1) ?? mails.neighbor(of: key, offset: -1)
         case .precedent: next = mails.neighbor(of: key, offset: -1) ?? mails.neighbor(of: key, offset: 1)
         case .liste: next = nil
@@ -501,7 +476,7 @@ struct MailThreadView: View {
         mails.perform(kind, on: thread)
         if kind == .markUnread || next == nil { back() } else {
             mails.focused = next
-            router.mailSelection = next
+            select(next)
         }
     }
 
@@ -606,7 +581,7 @@ struct MailThreadView: View {
         .onExitCommand(perform: back)
         // Suppr is no gesture in the trash or the spam: only « Restaurer », « Pas un spam ».
         .onDeleteCommand(perform: aside == nil ? { gesture(.trash) } : nil)
-        .windowTitle("Mails", subtitle: close == nil ? (thread?.subject ?? "") : mails.folder.title)
+        .windowTitle(title, subtitle: close == nil ? (thread?.subject ?? "") : (browses ? mails.folder.title : ""))
         .task(id: key) {
             thread = try? mails.store.thread(key)
             if let thread { mails.markRead(thread) }
@@ -644,15 +619,17 @@ struct MailThreadView: View {
             }
             Spacer(minLength: Space.m)
             HStack(spacing: Space.xs) {
-                if let position = mails.position(of: key) { Text(position).font(.meta).foregroundStyle(.secondary).monospacedDigit() }
-                IconButton("chevron.up", help: "Fil précédent (↑)") { go(-1) }
-                    .disabled(mails.neighbor(of: key, offset: -1) == nil)
-                    // While a reply is written, the arrows stay in it (15/11).
-                    .keyboardShortcut(writing == true ? nil : KeyboardShortcut(.upArrow, modifiers: []))
-                IconButton("chevron.down", help: "Fil suivant (↓)") { go(1) }
-                    .disabled(mails.neighbor(of: key, offset: 1) == nil)
-                    .keyboardShortcut(writing == true ? nil : KeyboardShortcut(.downArrow, modifiers: []))
-                Divider().frame(height: 18)
+                if browses {
+                    if let position = mails.position(of: key) { Text(position).font(.meta).foregroundStyle(.secondary).monospacedDigit() }
+                    IconButton("chevron.up", help: "Fil précédent (↑)") { go(-1) }
+                        .disabled(mails.neighbor(of: key, offset: -1) == nil)
+                        // While a reply is written, the arrows stay in it (15/11).
+                        .keyboardShortcut(writing == true ? nil : KeyboardShortcut(.upArrow, modifiers: []))
+                    IconButton("chevron.down", help: "Fil suivant (↓)") { go(1) }
+                        .disabled(mails.neighbor(of: key, offset: 1) == nil)
+                        .keyboardShortcut(writing == true ? nil : KeyboardShortcut(.downArrow, modifiers: []))
+                    Divider().frame(height: 18)
+                }
                 if let aside {
                     IconButton(aside.gesture.icon, help: aside.gesture.title()) { gesture(aside.gesture) }
                     IconMenu("ellipsis", help: "Plus") {

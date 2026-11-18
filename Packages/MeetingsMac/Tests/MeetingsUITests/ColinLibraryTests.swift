@@ -148,6 +148,31 @@ import Testing
         try await waitUntil { world.colin.review.map(\.id) == ["draft:\(draft.id)"] }
     }
 
+    /// « Relire » : a reply opens in its thread, wherever the caller shows threads; a new mail, or a reply whose
+    /// thread left the copy, opens in the composer.
+    @Test func aReplyOpensItsThreadANewMailTheComposer() async throws {
+        let world = try await world { database, _, clock in try marcWaits(database, clock) }
+        defer { try? FileManager.default.removeItem(at: world.root) }
+        let mails = try #require(world.mails)
+        func reply(_ thread: String) -> MailDraftRow {
+            MailDraftRow(account: Self.me, mode: .reply, threadKey: key(thread), to: [MailAddress(name: "Marc Dubois", email: Self.marc)], subject: "Re: Maquette",
+                         body: "Bonjour Marc.", signature: false, origin: .agent, createdAt: Date())
+        }
+        var shown: [String] = []
+        mails.open(reply("a")) { shown.append($0) }
+        #expect(shown == [key("a")] && mails.composing == nil)
+        let new = agentDraft()
+        mails.open(new) { shown.append($0) }
+        #expect(shown == [key("a")] && mails.composing == new.id)
+        let orphan = reply("parti")
+        mails.open(orphan) { shown.append($0) }
+        #expect(shown == [key("a")] && mails.composing == orphan.id)
+        // From the list of Mails, as before: the thread opens in Mails.
+        let router = WindowRouter()
+        mails.open(reply("a"), router: router)
+        #expect(router.mailSelection == key("a") && router.homeMail == nil)
+    }
+
     @Test func aDismissedLineLeavesAtOnce() async throws {
         let world = try await world { database, _, clock in try marcWaits(database, clock) }
         defer { try? FileManager.default.removeItem(at: world.root) }
