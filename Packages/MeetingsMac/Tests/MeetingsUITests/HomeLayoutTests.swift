@@ -99,7 +99,23 @@ import Testing
             ColinMessageRow(author: .paul, text: "\(days)", createdAt: now.addingTimeInterval(days * 86_400 - 60))
         }
         #expect(ColinThreadText.sections(messages, now: now, calendar: paris).map(\.day) == ["lundi 16 novembre", "Hier", "Aujourd'hui"])
-        #expect(ColinThreadText.sections(messages, now: now, calendar: paris).map { $0.messages.count } == [2, 1, 1])
+        #expect(ColinThreadText.sections(messages, now: now, calendar: paris).map { $0.items.count } == [2, 1, 1])
+    }
+
+    /// Step 3 (18/11): Colin's changes take their place in the thread by their time, under their day.
+    @Test func changesTakeTheirPlaceByTime() {
+        let question = ColinMessageRow(author: .paul, text: "Passe Cabinet Martin en priorité 1", createdAt: now.addingTimeInterval(-120))
+        let answer = ColinMessageRow(author: .colin, text: "C'est fait.", createdAt: now.addingTimeInterval(-119.999))
+        let row = ProjectChangeRow(id: 7, projectID: UUID(), field: .status, subject: nil, before: "priorité 2", after: "priorité 1", detail: nil, who: .colin,
+                                   batch: "b", reason: nil, source: nil, at: now.addingTimeInterval(-100), undoneAt: nil)
+        let change = ProjectChangeLine(id: "c7", projectID: row.projectID, projectName: "Cabinet Martin", who: .colin, at: row.at, reason: nil, rows: [row],
+                                       undoneAt: nil)
+        let earlier = ProjectChangeLine(id: "c3", projectID: row.projectID, projectName: "Cabinet Martin", who: .colin, at: now.addingTimeInterval(-86_400),
+                                        reason: "Rendez-vous du jeudi 19/11", rows: [row], undoneAt: nil)
+        let sections = ColinThreadText.sections([question, answer], changes: [change, earlier], now: now, calendar: paris)
+        #expect(sections.map(\.day) == ["Hier", "Aujourd'hui"])
+        #expect(sections.last?.items.map(\.id) == [question.id, answer.id, "change-c7"])
+        #expect(ColinThreadText.lastID([question, answer], changes: [change, earlier]) == "change-c7")
     }
 
     @Test func theBarSaysWhatColinCanDo() {

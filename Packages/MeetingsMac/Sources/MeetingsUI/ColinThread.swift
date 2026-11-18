@@ -26,6 +26,10 @@ public final class ColinThread: ObservableObject {
     }
 
     @Published public private(set) var messages: [ColinMessageRow] = []
+    /// What Colin changed on the projects, the last fortnight (step 3, 18/11), each with « Annuler ».
+    @Published public private(set) var changes: [ProjectChangeLine] = []
+    /// What « Annuler » did, by line.
+    @Published public private(set) var outcomes: [String: UndoOutcome] = [:]
     @Published public private(set) var status: Status = .off
     /// The answer as it is written.
     @Published public private(set) var streaming = ""
@@ -46,6 +50,10 @@ public final class ColinThread: ObservableObject {
     private let busyPace: Duration
     private let newDrafts: @MainActor () -> Set<String>
     private var observation: AnyDatabaseCancellable?
+    private var changesObservation: AnyDatabaseCancellable?
+    private let changeStore: ProjectChanges
+    /// Colin's changes are shown this far back.
+    static let changesShown: TimeInterval = 14 * 86_400
     private var cancellables: Set<AnyCancellable> = []
     private var limit = 100
     /// The answer under way, and the drafts there were before it.
@@ -69,6 +77,7 @@ public final class ColinThread: ObservableObject {
                 sinceWake: @escaping () -> TimeInterval? = { nil }, settleAfterWake: TimeInterval = 300, busyPace: Duration = .seconds(15),
                 newDrafts: @escaping @MainActor () -> Set<String> = { [] }) {
         store = ColinStore(database)
+        changeStore = ProjectChanges(database)
         self.runner = runner
         self.review = review
         self.defaults = defaults
@@ -317,6 +326,17 @@ public final class ColinThread: ObservableObject {
 
     private func observe() {
         observation = store.observeMessages(limit: limit) { [weak self] rows in self?.messages = rows }
+        if changesObservation == nil {
+            changesObservation = changeStore.observeLines(since: now().addingTimeInterval(-Self.changesShown), authors: [.colin]) { [weak self] lines in
+                self?.changes = lines
+            }
+        }
+    }
+
+    /// « Annuler » on a change of Colin's: what he wrote is put back, what changed since stays.
+    public func undo(_ line: ProjectChangeLine) {
+        guard outcomes[line.id] == nil, line.undoneAt == nil else { return }
+        outcomes[line.id] = (try? changeStore.undo(line, at: now())) ?? .changedSince
     }
 
     // MARK: - Words

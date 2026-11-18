@@ -1,0 +1,57 @@
+import Domain
+import Foundation
+import Persistence
+import Testing
+@testable import Colin
+
+/// How a change of Colin's reads in his thread (step 3, 18/11): one sentence, the project first, what it was and what
+/// it became. Every name is invented.
+@Suite struct ChangeTextTests {
+    let now = Date(timeIntervalSince1970: 1_794_992_400)
+    let project = UUID()
+
+    var paris: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Paris")!
+        return calendar
+    }
+
+    func row(_ field: ProjectChangeField, _ before: String?, _ after: String?, detail: String? = nil) -> ProjectChangeRow {
+        ProjectChangeRow(id: 1, projectID: project, field: field, subject: nil, before: before, after: after, detail: detail, who: .colin, batch: "b",
+                         reason: nil, source: nil, at: now, undoneAt: nil)
+    }
+
+    func line(_ rows: [ProjectChangeRow], reason: String? = nil) -> ProjectChangeLine {
+        ProjectChangeLine(id: "c1", projectID: project, projectName: "Cabinet Martin", who: .colin, at: now, reason: reason, rows: rows, undoneAt: nil)
+    }
+
+    @Test func aRuleAfterAMail() {
+        let said = ChangeText.sentence(line([row(.status, "priorité 2", "priorité 1"), row(.todo, nil, "En attente retour de Claire"),
+                                             row(.journalAdded, nil, "Mail envoyé à Claire le 18/11")], reason: "Après ton mail à Claire, 9:50"), calendar: paris)
+        #expect(said == "« Cabinet Martin » : priorité 2 → priorité 1, tâche « En attente retour de Claire », journal « Mail envoyé à Claire le 18/11 ».")
+        #expect(ChangeText.note(line([], reason: "Après ton mail à Claire, 9:50")) == "Après ton mail à Claire, 9:50")
+    }
+
+    /// A deadline is a day of Paris, whatever the hour it is kept at.
+    @Test func eachKindSaysItself() {
+        func said(_ rows: [ProjectChangeRow]) -> String { ChangeText.sentence(line(rows), calendar: paris) }
+        #expect(said([row(.dueDate, nil, "2026-11-18 23:00:00.000")]) == "« Cabinet Martin » : échéance 19/11.")
+        #expect(said([row(.dueDate, "2026-11-18 23:00:00.000", "2026-11-26 23:00:00.000")]) == "« Cabinet Martin » : échéance 19/11 → 27/11.")
+        #expect(said([row(.dueDate, "2026-11-18 23:00:00.000", nil)]) == "« Cabinet Martin » : échéance retirée.")
+        #expect(said([row(.todo, "Appeler Claire", nil)]) == "« Cabinet Martin » : tâche retirée.")
+        #expect(said([row(.client, nil, "Cabinet Martin SARL")]) == "« Cabinet Martin » : client « Cabinet Martin SARL ».")
+        #expect(said([row(.notes, "a", "b")]) == "« Cabinet Martin » : notes réécrites.")
+        #expect(said([row(.actionAdded, nil, "Relancer Claire")]) == "« Cabinet Martin » : action « Relancer Claire » ajoutée.")
+        #expect(said([row(.actionAdded, nil, "Relancer Claire"), row(.actionAdded, nil, "Payer")]) == "« Cabinet Martin » : 2 actions ajoutées.")
+        #expect(said([row(.actionDone, "0", "1", detail: #"{"text":"Envoyer le devis"}"#)]) == "« Cabinet Martin » : action « Envoyer le devis » cochée.")
+        #expect(said([row(.actionText, "Appeler", "Appeler Claire")]) == "« Cabinet Martin » : action reformulée, « Appeler Claire ».")
+        #expect(said([row(.actionRemoved, "Payer", nil)]) == "« Cabinet Martin » : action « Payer » retirée.")
+        #expect(said([row(.journalAdded, nil, "Devis relu"), row(.journalAdded, nil, "Maquette")]) == "« Cabinet Martin » : 2 entrées au journal.")
+    }
+
+    @Test func whatAnUndoDid() {
+        #expect(ChangeText.undone(.undone) == "Annulé.")
+        #expect(ChangeText.undone(.partly(kept: 1)) == "Annulé, sauf ce qui a changé depuis.")
+        #expect(ChangeText.undone(.changedSince) == "Rien à annuler : ça a changé depuis.")
+    }
+}

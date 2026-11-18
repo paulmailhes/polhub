@@ -73,6 +73,30 @@ import Testing
         thread.send()
     }
 
+    // MARK: - Colin's changes (step 3, 18/11)
+
+    @Test func colinsChangesShowInTheThreadAndAreUndone() async throws {
+        let world = try world(FakeLauncher { _, _ in Self.session() })
+        let projects = ProjectStore(world.database)
+        let martin = try projects.addProject(name: "Cabinet Martin", status: .priorite2, at: Self.now.addingTimeInterval(-86_400))
+        // An agent's change is not Colin's: not in his thread.
+        let current = try #require(try projects.project(id: martin.id))
+        var other = current
+        other.todo = "Relire la maquette"
+        try projects.signed(.agent).saveChanges(from: current, to: other, at: Self.now.addingTimeInterval(-300))
+        let edit = KanbanEdit(projectID: martin.id, status: .priorite1, todo: "En attente retour de Claire", dueDate: nil, journal: nil,
+                              reason: "Après ton mail à Claire, 9:50", source: "mail:m-1")
+        try projects.edit(edit, by: .colin, at: Self.now.addingTimeInterval(-60))
+        try await waitUntil { world.thread.changes.count == 1 }
+        let line = try #require(world.thread.changes.first)
+        #expect(line.who == .colin && line.reason == "Après ton mail à Claire, 9:50")
+        world.thread.undo(line)
+        #expect(world.thread.outcomes[line.id] == .undone)
+        try await waitUntil { world.thread.changes.first?.undoneAt != nil }
+        #expect(try projects.project(id: martin.id)?.status == .priorite2)
+        #expect(try projects.project(id: martin.id)?.todo == "Relire la maquette")
+    }
+
     @Test func aQuestionIsKeptThenAnswered() async throws {
         let world = try world(FakeLauncher { _, _ in Self.session() })
         ask(world.thread, "Où on en est ?")

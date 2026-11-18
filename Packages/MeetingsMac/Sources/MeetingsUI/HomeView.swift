@@ -93,7 +93,7 @@ struct HomeView: View {
                     .defaultScrollAnchor(.bottom, for: .initialOffset)
                     .defaultScrollAnchor(.bottom, for: .sizeChanges)
                     .scrollIndicators(.automatic)
-                    .onChange(of: thread?.messages.last?.id) { _, last in
+                    .onChange(of: thread.flatMap { ColinThreadText.lastID($0.messages, changes: $0.changes) }) { _, last in
                         if let last { withAnimation(Motion.standard) { scroll.scrollTo(last, anchor: .bottom) } }
                     }
                     .onChange(of: thread?.streaming) { _, _ in scroll.scrollTo("colin-travaille", anchor: .bottom) }

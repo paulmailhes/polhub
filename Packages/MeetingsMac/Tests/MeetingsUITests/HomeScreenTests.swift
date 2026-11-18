@@ -165,6 +165,10 @@ struct HomeScreenTests {
             Marc préfère WhatsApp au mail.
             ```
             """, createdAt: asked.addingTimeInterval(15), costUSD: 0.03))
+        // Step 3 (18/11): what Colin changed on the kanban, with « Annuler »: one of his rules after a mail of Paul's.
+        try projects.edit(KanbanEdit(projectID: nord.id, status: .priorite1, todo: "En attente retour de Marc", dueDate: nil,
+                                     journal: "Mail envoyé à Marc le 18/11", reason: "Après ton mail à Marc, 9:50", source: "mail:capture"),
+                          by: .colin, at: asked.addingTimeInterval(30))
         func colinThread(on: Bool, busy: Bool, hanging: Bool) throws -> ColinThread {
             let defaults = try #require(UserDefaults(suiteName: "accueil-colin-\(UUID().uuidString)"))
             defaults.set(on, forKey: Preferences.Key.colinOn)
@@ -181,7 +185,7 @@ struct HomeScreenTests {
             return ColinThread(database: database, runner: ColinRunner(launcher: launcher, setup: { setup }), defaults: defaults, isBusy: { busy })
         }
         let running = try colinThread(on: true, busy: false, hanging: false)
-        try await waitUntil { running.messages.count == 4 }
+        try await waitUntil { running.messages.count == 4 && running.changes.count == 1 }
         func colinPage(_ thread: ColinThread) -> some View {
             HomeView(agenda: agenda, mails: mails, colin: colin, thread: thread, router: router).background(Color(nsColor: .windowBackgroundColor))
         }

@@ -52,6 +52,23 @@ public struct ProjectChangeRow: Codable, Equatable, Identifiable, Sendable, Fetc
     public var source: String?
     public var at: Date
     public var undoneAt: Date?
+
+    public init(id: Int64?, projectID: UUID, field: ProjectChangeField, subject: String?, before: String?, after: String?, detail: String?,
+                who: ChangeAuthor, batch: String?, reason: String?, source: String?, at: Date, undoneAt: Date?) {
+        self.id = id
+        self.projectID = projectID
+        self.field = field
+        self.subject = subject
+        self.before = before
+        self.after = after
+        self.detail = detail
+        self.who = who
+        self.batch = batch
+        self.reason = reason
+        self.source = source
+        self.at = at
+        self.undoneAt = undoneAt
+    }
 }
 
 /// The journal of the changes (base v18). The triggers call nothing but SQLite itself: a helper of before runs them

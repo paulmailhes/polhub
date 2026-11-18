@@ -18,14 +18,41 @@ enum ColinThreadText {
         return formatter.string(from: date)
     }
 
-    /// The messages by day, in order.
-    static func sections(_ messages: [ColinMessageRow], now: Date, calendar: Calendar) -> [(day: String, messages: [ColinMessageRow])] {
-        var sections: [(day: String, messages: [ColinMessageRow])] = []
-        for message in messages {
-            let day = day(message.createdAt, now: now, calendar: calendar)
-            if sections.last?.day == day { sections[sections.count - 1].messages.append(message) } else { sections.append((day, [message])) }
+    /// What the thread shows: a message, or a change Colin made on a project (step 3, 18/11).
+    enum Item: Identifiable {
+        case message(ColinMessageRow)
+        case change(ProjectChangeLine)
+
+        var id: String {
+            switch self {
+            case .message(let message): message.id
+            case .change(let line): "change-\(line.id)"
+            }
+        }
+
+        var date: Date {
+            switch self {
+            case .message(let message): message.createdAt
+            case .change(let line): line.at
+            }
+        }
+    }
+
+    /// The messages and the changes by day, each in its place by its time.
+    static func sections(_ messages: [ColinMessageRow], changes: [ProjectChangeLine] = [], now: Date, calendar: Calendar) -> [(day: String, items: [Item])] {
+        let items = (messages.map(Item.message) + changes.map(Item.change)).enumerated()
+            .sorted { ($0.element.date, $0.offset) < ($1.element.date, $1.offset) }.map(\.element)
+        var sections: [(day: String, items: [Item])] = []
+        for item in items {
+            let day = day(item.date, now: now, calendar: calendar)
+            if sections.last?.day == day { sections[sections.count - 1].items.append(item) } else { sections.append((day, [item])) }
         }
         return sections
+    }
+
+    /// The last thing of the thread, where it scrolls to.
+    static func lastID(_ messages: [ColinMessageRow], changes: [ProjectChangeLine]) -> String? {
+        sections(messages, changes: changes, now: Date(), calendar: Calendar(identifier: .gregorian)).last?.items.last?.id
     }
 
     /// An answer, and what the thread says of its end apart, in small: why it stopped, or that it could not finish.
@@ -74,14 +101,17 @@ struct ColinThreadView: View {
             if thread.messages.count >= 100 {
                 TextButton("Voir les échanges d'avant") { thread.loadEarlier() }
             }
-            ForEach(ColinThreadText.sections(thread.messages, now: Date(), calendar: calendar), id: \.day) { section in
+            ForEach(ColinThreadText.sections(thread.messages, changes: thread.changes, now: Date(), calendar: calendar), id: \.day) { section in
                 Text(section.day)
                     .font(.meta.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.top, Space.s)
-                ForEach(section.messages) { message in
-                    row(message).id(message.id)
+                ForEach(section.items) { item in
+                    switch item {
+                    case .message(let message): row(message).id(item.id)
+                    case .change(let line): ChangeRow(line: line, outcome: thread.outcomes[line.id], calendar: calendar) { thread.undo(line) }.id(item.id)
+                    }
                 }
             }
             if case .working(let phrase) = thread.status {
@@ -89,7 +119,7 @@ struct ColinThreadView: View {
                 Text(phrase).font(.meta).foregroundStyle(.secondary).id("colin-travaille")
             }
         }
-        .animation(Motion.standard, value: thread.messages.count)
+        .animation(Motion.standard, value: thread.messages.count + thread.changes.count)
     }
 
     @ViewBuilder
@@ -165,6 +195,39 @@ struct ColinThreadView: View {
                 TextButton("Relire") { mails.open(draft) { router.homeMail = $0 } }
             }
         }
+    }
+}
+
+/// A change Colin made on a project (step 3, 18/11): one sentence, why in small, and « Annuler » — or what it did.
+struct ChangeRow: View {
+    let line: ProjectChangeLine
+    let outcome: UndoOutcome?
+    var calendar: Calendar = CalendarView.calendar
+    let undo: () -> Void
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+            Image(systemName: "arrow.triangle.2.circlepath").foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: Space.xs) {
+                Text(verbatim: ChangeText.sentence(line, calendar: calendar))
+                    .font(.rowBody)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let said = said { Text(verbatim: said).font(.meta).foregroundStyle(.secondary) }
+            }
+            Spacer(minLength: Space.s)
+            if outcome == nil, line.undoneAt == nil {
+                TextButton("Annuler", action: undo)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Why it was made; once undone, what « Annuler » did.
+    private var said: String? {
+        if let outcome { return ChangeText.undone(outcome) }
+        if line.undoneAt != nil { return ChangeText.undone(.undone) }
+        return ChangeText.note(line)
     }
 }
 
