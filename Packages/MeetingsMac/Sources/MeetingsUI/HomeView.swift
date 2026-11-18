@@ -1,4 +1,5 @@
 import Agenda
+import Colin
 import Domain
 import Persistence
 import ProjectsUI
@@ -22,6 +23,30 @@ enum HomeModel {
         let minutes = Int((event.startAt.timeIntervalSince(now) / 60).rounded(.up))
         if minutes < 60 { return "dans \(minutes) min" }
         return "à " + event.startAt.formatted(date: .omitted, time: .shortened)
+    }
+
+    /// « Aujourd'hui » (18/11): what is left of the day, the whole-day events first, then by the hour; neither
+    /// what is over nor what Paul declined.
+    static func today(_ events: [CalendarEventRow], now: Date, calendar: Calendar) -> [CalendarEventRow] {
+        events.filter { event in
+            guard event.endAt > now, event.attendees.first(where: \.isSelf)?.response != "declined" else { return false }
+            return event.allDay ? event.startAt <= now : calendar.isDate(event.startAt, inSameDayAs: now)
+        }
+        .sorted { ($0.allDay ? 0 : 1, $0.startAt) < ($1.allDay ? 0 : 1, $1.startAt) }
+    }
+
+    /// The next event after today, shown when nothing is left of the day: neither a whole day nor a declined one.
+    static func upcoming(_ events: [CalendarEventRow], now: Date, calendar: Calendar) -> CalendarEventRow? {
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) ?? now
+        return events
+            .filter { !$0.allDay && $0.startAt >= tomorrow && $0.attendees.first(where: \.isSelf)?.response != "declined" }
+            .min { $0.startAt < $1.startAt }
+    }
+
+    /// « Demain 10:00 », « Jeudi 10:00 »: the day as « Le point » says it, at the head of a line.
+    static func dayLabel(_ date: Date, now: Date, calendar: Calendar) -> String {
+        let label = Briefing.dayLabel(date, now: now, calendar: calendar)
+        return label.prefix(1).uppercased() + label.dropFirst()
     }
 
     /// The cards of Accueil, in two columns that each stack their cards (15/11: a short card left a hole beside a
