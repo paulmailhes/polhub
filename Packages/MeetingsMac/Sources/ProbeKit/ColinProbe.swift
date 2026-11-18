@@ -205,11 +205,8 @@ private let hookLines = "system/hook"
 
 private let interruptionMark = "user/interruption"
 
-/// What Claude Code says when the account is not connected.
-private func saysNotConnected(_ text: String) -> Bool {
-    let said = text.lowercased()
-    return ["log in", "login", "authenticat", "api key"].contains(where: said.contains)
-}
+/// What Claude Code says when the account is not connected: the same words as Colin's engine.
+private func saysNotConnected(_ text: String) -> Bool { ColinFailure.saysNotConnected(text) }
 
 // MARK: - The run
 

@@ -111,7 +111,8 @@ public enum ClaudeEvent: Equatable, Sendable {
     case textDelta(String)
     /// A whole message of the model: its text, and the tools it calls.
     case assistant(text: String, tools: [String])
-    case toolResult(isError: Bool)
+    /// `text`: the beginning of what a tool that failed said (Colin's lock says itself there); empty otherwise.
+    case toolResult(isError: Bool, text: String = "")
     case rateLimit(ClaudeRateLimit)
     case result(ClaudeResult)
     case controlResponse(requestID: String, success: Bool)
@@ -145,7 +146,15 @@ public enum ClaudeStream {
         case "user":
             let blocks = content(object)
             let results = blocks.filter { $0["type"] as? String == "tool_result" }
-            if !results.isEmpty { return .toolResult(isError: results.contains { $0["is_error"] as? Bool == true }) }
+            if !results.isEmpty {
+                let failed = results.filter { $0["is_error"] as? Bool == true }
+                let said = failed.map { result -> String in
+                    if let text = result["content"] as? String { return text }
+                    let parts = (result["content"] as? [[String: Any]]) ?? []
+                    return parts.filter { $0["type"] as? String == "text" }.compactMap { $0["text"] as? String }.joined(separator: " ")
+                }.joined(separator: " ")
+                return .toolResult(isError: !failed.isEmpty, text: String(said.prefix(300)))
+            }
             // What Claude Code writes itself when a turn is interrupted: nobody's message. The mark and nothing else:
             // any other line of this kind was not asked for.
             let interrupted = blocks.count == 1 && blocks[0]["type"] as? String == "text"

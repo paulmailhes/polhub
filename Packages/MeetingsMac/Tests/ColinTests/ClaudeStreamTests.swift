@@ -104,8 +104,21 @@ import Testing
 
     @Test func aToolResultSaysWhetherItFailed() {
         #expect(event(#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"3 projets","is_error":false}]}}"#) == .toolResult(isError: false))
-        #expect(event(#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"refusé","is_error":true}]}}"#) == .toolResult(isError: true))
+        #expect(event(#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"refusé","is_error":true}]}}"#) == .toolResult(isError: true, text: "refusé"))
         #expect(event(#"{"type":"user","message":{"role":"user","content":"un message rejoué"}}"#) == .other("user"))
+    }
+
+    /// The text of a tool that failed, its beginning only (Colin's lock says itself there); never a tool's answer.
+    @Test func aToolErrorKeepsItsText() {
+        let long = String(repeating: "é", count: 400)
+        #expect(event(#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"Verrou de Colin : non","is_error":true}]}}"#)
+            == .toolResult(isError: true, text: "Verrou de Colin : non"))
+        #expect(event(#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":[{"type":"text","text":"Verrou de Colin"}],"is_error":true}]}}"#)
+            == .toolResult(isError: true, text: "Verrou de Colin"))
+        #expect(event(#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"\#(long)","is_error":true}]}}"#)
+            == .toolResult(isError: true, text: String(long.prefix(300))))
+        #expect(event(#"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"Claire écrit…","is_error":false}]}}"#)
+            == .toolResult(isError: false, text: ""))
     }
 
     /// What Claude Code 2.1.304 writes itself when a turn is interrupted (measured on 17/11): not a message of anyone.
