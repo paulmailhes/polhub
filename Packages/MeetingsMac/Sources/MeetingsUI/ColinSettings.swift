@@ -21,7 +21,7 @@ struct ColinSettingsPane: View {
             } header: {
                 Text("À valider")
             } footer: {
-                Text("Un mail attend ta réponse quand le dernier message du fil vient d'une personne à qui tu as déjà écrit. Un client est muet quand ton dernier message dans un fil de projet reste sans réponse, sans rendez-vous à venir.")
+                Text("Un mail attend ta réponse quand une personne t'a écrit et que tu ne lui as rien écrit depuis, dans aucun fil : après le délai choisi, et jusqu'à 14 jours. Un client est muet quand ton dernier mail d'un projet reste sans réponse, dans aucun fil, sans rendez-vous depuis ni à venir.")
                     .font(.meta)
             }
         }

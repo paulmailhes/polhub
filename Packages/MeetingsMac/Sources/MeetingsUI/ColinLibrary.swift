@@ -47,6 +47,11 @@ public final class ColinLibrary: ObservableObject {
     /// The lines Paul set aside or filed by hand, with the number of the last computation begun before: a
     /// computation that began before his gesture never brings them back.
     private var removed: [String: Int] = [:]
+    /// The answers that left for Gmail, with when they left: the draft goes at once, the copy of what Paul sent only
+    /// with the next reading of the mailbox. Until it comes (ten minutes at most), they still say who he answered.
+    private var departed: [String: (draft: MailDraftRow, at: Date)] = [:]
+    /// An answer that left is waited for this long in the copy of the mailbox.
+    static let departureLasts: TimeInterval = 600
     private var observations: [AnyDatabaseCancellable] = []
     private var cancellables: Set<AnyCancellable> = []
     private var timer: Task<Void, Never>?
@@ -89,7 +94,13 @@ public final class ColinLibrary: ObservableObject {
             mails.$rules.dropFirst().sink { [weak self] _ in self?.refresh() }.store(in: &cancellables)
             // The mails programmed, the one leaving, the mailboxes Paul hid.
             mails.$scheduled.dropFirst().sink { [weak self] _ in self?.refresh() }.store(in: &cancellables)
-            mails.$sending.dropFirst().sink { [weak self] _ in self?.refresh() }.store(in: &cancellables)
+            mails.$sending.dropFirst().sink { [weak self, weak mails] sending in
+                // On its way to Gmail: from now on it may leave the drafts before its copy comes.
+                if let sending, sending.leaving, let draft = mails?.drafts.first(where: { $0.id == sending.draftID }) { self?.departs(draft) }
+                self?.refresh()
+            }.store(in: &cancellables)
+            // A reply begun in Gmail, on the phone or the web: who it is written to, and when.
+            mails.$gmailDrafts.map(Self.said).removeDuplicates().dropFirst().sink { [weak self] _ in self?.refresh() }.store(in: &cancellables)
             mails.$hidden.dropFirst().sink { [weak self] _ in self?.refresh() }.store(in: &cancellables)
         }
         // Réglages › Colin: a threshold Paul changes shows at once.
@@ -179,7 +190,12 @@ public final class ColinLibrary: ObservableObject {
         if readsBase { staleBase = false }
         if readsMails || readsBase { readings += 1 }
         let hiddenDrafts = Set((mails?.scheduled.keys).map(Array.init) ?? []).union([mails?.sending?.draftID].compactMap { $0 })
-        let job = Job(database: agenda.database, threads: threads, rules: mails?.rules ?? .empty, drafts: mails?.drafts ?? [], withMails: mails != nil,
+        // What left for Gmail and is no longer a draft still says who Paul answered, until its copy comes.
+        let drafts = mails?.drafts ?? []
+        let known = Set(drafts.map(\.id))
+        let leaving = departed.values.filter { !known.contains($0.draft.id) && date.timeIntervalSince($0.at) < Self.departureLasts }.map(\.draft)
+        let job = Job(database: agenda.database, threads: threads, rules: mails?.rules ?? .empty, drafts: drafts, leaving: leaving,
+                      gmailDrafts: mails?.gmailDrafts ?? [], withMails: mails != nil,
                       knownMails: readsMails ? nil : mailInputs ?? MailInputs(), knownBase: readsBase ? nil : baseInputs, hiddenDrafts: hiddenDrafts,
                       hiddenAccounts: mails?.hidden ?? [], thresholds: Self.thresholds(defaults), now: date, calendar: calendar,
                       point: asked.map { Job.Point(since: $0.since) })
@@ -198,6 +214,12 @@ public final class ColinLibrary: ObservableObject {
         // A line Paul set aside while this was computed stays out; a later computation knows what he did.
         let lines = outcome.lines.filter { (removed[$0.id] ?? 0) < number }
         removed = removed.filter { $0.value >= number }
+        // An answer whose copy came, one that came back to the drafts (Gmail refused it), one waited for too long.
+        departed = departed.filter { _, left in
+            let people = Set((left.draft.to + left.draft.cc).map { $0.email.lowercased() })
+            let copied = outcome.mails.exchanges.contains { $0.mine && $0.date >= left.at.addingTimeInterval(-60) && !people.isDisjoint(with: $0.recipients) }
+            return !copied && !known.contains(left.draft.id) && date.timeIntervalSince(left.at) < Self.departureLasts
+        }
         if lines != review { review = lines }
         // « Le point », unless Paul came back again meanwhile: the next computation prepares that one.
         if let point = outcome.point, let asked, wanted?.at == asked.at {
@@ -259,6 +281,11 @@ public final class ColinLibrary: ObservableObject {
 
     // MARK: - Paul's gestures
 
+    /// A draft leaves for Gmail: it keeps saying who Paul answered until the copy of the mailbox brings what he sent.
+    func departs(_ draft: MailDraftRow) {
+        departed[draft.id] = (draft, now())
+    }
+
     /// « Pas besoin », « Plus tard », « Anne a répondu ailleurs »: the line leaves at once, and the base keeps why,
     /// with the last message Paul had before him. A draft is not set aside: it leaves when sent, deleted or programmed.
     public func dismiss(_ line: ReviewRules.Line, reason: ColinDismissalRow.Reason) {
@@ -312,6 +339,12 @@ public final class ColinLibrary: ObservableObject {
             return [draft.id, draft.to.first?.display ?? "", people, draft.threadKey ?? "", draft.subject].joined(separator: "\u{1F}")
         }
         return ready + Set(drafts.flatMap { $0.to + $0.cc }.map { $0.email.lowercased() }).sorted()
+    }
+
+    /// What the lines say of the replies begun in Gmail: who they are written to, and when. Never their text.
+    private nonisolated static func said(_ drafts: [MailMessageRow]) -> [String] {
+        drafts.map { draft in ([draft.date.timeIntervalSince1970.description] + (draft.to + draft.cc).map { $0.email.lowercased() }).joined(separator: ",") }
+            .sorted()
     }
 
     /// What the rules read of a thread: who wrote, when, and what files it. Not whether it is read, in the inbox,
@@ -385,6 +418,10 @@ public final class ColinLibrary: ObservableObject {
         var threads: [MailThreadRow]
         var rules: MailFilingRules
         var drafts: [MailDraftRow]
+        /// The answers on their way to Gmail, no longer drafts: they still say who Paul is answering.
+        var leaving: [MailDraftRow]
+        /// The replies begun in Gmail, on the phone or the web.
+        var gmailDrafts: [MailMessageRow]
         var withMails: Bool
         var knownMails: MailInputs?
         var knownBase: BaseInputs?
@@ -436,7 +473,8 @@ public final class ColinLibrary: ObservableObject {
             let drafts = ReviewRules.drafts(self.drafts, hidden: hiddenDrafts, threads: threads, rules: rules)
             let exchanges = Exchanges(mails.exchanges, projects: ReviewRules.projects(of: threads, rules: rules, recipients: mails.recipients))
             let finished = Set(base.projects.filter { $0.status == .termine }.map(\.id))
-            let replies = ReviewRules.repliesByPerson(threads, rules: rules, conversations: mails.conversations, exchanges: exchanges, drafts: self.drafts,
+            let replies = ReviewRules.repliesByPerson(threads, rules: rules, conversations: mails.conversations, exchanges: exchanges, drafts: self.drafts + leaving,
+                                                      gmailDrafts: gmailDrafts,
                                                       events: base.events, hiddenAccounts: hiddenAccounts, dismissed: base.dismissed, now: now,
                                                       thresholds: thresholds, calendar: calendar)
             let silent = ReviewRules.silentByProject(threads, rules: rules, conversations: mails.conversations, recipients: mails.recipients,

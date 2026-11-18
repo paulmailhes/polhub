@@ -162,12 +162,14 @@ public enum ReviewRules {
     /// - a thread ends on a message of theirs, three days old or more and two weeks at most (`replies`);
     /// - Paul wrote nothing to them since, in whatever thread of whatever mailbox (`exchanges`);
     /// - that message is neither a calendar's own nor an automatic one, and they are no colleague of his;
-    /// - no draft is being written to them (`drafts`: all of them, Paul's own too);
+    /// - no draft to them was begun or touched since their message (`drafts`: all of them, Paul's own and an agent's;
+    ///   `gmailDrafts`: those begun in Gmail, on the phone or the web);
     /// - no meeting with them was held since, nor comes within a week (`events`).
     /// One line by person, on their oldest thread that waits, set aside by person; the oldest first. Never said from
     /// a mailbox Paul hid (`hiddenAccounts`), though what he wrote from it counts.
     public static func repliesByPerson(_ threads: [MailThreadRow], rules: MailFilingRules, conversations: [String: String] = [:], exchanges: Exchanges,
-                                       drafts: [MailDraftRow] = [], events: [CalendarEventRow] = [], hiddenAccounts: Set<String> = [],
+                                       drafts: [MailDraftRow] = [], gmailDrafts: [MailMessageRow] = [], events: [CalendarEventRow] = [],
+                                       hiddenAccounts: Set<String> = [],
                                        dismissed: [ColinDismissalRow], now: Date,
                                        thresholds: Thresholds, calendar: Calendar = .current) -> [Line] {
         var window = thresholds
@@ -175,7 +177,12 @@ public enum ReviewRules {
         let byKey = Dictionary(threads.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let aside = rows(dismissed, of: .reply)
         let colleagues = ownDomains(rules)
-        let writing = Set(drafts.flatMap { $0.to + $0.cc }.map { $0.email.lowercased() })
+        // Who a draft is written to, and when it was last touched: a draft older than the message answers nothing.
+        var writing: [String: Date] = [:]
+        let begun = drafts.map { ($0.to + $0.cc, $0.updatedAt) } + gmailDrafts.map { ($0.to + $0.cc, $0.date) }
+        for (people, date) in begun {
+            for person in people { writing[person.email.lowercased()] = max(writing[person.email.lowercased()] ?? .distantPast, date) }
+        }
         var byPerson: [String: (line: Line, last: Date)] = [:]
         var order: [String] = []
         for line in replies(threads, rules: rules, conversations: conversations, dismissed: [], now: now, thresholds: window, calendar: calendar) {
@@ -184,7 +191,7 @@ public enum ReviewRules {
             if let domain = PublicMailDomains.domain(of: address), colleagues.contains(domain) { continue }
             guard !exchanges.wrote(to: address, after: received, until: now) else { continue }
             if let last = exchanges.lastReceived(in: key, asOf: now), last.calendar || last.automatic { continue }
-            guard !writing.contains(address), !met(address, since: received, events: events, now: now) else { continue }
+            guard (writing[address] ?? .distantPast) <= received, !met(address, since: received, events: events, now: now) else { continue }
             if let known = byPerson[address] {
                 // Their oldest thread that waits says the line; their latest message says until when it is set aside.
                 byPerson[address] = (line: (line.days ?? 0) > (known.line.days ?? 0) ? line : known.line, last: max(known.last, received))
@@ -197,7 +204,9 @@ public enum ReviewRules {
             guard let found = byPerson[address], !isAside(aside[address], lastMessage: found.last, now: now, calendar: calendar) else { return nil }
             var line = found.line
             line.id = id(.reply, address)
-            line.lastMessageAt = found.last
+            // What Paul has before him: their latest message in whatever thread, even one too young yet to be said.
+            // Set aside, the line stays aside until they write after it.
+            line.lastMessageAt = max(found.last, exchanges.lastHeard(from: address, asOf: now) ?? found.last)
             return line
         }
         .sorted { ($0.days ?? 0, $1.id) > ($1.days ?? 0, $0.id) }
@@ -205,7 +214,8 @@ public enum ReviewRules {
 
     /// « Ne répond plus », read by project and no longer by thread (18/11): his clients answer in new threads. A
     /// project is silent when Paul's last mail in it is seven days old or more, and since then:
-    /// - nobody wrote to him in a thread of the project, nor any of the people he wrote to, in whatever thread;
+    /// - nobody wrote to him in a thread of the project, nor any of the people he wrote to (his colleagues apart), in
+    ///   whatever thread; an absent mailbox's answer and a calendar's mail are nobody's;
     /// - he wrote nothing more in the project (a later mail of his starts the wait again);
     /// - no meeting of the project was held, and none is to come.
     /// One line by project, set aside by project; never for a finished one (`finished`), nor said from a mailbox
@@ -214,8 +224,18 @@ public enum ReviewRules {
                                        recipients: [String: [MailAddress]], exchanges: Exchanges, events: [CalendarEventRow], finished: Set<UUID> = [],
                                        hiddenAccounts: Set<String> = [], dismissed: [ColinDismissalRow], now: Date, thresholds: Thresholds,
                                        calendar: Calendar = .current) -> [Line] {
+        // An absent mailbox's answer, a calendar's mail after Paul's: nobody answered him. The thread is read as if
+        // they had not come.
+        let threads = threads.map { thread -> MailThreadRow in
+            guard let received = thread.lastReceivedAt, received > (thread.lastSentAt ?? .distantPast),
+                  let last = exchanges.lastReceived(in: thread.id), last.automatic || last.calendar else { return thread }
+            var read = thread
+            read.lastReceivedAt = exchanges.lastWritten(in: thread.id).map(\.date)
+            return read
+        }
         let byKey = Dictionary(threads.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let aside = rows(dismissed, of: .silent)
+        let colleagues = ownDomains(rules)
         // « A répondu ailleurs », said twice of one project: Colin no longer says it of this project.
         var elsewhere: [UUID: Int] = [:]
         for row in aside.values where row.reason == .answeredElsewhere {
@@ -236,7 +256,10 @@ public enum ReviewRules {
             guard !finished.contains(project), !quiet.contains(project) else { continue }
             // Paul wrote again in the project since, or someone wrote in it: the exchange goes on in another thread.
             guard !exchanges.wrote(in: project, after: found.sent, until: now), !exchanges.heard(in: project, after: found.sent, until: now) else { continue }
-            let people = (exchanges.lastSent(in: found.line.threadKey ?? "", asOf: now)?.recipients ?? []).filter { !rules.mine.contains($0) }
+            // The people Paul wrote to, his colleagues apart: they write to him every day, about everything.
+            let people = (exchanges.lastSent(in: found.line.threadKey ?? "", asOf: now)?.recipients ?? []).filter { person in
+                !rules.mine.contains(person) && !(PublicMailDomains.domain(of: person).map(colleagues.contains) ?? false)
+            }
             guard !people.contains(where: { exchanges.heard(from: $0, after: found.sent, until: now) }) else { continue }
             // A meeting of the project, held since or to come: they speak.
             guard !events.contains(where: { $0.projectID == project && !$0.allDay && $0.startAt > found.sent }) else { continue }

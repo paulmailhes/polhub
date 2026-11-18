@@ -32,7 +32,7 @@ public struct MailExchange: Equatable, Sendable {
 
     /// How the subject of an absent mailbox's answer begins, in French, in English and in German.
     static let automaticWords = ["réponse automatique", "automatic reply", "auto-reply", "autoreply", "out of office", "absent du bureau",
-                                 "absence du bureau", "abwesenheitsnotiz", "abwesend"]
+                                 "absence du bureau", "automatische antwort", "abwesenheitsnotiz", "abwesend"]
 
     /// A list's mail by its header, an absent mailbox's answer by how its subject begins.
     static func isAutomatic(subject: String, listUnsubscribe: String?) -> Bool {

@@ -8,7 +8,8 @@ import Persistence
 public struct Exchanges: Sendable {
     /// When Paul wrote to each address (To or Cc), the oldest first.
     private var sent: [String: [Date]] = [:]
-    /// When each address wrote to Paul, the oldest first.
+    /// When each address wrote to Paul, the oldest first: what a person wrote, never an absent mailbox's answer
+    /// nor a calendar's mail sent from their address.
     private var received: [String: [Date]] = [:]
     /// The same by project, for the threads that have one.
     private var sentIn: [UUID: [Date]] = [:]
@@ -28,6 +29,8 @@ public struct Exchanges: Sendable {
                 if let project { sentIn[project, default: []].append(message.date) }
             } else {
                 incoming[message.threadKey, default: []].append(message)
+                // Nobody wrote it: it says nothing of the exchange.
+                guard !message.automatic, !message.calendar else { continue }
                 if let sender = message.sender?.lowercased() { received[sender, default: []].append(message.date) }
                 if let project { receivedIn[project, default: []].append(message.date) }
             }
@@ -52,6 +55,17 @@ public struct Exchanges: Sendable {
     /// Someone wrote to Paul in a thread of this project after `date` and no later than `until`.
     public func heard(in project: UUID, after date: Date, until: Date = .distantFuture) -> Bool {
         Self.any(receivedIn[project], after: date, until: until)
+    }
+
+    /// The last time this address wrote to Paul, in whatever thread, as it stood at `asOf`.
+    public func lastHeard(from address: String, asOf: Date = .distantFuture) -> Date? {
+        received[address.lowercased()]?.last { $0 <= asOf }
+    }
+
+    /// The last message a person wrote in this thread, as it stood at `asOf`: an absent mailbox's answer and a
+    /// calendar's mail apart.
+    public func lastWritten(in thread: String, asOf: Date = .distantFuture) -> MailExchange? {
+        incoming[thread]?.last { $0.date <= asOf && !$0.automatic && !$0.calendar }
     }
 
     /// The last message received in this thread, as it stood at `asOf`.

@@ -447,12 +447,93 @@ import Testing
         #expect(byPerson([thread("t1", [received("ami@gmail.com", 4)])], exchanges("t1", [received("ami@gmail.com", 4)]), rules: known).count == 1)
     }
 
-    /// A draft to the person, an agent's or Paul's own: the answer is being written, its own line says so.
+    /// A draft to the person, an agent's or Paul's own, in To or in copy: the answer is being written.
     @Test func aDraftToThePersonIsTheirLine() {
         let (threads, messages) = marcWaits
         #expect(byPerson(threads, messages, drafts: [draft("d1", to: [person(Self.marc)])]).isEmpty)
         #expect(byPerson(threads, messages, drafts: [draft("d2", origin: .paul, to: [person(Self.marc)])]).isEmpty)
+        var copied = draft("d4", origin: .paul)
+        copied.cc = [person(Self.marc)]
+        #expect(byPerson(threads, messages, drafts: [copied]).isEmpty)
         #expect(byPerson(threads, messages, drafts: [draft("d3")]).count == 1)
+    }
+
+    /// A draft begun before the person's message, and left in Brouillons, answers nothing they wrote after it: else
+    /// a reply Paul gave up on would hide everything they write him.
+    @Test func aDraftOlderThanTheMessageAnswersNothing() {
+        let (threads, messages) = marcWaits
+        // Begun twenty days ago, before Marc's message of four days ago.
+        #expect(byPerson(threads, messages, drafts: [draft("old", origin: .paul, to: [person(Self.marc)], minutesAgo: 20 * 1_440)]).count == 1)
+        // Touched again since his message: it is the answer being written.
+        var touched = draft("old", origin: .paul, to: [person(Self.marc)], minutesAgo: 20 * 1_440)
+        touched.updatedAt = ago(1)
+        #expect(byPerson(threads, messages, drafts: [touched]).isEmpty)
+    }
+
+    /// A reply begun in Gmail, on the phone or the web, is a draft too: Polhub knows it as a message of Gmail's.
+    @Test func aDraftBegunInGmailIsTheirLineToo() {
+        let (threads, messages) = marcWaits
+        func gmail(_ to: String, daysAgo: Double) -> MailMessageRow {
+            MailMessageRow(account: Self.me, messageID: "g-\(daysAgo)", threadID: "t1", date: ago(daysAgo), sender: MailAddress(email: Self.me),
+                           to: [MailAddress(email: to)], subject: "Re: Maquette v2", snippet: "", labels: ["DRAFT"])
+        }
+        func lines(_ drafts: [MailMessageRow]) -> [ReviewRules.Line] {
+            ReviewRules.repliesByPerson(threads, rules: rules, exchanges: Exchanges(messages), gmailDrafts: drafts, dismissed: [], now: now,
+                                        thresholds: thresholds, calendar: calendar)
+        }
+        #expect(lines([gmail(Self.marc, daysAgo: 1)]).isEmpty)
+        #expect(lines([gmail(Self.marc, daysAgo: 20)]).count == 1)
+        #expect(lines([gmail(Self.claire, daysAgo: 1)]).count == 1)
+    }
+
+    /// « Pas besoin » holds until the person writes again after Paul's click: a message of theirs already there,
+    /// too young then to be counted, does not bring the line back when it grows old enough.
+    @Test func aPersonSetAsideStaysAsideWhenTheirYoungerMailGrowsOld() {
+        // Marc wrote nine days ago, and again yesterday in a new thread.
+        let threads = [thread("t1", [received(Self.marc, 9)]), thread("t2", [received(Self.marc, 1)])]
+        let messages = exchanges("t1", [received(Self.marc, 9)]) + exchanges("t2", [received(Self.marc, 1)])
+        let shown = byPerson(threads, messages)
+        #expect(shown.count == 1 && shown.first?.days == 9)
+        // The last message Paul has before him is yesterday's.
+        #expect(shown.first?.lastMessageAt == ago(1))
+        let aside = ColinDismissalRow(kind: "reply", subject: Self.marc, reason: .notNeeded, createdAt: now, lastMessageAt: shown.first?.lastMessageAt)
+        // Three days later, yesterday's mail is old enough to be counted: the line stays aside.
+        let later = now.addingTimeInterval(3 * 86_400)
+        #expect(ReviewRules.repliesByPerson(threads, rules: rules, exchanges: Exchanges(messages), dismissed: [aside], now: later, thresholds: thresholds,
+                                            calendar: calendar).isEmpty)
+    }
+
+    /// An absent mailbox's answer, or a calendar's mail, is nobody's answer: the client is still silent, whether
+    /// it came in a thread of its own or in the thread itself.
+    @Test func anAutomaticAnswerIsNoAnswerToASilence() {
+        let (threads, messages) = claireIsSilent
+        // In a thread of its own, filed nowhere: Claire did not « write since ».
+        let away = thread("t2", subject: "Réponse automatique : Devis", [received(Self.claire, 9.9)])
+        #expect(byProject(threads + [away], messages + exchanges("t2", automatic: true, [received(Self.claire, 9.9)])).count == 1)
+        #expect(byProject(threads + [away], messages + exchanges("t2", calendar: true, [received(Self.claire, 9.9)])).count == 1)
+        // A real answer of hers there: she wrote.
+        #expect(byProject(threads + [away], messages + exchanges("t2", [received(Self.claire, 9.9)])).isEmpty)
+        // In the thread itself, after Paul's mail.
+        let same = thread("t1", subject: "Devis", [received(Self.claire, 30), sent(10), received(Self.claire, 9.9)])
+        let said = exchanges("t1", to: [Self.claire], [received(Self.claire, 30), sent(10)]) + exchanges("t1", automatic: true, [received(Self.claire, 9.9)])
+        let lines = byProject([same], said)
+        #expect(lines.count == 1 && lines.first?.days == 10)
+        // A real answer in the thread: no silence.
+        #expect(byProject([same], exchanges("t1", to: [Self.claire], [received(Self.claire, 30), sent(10), received(Self.claire, 9.9)])).isEmpty)
+    }
+
+    /// A colleague Paul put in copy writes to him every day about everything: that says nothing of the client.
+    @Test func aColleagueInCopyDoesNotBreakASilence() {
+        var known = rules
+        known.mine.insert("moi@atelier.exemple")
+        let quote = thread("t1", subject: "Devis", [received(Self.claire, 30), sent(10)])
+        let said = exchanges("t1", to: [Self.claire, "lea@atelier.exemple"], [received(Self.claire, 30), sent(10)])
+            + exchanges("t9", [received("lea@atelier.exemple", 2)])
+        let people = [quote.id: [MailAddress(email: Self.claire)]]
+        let projects = ReviewRules.projects(of: [quote], rules: known, recipients: people)
+        let lines = ReviewRules.silentByProject([quote], rules: known, recipients: people, exchanges: Exchanges(said, projects: projects), events: [],
+                                                dismissed: [], now: now, thresholds: thresholds, calendar: calendar)
+        #expect(lines.count == 1)
     }
 
     /// Paul answers by a call as often as by a mail: a meeting with the person, held since or to come within a week.
@@ -499,6 +580,11 @@ import Testing
         // Claire sent her files four days ago, in a new thread.
         let files = thread("t2", subject: "Fichiers", [received(Self.claire, 4)])
         #expect(byProject(threads + [files], messages + exchanges("t2", [received(Self.claire, 4)])).isEmpty)
+        // Each check alone: Claire, in a thread of no project; someone else, in a thread of the project.
+        #expect(byProject(threads, messages + exchanges("t7", [received(Self.claire, 4)])).isEmpty)
+        let colleague = thread("t8", subject: "Plans", [received(Self.claire, 40), received(Self.marc, 4)])
+        #expect(ReviewRules.projects(of: [colleague], rules: rules, recipients: [:])[colleague.id] == site)
+        #expect(byProject(threads + [colleague], messages + exchanges("t8", [received(Self.claire, 40), received(Self.marc, 4)])).isEmpty)
         // What she wrote before his mail is no answer; nor a word of another project.
         let before = thread("t2", subject: "Fichiers", [received(Self.claire, 12)])
         #expect(byProject(threads + [before], messages + exchanges("t2", [received(Self.claire, 12)])).count == 1)

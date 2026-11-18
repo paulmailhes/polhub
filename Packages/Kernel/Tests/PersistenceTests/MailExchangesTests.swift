@@ -101,10 +101,11 @@ import Testing
             received("a1", thread: "a", from: Self.claire, daysAgo: 9, subject: "La lettre du cabinet", list: "<https://cabinet.exemple/quitter>"),
             received("b1", thread: "b", from: Self.claire, daysAgo: 8, subject: "Réponse automatique : Maquette v2"),
             received("c1", thread: "c", from: Self.claire, daysAgo: 7, subject: "Automatic reply: Maquette v2"),
-            received("d1", thread: "d", from: Self.claire, daysAgo: 6, subject: "Mon absence de la semaine prochaine"),
+            received("d1", thread: "d", from: Self.claire, daysAgo: 6, subject: "Re: mon absence du bureau mardi, voici le devis"),
             received("e1", thread: "e", from: Self.claire, daysAgo: 5, subject: "Maquette v2", list: "  "),
+            received("f1", thread: "f", from: Self.claire, daysAgo: 4, subject: "Automatische Antwort: Maquette v2"),
         ])
-        #expect(try mails.exchanges(since: ago(30)).map(\.automatic) == [true, true, true, false, false])
+        #expect(try mails.exchanges(since: ago(30)).map(\.automatic) == [true, true, true, false, false, true])
     }
 
     /// Read without a trap: people that are no list, a sender that is no person, a date that is no date.

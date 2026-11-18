@@ -243,6 +243,74 @@ import Testing
         try await waitUntil { world.colin.review.isEmpty }
     }
 
+    /// Paul answers Marc from the Accueil and sends: the draft goes at once, the copy of what he sent only comes with
+    /// the next reading of the mailbox. In between, Marc does not « wait » again.
+    @Test func aSentAnswerKeepsTheLineAwayUntilItsCopyComes() async throws {
+        let world = try await world { database, _, clock in try marcWaits(database, clock) }
+        defer { try? FileManager.default.removeItem(at: world.root) }
+        try await waitUntil { world.colin.review.map(\.kind) == [.reply] }
+        let answer = MailDraftRow(account: Self.me, mode: .reply, threadKey: key("a"), to: [MailAddress(name: "Marc Dubois", email: Self.marc)],
+                                  subject: "Re: Maquette", body: "Bonjour Marc.", signature: false, createdAt: world.clock.now)
+        try world.store.saveDraft(answer)
+        try await waitUntil { world.colin.review.isEmpty }
+        // It leaves for Gmail, then the engine takes it out of the drafts.
+        world.colin.departs(answer)
+        try world.store.deleteDraft(answer.id)
+        try await waitUntil { world.mails?.drafts.isEmpty == true }
+        try await settled(world.colin)
+        #expect(world.colin.review.isEmpty)
+        // The copy of the mailbox brings what he sent: the line stays away for good.
+        try world.store.apply(account: Self.me, upserts: [sent("a3", thread: "a", to: Self.marc, at: world.clock.now)])
+        try await settled(world.colin)
+        world.clock.advance(hours: 1)
+        world.colin.refresh()
+        try await settled(world.colin)
+        #expect(world.colin.review.isEmpty)
+    }
+
+    /// A send that never reached the copy (Gmail refused it, the mailbox was not read again): after ten minutes the
+    /// line says Marc waits again.
+    @Test func aSentAnswerThatNeverComesLetsTheLineBack() async throws {
+        let world = try await world { database, _, clock in try marcWaits(database, clock) }
+        defer { try? FileManager.default.removeItem(at: world.root) }
+        try await waitUntil { world.colin.review.map(\.kind) == [.reply] }
+        let answer = MailDraftRow(account: Self.me, mode: .reply, threadKey: key("a"), to: [MailAddress(name: "Marc Dubois", email: Self.marc)],
+                                  subject: "Re: Maquette", body: "Bonjour Marc.", signature: false, createdAt: world.clock.now)
+        try world.store.saveDraft(answer)
+        try await waitUntil { world.colin.review.isEmpty }
+        world.colin.departs(answer)
+        try world.store.deleteDraft(answer.id)
+        try await settled(world.colin)
+        #expect(world.colin.review.isEmpty)
+        world.clock.advance(hours: 0.2)
+        world.colin.refresh()
+        try await waitUntil { world.colin.review.map(\.kind) == [.reply] }
+    }
+
+    /// A reply begun in Gmail, on the phone: Marc's answer is being written.
+    @Test func aDraftBegunInGmailTakesTheLineAway() async throws {
+        let world = try await world { database, _, clock in try marcWaits(database, clock) }
+        defer { try? FileManager.default.removeItem(at: world.root) }
+        try await waitUntil { world.colin.review.map(\.kind) == [.reply] }
+        try world.store.apply(account: Self.me, upserts: [
+            MailMessageRow(account: Self.me, messageID: "g1", threadID: "a", date: world.clock.now.addingTimeInterval(-600),
+                           sender: MailAddress(name: "Moi", email: Self.me), to: [MailAddress(email: Self.marc)], subject: "Re: Maquette", snippet: "",
+                           labels: ["DRAFT"]),
+        ])
+        try await waitUntil { world.colin.review.isEmpty }
+    }
+
+    /// What Paul sent from a mailbox he hides counts: Marc, answered from it, no longer waits.
+    @Test func anAnswerFromAHiddenMailboxCounts() async throws {
+        let world = try await world(accounts: [Self.me, Self.other]) { database, _, clock in try marcWaits(database, clock) }
+        defer { try? FileManager.default.removeItem(at: world.root) }
+        let mails = try #require(world.mails)
+        mails.hidden = [Self.other]
+        try await waitUntil { world.colin.review.map(\.kind) == [.reply] }
+        try world.store.apply(account: Self.other, upserts: [sent("h1", thread: "h", to: Self.marc, at: world.clock.now.addingTimeInterval(-600), box: Self.other)])
+        try await waitUntil { world.colin.review.isEmpty }
+    }
+
     @Test func aLineSetAsideForLaterComesBackTheNextDay() async throws {
         let world = try await world { database, _, clock in try marcWaits(database, clock) }
         defer { try? FileManager.default.removeItem(at: world.root) }

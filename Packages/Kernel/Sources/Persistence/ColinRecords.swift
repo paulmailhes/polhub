@@ -20,7 +20,8 @@ public struct ColinDismissalRow: Codable, FetchableRecord, PersistableRecord, Eq
     public var id: String
     /// « reply », « silent », « unfiled ».
     public var kind: String
-    /// The key of the thread, or the identifier of the event.
+    /// What the line is about: a person's address for « reply », a project's identifier in small letters for
+    /// « silent », an event's identifier for « unfiled ».
     public var subject: String
     public var reason: Reason
     public var projectID: UUID?

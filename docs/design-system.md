@@ -210,8 +210,13 @@ qu'il montre est calculé hors de l'affichage par `ColinLibrary`, par règles se
 - **« À valider »** (`ReviewCard`) : une phrase et un bouton par ligne. Le symbole de la sorte de ligne à gauche (celui
   d'un brouillon prêt dans la couleur d'accent), la phrase en `.rowTitle`, le projet et les jours dessous en `.meta`,
   puis le mot à cliquer (`TextButton` : « Relire », « Ouvrir », « Ranger ») et, pour une ligne qui peut s'écarter, un
-  menu « … ». Un clic sur la ligne fait la même chose que son mot. Cinq lignes, puis « Voir les N autres ». Une ligne
-  part seule quand la chose est faite ; écartée ou rangée à la main, elle part tout de suite.
+  menu « … ». Un clic sur la ligne fait la même chose que son mot, sauf pour une réunion : il l'ouvre, et « Ranger »
+  propose les projets. Cinq lignes, puis « Voir les N autres ». Une ligne part seule quand la chose est faite ;
+  écartée ou rangée à la main, elle part tout de suite.
+- **Une ligne par personne, une ligne par projet** (`ReviewRules`) : « attend ta réponse » se lit sur l'échange avec
+  la personne dans tous les fils et toutes les boîtes (`Exchanges`), « ne répond plus » sur le projet entier. Lues
+  fil par fil, ces deux lignes parlaient dix fois trop : on répond dans un nouveau mail aussi souvent que dans le fil.
+  Écarter une ligne vaut donc pour la personne ou pour le projet.
 - **« Aujourd'hui »** (`TodayCard`) : ce qui reste de la journée. Le prochain rendez-vous dit « dans 40 min » ou « en
   cours » et porte « Rejoindre » en `.glassProminent` à la couleur de son compte ; les autres gardent l'icône. S'il ne
   reste rien, le rendez-vous suivant avec son jour (« Demain 10:00 »).

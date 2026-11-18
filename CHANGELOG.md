@@ -8,13 +8,22 @@ GitHub, et l'app la montre dans Réglages › Mises à jour.
 **Un nouvel Accueil : d'un regard, ce qui attend ton clic et où tu en es.**
 
 - **« À valider »** liste ce qui t'attend, une phrase et un bouton par ligne : « Brouillon prêt pour Claire »
-  (Relire), « Marc attend ta réponse » depuis 3 jours (Ouvrir), « Anne ne répond plus » depuis 7 jours (Ouvrir),
-  « Réunion à ranger » (Ranger). Une ligne part toute seule quand la chose est faite.
+  (Relire), « Marc attend ta réponse » (Ouvrir), « Anne ne répond plus » (Ouvrir), « Réunion à ranger » (Ranger). Une
+  ligne part toute seule quand la chose est faite.
+- **« Marc attend ta réponse »** se lit par personne, pas par fil : Marc t'a écrit, et depuis tu ne lui as rien
+  écrit, dans aucun fil d'aucune de tes boîtes. La ligne vient après 3 jours (réglable) et part après 14. Une seule
+  ligne par personne. Jamais pour une invitation d'agenda, une réponse automatique, une lettre d'information ou un
+  collègue ; ni quand un brouillon pour lui est en cours, commencé dans Polhub ou dans Gmail ; ni quand vous vous êtes
+  vus en rendez-vous depuis, ou que vous vous voyez dans la semaine.
+- **« Anne ne répond plus »** se lit par projet : ton dernier mail du projet a 7 jours ou plus (réglable, 45 au plus),
+  et depuis personne n'a écrit dans un fil du projet, aucune des personnes à qui tu l'as envoyé ne t'a écrit ailleurs
+  (une réponse automatique ne compte pas, tes collègues non plus), et aucun rendez-vous du projet ne s'est tenu ni
+  n'est prévu. Une seule ligne par projet, jamais pour un projet terminé.
 - Le brouillon ou le fil s'ouvre **par-dessus l'Accueil** : tu relis, tu envoies, tu fermes, et la ligne suivante est
   là. Rien ne part sans ton clic sur « Envoyer ».
-- Une ligne fausse s'écarte par son menu « … » : « Pas besoin » (jusqu'au prochain message du fil), « Plus tard »
-  (jusqu'à demain), et pour un client muet « Anne a répondu ailleurs ». Dit deux fois pour un même projet, Polhub
-  ne signale plus les silences de ce projet.
+- Une ligne fausse s'écarte par son menu « … » : « Pas besoin » (jusqu'au prochain message de la personne, ou
+  jusqu'à ton prochain mail du projet), « Plus tard » (jusqu'à demain), et pour un client muet « Anne a répondu
+  ailleurs ». Dit deux fois de suite pour un même projet, Polhub ne signale plus les silences de ce projet.
 - **« Aujourd'hui »** montre ce qui reste de ta journée, le prochain rendez-vous en tête avec « Rejoindre ». S'il ne
   reste rien, le rendez-vous suivant (« Demain 10:00 »).
 - **« Le point »** tient en quatre phrases au plus : ta semaine, ce qui est à livrer, les projets où c'est à toi de
@@ -27,8 +36,10 @@ GitHub, et l'app la montre dans Réglages › Mises à jour.
   Réunions.
 - **Réglages › Colin** : après combien de jours signaler un mail sans réponse (3 par défaut) et un client muet (7 par
   défaut). **Réglages › Notifications › Colin** : « Un brouillon est prêt ».
-- Tout cela est calculé sur ton Mac, par des règles : aucune IA, aucun token, rien ne sort. Les boîtes que tu masques
-  dans Mails ne sont pas signalées. Colin, l'agent à qui tu parleras, arrive à l'étape suivante.
+- Tout cela est calculé sur ton Mac, par des règles : aucune IA, aucun token, rien ne sort. Une boîte que tu masques
+  dans Mails ne porte jamais « attend ta réponse » ni « ne répond plus » (ce que tu en as envoyé compte) ; un
+  brouillon préparé par un agent s'affiche quelle que soit sa boîte. Colin, l'agent à qui tu parleras, arrive à
+  l'étape suivante.
 
 ## 0.31.3 — 18 novembre 2026
 
