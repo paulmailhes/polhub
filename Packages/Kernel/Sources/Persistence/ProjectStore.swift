@@ -45,7 +45,7 @@ public struct ProjectStore: Sendable {
     /// A write that says who makes it: the stamp first, the change, and the stamp gone, in one transaction — none is
     /// ever left for the next writer, a helper of before, to pass for. A base not yet journaled takes only Paul's
     /// writes (the app migrates it as it opens); a helper has to wait for the app.
-    private func write<T>(at date: Date = Date(), _ body: (Database) throws -> T) throws -> T {
+    func write<T>(at date: Date = Date(), _ body: (Database) throws -> T) throws -> T {
         try writer.write { db in
             let journaled = try db.tableExists("change_stamp")
             guard journaled || byPaul else { throw ProjectStoreError.needsApp }
@@ -59,7 +59,7 @@ public struct ProjectStore: Sendable {
         }
     }
 
-    private static func key(_ id: UUID) -> String { id.uuidString.lowercased() }
+    static func key(_ id: UUID) -> String { id.uuidString.lowercased() }
 
     // MARK: - Projects
 

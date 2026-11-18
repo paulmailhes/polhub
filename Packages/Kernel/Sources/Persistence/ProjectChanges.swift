@@ -203,3 +203,226 @@ enum ProjectChangeSchema {
         return all
     }
 }
+
+/// A field of a project, for the rules: what Paul changed himself is left alone.
+public struct ProjectFieldKey: Hashable, Sendable {
+    public var projectID: UUID
+    public var field: ProjectChangeField
+
+    public init(projectID: UUID, field: ProjectChangeField) {
+        self.projectID = projectID
+        self.field = field
+    }
+}
+
+/// One change as Paul reads it: a batch (one gesture of an agent, one tool call, one rule), or, for a helper of before
+/// that writes none, its writes on a project a few seconds apart.
+public struct ProjectChangeLine: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var projectID: UUID
+    public var projectName: String
+    public var who: ChangeAuthor
+    /// When it was made: its last write.
+    public var at: Date
+    public var reason: String?
+    public var rows: [ProjectChangeRow]
+    /// Undone by Paul.
+    public var undoneAt: Date?
+
+    public init(id: String, projectID: UUID, projectName: String, who: ChangeAuthor, at: Date, reason: String?, rows: [ProjectChangeRow],
+                undoneAt: Date?) {
+        self.id = id
+        self.projectID = projectID
+        self.projectName = projectName
+        self.who = who
+        self.at = at
+        self.reason = reason
+        self.rows = rows
+        self.undoneAt = undoneAt
+    }
+}
+
+/// What « Annuler » did: everything put back, a part (what changed since stays), or nothing (all of it changed since).
+public enum UndoOutcome: Equatable, Sendable {
+    case undone
+    case partly(kept: Int)
+    case changedSince
+}
+
+/// The journal of the changes, read and undone (step 3 of Colin, 18/11).
+public struct ProjectChanges: Sendable {
+    public let database: AppDatabase
+
+    public init(_ database: AppDatabase) {
+        self.database = database
+    }
+
+    /// Writes of a helper of before, on one project, this close: one line.
+    static let sameLine: TimeInterval = 5
+
+    /// Whether the base keeps the journal (v18).
+    public func isReady() throws -> Bool {
+        try database.writer.read { try $0.tableExists("change_stamp") && $0.tableExists("project_change") }
+    }
+
+    /// The changes made since `since` by those `authors`, the oldest first.
+    public func lines(since: Date, authors: Set<ChangeAuthor>) throws -> [ProjectChangeLine] {
+        try database.writer.read { try Self.lines($0, since: since, authors: authors) }
+    }
+
+    /// The same, now and after every change, on the main queue.
+    public func observeLines(since: Date, authors: Set<ChangeAuthor>,
+                             onChange: @escaping @MainActor @Sendable ([ProjectChangeLine]) -> Void) -> AnyDatabaseCancellable {
+        ValueObservation
+            .tracking { try Self.lines($0, since: since, authors: authors) }
+            .removeDuplicates()
+            .start(in: database.writer, scheduling: .async(onQueue: .main), onError: { _ in }, onChange: { lines in
+                MainActor.assumeIsolated { onChange(lines) }
+            })
+    }
+
+    static func lines(_ db: Database, since: Date, authors: Set<ChangeAuthor>) throws -> [ProjectChangeLine] {
+        guard !authors.isEmpty, try db.tableExists("project_change") else { return [] }
+        let marks = authors.map { _ in "?" }.joined(separator: ", ")
+        let rows = try ProjectChangeRow.fetchAll(db, sql: "SELECT * FROM project_change WHERE at >= ? AND who IN (\(marks)) ORDER BY id",
+                                                 arguments: StatementArguments([since] + authors.map(\.rawValue).sorted())!)
+        let ids = Set(rows.map(\.projectID))
+        var names: [UUID: String] = [:]
+        for row in try Row.fetchAll(db, sql: "SELECT id, name FROM project") {
+            guard let id = UUID(uuidString: row["id"]), ids.contains(id) else { continue }
+            names[id] = row["name"]
+        }
+        return group(rows, names: names)
+    }
+
+    /// Rows into lines: a batch is a line; rows with no batch join the line before them when it has none either, is
+    /// of the same project and author, and was written at most `sameLine` seconds earlier. A row that came back to
+    /// where it began says nothing; a line of nothing is not one.
+    public static func group(_ rows: [ProjectChangeRow], names: [UUID: String]) -> [ProjectChangeLine] {
+        var lines: [ProjectChangeLine] = []
+        var byBatch: [String: Int] = [:]
+        for row in rows where row.before != row.after {
+            if let batch = row.batch, let index = byBatch[batch] {
+                lines[index].rows.append(row)
+                lines[index].at = max(lines[index].at, row.at)
+                continue
+            }
+            if row.batch == nil, let last = lines.indices.last, lines[last].rows.last?.batch == nil, lines[last].projectID == row.projectID,
+               lines[last].who == row.who, row.at.timeIntervalSince(lines[last].at) <= sameLine {
+                lines[last].rows.append(row)
+                lines[last].at = max(lines[last].at, row.at)
+                continue
+            }
+            if let batch = row.batch { byBatch[batch] = lines.count }
+            lines.append(ProjectChangeLine(id: "c\(row.id ?? 0)", projectID: row.projectID, projectName: names[row.projectID] ?? "",
+                                           who: row.who, at: row.at, reason: row.reason, rows: [row], undoneAt: nil))
+        }
+        for index in lines.indices {
+            let undone = lines[index].rows.map(\.undoneAt)
+            lines[index].undoneAt = undone.contains(nil) ? nil : undone.compactMap { $0 }.max()
+        }
+        return lines
+    }
+
+    /// What Paul changed himself since `since`, of what a rule may change.
+    public func paulTouches(since: Date) throws -> Set<ProjectFieldKey> {
+        try database.writer.read { db in
+            guard try db.tableExists("project_change") else { return [] }
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT DISTINCT projectID, field FROM project_change
+                WHERE who = 'paul' AND at >= ? AND before IS NOT after
+                """, arguments: [since])
+            return Set(rows.compactMap { row in
+                guard let id = UUID(uuidString: row["projectID"]), let field = ProjectChangeField(rawValue: row["field"]) else { return nil }
+                return ProjectFieldKey(projectID: id, field: field)
+            })
+        }
+    }
+
+    /// The events a rule already answered since `since`, undone or not.
+    public func sources(since: Date) throws -> Set<String> {
+        try database.writer.read { db in
+            guard try db.tableExists("project_change") else { return [] }
+            return Set(try String.fetchAll(db, sql: "SELECT DISTINCT source FROM project_change WHERE source IS NOT NULL AND at >= ?",
+                                           arguments: [since]))
+        }
+    }
+
+    /// « Annuler »: in one transaction of Paul's, each change of the line, the last first, is put back if what it wrote
+    /// is still there; what changed since stays. The line is marked undone either way.
+    public func undo(_ line: ProjectChangeLine, at date: Date) throws -> UndoOutcome {
+        let store = ProjectStore(database).signed(.paul)
+        return try store.write(at: date) { db in
+            let ids = line.rows.compactMap(\.id)
+            guard !ids.isEmpty else { return .undone }
+            let marks = ids.map { _ in "?" }.joined(separator: ", ")
+            let rows = try ProjectChangeRow.fetchAll(db, sql: "SELECT * FROM project_change WHERE id IN (\(marks)) AND undoneAt IS NULL ORDER BY id DESC",
+                                                     arguments: StatementArguments(ids)!)
+            guard !rows.isEmpty else { return .undone }
+            var kept = 0
+            for row in rows where try !Self.putBack(row, db, at: date) { kept += 1 }
+            try db.execute(sql: "UPDATE project_change SET undoneAt = ? WHERE id IN (\(marks))", arguments: StatementArguments([date] + ids)!)
+            return kept == 0 ? .undone : kept == rows.count ? .changedSince : .partly(kept: kept)
+        }
+    }
+
+    /// One change put back; `false` when what it wrote changed since.
+    private static func putBack(_ row: ProjectChangeRow, _ db: Database, at date: Date) throws -> Bool {
+        let project = ProjectStore.key(row.projectID)
+        switch row.field {
+        case .status:
+            let current = try String.fetchOne(db, sql: "SELECT status FROM project WHERE id = ? AND deletedAt IS NULL", arguments: [project])
+            guard current == row.after, let before = row.before.flatMap(ProjectStatus.init(rawValue:)) else { return false }
+            try ProjectStore.place(db, row.projectID, to: before, before: try neighbour(of: row, in: before, db), at: date, edited: true)
+            return true
+        case .dueDate, .todo, .client, .notes:
+            let column = row.field.rawValue
+            let current = try String.fetchOne(db, sql: "SELECT \(column) FROM project WHERE id = ?", arguments: [project])
+            guard current == row.after else { return false }
+            try db.execute(sql: "UPDATE project SET \(column) = ?, updatedAt = ?, lastEditedAt = ? WHERE id = ?",
+                           arguments: [row.before, date, date, project])
+            return true
+        case .actionAdded:
+            guard let action = try Row.fetchOne(db, sql: "SELECT text, done FROM action WHERE id = ?", arguments: [row.subject]) else { return true }
+            guard action["text"] == row.after, action["done"] == false else { return false }
+            try db.execute(sql: "DELETE FROM action WHERE id = ?", arguments: [row.subject])
+            return true
+        case .actionDone, .actionText:
+            let column = row.field == .actionDone ? "done" : "text"
+            guard let current = try String.fetchOne(db, sql: "SELECT CAST(\(column) AS TEXT) FROM action WHERE id = ?", arguments: [row.subject]),
+                  current == row.after else { return false }
+            let value: DatabaseValueConvertible? = row.field == .actionDone ? (row.before == "1") : row.before
+            try db.execute(sql: "UPDATE action SET \(column) = ?, updatedAt = ? WHERE id = ?", arguments: [value, date, row.subject])
+            return true
+        case .actionRemoved:
+            guard try Bool.fetchOne(db, sql: "SELECT EXISTS(SELECT 1 FROM action WHERE id = ?)", arguments: [row.subject]) == false else { return true }
+            guard let detail = row.detail else { return false }
+            try db.execute(sql: """
+                INSERT INTO action (id, projectID, meetingID, text, done, addedOn, dueDate, owner, position, createdAt, updatedAt)
+                SELECT json_extract(:d, '$.id'), json_extract(:d, '$.projectID'), NULL, json_extract(:d, '$.text'), json_extract(:d, '$.done'),
+                       json_extract(:d, '$.addedOn'), json_extract(:d, '$.dueDate'), json_extract(:d, '$.owner'), json_extract(:d, '$.position'),
+                       json_extract(:d, '$.createdAt'), json_extract(:d, '$.updatedAt')
+                WHERE EXISTS(SELECT 1 FROM project WHERE id = json_extract(:d, '$.projectID'))
+                """, arguments: ["d": detail])
+            return db.changesCount > 0
+        case .journalAdded:
+            try db.execute(sql: "DELETE FROM project_journal WHERE id = ?", arguments: [row.subject])
+            return true
+        }
+    }
+
+    /// The card a project goes back before, in its old column: the one that came after it, if it is still there;
+    /// else the first one its old place came before; else none (the bottom).
+    private static func neighbour(of row: ProjectChangeRow, in status: ProjectStatus, _ db: Database) throws -> UUID? {
+        let detail = row.detail.flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] } ?? [:]
+        if let next = detail["next"] as? String,
+           try String.fetchOne(db, sql: "SELECT status FROM project WHERE id = ? AND deletedAt IS NULL", arguments: [next]) == status.rawValue {
+            return UUID(uuidString: next)
+        }
+        guard let order = (detail["order"] as? NSNumber)?.doubleValue else { return nil }
+        let after = try String.fetchOne(db, sql: """
+            SELECT id FROM project WHERE status = ? AND deletedAt IS NULL AND id <> ? AND kanbanOrder > ? ORDER BY kanbanOrder, name LIMIT 1
+            """, arguments: [status.rawValue, ProjectStore.key(row.projectID), order])
+        return after.flatMap(UUID.init(uuidString:))
+    }
+}
