@@ -158,7 +158,8 @@ import Testing
     @Test func theBarSaysWhatColinCanDo() {
         let ask = "Écris ou dicte à Colin…"
         #expect(ColinThreadText.bar(.off) == .turnOn)
-        #expect(ColinThreadText.bar(.waitingCall) == .field(placeholder: "Colin attend la fin de ton call", enabled: false, note: nil))
+        // The Accueil's pass (18/11): why it waits is said above the field, not only in its empty text.
+        #expect(ColinThreadText.bar(.waitingCall) == .field(placeholder: ask, enabled: false, note: "Colin attend la fin de ton call."))
         #expect(ColinThreadText.bar(.idle) == .field(placeholder: ask, enabled: true, note: nil))
         #expect(ColinThreadText.bar(.working("Colin lit tes mails…")) == .field(placeholder: ask, enabled: true, note: nil))
         #expect(ColinThreadText.bar(.settling) == .field(placeholder: ask, enabled: true, note: "Le Mac vient de se réveiller : Colin répond dans un instant."))

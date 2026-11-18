@@ -393,6 +393,18 @@ public final class ColinThread: ObservableObject {
         send()
     }
 
+    /// Three suggestions above the bar (the Accueil's pass, 18/11), from the day, until Paul asks Colin something today:
+    /// who waits for his answer, where a project to deliver stands, what to start tomorrow.
+    public func suggestions(review: [ReviewRules.Line], due: [String]) -> [String] {
+        let today = calendar.startOfDay(for: now())
+        guard !messages.contains(where: { $0.author == .paul && $0.createdAt >= today }) else { return [] }
+        var said: [String] = []
+        if review.contains(where: { $0.kind == .reply }) { said.append("Qui attend ma réponse ?") }
+        if let project = due.first { said.append("Où on en est sur \(project) ?") }
+        said.append("Sur quoi je me lance demain ?")
+        return said
+    }
+
     /// A suggestion, or a figure of « Le point »: its question in the bar, not sent.
     public func fill(_ text: String) {
         draft = text

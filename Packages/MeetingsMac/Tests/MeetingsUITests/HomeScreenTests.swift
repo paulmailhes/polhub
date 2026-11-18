@@ -199,6 +199,11 @@ struct HomeScreenTests {
                                    base: URL(fileURLWithPath: "/tmp/essai.sqlite"), account: nil, work: work)
             return ColinThread(database: database, runner: ColinRunner(launcher: launcher, setup: { setup }), defaults: defaults, isBusy: { busy })
         }
+        func colinThreadOn(_ base: AppDatabase) throws -> ColinThread {
+            let defaults = try #require(UserDefaults(suiteName: "accueil-colin-\(UUID().uuidString)"))
+            defaults.set(true, forKey: Preferences.Key.colinOn)
+            return ColinThread(database: base, runner: nil, defaults: defaults)
+        }
         let running = try colinThread(on: true, busy: false, hanging: false)
         try await waitUntil { running.messages.count == 4 && running.changes.count == 1 }
         func colinPage(_ thread: ColinThread) -> some View {
@@ -213,6 +218,14 @@ struct HomeScreenTests {
         try running.saveKnowledge("Écrire court, à mon ton.\nMon lien de rendez-vous : https://exemple.fr/rdv")
         try await LiveWindow.capture(ColinSettingsPane(thread: running, probe: nil).background(Color(nsColor: .windowBackgroundColor)),
                                      to: output.appending(path: "reglages-colin-barre.png"), size: NSSize(width: 700, height: 860))
+        // The Accueil's pass (18/11): the bar with a long dictation, and with the day's suggestions.
+        running.draft = "Prépare une relance pour Anne : la maquette est prête,\nles plans du rez-de-chaussée suivent jeudi,\net je peux passer la voir lundi.\nGarde un ton simple."
+        try await LiveWindow.capture(colinPage(running), to: output.appending(path: "accueil-barre-longue.png"), size: NSSize(width: 928, height: 760))
+        let blank = try AppDatabase.inMemory()
+        let fresh = try colinThreadOn(blank)
+        try await LiveWindow.capture(ColinComposer(thread: fresh, suggestions: ["Qui attend ma réponse ?", "Où on en est sur Cabinet Martin ?", "Sur quoi je me lance demain ?"])
+                                        .padding(Space.xl).background(Color(nsColor: .windowBackgroundColor)),
+                                     to: output.appending(path: "accueil-barre-suggestions.png"), size: NSSize(width: 760, height: 180))
         running.draft = "Et Maison Leroy ?"
         running.send()
         try await waitUntil { !running.streaming.isEmpty }

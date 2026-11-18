@@ -157,6 +157,18 @@ import Testing
         #expect(world.thread.messages.filter { $0.author == .paul }.map(\.text) == ["Où on en est ?", "Où on en est ?"])
     }
 
+    /// Three suggestions above the bar, from the day, until Paul asks something today.
+    @Test func suggestionsComeFromTheDay() async throws {
+        let world = try world(FakeLauncher { _, _ in Self.session() })
+        let waiting = ReviewRules.Line(id: "reply-marc", kind: .reply, person: "Marc", detail: "Studio Nord", days: 4)
+        #expect(world.thread.suggestions(review: [waiting], due: ["Cabinet Martin"])
+                == ["Qui attend ma réponse ?", "Où on en est sur Cabinet Martin ?", "Sur quoi je me lance demain ?"])
+        #expect(world.thread.suggestions(review: [], due: []) == ["Sur quoi je me lance demain ?"])
+        ask(world.thread, "Où on en est ?")
+        try await waitUntil { world.thread.messages.count == 2 }
+        #expect(world.thread.suggestions(review: [waiting], due: ["Cabinet Martin"]).isEmpty)
+    }
+
     @Test func fillPutsTheQuestionInTheBar() throws {
         let world = try world(FakeLauncher { _, _ in Self.session() })
         world.thread.fill("Qui attend ma réponse ?")

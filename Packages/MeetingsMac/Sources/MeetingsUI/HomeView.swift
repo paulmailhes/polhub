@@ -113,7 +113,8 @@ struct HomeView: View {
                     }
                 }
                 .animation(Motion.quick, value: following)
-                if let thread { bar(thread) }
+                // The bar floats over the thread, which passes under its glass.
+                .safeAreaBar(edge: .bottom) { if let thread { bar(thread) } }
             }
             ScrollView {
                 lists
@@ -133,13 +134,14 @@ struct HomeView: View {
             lists
             ColinHome(colin: colin, thread: thread, mails: mails, router: router)
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if let thread { bar(thread).padding(.horizontal, PageMetrics.horizontal - Space.xl) }
+        .safeAreaBar(edge: .bottom) {
+            if let thread { bar(thread).padding(.horizontal, PageMetrics.horizontal) }
         }
     }
 
     private func bar(_ thread: ColinThread) -> some View {
-        ColinComposer(thread: thread)
+        ColinComposer(thread: thread, suggestions: thread.suggestions(review: colin.review,
+                                                                      due: Briefing.due(agenda.projects, now: Date(), calendar: CalendarView.calendar).map(\.name)))
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
     }
 

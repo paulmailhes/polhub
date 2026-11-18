@@ -128,7 +128,7 @@ enum ColinThreadText {
     static func bar(_ status: ColinThread.Status) -> Bar {
         switch status {
         case .off: .turnOn
-        case .waitingCall: .field(placeholder: "Colin attend la fin de ton call", enabled: false, note: nil)
+        case .waitingCall: .field(placeholder: ask, enabled: false, note: "Colin attend la fin de ton call.")
         case .settling: .field(placeholder: ask, enabled: true, note: "Le Mac vient de se réveiller : Colin répond dans un instant.")
         case .broken(let sentence): .field(placeholder: ask, enabled: true, note: sentence)
         case .idle, .starting, .working: .field(placeholder: ask, enabled: true, note: nil)
@@ -182,48 +182,143 @@ struct ColinThreadView: View {
     }
 }
 
-/// Colin's bar (18/11): a field that grows, ↑ to send (⌘↩ too), the stop arrow while he answers. Off, « Allumer
-/// Colin » in its place; during a call, the field waits.
+/// Colin's bar (the Accueil's pass, 18/11): a glass capsule of 44 points, its text centred on one line, growing up
+/// to eight; « Dicter » and the round send button at its foot (■ while he answers). Return sends, Shift-Return goes to
+/// the line, Escape stops. Why it waits is said above the field, in the glass; off, a calm card to turn Colin on.
 struct ColinComposer: View {
     @ObservedObject var thread: ColinThread
+    /// What to ask, from the day, while the field is empty.
+    var suggestions: [String] = []
     @FocusState private var focused: Bool
 
+    private var empty: Bool { thread.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
     var body: some View {
-        switch ColinThreadText.bar(thread.status) {
-        case .turnOn:
-            HStack {
-                Spacer()
-                Button("Allumer Colin") { thread.turnOn() }
-                    .buttonStyle(.glassProminent)
-                Spacer()
-            }
-            .padding(.bottom, Space.l)
-        case .field(let placeholder, let enabled, let note):
-            VStack(alignment: .leading, spacing: Space.xs) {
-                if let note {
-                    Text(note).font(.meta).foregroundStyle(.secondary).padding(.horizontal, Space.xl + Space.s)
+        Group {
+            switch ColinThreadText.bar(thread.status) {
+            case .turnOn:
+                ColinOffCard { thread.turnOn() }
+            case .field(let placeholder, let enabled, let note):
+                VStack(alignment: .leading, spacing: Space.s) {
+                    if enabled, empty, !thread.isAnswering, !suggestions.isEmpty {
+                        SuggestionChips(suggestions: suggestions) { thread.fill($0); focused = true }
+                    }
+                    field(placeholder: placeholder, enabled: enabled, note: note)
                 }
-                FloatingBar(cornerRadius: Radius.hero) {
-                    HStack(alignment: .bottom, spacing: Space.s) {
-                        TextField(placeholder, text: $thread.draft, axis: .vertical)
-                            .font(.rowBody)
-                            .textFieldStyle(.plain)
-                            .lineLimit(1...8)
-                            .focused($focused)
-                            .disabled(!enabled)
-                            .onSubmit { thread.send() }
-                        if thread.isAnswering {
-                            IconButton("stop.fill", help: "Arrêter la réponse") { thread.stop() }
-                        } else {
-                            // ⌘↩ only while the bar has the focus: a draft open over the Accueil has its own.
-                            let send = IconButton("arrow.up", help: "Envoyer à Colin (⌘↩)") { thread.send() }
-                                .disabled(!enabled || thread.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                            if focused { send.keyboardShortcut(.return, modifiers: .command) } else { send }
+            }
+        }
+        .frame(maxWidth: ThreadMetrics.column)
+        .frame(maxWidth: .infinity)
+        .padding(.bottom, Space.l)
+        .onChange(of: focused) { _, now in if now { thread.focused() } }
+    }
+
+    private func field(placeholder: String, enabled: Bool, note: String?) -> some View {
+        VStack(alignment: .leading, spacing: Space.xs) {
+            if let note {
+                Text(note).font(.meta).foregroundStyle(.secondary).padding(.horizontal, Space.s).padding(.top, 2)
+            }
+            HStack(alignment: .bottom, spacing: Space.s) {
+                TextField(placeholder, text: $thread.draft, axis: .vertical)
+                    .font(.rowTitle)
+                    .textFieldStyle(.plain)
+                    .lineLimit(1...8)
+                    // As tall as the buttons on one line: the text sits in the middle, the buttons at the foot after.
+                    .padding(.vertical, 5)
+                    .padding(.leading, Space.s)
+                    .focused($focused)
+                    .disabled(!enabled)
+                    .onKeyPress(keys: [.return, .escape]) { press in
+                        switch ComposerKeys.action(key: press.key, modifiers: press.modifiers, composing: ComposerKeys.composing,
+                                                   answering: thread.isAnswering) {
+                        case .send:
+                            thread.send()
+                            return .handled
+                        case .newline:
+                            thread.draft += "\n"
+                            return .handled
+                        case .stop:
+                            thread.stop()
+                            return .handled
+                        case .none:
+                            return press.key == .return && !ComposerKeys.composing ? .handled : .ignored
                         }
                     }
+                RoundButton(symbol: "mic", help: "Dicter", prominent: false) {
+                    focused = true
+                    // macOS's own dictation, in the field that has the focus.
+                    DispatchQueue.main.async { NSApp.sendAction(Selector(("startDictation:")), to: nil, from: nil) }
+                }
+                .disabled(!enabled)
+                if thread.isAnswering {
+                    RoundButton(symbol: "stop.fill", help: "Arrêter la réponse", prominent: true) { thread.stop() }
+                } else {
+                    RoundButton(symbol: "arrow.up", help: "Envoyer à Colin (↩)", prominent: !empty && enabled) { thread.send() }
+                        .disabled(!enabled || empty)
                 }
             }
-            .onChange(of: focused) { _, now in if now { thread.focused() } }
         }
+        .padding(Space.s)
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
+    }
+}
+
+/// A round button of the bar, 28 points: filled with the accent when it is the one to press, quiet otherwise.
+private struct RoundButton: View {
+    let symbol: String
+    let help: String
+    let prominent: Bool
+    let action: () -> Void
+    @Environment(\.isEnabled) private var enabled
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(prominent ? Color.white : Color.secondary)
+                .contentTransition(.symbolEffect(.replace))
+                .frame(width: 28, height: 28)
+                .background(prominent ? Color.accentColor : Color.primary.opacity(enabled ? 0.08 : 0.04), in: Circle())
+        }
+        .buttonStyle(.plain)
+        .help(help)
+    }
+}
+
+/// What to ask Colin, from the day: a click puts it in the bar, it is not sent.
+private struct SuggestionChips: View {
+    let suggestions: [String]
+    let pick: (String) -> Void
+
+    var body: some View {
+        HStack(spacing: Space.s) {
+            ForEach(suggestions, id: \.self) { said in
+                Button { pick(said) } label: {
+                    Text(said).font(.meta).lineLimit(1).padding(.horizontal, Space.m).padding(.vertical, 6)
+                        .background(Surface.fill, in: Capsule())
+                        .overlay { Capsule().strokeBorder(Surface.stroke) }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, Space.xs)
+    }
+}
+
+/// Colin off: a calm card in the bar's place.
+private struct ColinOffCard: View {
+    let turnOn: () -> Void
+
+    var body: some View {
+        HStack(spacing: Space.m) {
+            Image(systemName: "moon.zzz").foregroundStyle(.secondary)
+            Text("Colin est à l'arrêt").font(.rowBody).foregroundStyle(.secondary)
+            Spacer(minLength: Space.s)
+            Button("Allumer Colin", action: turnOn).buttonStyle(.glassProminent)
+        }
+        .padding(.horizontal, Space.l)
+        .padding(.vertical, Space.m)
+        .background(Surface.fill, in: RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: Radius.hero, style: .continuous).strokeBorder(Surface.stroke) }
     }
 }
