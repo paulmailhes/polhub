@@ -60,6 +60,9 @@ import Testing
         defer { defaults.removePersistentDomain(forName: suite) }
         #expect(Preferences.Key.colinOn == "colin.enMarche")
         #expect(!Preferences(defaults: defaults).colinOn)
+        // Step 3 (18/11): Colin does not keep the kanban by himself until Paul says so.
+        #expect(Preferences.Key.colinKanban == "colin.tableauSeul")
+        #expect(!Preferences(defaults: defaults).colinKanban)
         defaults.set(true, forKey: Preferences.Key.colinOn)
         #expect(Preferences(defaults: defaults).colinOn)
         defaults.set("oui", forKey: Preferences.Key.colinOn)

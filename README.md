@@ -29,7 +29,9 @@ usage : il n'est ni configurable pour d'autres navigateurs, ni traduit.
 - **Colin**, sur l'Accueil : ce qui attend un clic (un brouillon prêt, un mail sans réponse, un client muet, une
   réunion à ranger), « Le point » au retour, et une barre pour lui parler. Colin passe par le Claude Code du Mac et
   reste à l'arrêt tant que l'utilisateur ne l'allume pas. Allumé, ce qu'on lui écrit et ce qu'il lit pour répondre
-  partent chez Anthropic ; il prépare des brouillons, il n'envoie rien.
+  partent chez Anthropic ; il prépare des brouillons, il n'envoie rien. Il change le tableau des projets quand on le
+  lui demande, et peut le tenir seul (après un mail envoyé, un rendez-vous pris) : chaque changement d'un agent sur un
+  projet s'annule d'un clic.
 - **Se met à jour seul** à partir des versions publiées ici, et jamais pendant une réunion.
 
 ## Configuration requise

@@ -4,7 +4,10 @@ import SwiftUI
 /// The words of Réglages › Colin (18/11).
 enum ColinSettingsText {
     /// What leaves the Mac when Colin is on.
-    static let footer = "Colin allumé, ce que tu lui écris, « Ce que Colin sait », vos derniers échanges, les lignes de l'Accueil et ce qu'il lit pour te répondre partent chez Anthropic par ton Claude Code. Jamais l'audio ni les pièces jointes. Il n'envoie rien : un brouillon t'attend toujours."
+    static let footer = "Colin allumé, ce que tu lui écris, « Ce que Colin sait », vos derniers échanges, les lignes de l'Accueil et ce qu'il lit pour te répondre partent chez Anthropic par ton Claude Code. Jamais l'audio ni les pièces jointes. Il n'envoie rien : un brouillon t'attend toujours. Il change le kanban quand tu le lui demandes, et chaque changement s'annule depuis l'Accueil."
+
+    /// « Colin tient le kanban seul » (step 3, 18/11): its two rules, made on the Mac, with no model.
+    static let kanban = "Colin en marche, après un mail que tu envoies dans un fil de projet : priorité 1 et « En attente retour de … ». Un rendez-vous pris dans un projet devient l'échéance si elle est vide ou passée. Jamais un projet en pause ou terminé, ni ce que tu as changé toi-même aujourd'hui. Chaque changement s'affiche dans le fil de Colin, avec « Annuler »."
 
     /// The read-only line: what Colin did this week, and what the API would have charged for it.
     static func week(count: Int, costUSD: Double) -> String {
@@ -21,6 +24,7 @@ struct ColinSettingsPane: View {
     var probe: ColinProbeControl?
     @AppStorage(Preferences.Key.colinReplyDays) private var replyDays = Preferences.Default.colinReplyDays
     @AppStorage(Preferences.Key.colinSilentDays) private var silentDays = Preferences.Default.colinSilentDays
+    @AppStorage(Preferences.Key.colinKanban) private var kanban = false
     @State private var knowledge = ""
     @State private var week = ""
 
@@ -33,6 +37,11 @@ struct ColinSettingsPane: View {
                     Text(week).font(.meta).foregroundStyle(.secondary)
                 } footer: {
                     Text(ColinSettingsText.footer).font(.meta)
+                }
+                Section {
+                    Toggle("Colin tient le kanban seul", isOn: $kanban)
+                } footer: {
+                    Text(ColinSettingsText.kanban).font(.meta)
                 }
                 Section {
                     // Kept a second after the last keystroke, and at once when Paul leaves the page.

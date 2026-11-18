@@ -229,7 +229,13 @@ qu'il montre est calculé hors de l'affichage par `ColinLibrary`, par règles se
   « Copier » ; une ligne à garder, en gris avec « Garder » ; un brouillon de la réponse, une ligne avec « Relire ».
   Ce que Colin fait pendant qu'il répond (« Colin lit tes mails… ») et la fin d'une réponse (« Arrêté : … ») en
   `.meta` gris. **Un lien écrit par Colin n'est jamais cliquable** (`ColinAnswer.inline`) : son adresse s'écrit en
-  clair.
+  clair. **Ce que Colin a changé sur un projet** (`ChangeRow`, 18/11) prend sa place dans le fil à son heure : une
+  icône grise (`arrow.triangle.2.circlepath`), une phrase en `.rowBody` (« « Studio Nord » : priorité 2 → priorité 1,
+  tâche « En attente retour de Marc ». »), la raison en `.meta` gris dessous, et « Annuler » (`TextButton`) à droite ;
+  annulé, « Annulé. » prend la place de la raison.
+- **« Le point » et « Voir »** (18/11) : la ligne « Depuis… » compte aussi les projets qui ont bougé sans Paul (Colin
+  ou un agent) ; « Voir », au bout de cette ligne, ouvre une feuille (`ChangesSheet`) titrée de la phrase du point,
+  avec les mêmes lignes que le fil, signées (« Un agent, aujourd'hui 16:27 »), et « Fermer ».
 - **La barre de Colin** (`ColinComposer`) : un champ qui grandit (une à huit lignes) dans une `FloatingBar` de verre
   au rayon `Radius.hero`, ↑ pour envoyer (`IconButton`, ⌘↩ quand le champ a le focus), le carré d'arrêt pendant une
   réponse. En deux colonnes, chaque colonne défile seule et la barre reste sous celle de Colin ; en fenêtre étroite,

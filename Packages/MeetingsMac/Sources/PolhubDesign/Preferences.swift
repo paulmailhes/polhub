@@ -205,6 +205,8 @@ public struct Preferences: @unchecked Sendable {
     public var mailNotices: Bool { flag(Key.mailNotices) }
     /// Colin answers in the bar (off by default: turned on by the user).
     public var colinOn: Bool { (defaults.object(forKey: Key.colinOn) as? Bool) ?? false }
+    /// « Colin tient le kanban seul » (step 3, 18/11): off until Paul turns it on.
+    public var colinKanban: Bool { (defaults.object(forKey: Key.colinKanban) as? Bool) ?? false }
     /// Colin says a draft an agent prepared is ready (on by default).
     public var colinDraftNotice: Bool { flag(Key.colinDraftNotice) }
     public var sound: Bool { flag(Key.sound) }
