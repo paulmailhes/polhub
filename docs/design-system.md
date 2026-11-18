@@ -232,7 +232,8 @@ qu'il montre est calculé hors de l'affichage par `ColinLibrary`, par règles se
   clair. **Ce que Colin a changé sur un projet** (`ChangeRow`, 18/11) prend sa place dans le fil à son heure : une
   icône grise (`arrow.triangle.2.circlepath`), une phrase en `.rowBody` (« « Studio Nord » : priorité 2 → priorité 1,
   tâche « En attente retour de Marc ». »), la raison en `.meta` gris dessous, et « Annuler » (`TextButton`) à droite ;
-  annulé, « Annulé. » prend la place de la raison.
+  annulé, « Annulé. » prend la place de la raison. Ce qu'un agent a changé sur une carte s'y affiche aussi, signé
+  (« Un agent, aujourd'hui 14:00 ») à la place de la raison.
 - **« Le point » et « Voir »** (18/11) : la ligne « Depuis… » compte aussi les projets qui ont bougé sans Paul (Colin
   ou un agent) ; « Voir », au bout de cette ligne, ouvre une feuille (`ChangesSheet`) titrée de la phrase du point,
   avec les mêmes lignes que le fil, signées (« Un agent, aujourd'hui 16:27 »), et « Fermer ».

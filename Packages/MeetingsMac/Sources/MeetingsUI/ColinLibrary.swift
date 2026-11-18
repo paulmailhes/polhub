@@ -240,9 +240,9 @@ public final class ColinLibrary: ObservableObject {
         // What the rules change on the kanban, written signed Colin's; each event once — the write checks it again, for
         // a computation made on inputs read before. Written, the base is read again.
         if !outcome.kanban.isEmpty {
-            let database = agenda.database, edits = outcome.kanban
+            let database = agenda.database, edits = outcome.kanban, today = calendar.startOfDay(for: date)
             let wrote = await Task.detached(priority: .utility) {
-                edits.reduce(false) { wrote, edit in ((try? ProjectStore(database).edit(edit, by: .colin, at: date)) ?? false) || wrote }
+                edits.reduce(false) { wrote, edit in ((try? ProjectStore(database).edit(edit, by: .colin, at: date, dayStart: today)) ?? false) || wrote }
             }.value
             if wrote { changed(mails: false) }
         }

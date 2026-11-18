@@ -174,8 +174,9 @@ enum ProjectChangeSchema {
                 UPDATE project SET lastEditedAt = OLD.lastEditedAt WHERE id = NEW.id;
             END
             """)
-        // The actions of a project, not those of a meeting's summary, made on the Mac and replaced whole.
-        let ownAction = "NEW.meetingID IS NULL AND NEW.projectID IS NOT NULL AND \(who) <> 'paul'"
+        // The actions of a project, those of a meeting Paul put in it included (final review, 18/11); a meeting's summary
+        // writes its own in no project.
+        let ownAction = "NEW.projectID IS NOT NULL AND \(who) <> 'paul'"
         all.append("""
             CREATE TRIGGER action_change_added AFTER INSERT ON action
             WHEN \(ownAction)
@@ -200,11 +201,11 @@ enum ProjectChangeSchema {
             """)
         all.append("""
             CREATE TRIGGER action_change_removed AFTER DELETE ON action
-            WHEN OLD.meetingID IS NULL AND OLD.projectID IS NOT NULL AND \(who) <> 'paul'
+            WHEN OLD.projectID IS NOT NULL AND \(who) <> 'paul'
             BEGIN
                 INSERT INTO project_change (\(columns))
                 VALUES (OLD.projectID, 'actionRemoved', OLD.id, OLD.text, NULL,
-                        json_object('id', OLD.id, 'projectID', OLD.projectID, 'text', OLD.text, 'done', OLD.done, 'addedOn', OLD.addedOn,
+                        json_object('id', OLD.id, 'projectID', OLD.projectID, 'meetingID', OLD.meetingID, 'text', OLD.text, 'done', OLD.done, 'addedOn', OLD.addedOn,
                                     'dueDate', OLD.dueDate, 'owner', OLD.owner, 'position', OLD.position, 'createdAt', OLD.createdAt,
                                     'updatedAt', OLD.updatedAt),
                         \(signed));
@@ -438,7 +439,8 @@ public struct ProjectChanges: Sendable {
             guard let detail = row.detail else { return false }
             try db.execute(sql: """
                 INSERT INTO action (id, projectID, meetingID, text, done, addedOn, dueDate, owner, position, createdAt, updatedAt)
-                SELECT json_extract(:d, '$.id'), json_extract(:d, '$.projectID'), NULL, json_extract(:d, '$.text'), json_extract(:d, '$.done'),
+                SELECT json_extract(:d, '$.id'), json_extract(:d, '$.projectID'),
+                       (SELECT id FROM meeting WHERE id = json_extract(:d, '$.meetingID')), json_extract(:d, '$.text'), json_extract(:d, '$.done'),
                        json_extract(:d, '$.addedOn'), json_extract(:d, '$.dueDate'), json_extract(:d, '$.owner'), json_extract(:d, '$.position'),
                        json_extract(:d, '$.createdAt'), json_extract(:d, '$.updatedAt')
                 WHERE EXISTS(SELECT 1 FROM project WHERE id = json_extract(:d, '$.projectID'))

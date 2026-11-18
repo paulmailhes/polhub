@@ -109,7 +109,7 @@ final class ColinGuard: @unchecked Sendable {
     }
 
     static let refusal = "\(ColinTool.lockMark) : après ce qu'il a lu, ce brouillon sortirait de son fil ou de son projet. Rien n'a été écrit."
-    static let projectRefusal = "\(ColinTool.lockMark) : après ce qu'il a lu, ce changement sortirait de son projet. Rien n'a été écrit."
+    static let projectRefusal = "\(ColinTool.lockMark) : après ce qu'il a lu, ce changement sortirait de son projet. Rien n'a été écrit. Une demande sur plusieurs projets se fait un projet par question."
 }
 
 extension MCPServer {

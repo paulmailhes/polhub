@@ -110,7 +110,11 @@ struct ColinThreadView: View {
                 ForEach(section.items) { item in
                     switch item {
                     case .message(let message): row(message).id(item.id)
-                    case .change(let line): ChangeRow(line: line, outcome: thread.outcomes[line.id], calendar: calendar) { thread.undo(line) }.id(item.id)
+                    case .change(let line):
+                        // An agent's change says who made it; Colin's, why.
+                        ChangeRow(line: line, outcome: thread.outcomes[line.id], calendar: calendar,
+                                  byline: line.who == .colin ? nil : ChangeText.byline(line, now: Date(), calendar: calendar)) { thread.undo(line) }
+                            .id(item.id)
                     }
                 }
             }

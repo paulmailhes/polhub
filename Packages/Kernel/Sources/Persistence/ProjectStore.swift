@@ -195,20 +195,36 @@ public struct ProjectStore: Sendable {
 
     /// A change of a rule (step 3 of Colin, 18/11), in one transaction and one batch of `author`'s: the status (the card
     /// at the bottom of its new column), the task, the deadline, a line in the journal. Its event is answered once:
-    /// `false` when it already was (undone or not), or when the card is in the trash. Not a sign of Paul's life.
+    /// `false` when it already was (undone or not), or when nothing is left to write. The rule computed on what it read
+    /// a little earlier: here the card is read again as it is (final review, 18/11) — a card in the trash, in pause or
+    /// finished is left; the status only leaves « priorité 2 »; a deadline is set only where there is none, or a past
+    /// one (`dayStart`: the start of today, here); whatever Paul changed in the last 24 hours stays. Not a sign of
+    /// Paul's life on the project.
     @discardableResult
-    public func edit(_ edit: KanbanEdit, by author: ChangeAuthor, at date: Date) throws -> Bool {
+    public func edit(_ edit: KanbanEdit, by author: ChangeAuthor, at date: Date, dayStart: Date? = nil) throws -> Bool {
         let store = signed(author, reason: edit.reason, source: edit.source)
+        let today = dayStart ?? Calendar.current.startOfDay(for: date)
         return try store.write(at: date) { db in
             if try Bool.fetchOne(db, sql: "SELECT EXISTS(SELECT 1 FROM project_change WHERE source = ?)", arguments: [edit.source]) == true { return false }
-            guard let project = try ProjectRow.fetchOne(db, key: Self.key(edit.projectID)), project.deletedAt == nil else { return false }
-            if let status = edit.status, status != project.status {
-                try Self.place(db, edit.projectID, to: status, before: nil, at: date, edited: false)
+            guard let project = try ProjectRow.fetchOne(db, key: Self.key(edit.projectID)), project.deletedAt == nil,
+                  [.priorite1, .priorite2].contains(project.status) else { return false }
+            let since = date.addingTimeInterval(-86_400)
+            func paulChanged(_ field: ProjectChangeField) throws -> Bool {
+                try Bool.fetchOne(db, sql: "SELECT EXISTS(SELECT 1 FROM project_change WHERE projectID = ? AND field = ? AND who = 'paul' AND before IS NOT after AND at >= ?)",
+                                  arguments: [Self.key(edit.projectID), field.rawValue, since]) == true
             }
-            if let todo = edit.todo, todo != project.todo {
+            var status: ProjectStatus?
+            if let wanted = edit.status, project.status == .priorite2, wanted != project.status, try !paulChanged(.status) { status = wanted }
+            var todo: String?
+            if let wanted = edit.todo, wanted != project.todo, try !paulChanged(.todo) { todo = wanted }
+            var due: Date?
+            if let wanted = edit.dueDate, project.dueDate.map({ $0 < today }) ?? true, wanted != project.dueDate, try !paulChanged(.dueDate) { due = wanted }
+            guard status != nil || todo != nil || due != nil || edit.journal != nil else { return false }
+            if let status { try Self.place(db, edit.projectID, to: status, before: nil, at: date, edited: false) }
+            if let todo {
                 try db.execute(sql: "UPDATE project SET todo = ?, updatedAt = ? WHERE id = ?", arguments: [todo, date, Self.key(edit.projectID)])
             }
-            if let due = edit.dueDate, due != project.dueDate {
+            if let due {
                 try db.execute(sql: "UPDATE project SET dueDate = ?, updatedAt = ? WHERE id = ?", arguments: [due, date, Self.key(edit.projectID)])
             }
             if let journal = edit.journal {

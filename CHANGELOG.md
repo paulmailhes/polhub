@@ -11,15 +11,16 @@ GitHub, et l'app la montre dans Réglages › Mises à jour.
   notes, actions ajoutées, cochées, reformulées ou retirées, entrées du journal, avec qui (toi, Colin, un agent) et
   quand. Même les conversations Claude Code ouvertes avant cette mise à jour sont notées.
 - **« Annuler » remet ce qu'un agent a écrit** et laisse ce qui a changé depuis : la carte revient dans sa colonne,
-  à côté de sa voisine d'avant.
+  à côté de sa voisine d'avant. Ce qu'une conversation Claude Code change sur une carte (statut, échéance, tâche,
+  client, notes, action retirée) s'affiche aussi dans le fil de Colin, signé « Un agent », avec « Annuler ».
 - **Colin change le kanban quand tu le lui dis** : « passe Studio Nord en priorité 1 », « l'échéance, c'est
   vendredi », « coche le devis », « note au journal que… ». Jamais les notes, le client, les contacts ; jamais une
-  action retirée ; « en pause » ou « terminé » seulement si tu le dis. Après le mail d'un client, il ne change que le
-  projet de ce client. Chaque changement apparaît dans son fil, avec « Annuler ».
+  action retirée. Après le mail d'un client, il ne change que le projet de ce client : une demande sur plusieurs
+  projets se fait un projet par question. Chaque changement apparaît dans son fil, avec « Annuler ».
 - **« Colin tient le kanban seul »** (Réglages › Colin, coupé par défaut) : après un mail que tu envoies dans un fil
   de projet, la carte passe en priorité 1 avec « En attente retour de … » et une ligne au journal ; un rendez-vous
   pris devient l'échéance si elle est vide ou passée. Jamais un projet en pause ou terminé, ni ce que tu as changé
-  toi-même aujourd'hui. Sans modèle, sur le Mac.
+  toi-même depuis 24 h. Sans modèle, sur le Mac. Le nom écrit dans la tâche n'est qu'un prénom ou une adresse.
 - **« Le point »** compte aussi les projets qui ont bougé sans toi depuis ton dernier passage ; « Voir » les liste,
   qui et quand, avec « Annuler ».
 - **Ce qu'un agent écrit ne compte plus comme un geste de toi** : la « Dernière activité » d'un projet reste la tienne.

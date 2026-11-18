@@ -200,15 +200,35 @@ import Testing
         #expect(found[4].after == "Maquette relue")
     }
 
-    /// A meeting's actions come from its summary, made on the Mac and replaced whole: they are not an agent's change.
-    @Test func meetingActionsAreNotJournaled() throws {
+    /// A meeting's summary writes its actions on the meeting, in no project: no change of a project.
+    @Test func aMeetingsSummaryWritesNoLine() throws {
+        let (database, _, _, _) = try world()
+        let meeting = MeetingRow(createdAt: now, status: .ended, source: .dia, candidateKey: "t/a", title: "Cadrage", startedAt: now)
+        try MeetingStore(database).save(meeting)
+        let summaries = SummaryStore(database)
+        try summaries.finish(meetingID: meeting.id, summary: "Le cadrage.", actions: [ActionRow(text: "Envoyer le compte rendu", position: 0, createdAt: now)], at: now)
+        try summaries.finish(meetingID: meeting.id, summary: "Le cadrage.", actions: [], at: now)
+        #expect(try rows(database).isEmpty)
+    }
+
+    /// Final review (18/11): an action of a meeting Paul put in a project is the project's: what an agent does to it
+    /// is kept, and a removed one comes back still of its meeting.
+    @Test func aFiledMeetingActionIsJournaled() throws {
         let (database, store, martin, _) = try world()
         let meeting = MeetingRow(createdAt: now, status: .ended, source: .dia, candidateKey: "t/a", title: "Cadrage", startedAt: now)
         try MeetingStore(database).save(meeting)
-        let actions = [ActionRow(projectID: martin.id, text: "Envoyer le compte rendu", position: 0, createdAt: now)]
-        try store.signed(.agent).replaceMeetingActions(meetingID: meeting.id, projectID: martin.id, actions: actions)
-        try store.signed(.agent).replaceMeetingActions(meetingID: meeting.id, projectID: martin.id, actions: [])
-        #expect(try rows(database).isEmpty)
+        var action = ActionRow(projectID: martin.id, meetingID: meeting.id, text: "Envoyer le devis", position: 0, createdAt: now)
+        try store.saveAction(action)
+        let agent = store.signed(.agent)
+        action.done = true
+        try agent.saveAction(action)
+        try agent.deleteAction(id: action.id)
+        let found = try rows(database)
+        #expect(found.map(\.field) == [.actionDone, .actionRemoved])
+        let changes = ProjectChanges(database)
+        for line in try changes.lines(since: .distantPast, authors: [.agent]).reversed() { _ = try changes.undo(line, at: now) }
+        let back = try #require(try store.actions(projectID: martin.id).first)
+        #expect(back.meetingID == meeting.id && back.text == "Envoyer le devis")
     }
 
     /// The app's observations hear what the triggers write.

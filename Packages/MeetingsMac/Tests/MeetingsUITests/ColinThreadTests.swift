@@ -79,11 +79,6 @@ import Testing
         let world = try world(FakeLauncher { _, _ in Self.session() })
         let projects = ProjectStore(world.database)
         let martin = try projects.addProject(name: "Cabinet Martin", status: .priorite2, at: Self.now.addingTimeInterval(-86_400))
-        // An agent's change is not Colin's: not in his thread.
-        let current = try #require(try projects.project(id: martin.id))
-        var other = current
-        other.todo = "Relire la maquette"
-        try projects.signed(.agent).saveChanges(from: current, to: other, at: Self.now.addingTimeInterval(-300))
         let edit = KanbanEdit(projectID: martin.id, status: .priorite1, todo: "En attente retour de Claire", dueDate: nil, journal: nil,
                               reason: "Après ton mail à Claire, 9:50", source: "mail:m-1")
         try projects.edit(edit, by: .colin, at: Self.now.addingTimeInterval(-60))
@@ -94,7 +89,25 @@ import Testing
         #expect(world.thread.outcomes[line.id] == .undone)
         try await waitUntil { world.thread.changes.first?.undoneAt != nil }
         #expect(try projects.project(id: martin.id)?.status == .priorite2)
-        #expect(try projects.project(id: martin.id)?.todo == "Relire la maquette")
+        #expect(try projects.project(id: martin.id)?.todo == nil)
+    }
+
+    /// Final review (18/11): what an agent changes on a card (its status, deadline, task, client, notes, an action
+    /// removed) shows in the thread too, signed, with « Annuler »; what it only adds (an action, a journal entry) is
+    /// counted by « Le point ».
+    @Test func anAgentsChangeOfACardShowsInTheThread() async throws {
+        let world = try world(FakeLauncher { _, _ in Self.session() })
+        let projects = ProjectStore(world.database)
+        let martin = try projects.addProject(name: "Cabinet Martin", status: .priorite2, at: Self.now.addingTimeInterval(-86_400))
+        let agent = projects.signed(.agent)
+        try agent.addJournal(ProjectJournalRow(projectID: martin.id, date: Self.now, title: "Maquette posée", body: "", createdAt: Self.now.addingTimeInterval(-400)))
+        let current = try #require(try projects.project(id: martin.id))
+        var other = current
+        other.todo = "Relire la maquette"
+        try projects.signed(.agent).saveChanges(from: current, to: other, at: Self.now.addingTimeInterval(-300))
+        try await waitUntil { world.thread.changes.count == 1 }
+        #expect(world.thread.changes.first?.who == .agent)
+        #expect(world.thread.changes.first?.rows.map(\.field) == [.todo])
     }
 
     @Test func aQuestionIsKeptThenAnswered() async throws {

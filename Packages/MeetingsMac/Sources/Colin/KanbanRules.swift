@@ -24,14 +24,15 @@ public enum KanbanRules {
             guard !answered.contains(source), let id = projectOf[mail.threadKey], var card = cards[id], card.deletedAt == nil,
                   [.priorite1, .priorite2].contains(card.status),
                   let person = mail.recipients.first(where: { !mine.contains($0) }) else { continue }
-            let name = ReviewRules.short(mail.names[person] ?? person)
-            var edit = KanbanEdit(projectID: id, status: nil, todo: nil, dueDate: nil, journal: "Mail envoyé à \(name) le \(day(mail.date, calendar))",
-                                  reason: "Après ton mail à \(name), \(Briefing.time(mail.date, calendar: calendar))", source: source)
+            let name = Self.person(mail.names[person] ?? person)
+            let to = name.map { " à \($0)" } ?? ""
+            var edit = KanbanEdit(projectID: id, status: nil, todo: nil, dueDate: nil, journal: "Mail envoyé\(to) le \(day(mail.date, calendar))",
+                                  reason: "Après ton mail\(to), \(Briefing.time(mail.date, calendar: calendar))", source: source)
             if card.status == .priorite2, !touched.contains(ProjectFieldKey(projectID: id, field: .status)) {
                 edit.status = .priorite1
                 card.status = .priorite1
             }
-            let task = "En attente retour de \(name)"
+            let task = name.map { "En attente retour de \($0)" } ?? "En attente de retour"
             if card.todo != task, !touched.contains(ProjectFieldKey(projectID: id, field: .todo)) {
                 edit.todo = task
                 card.todo = task
@@ -64,6 +65,18 @@ public enum KanbanRules {
                                     reason: "Rendez-vous du \(weekday) \(day(next.startAt, calendar))", source: source))
         }
         return edits
+    }
+
+    /// Who a mail was sent to, as the task and the journal say it (final review, 18/11): the name comes from a header a
+    /// third party wrote, and the task is read by the agents as « À faire maintenant ». Only a first name (letters,
+    /// hyphens, apostrophes, 24 at most) or a plain address goes in; anything else, no name.
+    static func person(_ header: String) -> String? {
+        let name = ReviewRules.short(header)
+        let letters = CharacterSet.letters.union(CharacterSet(charactersIn: "-'’"))
+        if (1...24).contains(name.count), name.unicodeScalars.allSatisfy(letters.contains), name.first?.isLetter == true { return name }
+        let address = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789._%+-@")
+        if (3...48).contains(name.count), name.contains("@"), name.lowercased().unicodeScalars.allSatisfy(address.contains) { return name.lowercased() }
+        return nil
     }
 
     /// « 18/11 ».

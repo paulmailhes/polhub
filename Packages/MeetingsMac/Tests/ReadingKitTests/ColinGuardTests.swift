@@ -194,6 +194,7 @@ import Testing
                                   ("fait", ["projet": "Site vitrine", "numeros": [1]]), ("journal", ["projet": "Site vitrine", "titre": "Fini"])] as [(String, [String: Any])] {
             let refused = try call(server, name, arguments)
             #expect(refused.error && refused.text.hasPrefix(ColinTool.lockMark), "\(name) : \(refused.text)")
+            #expect(refused.text.contains("un projet par question"))
         }
         #expect(writes.count == 0)
         #expect(try ProjectStore(world.fixture.database).projects().first { $0.name == "Site vitrine" }?.status != .termine)

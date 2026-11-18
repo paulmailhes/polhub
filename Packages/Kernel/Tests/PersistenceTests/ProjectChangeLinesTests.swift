@@ -199,6 +199,36 @@ import Testing
         #expect(try store.edit(other, by: .colin, at: now) == false)
     }
 
+    /// Final review (18/11): a rule computes on what it read a little earlier; what it writes is checked again against the
+    /// card as it is: what Paul changed in the last 24 hours stays, a card he put in pause is left, a deadline to come
+    /// stays.
+    @Test func aRuleLeavesWhatPaulChangedMeanwhile() throws {
+        let (database, store, martin, nord) = try world()
+        let (from, to) = try edited(store, martin.id) { $0.todo = "Préparer la maquette" }
+        try store.saveChanges(from: from, to: to, at: now.addingTimeInterval(-600))
+        let edit = KanbanEdit(projectID: martin.id, status: .priorite1, todo: "En attente retour de Claire", dueDate: nil,
+                              journal: "Mail envoyé à Claire le 18/11", reason: "Après ton mail à Claire, 9:50", source: "mail:m-1")
+        #expect(try store.edit(edit, by: .colin, at: now))
+        let project = try #require(try store.project(id: martin.id))
+        #expect(project.todo == "Préparer la maquette" && project.status == .priorite1)
+        // Put in pause by Paul meanwhile: nothing at all.
+        try store.move(nord.id, to: .enPause, before: nil, at: now.addingTimeInterval(-25 * 3_600))
+        var paused = edit
+        paused.projectID = nord.id
+        paused.source = "mail:m-2"
+        #expect(try store.edit(paused, by: .colin, at: now) == false)
+        #expect(try store.project(id: nord.id)?.todo == nil)
+        // A deadline to come stays; a past one is replaced.
+        let leroy = try store.addProject(name: "Maison Leroy", status: .priorite2, at: now.addingTimeInterval(-90 * 86_400))
+        try database.writer.write { try $0.execute(sql: "UPDATE project SET dueDate = ? WHERE id = ?", arguments: [now.addingTimeInterval(3 * 86_400), key(leroy.id)]) }
+        let booked = KanbanEdit(projectID: leroy.id, status: nil, todo: nil, dueDate: now.addingTimeInterval(86_400), journal: nil,
+                                reason: "Rendez-vous du jeudi 19/11", source: "event:e-1")
+        #expect(try store.edit(booked, by: .colin, at: now, dayStart: now.addingTimeInterval(-9 * 3_600)) == false)
+        try database.writer.write { try $0.execute(sql: "UPDATE project SET dueDate = ? WHERE id = ?", arguments: [now.addingTimeInterval(-3 * 86_400), key(leroy.id)]) }
+        #expect(try store.edit(booked, by: .colin, at: now, dayStart: now.addingTimeInterval(-9 * 3_600)))
+        #expect(try store.project(id: leroy.id)?.dueDate == now.addingTimeInterval(86_400))
+    }
+
     // MARK: - What the rules read
 
     /// What Paul changed himself in the last 24 hours: a rule leaves it.

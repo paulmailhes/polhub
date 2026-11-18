@@ -30,8 +30,8 @@ usage : il n'est ni configurable pour d'autres navigateurs, ni traduit.
   réunion à ranger), « Le point » au retour, et une barre pour lui parler. Colin passe par le Claude Code du Mac et
   reste à l'arrêt tant que l'utilisateur ne l'allume pas. Allumé, ce qu'on lui écrit et ce qu'il lit pour répondre
   partent chez Anthropic ; il prépare des brouillons, il n'envoie rien. Il change le tableau des projets quand on le
-  lui demande, et peut le tenir seul (après un mail envoyé, un rendez-vous pris) : chaque changement d'un agent sur un
-  projet s'annule d'un clic.
+  lui demande, et peut le tenir seul (après un mail envoyé, un rendez-vous pris) : ce que Colin ou un agent change sur
+  une carte s'annule d'un clic.
 - **Se met à jour seul** à partir des versions publiées ici, et jamais pendant une réunion.
 
 ## Configuration requise

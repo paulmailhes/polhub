@@ -26,7 +26,8 @@ public final class ColinThread: ObservableObject {
     }
 
     @Published public private(set) var messages: [ColinMessageRow] = []
-    /// What Colin changed on the projects, the last fortnight (step 3, 18/11), each with « Annuler ».
+    /// What Colin changed on the projects, the last fortnight (step 3, 18/11), and what an agent changed on a card,
+    /// each with « Annuler ».
     @Published public private(set) var changes: [ProjectChangeLine] = []
     /// What « Annuler » did, by line.
     @Published public private(set) var outcomes: [String: UndoOutcome] = [:]
@@ -327,10 +328,18 @@ public final class ColinThread: ObservableObject {
     private func observe() {
         observation = store.observeMessages(limit: limit) { [weak self] rows in self?.messages = rows }
         if changesObservation == nil {
-            changesObservation = changeStore.observeLines(since: now().addingTimeInterval(-Self.changesShown), authors: [.colin]) { [weak self] lines in
-                self?.changes = lines
+            changesObservation = changeStore.observeLines(since: now().addingTimeInterval(-Self.changesShown), authors: [.colin, .agent]) { [weak self] lines in
+                self?.changes = Self.shown(lines)
             }
         }
+    }
+
+    /// What the thread shows (final review, 18/11): all of Colin's changes; of an agent's, those that change a card —
+    /// its status, deadline, task, client, notes, an action removed. What an agent only adds (an action, a line in the
+    /// journal) is counted by « Le point », behind « Voir ».
+    nonisolated static func shown(_ lines: [ProjectChangeLine]) -> [ProjectChangeLine] {
+        let card: Set<ProjectChangeField> = [.status, .dueDate, .todo, .client, .notes, .actionRemoved]
+        return lines.filter { $0.who == .colin || $0.rows.contains { card.contains($0.field) } }
     }
 
     /// « Annuler » on a change of Colin's: what he wrote is put back, what changed since stays.
