@@ -82,14 +82,17 @@ public struct MCPServer: Sendable {
     let onWrite: @Sendable () -> Void
     /// The version of Polhub the server belongs to (see `HelperVersion`).
     let version: String
+    /// Who the server is for: the conversations of Claude Code, or Colin (`--colin`, 18/11).
+    let profile: Profile
 
     public init(reader: MeetingReader, desk: ProjectDesk? = nil, mails: MailDesk? = nil, agenda: AgendaDesk? = nil, version: String = "0.0.0",
-                onWrite: @escaping @Sendable () -> Void = {}) {
+                profile: Profile = .agents, onWrite: @escaping @Sendable () -> Void = {}) {
         self.reader = reader
         self.desk = desk
         self.mails = mails
         self.agenda = agenda
         self.version = version
+        self.profile = profile
         self.onWrite = onWrite
     }
 
@@ -186,7 +189,8 @@ public struct MCPServer: Sendable {
     ] }
 
     var instructions: String {
-        (desk == nil ? Self.meetingInstructions : Self.projectInstructions) + (mails == nil ? "" : Self.mailInstructions)
+        if profile == .colin { return Self.colinInstructions }
+        return (desk == nil ? Self.meetingInstructions : Self.projectInstructions) + (mails == nil ? "" : Self.mailInstructions)
             + (agenda == nil ? "" : Self.agendaInstructions) + agentRules
     }
 
@@ -239,7 +243,8 @@ public struct MCPServer: Sendable {
     ] }
 
     var tools: [[String: Any]] {
-        projectAndMeetingTools + (mails == nil ? [] : Self.mailTools + Self.mailFilingTools) + (agenda == nil ? [] : Self.agendaTools)
+        if profile == .colin { return colinTools }
+        return projectAndMeetingTools + (mails == nil ? [] : Self.mailTools + Self.mailFilingTools) + (agenda == nil ? [] : Self.agendaTools)
     }
 
     var projectAndMeetingTools: [[String: Any]] {
@@ -300,7 +305,7 @@ public struct MCPServer: Sendable {
             answer["result"] = [
                 "protocolVersion": params["protocolVersion"] as? String ?? Self.defaultProtocol,
                 "capabilities": ["tools": ["listChanged": false]],
-                "serverInfo": ["name": "polhub", "title": desk == nil ? "Réunions de Paul (Polhub)" : "Projets et réunions de Paul (Polhub)", "version": version],
+                "serverInfo": ["name": "polhub", "title": profile == .colin ? "Polhub (Colin)" : desk == nil ? "Réunions de Paul (Polhub)" : "Projets et réunions de Paul (Polhub)", "version": version],
                 "instructions": instructions,
             ]
         case "ping":
@@ -323,6 +328,7 @@ public struct MCPServer: Sendable {
 
     /// The answer's blocks: text, and for an image attachment the image itself, which the agent sees (16/11).
     func content(_ name: String, _ arguments: [String: Any]) throws -> [[String: Any]] {
+        if profile == .colin { try admitForColin(name, arguments) }
         if let blocks = try projectCreationOrInspiration(name, arguments) { return blocks }
         guard name == "piece_jointe", let mails else { return [["type": "text", "text": try call(name, arguments)]] }
         guard let which = Self.text(arguments["quel"]) else { throw ToolError("Il manque « quel » : l'identifiant d'un fil (outil `mails`).") }

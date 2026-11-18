@@ -10,10 +10,12 @@ Usage :
   polhub reunion <numéro | début d'id | morceau du titre> [--page N]
   polhub chercher <texte> [--limite N]
   polhub mcp            (serveur MCP sur l'entrée et la sortie standard)
-Option : --base <chemin de Polhub.sqlite>
+Options : --base <chemin de Polhub.sqlite> ; --colin (avec mcp : le profil de Colin)
 """
 
-var arguments = Array(CommandLine.arguments.dropFirst())
+// `--base` and `--colin` (Colin's profile, which the app fixes in the command it launches, 18/11).
+let options = HelperOptions(Array(CommandLine.arguments.dropFirst()))
+var arguments = options.arguments
 @MainActor func option(_ name: String) -> String? {
     guard let index = arguments.firstIndex(of: name), index + 1 < arguments.count else { return nil }
     let value = arguments[index + 1]
@@ -26,7 +28,7 @@ func fail(_ message: String) -> Never {
     exit(1)
 }
 
-let basePath = option("--base") ?? AppPaths.standard(.prod).database.path(percentEncoded: false)
+let basePath = options.base ?? AppPaths.standard(.prod).database.path(percentEncoded: false)
 guard let command = arguments.first, command != "--help", command != "-h" else {
     print(usage)
     exit(0)
@@ -63,7 +65,8 @@ do {
         var desk: ProjectDesk?
         if let tools = try? AppDatabase.forTools(path: basePath), (try? tools.hasProjects()) == true {
             desk = ProjectDesk(projects: ProjectStore(tools), meetings: MeetingStore(tools),
-                               workingDirectory: FileManager.default.currentDirectoryPath,
+                               // Colin works in an empty folder: no project is guessed from it, none of its path is said.
+                               workingDirectory: options.colin ? nil : FileManager.default.currentDirectoryPath,
                                dataRoot: URL(fileURLWithPath: basePath).deletingLastPathComponent())
         }
         // The mails (step « Agents »): the copy, read; drafts dropped for the app. No network here.
@@ -77,7 +80,7 @@ do {
             agenda = AgendaDesk(database: tools, root: URL(fileURLWithPath: basePath).deletingLastPathComponent(), projects: desk, mailScope: .current())
         }
         let server = MCPServer(reader: reader, desk: desk, mails: mails, agenda: agenda, version: HelperVersion.read(helper: helper) ?? "0.0.0",
-                               onWrite: { ExternalChangeSignal.post() })
+                               profile: options.colin ? .colin : .agents, onWrite: { ExternalChangeSignal.post() })
         while let line = readLine(strippingNewline: true) {
             guard !line.trimmingCharacters(in: .whitespaces).isEmpty, let answer = server.handle(line) else { continue }
             FileHandle.standardOutput.write(Data((answer + "\n").utf8))

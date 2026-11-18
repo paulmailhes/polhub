@@ -112,12 +112,13 @@ public struct ClaudeCommand: Equatable, Sendable {
         return path
     }
 
-    /// Polhub's own server and nothing else, on the base given.
-    public static func mcpConfig(helper: URL, base: URL) -> String {
+    /// Polhub's own server and nothing else, on the base given. `colin`: Colin's profile, fixed here, out of the
+    /// model's reach.
+    public static func mcpConfig(helper: URL, base: URL, colin: Bool = false) -> String {
         json(["mcpServers": ["polhub": [
             "type": "stdio",
             "command": helper.path(percentEncoded: false),
-            "args": ["mcp", "--base", base.path(percentEncoded: false)],
+            "args": ["mcp", "--base", base.path(percentEncoded: false)] + (colin ? ["--colin"] : []),
         ]]])
     }
 
