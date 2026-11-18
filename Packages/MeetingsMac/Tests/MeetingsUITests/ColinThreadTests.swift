@@ -263,6 +263,8 @@ import Testing
         #expect(ColinThread.phrase(for: "mcp__polhub__contexte") == "Colin regarde tes projets…")
         #expect(ColinThread.phrase(for: "mcp__polhub__mail") == "Colin lit tes mails…")
         #expect(ColinThread.phrase(for: "mcp__polhub__reunion") == "Colin lit tes réunions…")
+        #expect(ColinThread.phrase(for: "mcp__polhub__projet") == "Colin met à jour le projet…")
+        #expect(ColinThread.phrase(for: "mcp__polhub__fait") == "Colin met à jour le projet…")
         #expect(ColinThread.phrase(for: "mcp__polhub__agenda") == "Colin regarde ton agenda…")
         #expect(ColinThread.phrase(for: "mcp__polhub__brouillon") == "Colin écrit le brouillon…")
     }

@@ -3,7 +3,7 @@ import Foundation
 import Testing
 @testable import Colin
 
-/// What Polhub accepts of a launch of Colin (18/11): his eleven tools, his one server, nothing of the user's, Opus,
+/// What Polhub accepts of a launch of Colin (18/11): his fifteen tools, his one server, nothing of the user's, Opus,
 /// no key. Checked on every `init`, which Claude Code says again at each turn.
 @Suite struct ColinInitCheckTests {
     static let good = ClaudeInit(version: "2.1.304", model: "claude-opus-5-5", permissionMode: "dontAsk", apiKeySource: "none",
@@ -21,6 +21,7 @@ import Testing
 
     @Test func anythingMoreOrOtherStopsIt() {
         let tools = Set(ColinTool.allowed)
+        #expect(ColinInitCheck.problem(with { $0.tools.append("mcp__polhub__note") }, tools: tools) == "outils")
         #expect(ColinInitCheck.problem(with { $0.tools.append("mcp__polhub__journal") }, tools: tools) == "outils")
         #expect(ColinInitCheck.problem(with { $0.tools.removeLast() }, tools: tools) == "outils")
         #expect(ColinInitCheck.problem(with { $0.tools.append("Bash") }, tools: tools) == "outils")

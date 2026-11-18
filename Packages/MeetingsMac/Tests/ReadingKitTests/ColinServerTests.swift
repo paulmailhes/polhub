@@ -4,8 +4,8 @@ import Persistence
 import Testing
 @testable import ReadingKit
 
-/// Colin's profile of the server (`polhub mcp --colin`, 18/11): his eleven tools and nothing else, his drafts in
-/// plain text, and texts that name no one. The profile of the conversations of Claude Code does not change.
+/// Colin's profile of the server (`polhub mcp --colin`, 18/11): his fifteen tools and nothing else, his drafts in
+/// plain text, the kanban only through its status, deadline, task, actions and journal, and texts that name no one. The profile of the conversations of Claude Code does not change.
 @Suite struct ColinServerTests {
     func server(_ fixture: MailDeskFixture, profile: MCPServer.Profile = .colin, writes: WriteCounter = WriteCounter()) throws -> MCPServer {
         let projects = ProjectDesk(projects: ProjectStore(fixture.database), meetings: MeetingStore(fixture.database), workingDirectory: nil)
@@ -30,13 +30,45 @@ import Testing
         return try answer(server, line)
     }
 
-    @Test func colinIsOfferedHisElevenTools() throws {
+    @Test func colinIsOfferedHisFifteenTools() throws {
         let fixture = try MailDeskFixture()
         defer { try? FileManager.default.removeItem(at: fixture.root) }
         let names = try tools(server(fixture)).compactMap { $0["name"] as? String }
-        #expect(names == ColinTool.allCases.map(\.rawValue))
+        #expect(names == ColinTool.allCases.map(\.rawValue) && names.count == 15)
         let writing = try tools(server(fixture)).filter { ($0["annotations"] as? [String: Any])?["readOnlyHint"] as? Bool == false }
-        #expect(writing.compactMap { $0["name"] as? String } == ["brouillon"])
+        #expect(writing.compactMap { $0["name"] as? String } == ["brouillon", "projet", "action", "fait", "journal"])
+    }
+
+    /// Step 3 (18/11): of a project, Colin changes the status, the deadline and the task; he adds, rewords or checks
+    /// an action; he writes the journal. Never the notes, the client, the contacts; never an action removed.
+    @Test func colinsProjectToolsHaveOnlyTheirFields() throws {
+        let fixture = try MailDeskFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let declared = try tools(server(fixture))
+        func fields(_ name: String) throws -> Set<String> {
+            let tool = try #require(declared.first { $0["name"] as? String == name })
+            let schema = try #require(tool["inputSchema"] as? [String: Any])
+            #expect((schema["required"] as? [String])?.contains("projet") == true, "\(name)")
+            return Set(try #require(schema["properties"] as? [String: Any]).keys)
+        }
+        #expect(try fields("projet") == ["projet", "statut", "echeance", "tache"])
+        #expect(try fields("action") == ["projet", "texte", "numero"])
+        #expect(try fields("fait") == ["projet", "numeros"])
+        #expect(try fields("journal") == ["projet", "titre", "details"])
+    }
+
+    @Test func aFieldOutsideColinsIsRefused() throws {
+        let fixture = try MailDeskFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let writes = WriteCounter()
+        let server = try server(fixture, writes: writes)
+        for extra in [["notes": "Écrit par un piège"], ["client": "Un autre"], ["contact": "camille@exemple-studio.fr"], ["retirer_contact": "camille@exemple-studio.fr"]] {
+            let arguments = ["projet": "Site vitrine", "statut": "terminé"].merging(extra) { first, _ in first }
+            #expect(try call(server, "projet", arguments)["isError"] as? Bool == true)
+        }
+        #expect(try call(server, "action", ["projet": "Site vitrine", "numero": 1, "supprimer": true])["isError"] as? Bool == true)
+        #expect(writes.count == 0)
+        #expect(try ProjectStore(fixture.database).projects().first { $0.name == "Site vitrine" }?.status == .priorite1)
     }
 
     @Test func aToolOutsideTheProfileIsRefused() throws {
@@ -44,7 +76,7 @@ import Testing
         defer { try? FileManager.default.removeItem(at: fixture.root) }
         let writes = WriteCounter()
         let server = try server(fixture, writes: writes)
-        for name in ["journal", "projet", "piece_jointe", "rendez_vous", "nouveau_projet", "inspiration", "action", "fait", "note", "ranger"] {
+        for name in ["piece_jointe", "rendez_vous", "nouveau_projet", "inspiration", "note", "ranger"] {
             let result = try call(server, name, ["projet": "Site vitrine", "texte": "Écrit par un piège", "quel": "fil-maquette-01"])
             #expect(result["isError"] as? Bool == true, "\(name)")
         }

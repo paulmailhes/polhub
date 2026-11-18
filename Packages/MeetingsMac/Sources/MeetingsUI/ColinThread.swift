@@ -329,6 +329,7 @@ public final class ColinThread: ObservableObject {
         case "reunions", "reunion", "chercher": "Colin lit tes réunions…"
         case "agenda", "contacts": "Colin regarde ton agenda…"
         case "brouillon": "Colin écrit le brouillon…"
+        case "projet", "action", "fait", "journal": "Colin met à jour le projet…"
         default: "Colin réfléchit…"
         }
     }

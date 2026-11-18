@@ -167,6 +167,67 @@ import Testing
         #expect(writes.count == 0)
     }
 
+    // MARK: - The kanban (step 3, 18/11)
+
+    /// After the mail of a client of « Cabinet Martin », Colin changes « Cabinet Martin », and only it.
+    @Test func colinWritesTheProjectHeRead() throws {
+        let world = try world()
+        defer { try? FileManager.default.removeItem(at: world.fixture.root) }
+        let writes = WriteCounter()
+        let server = try server(world, writes: writes)
+        #expect(try call(server, "mail", ["quel": "fil-devis-04"]).error == false)
+        let changed = try call(server, "projet", ["projet": "Cabinet Martin", "statut": "priorité 1", "tache": "En attente retour de Claire"])
+        #expect(!changed.error, "\(changed.text)")
+        #expect(try call(server, "action", ["projet": "Cabinet Martin", "texte": "Relancer Claire vendredi"]).error == false)
+        #expect(try call(server, "journal", ["projet": "Cabinet Martin", "titre": "Devis relu"]).error == false)
+        #expect(writes.count == 3)
+        #expect(try ProjectStore(world.fixture.database).project(id: world.other.id)?.status == .priorite1)
+    }
+
+    @Test func colinCannotWriteAnotherProjectAfterAMail() throws {
+        let world = try world()
+        defer { try? FileManager.default.removeItem(at: world.fixture.root) }
+        let writes = WriteCounter()
+        let server = try server(world, writes: writes)
+        #expect(try call(server, "mail", ["quel": "fil-devis-04"]).error == false)
+        for (name, arguments) in [("projet", ["projet": "Site vitrine", "statut": "terminé"]), ("action", ["projet": "Site vitrine", "texte": "Payer"]),
+                                  ("fait", ["projet": "Site vitrine", "numeros": [1]]), ("journal", ["projet": "Site vitrine", "titre": "Fini"])] as [(String, [String: Any])] {
+            let refused = try call(server, name, arguments)
+            #expect(refused.error && refused.text.hasPrefix(ColinTool.lockMark), "\(name) : \(refused.text)")
+        }
+        #expect(writes.count == 0)
+        #expect(try ProjectStore(world.fixture.database).projects().first { $0.name == "Site vitrine" }?.status != .termine)
+        // A thread of no project read: no project may be written.
+        let other = try self.server(world, writes: writes)
+        #expect(try call(other, "mail", ["quel": "fil-lettre-02"]).error == false)
+        #expect(try call(other, "projet", ["projet": "Cabinet Martin", "statut": "priorité 1"]).text.hasPrefix(ColinTool.lockMark))
+    }
+
+    @Test func colinWritesAnyProjectBeforeReadingAnything() throws {
+        let world = try world()
+        defer { try? FileManager.default.removeItem(at: world.fixture.root) }
+        let writes = WriteCounter()
+        let server = try server(world, writes: writes)
+        #expect(try call(server, "projets").error == false)
+        #expect(try call(server, "projet", ["projet": "Site vitrine", "echeance": "2026-11-27"]).error == false)
+        #expect(try call(server, "projet", ["projet": "Cabinet Martin", "tache": "Appeler Claire"]).error == false)
+        #expect(writes.count == 2)
+    }
+
+    /// What Colin changes is signed with his name: the Accueil shows it, with « Annuler ».
+    @Test func colinsChangeIsSignedColin() throws {
+        let world = try world()
+        defer { try? FileManager.default.removeItem(at: world.fixture.root) }
+        let projects = ProjectDesk(projects: ProjectStore(world.fixture.database).signed(.colin), meetings: MeetingStore(world.fixture.database),
+                                   workingDirectory: nil)
+        let server = MCPServer(reader: try Fixture().reader, desk: projects, mails: world.fixture.desk(),
+                               agenda: AgendaDesk(database: world.fixture.database, root: world.fixture.root, projects: projects), profile: .colin,
+                               onWrite: {})
+        #expect(try call(server, "projet", ["projet": "Cabinet Martin", "statut": "priorité 1"]).error == false)
+        let lines = try ProjectChanges(world.fixture.database).lines(since: .distantPast, authors: [.colin])
+        #expect(lines.map(\.projectName) == ["Cabinet Martin"] && lines.first?.rows.map(\.field) == [.status])
+    }
+
     @Test func theAgentsProfileHasNoLock() throws {
         let world = try world()
         defer { try? FileManager.default.removeItem(at: world.fixture.root) }
