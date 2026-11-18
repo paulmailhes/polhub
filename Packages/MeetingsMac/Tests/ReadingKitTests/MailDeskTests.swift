@@ -554,9 +554,12 @@ struct MailDeskFixture {
         let readingKit = try #require(manifest.range(of: #".target(name: "ReadingKit""#)).upperBound
         let block = manifest[readingKit...].prefix { $0 != "]" }
         #expect(!block.contains("\"Mail\"") && !block.contains("GoogleKit") && !block.contains("Agenda"))
+        // Nor on Colin (18/11), which launches Claude Code: the helper of the agents is built on none of it.
+        #expect(!block.contains("\"Colin\""))
         let cli = try #require(manifest.range(of: #"name: "PolhubCLI""#)).upperBound
         let cliBlock = manifest[cli...].prefix { $0 != "]" }
         #expect(!cliBlock.contains("\"Mail\"") && !cliBlock.contains("GoogleKit") && !cliBlock.contains("Agenda") && !cliBlock.contains("MeetingsUI"))
+        #expect(!cliBlock.contains("\"Colin\""))
     }
 }
 

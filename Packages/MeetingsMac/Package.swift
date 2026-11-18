@@ -84,7 +84,8 @@ let package = Package(
         ], resources: [.copy("Vocabulary/Resources")]),
         // Colin, the agent of the home page (17/11): how Polhub finds Claude Code on this Mac, starts it alone and reads
         // what it answers. No dependency: the probe of step 0 uses it first, the home page later.
-        .target(name: "Colin"),
+        // Colin (17/11): the engine that launches Claude Code, and the rules of the Accueil, which read the base.
+        .target(name: "Colin", dependencies: [.product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         // The models live only in `polhub-calcul`: the app never loads them.
         .target(name: "Compute", dependencies: [
             "Transcription",
@@ -163,11 +164,11 @@ let package = Package(
         .testTarget(name: "MailFormatTests", dependencies: ["MailFormat", .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "TranscriptionTests", dependencies: ["Transcription", .product(name: "Domain", package: "Kernel")]),
         .testTarget(name: "MeetingDetectionTests", dependencies: ["MeetingDetection"], resources: [.copy("Fixtures")]),
-        .testTarget(name: "MeetingsUITests", dependencies: ["MeetingsUI", "ProjectsUI", "PolhubDesign", "Notifications", "Inspiration", "Agenda", "GoogleKit", "Mail", "MailFormat", "Updates", "Pipeline", "Recording", "AudioCapture", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
+        .testTarget(name: "MeetingsUITests", dependencies: ["MeetingsUI", "Colin", "ProjectsUI", "PolhubDesign", "Notifications", "Inspiration", "Agenda", "GoogleKit", "Mail", "MailFormat", "Updates", "Pipeline", "Recording", "AudioCapture", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "RecordingTests", dependencies: ["Recording", "AudioCapture", "MeetingDetection", .product(name: "Observability", package: "Kernel"), .product(name: "Domain", package: "Kernel")]),
         .testTarget(name: "PipelineTests", dependencies: ["Pipeline", "MeetingDetection", "Recording", "Transcription", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "ProbeKitTests", dependencies: ["ProbeKit", "Colin", "Recording", "AudioCapture", "MeetingDetection", .product(name: "Domain", package: "Kernel"), .product(name: "Observability", package: "Kernel")]),
         .testTarget(name: "PolhubDesignTests", dependencies: ["PolhubDesign"]),
-        .testTarget(name: "ColinTests", dependencies: ["Colin"]),
+        .testTarget(name: "ColinTests", dependencies: ["Colin", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
     ]
 )
