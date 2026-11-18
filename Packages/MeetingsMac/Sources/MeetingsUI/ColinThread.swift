@@ -31,6 +31,10 @@ public final class ColinThread: ObservableObject {
     @Published public private(set) var changes: [ProjectChangeLine] = []
     /// What Colin is doing in the answer under way, in order (the Accueil's pass, 18/11).
     @Published public private(set) var liveSteps: [ColinStep] = []
+    /// The answer under way as the screen shows it: whole words, at a steady pace (`StreamPacer`).
+    @Published public private(set) var visible = ""
+    private var pacer = StreamPacer()
+    private var pacing: Task<Void, Never>?
     /// What « Annuler » did, by line.
     @Published public private(set) var outcomes: [String: UndoOutcome] = [:]
     @Published public private(set) var status: Status = .off
@@ -250,6 +254,7 @@ public final class ColinThread: ObservableObject {
         draftsBefore = newDrafts()
         streaming = ""
         liveSteps = []
+        endPacing()
         status = .working(Self.phrase(for: nil))
         await runner.ask(question, primer: primer)
     }
@@ -263,6 +268,8 @@ public final class ColinThread: ObservableObject {
         case .delta(let text):
             guard answer != nil else { return }
             streaming += text
+            pacer.push(text)
+            pace()
         case .step(let step):
             guard answer != nil else { return }
             if let index = liveSteps.firstIndex(where: { $0.id == step.id }) { liveSteps[index] = step } else { liveSteps.append(step) }
@@ -279,6 +286,7 @@ public final class ColinThread: ObservableObject {
             answer = nil
             streaming = ""
             liveSteps = []
+            endPacing()
             lastAnswerAt = now()
             status = isOn ? .idle : .off
         case .failed(let failure):
@@ -291,6 +299,7 @@ public final class ColinThread: ObservableObject {
             answer = nil
             streaming = ""
             liveSteps = []
+            endPacing()
             status = .broken(Self.sentence(failure, calendar: calendar))
         }
     }
@@ -310,6 +319,7 @@ public final class ColinThread: ObservableObject {
         try? store.update(row)
         answer = nil
         streaming = ""
+        endPacing()
     }
 
     private func switched() {
@@ -357,6 +367,30 @@ public final class ColinThread: ObservableObject {
     public func undo(_ line: ProjectChangeLine) {
         guard outcomes[line.id] == nil, line.undoneAt == nil else { return }
         outcomes[line.id] = (try? changeStore.undo(line, at: now())) ?? .changedSince
+    }
+
+    /// The words that came go out at about thirty paces a second, while some are waiting.
+    private func pace() {
+        guard pacing == nil else { return }
+        pacing = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(33))
+                guard let self, self.answer != nil else { break }
+                let before = self.pacer.shown.count
+                let shown = self.pacer.tick()
+                if shown != self.visible { self.visible = shown }
+                // Nothing more to give now (all shown, or a word not finished): the next words start it again.
+                if shown.count == before { break }
+            }
+            self?.pacing = nil
+        }
+    }
+
+    private func endPacing() {
+        pacing?.cancel()
+        pacing = nil
+        pacer = StreamPacer()
+        visible = ""
     }
 
     /// Steps of an answer that stopped: none stays « under way ».

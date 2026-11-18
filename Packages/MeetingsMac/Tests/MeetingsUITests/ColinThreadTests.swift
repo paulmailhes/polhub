@@ -129,6 +129,15 @@ import Testing
         #expect(world.thread.liveSteps.isEmpty)
     }
 
+    /// The text shows word by word while it comes; the answer kept is the whole of it.
+    @Test func theAnswerWritesItselfWordByWord() async throws {
+        let world = try world(FakeLauncher { _, _ in Self.session { _, _ in [.initialized(Self.good), .textDelta("Trois projets en cours ")] } })
+        ask(world.thread, "Où on en est ?")
+        try await waitUntil { world.thread.visible == "Trois projets en cours " }
+        #expect(world.thread.streaming == "Trois projets en cours ")
+        world.thread.stop()
+    }
+
     @Test func aQuestionIsKeptThenAnswered() async throws {
         let world = try world(FakeLauncher { _, _ in Self.session() })
         ask(world.thread, "Où on en est ?")
