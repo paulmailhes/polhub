@@ -369,6 +369,20 @@ import Testing
         #expect(silent([sentOnce, seenTwice], conversations: copies(sentOnce, seenTwice)).count == 1)
     }
 
+    /// A conversation is said from the first of its copies that waits, in the order given (the mailboxes Paul shows
+    /// come first): not from the box whose copy happens to be dated last.
+    @Test func aConversationIsSaidFromTheFirstCopyThatWaits() {
+        let first = thread("t1", account: Self.me, [received(Self.marc, 4)])
+        let second = thread("t9", account: Self.other, [received(Self.marc, 4 - 1.0 / 86_400)])
+        #expect(replies([first, second], conversations: copies(first, second)).map(\.threadKey) == [first.id])
+        #expect(replies([second, first], conversations: copies(first, second)).map(\.threadKey) == [second.id])
+        // Paul answered what the first box holds; Marc's later mail reached the other box only: that copy waits.
+        let answered = thread("t1", account: Self.me, [received(Self.marc, 8), sent(7)])
+        let later = thread("t9", account: Self.other, [received(Self.marc, 8), received(Self.marc, 4)])
+        let lines = replies([answered, later], conversations: copies(answered, later))
+        #expect(lines.map(\.threadKey) == [later.id] && lines.first?.days == 4)
+    }
+
     @Test func aCopyLeftBehindInTheOtherBoxNeverWaits() {
         // Marc wrote to both addresses ten days ago. Paul answered from the first box; Marc wrote again yesterday,
         // to the first box only. The copy left in the second box holds a mail answered nine days ago.

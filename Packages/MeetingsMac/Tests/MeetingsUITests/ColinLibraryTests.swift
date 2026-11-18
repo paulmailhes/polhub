@@ -369,6 +369,30 @@ import Testing
         try await waitUntil { world.colin.review.map(\.kind) == [.draft, .reply] }
     }
 
+    /// Marc wrote to both of Paul's addresses; the copy of the mailbox Paul hid is dated a second later. The
+    /// conversation is still said, from the mailbox he shows.
+    @Test func aConversationWithACopyInAHiddenMailboxIsSaidFromTheOther() async throws {
+        let world = try await world(accounts: [Self.me, Self.other]) { database, _, clock in
+            let store = MailStore(database)
+            try store.apply(account: Self.me, upserts: [
+                sent("a1", thread: "a", to: Self.marc, at: clock.ago(60)),
+                received("a2", thread: "a", from: Self.marc, at: clock.ago(4), identifier: "<m1@exemple.net>"),
+            ])
+            try store.apply(account: Self.other, upserts: [
+                received("x1", thread: "x", from: Self.marc, at: clock.ago(4).addingTimeInterval(1), box: Self.other, identifier: "<m1@exemple.net>"),
+            ])
+        }
+        defer { try? FileManager.default.removeItem(at: world.root) }
+        let mails = try #require(world.mails)
+        try await waitUntil { world.colin.review.count == 1 }
+        mails.hidden = [Self.other]
+        try await settled(world.colin)
+        #expect(world.colin.review.map(\.id) == ["reply:\(key("a"))"])
+        // Hidden the other way round: said from the other mailbox.
+        mails.hidden = [Self.me]
+        try await waitUntil { world.colin.review.map(\.id) == ["reply:\(key("x", box: Self.other))"] }
+    }
+
     /// Without the mails (no mailbox yet), the Accueil still says the meetings to file and the day.
     @Test func withoutMailsOnlyTheMeetingsAndTheDayShow() async throws {
         let world = try await world(withMails: false) { database, _, clock in
@@ -434,6 +458,51 @@ import Testing
         try await waitUntil { world.colin.review.first?.person == "Marc" }
     }
 
+    /// A reading that took long (a Mac that slept in the middle of it) never holds the next computations for long.
+    @Test func aLongReadingNeverHoldsTheNextOnesForLong() {
+        #expect(ColinLibrary.pause(settle: .milliseconds(300), reading: .zero) == .milliseconds(300))
+        #expect(ColinLibrary.pause(settle: .milliseconds(300), reading: .milliseconds(20)) == .milliseconds(300))
+        // Never more than a sixth of the time in readings…
+        #expect(ColinLibrary.pause(settle: .milliseconds(300), reading: .milliseconds(200)) == .seconds(1))
+        // … and never more than five seconds, whatever the reading took.
+        #expect(ColinLibrary.pause(settle: .milliseconds(300), reading: .seconds(8 * 3_600)) == .seconds(5))
+    }
+
+    /// What is written and that no line says is not read again: Paul's notes in the page of a project, a mail read
+    /// or archived, a calendar that writes the same events again.
+    @Test func writingsTheAccueilDoesNotReadAreNotReadAgain() async throws {
+        let world = try await world { database, _, clock in
+            try marcWaits(database, clock)
+            try meeting(database, clock)
+        }
+        defer { try? FileManager.default.removeItem(at: world.root) }
+        try await waitUntil { world.colin.review.count == 2 }
+        try await settled(world.colin)
+        let readings = world.colin.readings, lines = world.colin.review
+        let projects = ProjectStore(world.database)
+        var project = try #require(try projects.project(id: world.project))
+        for index in 0..<5 {
+            let before = project
+            project.notes = "Appel du matin, ligne \(index)."
+            try projects.saveChanges(from: before, to: project, at: world.clock.now)
+            try await Task.sleep(for: .milliseconds(40))
+        }
+        try world.store.apply(account: Self.me, labels: ["a2": ["INBOX", "CATEGORY_PERSONAL", "UNREAD"]])
+        try await Task.sleep(for: .milliseconds(60))
+        try world.store.apply(account: Self.me, labels: ["a2": ["CATEGORY_PERSONAL"]])
+        let event = try #require(try CalendarStore(world.database).allEvents().first)
+        try CalendarStore(world.database).applyGoogle(account: Self.me, changed: [event], cancelled: [], at: world.clock.now.addingTimeInterval(600))
+        try await Task.sleep(for: .milliseconds(150))
+        try await settled(world.colin)
+        #expect(world.colin.readings == readings)
+        #expect(world.colin.review == lines)
+        // What a line or the point does say is read: the project is due in two days.
+        let before = project
+        project.dueDate = world.clock.now.addingTimeInterval(2 * 86_400)
+        try projects.saveChanges(from: before, to: project, at: world.clock.now)
+        try await waitUntil { world.colin.readings == readings + 1 }
+    }
+
     /// What is published changes only when the lines do: a view that reads them is not redrawn for nothing.
     @Test func theListIsPublishedOnlyWhenItChanges() async throws {
         let world = try await world { database, _, clock in try marcWaits(database, clock) }
@@ -491,6 +560,45 @@ import Testing
         try await waitUntil { world.colin.briefingAt == back }
         #expect(world.colin.briefing == ["Cette semaine : aucun rendez-vous.", "À livrer : Cabinet Martin vendredi.", "À toi de jouer : Cabinet Martin.",
                                          "Depuis 10:12 : 1 mail de client."])
+    }
+
+    /// Paul is back before the mailboxes were read again (the Mac just woke, Polhub just opened): what they bring a
+    /// few seconds later was there while he was away, and enters the point. Once they and the calendars were read
+    /// again, the point no longer moves.
+    @Test func whatTheMailboxesBringAfterAReturnEntersThePoint() async throws {
+        let world = try await world { database, project, clock in
+            try MailStore(database).apply(account: Self.me, upserts: [
+                received("b1", thread: "b", from: Self.claire, name: "Claire Morel", at: clock.ago(20)),
+                sent("b2", thread: "b", to: Self.claire, at: clock.ago(19)),
+            ])
+            try MailStore(database).file(threadKey: key("b"), as: .project(project), at: clock.ago(20))
+        }
+        defer { try? FileManager.default.removeItem(at: world.root) }
+        world.colin.seen()
+        try await waitUntil { world.colin.briefingAt != nil }
+        // Thirteen hours later the Mac wakes: the point is prepared on the copy of before the sleep.
+        world.clock.advance(hours: 13)
+        let back = world.clock.now
+        world.colin.seen()
+        try await waitUntil { world.colin.briefingAt == back }
+        try await settled(world.colin)
+        #expect(world.colin.briefing == ["Cette semaine : aucun rendez-vous.", "À toi de jouer : Cabinet Martin."])
+        // Gmail answers: Claire wrote three hours ago.
+        try world.store.apply(account: Self.me, upserts: [received("b3", thread: "b", from: Self.claire, name: "Claire Morel", at: back.addingTimeInterval(-3 * 3_600))])
+        try await waitUntil { world.colin.briefing.last == "Depuis 10:00 : 1 mail de client." }
+        #expect(world.colin.briefingAt == back)
+        // The mailbox and the calendar were read again since his return: the point is closed.
+        try world.store.save(MailCursorRow(account: Self.me, lastSyncAt: back.addingTimeInterval(20)))
+        try CalendarStore(world.database).recordSync(email: Self.me, syncToken: nil, error: nil, at: back.addingTimeInterval(20))
+        try await waitUntil { world.mails?.cursors[Self.me]?.lastSyncAt != nil && world.agenda.accounts.first?.lastSyncAt != nil }
+        world.clock.advance(hours: 1.0 / 60)
+        world.colin.refresh()
+        try await settled(world.colin)
+        try world.store.apply(account: Self.me, upserts: [received("c1", thread: "c", from: Self.claire, name: "Claire Morel", at: back.addingTimeInterval(-2 * 3_600))])
+        try world.store.file(threadKey: key("c"), as: .project(world.project), at: world.clock.now)
+        try await Task.sleep(for: .milliseconds(150))
+        try await settled(world.colin)
+        #expect(world.colin.briefing.last == "Depuis 10:00 : 1 mail de client." && world.colin.briefingAt == back)
     }
 
     /// Polhub is quit and opened again (an update): the point is prepared again at once, with the same « since ».

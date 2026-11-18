@@ -100,8 +100,9 @@ public enum ReviewRules {
             guard let received, received > (sent ?? .distantPast) else { continue }
             let days = age(of: received, now: now)
             guard days >= thresholds.replyDays, days <= thresholds.maxAgeDays else { continue }
-            // The box where that last message arrived.
-            guard let thread = copies.first(where: { $0.lastReceivedAt == received }),
+            // The first copy that waits: one that holds a message received after Paul's last answer. In the order the
+            // threads were given (the mailboxes Paul shows first), not the box whose copy happens to be dated last.
+            guard let thread = copies.first(where: { ($0.lastReceivedAt ?? .distantPast) > (sent ?? .distantPast) }),
                   rules.tab(of: thread) == .personnes, thread.lastSender.map({ rules.correspondents.contains($0.lowercased()) }) == true else { continue }
             guard !copies.contains(where: { isAside(aside[$0.id], lastMessage: received, now: now, calendar: calendar) }) else { continue }
             let project = rules.filing(of: thread)?.filing.projectID
