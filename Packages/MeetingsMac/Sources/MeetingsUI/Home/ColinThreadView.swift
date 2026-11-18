@@ -68,7 +68,6 @@ struct ColinThreadView: View {
     let mails: MailLibrary?
     @ObservedObject var router: WindowRouter
     var calendar: Calendar = CalendarView.calendar
-    @State private var kept: Set<String> = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.m) {
@@ -140,11 +139,8 @@ struct ColinThreadView: View {
             HStack(alignment: .firstTextBaseline, spacing: Space.s) {
                 Text(line).font(.rowBody).foregroundStyle(.secondary)
                 Spacer(minLength: Space.s)
-                if !kept.contains(line) {
-                    TextButton("Garder") {
-                        try? thread.keep(line)
-                        kept.insert(line)
-                    }
+                if !thread.knows(line) {
+                    TextButton("Garder") { try? thread.keep(line) }
                 }
             }
         }

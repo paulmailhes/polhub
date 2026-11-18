@@ -3,6 +3,9 @@ import SwiftUI
 
 /// The words of Réglages › Colin (18/11).
 enum ColinSettingsText {
+    /// What leaves the Mac when Colin is on.
+    static let footer = "Colin allumé, ce que tu lui écris, « Ce que Colin sait », vos derniers échanges, les lignes de l'Accueil et ce qu'il lit pour te répondre partent chez Anthropic par ton Claude Code. Jamais l'audio ni les pièces jointes. Il n'envoie rien : un brouillon t'attend toujours."
+
     /// The read-only line: what Colin did this week, and what the API would have charged for it.
     static func week(count: Int, costUSD: Double) -> String {
         guard count > 0 else { return "Cette semaine : aucune réponse de Colin." }
@@ -29,18 +32,15 @@ struct ColinSettingsPane: View {
                     if let probe { ColinAccountRow(control: probe) }
                     Text(week).font(.meta).foregroundStyle(.secondary)
                 } footer: {
-                    Text("Colin allumé, ce que tu lui écris, « Ce que Colin sait », vos derniers échanges et ce qu'il lit pour te répondre partent chez Anthropic par ton Claude Code. Jamais l'audio ni les pièces jointes. Il n'envoie rien : un brouillon t'attend toujours.")
-                        .font(.meta)
+                    Text(ColinSettingsText.footer).font(.meta)
                 }
                 Section {
+                    // Kept a second after the last keystroke, and at once when Paul leaves the page.
                     TextEditor(text: $knowledge)
                         .font(.rowBody)
                         .frame(minHeight: 160)
-                        .task(id: knowledge) {
-                            // Kept a second after the last keystroke.
-                            guard knowledge != thread.knowledge, (try? await Task.sleep(for: .seconds(1))) != nil else { return }
-                            try? thread.saveKnowledge(knowledge)
-                        }
+                        .onChange(of: knowledge) { _, text in if text != thread.knowledge { thread.editKnowledge(text) } }
+                        .onDisappear { thread.flushKnowledge() }
                 } header: {
                     Text("Ce que Colin sait")
                 } footer: {

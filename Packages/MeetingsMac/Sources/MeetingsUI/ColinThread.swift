@@ -55,6 +55,11 @@ public final class ColinThread: ObservableObject {
     private var asking = false
     private var lastAnswerAt: Date?
     private var watcher: Task<Void, Never>?
+    /// Counts what stopped Colin (a call, the Mac's sleep, the switch): a question waiting since before does not leave.
+    private var epoch = 0
+    /// « Ce que Colin sait » as Paul types it, kept a second after his last keystroke.
+    private var pendingKnowledge: String?
+    private var knowledgeSave: Task<Void, Never>?
 
     /// `runner`: `nil` shows the thread and asks nothing (captures, tests of the screens). `isBusy`: a call recorded
     /// or transcribed. `sinceWake`: the seconds since the Mac started or woke. `newDrafts`: the drafts the agents
@@ -133,10 +138,37 @@ public final class ColinThread: ObservableObject {
         }
     }
 
-    /// « Garder »: the line joins what Colin knows.
+    /// « Garder »: the line joins what Colin knows, once.
     public func keep(_ line: String) throws {
+        flushKnowledge()
+        guard !knows(line) else { return }
         let current = knowledge.trimmingCharacters(in: .whitespacesAndNewlines)
         try saveKnowledge(current.isEmpty ? line : current + "\n" + line)
+    }
+
+    /// Whether this line is already in what Colin knows.
+    public func knows(_ line: String) -> Bool {
+        let wanted = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        return knowledge.components(separatedBy: "\n").contains { $0.trimmingCharacters(in: .whitespacesAndNewlines) == wanted }
+    }
+
+    /// Réglages › Colin, as Paul types: kept a second after his last keystroke.
+    public func editKnowledge(_ text: String) {
+        pendingKnowledge = text
+        knowledgeSave?.cancel()
+        knowledgeSave = Task { [weak self] in
+            guard (try? await Task.sleep(for: .seconds(1))) != nil else { return }
+            self?.flushKnowledge()
+        }
+    }
+
+    /// What Paul typed and is not kept yet, kept now: he leaves the page.
+    public func flushKnowledge() {
+        knowledgeSave?.cancel()
+        knowledgeSave = nil
+        guard let text = pendingKnowledge else { return }
+        pendingKnowledge = nil
+        try? saveKnowledge(text)
     }
 
     /// Réglages › Colin: « Ce que Colin sait », as Paul writes it.
@@ -163,6 +195,7 @@ public final class ColinThread: ObservableObject {
 
     public func meetingBegan() {
         cut("Arrêté : ton call commence.")
+        guard isOn else { return }
         status = .waitingCall
         watchCall()
     }
@@ -189,8 +222,15 @@ public final class ColinThread: ObservableObject {
         try? store.add(asked)
         if let since = sinceWake(), since < settleAfterWake {
             status = .settling
+            let before = epoch
             try? await Task.sleep(for: .seconds(settleAfterWake - since))
-            guard isOn else { return }
+            // A call, the Mac's sleep or the switch meanwhile: the question stays, unanswered.
+            guard isOn, epoch == before else { return }
+            if await isBusy() {
+                status = .waitingCall
+                watchCall()
+                return
+            }
         }
         let row = ColinMessageRow(author: .colin, text: "", state: .answering, createdAt: asked.createdAt.addingTimeInterval(0.001))
         try? store.add(row)
@@ -238,8 +278,11 @@ public final class ColinThread: ObservableObject {
 
     /// Claude Code goes now; an answer under way keeps what came, and why it stopped.
     private func cut(_ note: String) {
+        epoch += 1
         guard let runner else { return }
         Task { await runner.stop() }
+        if case .working = status { status = isOn ? .idle : .off }
+        if status == .starting || status == .settling { status = isOn ? .idle : .off }
         guard var row = answer else { return }
         row.text = streaming.isEmpty ? note : streaming + "\n\n" + note
         row.state = .interrupted

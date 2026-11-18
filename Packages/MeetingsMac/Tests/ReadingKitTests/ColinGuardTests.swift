@@ -126,6 +126,47 @@ import Testing
         #expect(writes.count == 1)
     }
 
+    /// A new mail allowed in the project read cannot be changed to go to someone else.
+    @Test func aChangeCannotBringOtherPeople() throws {
+        let world = try world()
+        defer { try? FileManager.default.removeItem(at: world.fixture.root) }
+        let writes = WriteCounter()
+        let server = try server(world, writes: writes)
+        _ = try call(server, "mail", ["quel": "fil-maquette-01"])
+        #expect(try call(server, "brouillon", ["a": ["camille@studio.exemple"], "objet": "Suite", "texte": "Bonjour"]).error == false)
+        let id = try #require(try world.fixture.store.agentDrafts().first?.id)
+        #expect(try call(server, "brouillon", ["identifiant": id, "a": ["claire@cabinet.exemple"], "texte": "Bonjour"]).error)
+        #expect(try call(server, "brouillon", ["identifiant": id, "a": ["inconnu@ailleurs.exemple"]]).error)
+        #expect(try call(server, "brouillon", ["identifiant": id, "cc": ["claire@cabinet.exemple"]]).error)
+        #expect(try world.fixture.store.agentDrafts().first?.to.map(\.email) == ["camille@studio.exemple"])
+        // Its text, within the project, still changes.
+        #expect(try call(server, "brouillon", ["identifiant": id, "texte": "Bonjour Camille"]).error == false)
+        #expect(writes.count == 2)
+    }
+
+    /// A stranger in To, a contact of the project in copy: the stranger is of no project, the mail is refused.
+    @Test func aNewMailToAStrangerIsRefusedEvenWithAContact() throws {
+        let world = try world()
+        defer { try? FileManager.default.removeItem(at: world.fixture.root) }
+        let writes = WriteCounter()
+        let server = try server(world, writes: writes)
+        _ = try call(server, "mail", ["quel": "fil-maquette-01"])
+        #expect(try call(server, "brouillon", ["a": ["compta@pirate.exemple"], "cc": ["camille@studio.exemple"], "objet": "Devis", "texte": "Ci-joint"]).error)
+        #expect(try call(server, "brouillon", ["a": ["compta@pirate.exemple", "camille@studio.exemple"], "objet": "Devis", "texte": "Ci-joint"]).error)
+        #expect(writes.count == 0)
+    }
+
+    /// A read that fails can still show subjects (« « devis » désigne plusieurs fils »): it locks as a wide one.
+    @Test func aReadThatFailsLocksToo() throws {
+        let world = try world()
+        defer { try? FileManager.default.removeItem(at: world.fixture.root) }
+        let writes = WriteCounter()
+        let server = try server(world, writes: writes)
+        #expect(try call(server, "mail", ["quel": "fil-inconnu-99"]).error)
+        #expect(try reply(server, in: "fil-devis-04").error)
+        #expect(writes.count == 0)
+    }
+
     @Test func theAgentsProfileHasNoLock() throws {
         let world = try world()
         defer { try? FileManager.default.removeItem(at: world.fixture.root) }

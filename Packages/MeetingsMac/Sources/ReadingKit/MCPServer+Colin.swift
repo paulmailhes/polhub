@@ -106,7 +106,14 @@ extension MCPServer {
             let target = try mails.map { try colinTarget(arguments, mails: $0) } ?? nil
             guard guardian?.mayWrite(to: target) ?? true else { throw ToolError(ColinGuard.refusal) }
         }
-        let text = try call(name, arguments)
+        let text: String
+        do {
+            text = try call(name, arguments)
+        } catch {
+            // A read that fails can still show what it found (several threads, by their subjects): wide.
+            if name != ColinTool.brouillon.rawValue { guardian?.read([.wide]) }
+            throw error
+        }
         if name != ColinTool.brouillon.rawValue { guardian?.read((try? colinScopes(name, arguments)) ?? [.wide]) }
         return [["type": "text", "text": text]]
     }
@@ -148,22 +155,26 @@ extension MCPServer {
     /// mail the one project of its people.
     func colinTarget(_ arguments: [String: Any], mails: MailDesk) throws -> ColinScope? {
         let rules = try mails.store.filingRules()
-        if let which = Self.text(arguments["identifiant"]) {
-            let threadKey: String?, people: [MailAddress]
-            switch try mails.changeable(which) {
-            case .waiting(let drop): (threadKey, people) = (drop.threadKey, drop.to + drop.cc)
-            case .draft(let draft): (threadKey, people) = (draft.threadKey, draft.to + draft.cc)
-            }
-            if let threadKey { return try mails.colinScope(ofKey: threadKey, rules: rules) }
-            return mails.colinScope(of: people, rules: rules)
-        }
-        if let which = Self.text(arguments["quel"]) { return mails.colinScope(of: try mails.find(which, rules: rules), rules: rules) }
         func strings(_ key: String) -> [String] {
             if let list = arguments[key] as? [Any] { return list.compactMap { $0 as? String } }
             return (arguments[key] as? String).map { [$0] } ?? []
         }
-        let people = (try? MailDesk.addresses(strings("a"), "a")) ?? []
-        let copied = (try? MailDesk.addresses(strings("cc"), "cc")) ?? []
+        // The people given, read as the change and the drop read them; unreadable, they go nowhere.
+        guard let people = try? MailDesk.addresses(strings("a"), "a"), let copied = try? MailDesk.addresses(strings("cc"), "cc") else { return nil }
+        if let which = Self.text(arguments["identifiant"]) {
+            let threadKey: String?, to: [MailAddress], cc: [MailAddress], isNew: Bool
+            switch try mails.changeable(which) {
+            case .waiting(let drop): (threadKey, to, cc, isNew) = (drop.threadKey, drop.to, drop.cc, drop.mode == .new)
+            case .draft(let draft): (threadKey, to, cc, isNew) = (draft.threadKey, draft.to, draft.cc, draft.mode == .new)
+            }
+            // A reply keeps its thread's people: « a » and « cc » are ignored.
+            if !isNew, let threadKey { return try mails.colinScope(ofKey: threadKey, rules: rules) }
+            // A new mail: its people as they were, and as they would be; a change may not bring others.
+            let before = mails.colinScope(of: to + cc, rules: rules)
+            let after = mails.colinScope(of: (people.isEmpty ? to : people) + (copied.isEmpty ? cc : copied), rules: rules)
+            return before == after ? after : nil
+        }
+        if let which = Self.text(arguments["quel"]) { return mails.colinScope(of: try mails.find(which, rules: rules), rules: rules) }
         return mails.colinScope(of: people + copied, rules: rules)
     }
 }
@@ -180,13 +191,17 @@ extension MailDesk {
         return colinScope(of: thread, rules: rules)
     }
 
-    /// The one project of these people (the contacts of a project, those Paul took out of it apart); none when they
-    /// are of several, or of none.
+    /// The one project of these people (the contacts of a project, those taken out of it apart), the user's own
+    /// addresses apart; none when they are of several, or when one of them is of none (a stranger in copy of a
+    /// contact is still a stranger).
     func colinScope(of people: [MailAddress], rules: MailFilingRules) -> ColinScope? {
         var found: Set<UUID> = []
         for person in people {
             let address = person.email.lowercased()
-            found.formUnion((rules.contactProjects[address] ?? []).subtracting(rules.excludedProjects[address] ?? []))
+            guard !rules.mine.contains(address) else { continue }
+            let projects = (rules.contactProjects[address] ?? []).subtracting(rules.excludedProjects[address] ?? [])
+            guard !projects.isEmpty else { return nil }
+            found.formUnion(projects)
         }
         return found.count == 1 ? found.first.map(ColinScope.project) : nil
     }

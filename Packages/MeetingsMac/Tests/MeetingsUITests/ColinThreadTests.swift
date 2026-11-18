@@ -156,6 +156,64 @@ import Testing
         try await waitUntil { world.thread.messages.count == 2 && world.thread.messages.last?.state == .done }
     }
 
+    /// A call, the Mac's sleep or the switch during the wait after a wake: the question does not leave.
+    @Test func aCallDuringTheWakeWaitStopsTheQuestion() async throws {
+        for gesture in ["call", "sleep", "off"] {
+            let busy = Flag()
+            let world = try world(FakeLauncher { _, _ in Self.session() }, busy: busy, sinceWake: 299.7)
+            ask(world.thread, "Où on en est ?")
+            try await waitUntil { world.thread.status == .settling }
+            switch gesture {
+            case "call": busy.value = true; world.thread.meetingBegan()
+            case "sleep": world.thread.macWillSleep()
+            default: world.thread.turnOff()
+            }
+            try await Task.sleep(for: .milliseconds(600))
+            #expect(world.launcher.started.isEmpty, "\(gesture)")
+            #expect(!world.thread.isAnswering, "\(gesture)")
+        }
+    }
+
+    @Test func afterSleepNothingSaysColinWorks() async throws {
+        let world = try world(FakeLauncher { _, _ in Self.session(Self.hanging) })
+        ask(world.thread, "Où on en est ?")
+        try await waitUntil { world.thread.streaming == "Trois " }
+        world.thread.macWillSleep()
+        try await waitUntil { world.thread.messages.last?.state == .interrupted }
+        #expect(world.thread.status == .idle)
+    }
+
+    /// Off, Colin stays off when a call begins and ends: « Allumer Colin » stays in the bar's place.
+    @Test func aCallWithColinOffLeavesHimOff() async throws {
+        let busy = Flag()
+        let world = try world(FakeLauncher { _, _ in Self.session() }, on: false, busy: busy)
+        busy.value = true
+        world.thread.meetingBegan()
+        #expect(world.thread.status == .off)
+        busy.value = false
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(world.thread.status == .off && !world.thread.isOn)
+    }
+
+    /// What Paul types in « Ce que Colin sait » is kept a second later, or at once when he leaves the page.
+    @Test func whatColinKnowsIsKeptWhenPaulLeaves() async throws {
+        let world = try world(FakeLauncher { _, _ in Self.session() })
+        world.thread.editKnowledge("Écrire court.")
+        #expect(try ColinStore(world.database).knowledge() == "")
+        world.thread.flushKnowledge()
+        #expect(try ColinStore(world.database).knowledge() == "Écrire court.")
+        world.thread.editKnowledge("Écrire court, à mon ton.")
+        try await waitUntil { (try? ColinStore(world.database).knowledge()) == "Écrire court, à mon ton." }
+    }
+
+    @Test func aLineIsKeptOnce() throws {
+        let world = try world(FakeLauncher { _, _ in Self.session() })
+        try world.thread.keep("Marc préfère WhatsApp.")
+        try world.thread.keep("Marc préfère WhatsApp.")
+        #expect(try ColinStore(world.database).knowledge() == "Marc préfère WhatsApp.")
+        #expect(world.thread.knows("Marc préfère WhatsApp."))
+    }
+
     @Test func notConnectedIsSaidOnce() async throws {
         let world = try world(FakeLauncher { _, _ in
             Self.session(warmUp: [.initialized(Self.good), .result(ClaudeResult(isError: true, text: "Not logged in · Please run /login"))])
