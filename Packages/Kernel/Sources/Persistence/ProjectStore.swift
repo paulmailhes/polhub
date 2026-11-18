@@ -2,7 +2,7 @@ import Domain
 import Foundation
 import GRDB
 
-public enum ProjectStoreError: Error, Equatable, LocalizedError {
+public enum ProjectStoreError: Error, Equatable, LocalizedError, CustomStringConvertible {
     /// A helper newer than the base: the app has not opened it since its update, and the base cannot yet say who
     /// changes a project.
     case needsApp
@@ -12,6 +12,8 @@ public enum ProjectStoreError: Error, Equatable, LocalizedError {
         case .needsApp: "Polhub doit être ouvert une fois : sa base n'a pas encore le journal des changements. Rien n'a été écrit."
         }
     }
+    /// What a session reads when a tool fails.
+    public var description: String { errorDescription ?? "" }
 }
 
 /// The projects, their actions and journal, and the meetings filed in them.

@@ -168,6 +168,8 @@ public struct ProjectDesk: Sendable {
     // MARK: - The four writes
 
     public func addAction(_ which: String?, text: String) throws -> String {
+        // One call, one change: undone together (step 3 of Colin, 18/11).
+        let projects = self.projects.batch()
         let project = try resolve(which)
         let text = try Self.required(text, "texte", "ce qu'il reste à faire")
         let last = try projects.actions(projectID: project.id).map(\.position).max() ?? -1
@@ -176,6 +178,8 @@ public struct ProjectDesk: Sendable {
     }
 
     public func done(_ which: String?, numbers: [Int]) throws -> String {
+        // One call, one change: undone together (step 3 of Colin, 18/11).
+        let projects = self.projects.batch()
         let project = try resolve(which)
         let open = try openActions(project)
         guard !numbers.isEmpty else { throw ToolError("Il manque « numeros » : les numéros affichés par `actions`.") }
@@ -195,6 +199,8 @@ public struct ProjectDesk: Sendable {
 
     /// A dated bullet at the end of the notes' first part (the vault's « Notes » section).
     public func addNote(_ which: String?, text: String) throws -> String {
+        // One call, one change: undone together (step 3 of Colin, 18/11).
+        let projects = self.projects.batch()
         var project = try resolve(which)
         let text = try Self.required(text, "texte", "la note")
         let bullet = "- \(day(now())) : \(text)"
@@ -213,6 +219,8 @@ public struct ProjectDesk: Sendable {
     }
 
     public func addJournal(_ which: String?, title: String, details: [String]) throws -> String {
+        // One call, one change: undone together (step 3 of Colin, 18/11).
+        let projects = self.projects.batch()
         let project = try resolve(which)
         let title = try Self.required(title, "titre", "le titre de l'étape")
         let body = details.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }.map { "- \($0)" }.joined(separator: "\n")
@@ -230,6 +238,8 @@ public struct ProjectDesk: Sendable {
     /// on the project's page. Everything is read before anything is written: a refusal changes nothing.
     public func update(_ which: String?, status: String?, due: String?, todo: String?, client: String? = nil, notes: String? = nil,
                        contact: String? = nil, removeContact: String? = nil) throws -> String {
+        // One call, one change: undone together (step 3 of Colin, 18/11).
+        let projects = self.projects.batch()
         let project = try resolve(which)
         var said: [String] = []
         var newStatus: ProjectStatus?
@@ -318,6 +328,8 @@ public struct ProjectDesk: Sendable {
     /// Paul's 7 (16/11): a new project, when Paul asks, at the bottom of its column as the board's « + » makes it,
     /// with what was given. Its name must be new (case and accents ignored); everything is read before it is made.
     public func create(name: String, status: String?, client: String?, due: String?, folder: String?) throws -> String {
+        // One call, one change: undone together (step 3 of Colin, 18/11).
+        let projects = self.projects.batch()
         let name = try Self.required(name, "nom", "le nom du nouveau projet")
         if let same = try projects.projects().first(where: { Self.fold($0.name) == Self.fold(name) }) {
             throw ToolError("Un projet s'appelle déjà « \(same.name) » : choisis un autre nom, ou change celui-ci avec `projet`.")
@@ -417,6 +429,8 @@ public struct ProjectDesk: Sendable {
 
     /// An open action reworded, or removed (`remove`), by its number in `actions`.
     public func editAction(_ which: String?, number: Int, text: String, remove: Bool) throws -> String {
+        // One call, one change: undone together (step 3 of Colin, 18/11).
+        let projects = self.projects.batch()
         let project = try resolve(which)
         let open = try openActions(project)
         guard open.indices.contains(number - 1) else {

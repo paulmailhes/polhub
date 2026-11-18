@@ -63,7 +63,8 @@ do {
         let helper = Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments[0])
         // The project tools write (13/11): the base opens for writing, never migrated, and the app is told.
         var desk: ProjectDesk?
-        if let tools = try? AppDatabase.forTools(path: basePath), (try? tools.hasProjects()) == true {
+        // What it writes in a project is signed (step 3 of Colin, 18/11): Colin's, or an agent's.
+        if let tools = try? AppDatabase.forTools(path: basePath, author: options.colin ? .colin : .agent), (try? tools.hasProjects()) == true {
             desk = ProjectDesk(projects: ProjectStore(tools), meetings: MeetingStore(tools),
                                // Colin works in an empty folder: no project is guessed from it, none of its path is said.
                                workingDirectory: options.colin ? nil : FileManager.default.currentDirectoryPath,

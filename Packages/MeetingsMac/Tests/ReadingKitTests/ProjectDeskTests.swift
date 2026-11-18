@@ -13,8 +13,9 @@ struct DeskFixture {
     let atelier: ProjectRow
     let vitrine: ProjectRow
 
-    init() throws {
-        database = try AppDatabase.inMemory()
+    /// `author`: who the desk writes as — Paul's by default, as the tests of before the journal expect.
+    init(author: ChangeAuthor = .paul) throws {
+        database = try AppDatabase.inMemory(author: author)
         projects = ProjectStore(database)
         meetings = MeetingStore(database)
         let due = ISO8601DateFormatter().date(from: "2026-11-20T00:00:00Z")!
