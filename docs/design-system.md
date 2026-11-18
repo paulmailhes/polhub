@@ -95,7 +95,7 @@ les autres gardent la leur sous leur carte. Le bandeau du bas (`MailUndoBar`) mo
 ## Les couleurs
 
 - Une seule palette (`Palette`) pour les comptes Google, les projets et les statuts.
-- La couleur d'un **compte** marque ses rendez-vous (et la carte du prochain rendez-vous, sur l'Accueil) ;
+- La couleur d'un **compte** marque ses rendez-vous (et « Rejoindre », sur la ligne du prochain rendez-vous de l'Accueil) ;
   celle d'un **statut** marque les colonnes du Kanban (un point, un fond très léger) ; celle d'un **projet**
   teinte sa carte (≈ 14 % en clair, 22 % en sombre, un trait plus franc à gauche), et marque son logo, sa
   pastille dans les mails, son point dans Contacts : une seule source, `ProjectViews.tint(_:)`.
@@ -109,7 +109,7 @@ les autres gardent la leur sous leur carte. Le bandeau du bas (`MailUndoBar`) mo
 | Composant | Usage |
 |---|---|
 | `Page { }` | Une page qui défile, à la bonne largeur et aux bonnes marges |
-| `PageHeader("Titre", subtitle:)` | Le titre d'une page qui en a besoin (Accueil, page d'un projet) |
+| `PageHeader("Titre", subtitle:)` | Le titre d'une page qui en a besoin (la page d'un projet) |
 | `Card { }` | Une surface de contenu ; `.cardSurface()` pour une vue existante |
 | `SectionTitle("Titre", systemImage:, count:) { trailing }` | Le titre d'une carte ou d'une partie |
 | `Chip("Texte", systemImage:, tint:)` | Un statut, une date, une étiquette |
@@ -195,6 +195,30 @@ de Dia illisibles, autotest raté, disque presque plein, piste en échec) ; elle
 colonne garde toute sa hauteur, mordue en haut : posée sur la colonne, elle se lisait comme le point d'un « i ». Elle
 disparaît seule quand la cause n'existe plus. Les mails, les notifications, les comptes et les mises à jour ne
 touchent jamais le logo.
+
+## L'Accueil
+
+L'Accueil dit d'un regard ce qui attend le clic de Paul et où il en est (`HomeView`, dossier `MeetingsUI/Home`). Ce
+qu'il montre est calculé hors de l'affichage par `ColinLibrary`, par règles seules : aucun modèle, rien ne sort du Mac.
+
+- **Deux colonnes** à partir de 760 points de contenu (`HomeLayout`) : à gauche la colonne de Colin (ce qui est fait,
+  où on en est), à droite les listes (ce qui attend), larges de 360 points. En fenêtre étroite, les listes passent
+  au-dessus, la colonne de Colin dessous. Pas de grand titre : la fenêtre s'appelle « Accueil ».
+- **« Le point »** (`BriefingCard`) : quatre phrases au plus, en deux colonnes (de quoi la phrase parle en gris, ce
+  qu'elle dit en 15 points), avec le jour et l'heure où il a été préparé (« mardi 9:04 »). Il se prépare à un retour
+  de Paul (première présence du jour, ou trois heures après), jamais à chaque affichage.
+- **« À valider »** (`ReviewCard`) : une phrase et un bouton par ligne. Le symbole de la sorte de ligne à gauche (celui
+  d'un brouillon prêt dans la couleur d'accent), la phrase en `.rowTitle`, le projet et les jours dessous en `.meta`,
+  puis le mot à cliquer (`TextButton` : « Relire », « Ouvrir », « Ranger ») et, pour une ligne qui peut s'écarter, un
+  menu « … ». Un clic sur la ligne fait la même chose que son mot. Cinq lignes, puis « Voir les N autres ». Une ligne
+  part seule quand la chose est faite ; écartée ou rangée à la main, elle part tout de suite.
+- **« Aujourd'hui »** (`TodayCard`) : ce qui reste de la journée. Le prochain rendez-vous dit « dans 40 min » ou « en
+  cours » et porte « Rejoindre » en `.glassProminent` à la couleur de son compte ; les autres gardent l'icône. S'il ne
+  reste rien, le rendez-vous suivant avec son jour (« Demain 10:00 »).
+- **Un brouillon ou un fil s'ouvre par-dessus l'Accueil** (`mailPanels`, les mêmes panneaux que dans Mails) : on
+  relit, on envoie, on ferme, et la ligne suivante est là. « Précédent » referme.
+- **Rien n'est dit deux fois** : ce que disaient l'ancien titre daté, la carte du prochain rendez-vous, « Priorité 2 »,
+  « Dernières réunions » et « À classer » est dans « Le point », « Aujourd'hui » et « À valider ».
 
 ## Coup d'œil
 
@@ -310,6 +334,7 @@ Les captures hors écran ne dessinent ni le verre ni la barre d'outils. Pour voi
 POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter "WindowSnapshotTests|MailScreenTests/theMailScreens|PeopleScreenTests"
 POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter CoupDoeilScreenTests   # Coup d'œil et le logo
 POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter InspirationScreenTests  # Inspiration, données inventées
+POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter HomeScreenTests         # l'Accueil, données inventées
 ```
 
 Les fenêtres de test ne deviennent jamais actives (aucune touche ne doit les atteindre) : les boutons

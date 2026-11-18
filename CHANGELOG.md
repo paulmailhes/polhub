@@ -3,6 +3,33 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.32.0 — 18 novembre 2026
+
+**Un nouvel Accueil : d'un regard, ce qui attend ton clic et où tu en es.**
+
+- **« À valider »** liste ce qui t'attend, une phrase et un bouton par ligne : « Brouillon prêt pour Claire »
+  (Relire), « Marc attend ta réponse » depuis 3 jours (Ouvrir), « Anne ne répond plus » depuis 7 jours (Ouvrir),
+  « Réunion à ranger » (Ranger). Une ligne part toute seule quand la chose est faite.
+- Le brouillon ou le fil s'ouvre **par-dessus l'Accueil** : tu relis, tu envoies, tu fermes, et la ligne suivante est
+  là. Rien ne part sans ton clic sur « Envoyer ».
+- Une ligne fausse s'écarte par son menu « … » : « Pas besoin » (jusqu'au prochain message du fil), « Plus tard »
+  (jusqu'à demain), et pour un client muet « Anne a répondu ailleurs ». Dit deux fois pour un même projet, Polhub
+  ne signale plus les silences de ce projet.
+- **« Aujourd'hui »** montre ce qui reste de ta journée, le prochain rendez-vous en tête avec « Rejoindre ». S'il ne
+  reste rien, le rendez-vous suivant (« Demain 10:00 »).
+- **« Le point »** tient en quatre phrases au plus : ta semaine, ce qui est à livrer, les projets où c'est à toi de
+  jouer, et les mails de clients arrivés depuis ton dernier passage. Il se prépare quand tu reviens : la première
+  fois de la journée, ou après trois heures.
+- Quand un agent a préparé un mail, une notification le dit : « Colin : Brouillon prêt pour Claire. On le valide ? ».
+  Un clic ouvre l'Accueil.
+- Ce qui quitte l'Accueil : le grand titre daté, la grande carte du prochain rendez-vous, « Priorité 2 », « Dernières
+  réunions » et « À classer ». Ce qu'ils disaient est dans les trois parties ci-dessus ; les réunions restent dans
+  Réunions.
+- **Réglages › Colin** : après combien de jours signaler un mail sans réponse (3 par défaut) et un client muet (7 par
+  défaut). **Réglages › Notifications › Colin** : « Un brouillon est prêt ».
+- Tout cela est calculé sur ton Mac, par des règles : aucune IA, aucun token, rien ne sort. Les boîtes que tu masques
+  dans Mails ne sont pas signalées. Colin, l'agent à qui tu parleras, arrive à l'étape suivante.
+
 ## 0.31.3 — 18 novembre 2026
 
 **Polhub recompte les règles du nouvel Accueil, autrement.**
