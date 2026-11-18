@@ -1,4 +1,5 @@
 import Foundation
+import Domain
 import Testing
 @testable import Persistence
 
@@ -93,6 +94,93 @@ import Testing
         for _ in 0..<200 where seen.value?.isEmpty != false { try await Task.sleep(for: .milliseconds(10)) }
         #expect(seen.value == ["reply:moi@exemple.fr|t1"])
         observation.cancel()
+    }
+
+    // MARK: - Colin's thread (v17)
+
+    func message(_ text: String, _ author: ColinMessageRow.Author = .paul, minutes: Double, state: ColinMessageRow.State = .done,
+                 cost: Double? = nil) -> ColinMessageRow {
+        ColinMessageRow(author: author, text: text, state: state, createdAt: now.addingTimeInterval(minutes * 60), costUSD: cost)
+    }
+
+    @Test func theThreadIsReadPageByPage() throws {
+        let store = ColinStore(try AppDatabase.inMemory())
+        for index in 0..<5 { try store.add(message("m\(index)", minutes: Double(index))) }
+        let last = try store.messages(before: nil, limit: 2)
+        #expect(last.map(\.text) == ["m3", "m4"])
+        #expect(try store.messages(before: last[0].createdAt, limit: 2).map(\.text) == ["m1", "m2"])
+        #expect(try store.messages(before: now, limit: 10).isEmpty)
+    }
+
+    @Test func aMessageIsUpdatedInPlace() throws {
+        let store = ColinStore(try AppDatabase.inMemory())
+        var answer = message("", .colin, minutes: 1, state: .answering)
+        try store.add(answer)
+        answer.text = "Trois projets t'attendent."
+        answer.state = .done
+        answer.costUSD = 0.02
+        answer.drafts = ["d1", "d2"]
+        try store.update(answer)
+        #expect(try store.messages(before: nil, limit: 5) == [answer])
+    }
+
+    @Test func onlyFinishedMessagesAreRecalled() throws {
+        let store = ColinStore(try AppDatabase.inMemory())
+        try store.add(message("Où on en est ?", minutes: 0))
+        try store.add(message("Coupé", .colin, minutes: 1, state: .interrupted))
+        try store.add(message("Raté", .colin, minutes: 2, state: .failed))
+        try store.add(message("Et Cabinet Martin ?", minutes: 3))
+        try store.add(message("Il attend Claire.", .colin, minutes: 4))
+        #expect(try store.exchanges(last: 2).map(\.text) == ["Et Cabinet Martin ?", "Il attend Claire."])
+        #expect(try store.exchanges(last: 10).map(\.text) == ["Où on en est ?", "Et Cabinet Martin ?", "Il attend Claire."])
+    }
+
+    @Test func whatColinCostIsCountedSinceADate() throws {
+        let store = ColinStore(try AppDatabase.inMemory())
+        try store.add(message("Avant", .colin, minutes: -10, cost: 0.02))
+        try store.add(message("Une", .colin, minutes: 1, cost: 0.02))
+        try store.add(message("Deux", .colin, minutes: 2, cost: 0.02))
+        try store.add(message("Question", minutes: 3))
+        try store.add(message("Sans coût", .colin, minutes: 4, state: .failed))
+        let week = try store.answers(since: now)
+        #expect(week.count == 2 && abs(week.costUSD - 0.04) < 1e-9)
+    }
+
+    @Test func aCrashLeavesNoAnswerUnderWay() throws {
+        let store = ColinStore(try AppDatabase.inMemory())
+        try store.add(message("À moitié", .colin, minutes: 1, state: .answering))
+        try store.add(message("Fini", .colin, minutes: 2))
+        try store.closeUnfinished()
+        #expect(try store.messages(before: nil, limit: 5).map(\.state) == [.interrupted, .done])
+    }
+
+    @Test func whatColinKnowsIsKeptWhole() throws {
+        let store = ColinStore(try AppDatabase.inMemory())
+        #expect(try store.knowledge() == "")
+        let text = String(repeating: "Écrire court, à mon ton.\nLe lien de rendez-vous : https://exemple.fr/rdv\n", count: 60)
+        try store.saveKnowledge(text, at: now)
+        #expect(try store.knowledge() == text)
+        try store.saveKnowledge("Autre chose", at: now.addingTimeInterval(60))
+        #expect(try store.knowledge() == "Autre chose")
+    }
+
+    @Test func theThreadIsObserved() async throws {
+        let store = ColinStore(try AppDatabase.inMemory())
+        let seen = Seen()
+        let observation = store.observeMessages(limit: 2) { rows in seen.set(rows.map(\.text)) }
+        for _ in 0..<200 where seen.value == nil { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(seen.value == [])
+        for index in 0..<3 { try store.add(message("m\(index)", minutes: Double(index))) }
+        for _ in 0..<200 where seen.value != ["m1", "m2"] { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(seen.value == ["m1", "m2"])
+        observation.cancel()
+    }
+
+    @Test func colinsToolsAreElevenAndNamedAsClaudeCodeNamesThem() {
+        #expect(ColinTool.allowed.count == 11)
+        #expect(ColinTool.allowed.first == "mcp__polhub__projets")
+        #expect(ColinTool.brouillon.allowedName == "mcp__polhub__brouillon")
+        #expect(ColinTool.lockMark == "Verrou de Colin")
     }
 
     final class Seen: @unchecked Sendable {

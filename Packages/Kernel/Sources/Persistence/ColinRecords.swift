@@ -45,3 +45,50 @@ public struct ColinDismissalRow: Codable, FetchableRecord, PersistableRecord, Eq
 
     public static func key(kind: String, subject: String) -> String { "\(kind):\(subject)" }
 }
+
+/// A message of Colin's one thread (base v17, 18/11): Paul's, or Colin's answer. An answer is written when it begins
+/// and again when it ends.
+public struct ColinMessageRow: Codable, FetchableRecord, PersistableRecord, Equatable, Identifiable, Sendable {
+    public static let databaseTableName = "colin_message"
+
+    public enum Author: String, Codable, Sendable { case paul, colin }
+
+    public enum State: String, Codable, Sendable {
+        case done
+        /// Colin is writing it.
+        case answering
+        /// Stopped before its end: by Paul, a call, the Mac's sleep, Colin turned off.
+        case interrupted
+        /// Claude Code failed.
+        case failed
+    }
+
+    public var id: String
+    public var author: Author
+    public var text: String
+    public var state: State
+    public var createdAt: Date
+    /// An answer: what it cost, in what the API would have charged.
+    public var costUSD: Double?
+    /// The drafts that appeared while Colin answered, by identifier.
+    public var drafts: [String]
+
+    public init(id: String = UUID().uuidString.lowercased(), author: Author, text: String, state: State = .done, createdAt: Date,
+                costUSD: Double? = nil, drafts: [String] = []) {
+        self.id = id
+        self.author = author
+        self.text = text
+        self.state = state
+        self.createdAt = createdAt
+        self.costUSD = costUSD
+        self.drafts = drafts
+    }
+}
+
+/// « Ce que Colin sait » (base v17): one text, which Paul alone changes.
+struct ColinKnowledgeRow: Codable, FetchableRecord, PersistableRecord, Sendable {
+    static let databaseTableName = "colin_knowledge"
+    var id: Int = 1
+    var text: String
+    var updatedAt: Date
+}

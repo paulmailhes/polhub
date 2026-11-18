@@ -576,6 +576,24 @@ public final class AppDatabase: Sendable {
                 t.column("times", .integer).notNull().defaults(to: 1)
             }
         }
+        // Colin's bar (18/11): his one thread, and what he knows (a text Paul alone changes). Two tables a helper of
+        // before never opens; nothing else changes, so it still reads a base of after.
+        migrator.registerMigration("v17", foreignKeyChecks: .immediate) { db in
+            try db.create(table: "colin_message") { t in
+                t.primaryKey("id", .text)
+                t.column("author", .text).notNull()
+                t.column("text", .text).notNull()
+                t.column("state", .text).notNull()
+                t.column("createdAt", .datetime).notNull().indexed()
+                t.column("costUSD", .double)
+                t.column("drafts", .text).notNull().defaults(to: "[]")
+            }
+            try db.create(table: "colin_knowledge") { t in
+                t.primaryKey("id", .integer)
+                t.column("text", .text).notNull()
+                t.column("updatedAt", .datetime).notNull()
+            }
+        }
         return migrator
     }
 }
