@@ -541,8 +541,8 @@ import Testing
         // The very first time: nothing « since ».
         #expect(world.colin.briefing == ["Cette semaine : aucun rendez-vous.", "À toi de jouer : Cabinet Martin."])
 
-        // Twelve minutes later he looks again: the point stays as it was prepared, whatever came meanwhile.
-        world.clock.advance(hours: 0.2)
+        // Twenty minutes later he looks again: the point is closed, and stays as it was prepared whatever came meanwhile.
+        world.clock.advance(hours: 1.0 / 3)
         var project = try #require(try ProjectStore(world.database).project(id: world.project))
         let original = project
         project.dueDate = world.clock.now.addingTimeInterval(2 * 86_400)
@@ -552,14 +552,14 @@ import Testing
         #expect(world.colin.briefingAt == first)
         #expect(world.colin.briefing == ["Cette semaine : aucun rendez-vous.", "À toi de jouer : Cabinet Martin."])
 
-        // Claire writes at 10:30; four hours later Paul is back: prepared again, since the last time he was there.
+        // Claire writes at 10:38; four hours later Paul is back: prepared again, since the last time he was there.
         try world.store.apply(account: Self.me, upserts: [received("b3", thread: "b", from: Self.claire, name: "Claire Morel", at: world.clock.now.addingTimeInterval(18 * 60))])
         world.clock.advance(hours: 4)
         let back = world.clock.now
         world.colin.seen()
         try await waitUntil { world.colin.briefingAt == back }
         #expect(world.colin.briefing == ["Cette semaine : aucun rendez-vous.", "À livrer : Cabinet Martin vendredi.", "À toi de jouer : Cabinet Martin.",
-                                         "Depuis 10:12 : 1 mail de client."])
+                                         "Depuis 10:20 : 1 mail de client."])
     }
 
     /// Paul is back before the mailboxes were read again (the Mac just woke, Polhub just opened): what they bring a
@@ -599,6 +599,63 @@ import Testing
         try await Task.sleep(for: .milliseconds(150))
         try await settled(world.colin)
         #expect(world.colin.briefing.last == "Depuis 10:00 : 1 mail de client." && world.colin.briefingAt == back)
+    }
+
+    /// A copy read again writes what it found, then notes that it was read, in one pass: what the last one brings
+    /// enters the point too, before it is closed. For a mailbox as for a calendar.
+    @Test func whatTheLastCopyReadAgainBringsEntersThePointToo() async throws {
+        let world = try await world { database, project, clock in
+            try MailStore(database).apply(account: Self.me, upserts: [
+                received("b1", thread: "b", from: Self.claire, name: "Claire Morel", at: clock.ago(20)),
+                sent("b2", thread: "b", to: Self.claire, at: clock.ago(19)),
+            ])
+            try MailStore(database).file(threadKey: key("b"), as: .project(project), at: clock.ago(20))
+        }
+        defer { try? FileManager.default.removeItem(at: world.root) }
+        world.colin.seen()
+        try await waitUntil { world.colin.briefingAt != nil }
+        world.clock.advance(hours: 13)
+        let back = world.clock.now
+        world.colin.seen()
+        try await waitUntil { world.colin.briefingAt == back }
+        try await settled(world.colin)
+        // The calendar is read first: nothing new there.
+        try CalendarStore(world.database).recordSync(email: Self.me, syncToken: nil, error: nil, at: back.addingTimeInterval(5))
+        try await waitUntil { world.agenda.accounts.first?.lastSyncAt != nil }
+        // Then the mailbox, in one pass: Claire's mail of the evening, and the note that the mailbox was read.
+        try world.store.apply(account: Self.me, upserts: [received("b3", thread: "b", from: Self.claire, name: "Claire Morel", at: back.addingTimeInterval(-3 * 3_600))])
+        try world.store.save(MailCursorRow(account: Self.me, lastSyncAt: back.addingTimeInterval(6)))
+        try await waitUntil { world.colin.briefing.last == "Depuis 10:00 : 1 mail de client." }
+        try await settled(world.colin)
+        // Everything was read again: the point is closed, what comes later is for the next one.
+        try world.store.apply(account: Self.me, upserts: [received("c1", thread: "c", from: Self.claire, name: "Claire Morel", at: back.addingTimeInterval(-2 * 3_600))])
+        try world.store.file(threadKey: key("c"), as: .project(world.project), at: world.clock.now)
+        try await Task.sleep(for: .milliseconds(150))
+        try await settled(world.colin)
+        #expect(world.colin.briefing.last == "Depuis 10:00 : 1 mail de client." && world.colin.briefingAt == back)
+    }
+
+    /// The same for the calendar read last: an event taken while Paul was away is in « Cette semaine ».
+    @Test func anEventTheCalendarBringsAfterAReturnEntersThePoint() async throws {
+        let world = try await world()
+        defer { try? FileManager.default.removeItem(at: world.root) }
+        world.colin.seen()
+        try await waitUntil { world.colin.briefingAt != nil }
+        world.clock.advance(hours: 4)
+        let back = world.clock.now
+        world.colin.seen()
+        try await waitUntil { world.colin.briefingAt == back }
+        try await settled(world.colin)
+        #expect(world.colin.briefing.first == "Cette semaine : aucun rendez-vous.")
+        try world.store.save(MailCursorRow(account: Self.me, lastSyncAt: back.addingTimeInterval(5)))
+        try await waitUntil { world.mails?.cursors[Self.me]?.lastSyncAt != nil }
+        // A client took a slot tomorrow at ten; the calendar writes it, then notes that it was read.
+        let start = paris.date(bySettingHour: 10, minute: 0, second: 0, of: back.addingTimeInterval(86_400))!
+        let event = CalendarEventRow(account: Self.me, eventID: "e9", title: "Point Cabinet Martin", startAt: start, endAt: start.addingTimeInterval(3_600), updatedAt: back)
+        try CalendarStore(world.database).applyGoogle(account: Self.me, changed: [event], cancelled: [], at: back.addingTimeInterval(6))
+        try CalendarStore(world.database).recordSync(email: Self.me, syncToken: nil, error: nil, at: back.addingTimeInterval(6))
+        try await waitUntil { world.colin.briefing.first == "Cette semaine : 1 rendez-vous, demain 10:00." }
+        #expect(world.colin.briefingAt == back)
     }
 
     /// Polhub is quit and opened again (an update): the point is prepared again at once, with the same « since ».

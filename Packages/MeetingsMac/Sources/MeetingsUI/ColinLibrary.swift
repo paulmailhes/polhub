@@ -39,7 +39,7 @@ public final class ColinLibrary: ObservableObject {
     private var staleBase = true
     private var readingCost: Duration = .zero
     /// « Le point » to prepare: since when, and the time it carries. Kept after it is prepared, until the copies of
-    /// the mailboxes and of the calendars were read again (or ten minutes): what they bring then enters it.
+    /// the mailboxes and of the calendars were read again (or a quarter of an hour): what they bring then enters it.
     private var wanted: (since: Date?, at: Date)?
     private var pending: Task<Void, Never>?
     private var again = false
@@ -168,12 +168,13 @@ public final class ColinLibrary: ObservableObject {
         computations += 1
         let number = computations
         let date = now()
-        // « Le point » already prepared: once the copies were read again since Paul's return, or after ten minutes,
-        // it is closed and no longer moves.
-        if let point = wanted, briefingAt == point.at, readAgain(since: point.at) || date.timeIntervalSince(point.at) >= Self.pointSettles {
-            wanted = nil
-        }
+        // « Le point » already prepared and left open too long: it is closed as it stands.
+        if let point = wanted, briefingAt == point.at, date.timeIntervalSince(point.at) >= Self.pointSettles { wanted = nil }
         let asked = wanted
+        // Whether the mailboxes and the calendars were read again since Paul's return, as this computation begins:
+        // what it reads then holds what they brought. A copy writes what it found, then notes that it was read, in
+        // one pass: the point is prepared once more on it before it is closed, never closed before.
+        let copiesRead = asked.map { readAgain(since: $0.at) } ?? false
         let readsMails = mails != nil && (staleMails || mailInputs == nil), readsBase = staleBase || baseInputs == nil
         if readsMails { staleMails = false }
         if readsBase { staleBase = false }
@@ -204,6 +205,8 @@ public final class ColinLibrary: ObservableObject {
         if let point = outcome.point, let asked, wanted?.at == asked.at {
             if point != briefing { briefing = point }
             if briefingAt != asked.at { briefingAt = asked.at }
+            // Prepared on copies read again, with nothing written meanwhile: closed, it no longer moves.
+            if copiesRead, !staleMails, !staleBase { wanted = nil }
         }
     }
 
@@ -280,8 +283,9 @@ public final class ColinLibrary: ObservableObject {
     nonisolated static let window = Double(ReviewRules.Thresholds().maxAgeDays + 1) * 86_400
     private static let absencesKept = 100
     private static let absenceFloor: TimeInterval = 30 * 60
-    /// A point just prepared stays open this long at most.
-    private static let pointSettles: TimeInterval = 10 * 60
+    /// A point just prepared stays open this long at most: longer than the calendars take to be read again (ten
+    /// minutes), so that the cap is not what closes it while Polhub runs.
+    private static let pointSettles: TimeInterval = 15 * 60
 
     /// The thresholds of Réglages › Colin, read again at each computation.
     private static func thresholds(_ defaults: UserDefaults) -> ReviewRules.Thresholds {
