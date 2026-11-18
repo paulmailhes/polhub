@@ -31,7 +31,7 @@ public final class ColinProbeControl: ObservableObject {
     private let folderExists: (String) -> Bool
     private let isAccount: (String) -> Bool
     private let uptime: () -> TimeInterval
-    private let lastWake: () -> Date?
+    private let sinceWake: () -> TimeInterval?
     private let watchEvery: Duration
     private let settleAfterWake: Duration
     private let restAfterFinish: Duration
@@ -55,7 +55,8 @@ public final class ColinProbeControl: ObservableObject {
     ///   - report: what the last probe concluded, and why it stopped early when it knows; `nil` without a report.
     ///   - isAccount: the folder holds a Claude account (Claude Code keeps a `.claude.json` in each).
     ///   - uptime: seconds since the Mac started.
-    ///   - lastWake: when the Mac last woke, as the system says it; `nil`: it has not slept since it started.
+    ///   - sinceWake: seconds since the Mac last woke, as the system says it; `nil`: it has not slept since it
+    ///     started.
     ///   - watchEvery: how often a probe under way looks for a meeting or a transcription that begins.
     ///   - settleAfterWake: how long nothing is launched after the Mac starts or wakes.
     ///   - restAfterFinish: how long a click is ignored after a probe ends.
@@ -66,7 +67,7 @@ public final class ColinProbeControl: ObservableObject {
                 folderExists: @escaping (String) -> Bool = { FileManager.default.fileExists(atPath: $0) },
                 isAccount: @escaping (String) -> Bool = { FileManager.default.fileExists(atPath: $0 + "/.claude.json") },
                 uptime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
-                lastWake: @escaping () -> Date? = { ColinProbeControl.systemLastWake() },
+                sinceWake: @escaping () -> TimeInterval? = { ColinProbeControl.systemSinceWake() },
                 watchEvery: Duration = ColinProbeControl.watchPace, settleAfterWake: Duration = ColinProbeControl.settling,
                 restAfterFinish: Duration = ColinProbeControl.rest) {
         self.defaults = defaults
@@ -78,7 +79,7 @@ public final class ColinProbeControl: ObservableObject {
         self.folderExists = folderExists
         self.isAccount = isAccount
         self.uptime = uptime
-        self.lastWake = lastWake
+        self.sinceWake = sinceWake
         self.watchEvery = watchEvery
         self.settleAfterWake = settleAfterWake
         self.restAfterFinish = restAfterFinish
@@ -92,13 +93,19 @@ public final class ColinProbeControl: ObservableObject {
     /// A click is ignored for this long after a probe ends.
     public nonisolated static let rest: Duration = .seconds(1)
 
-    /// When the Mac last woke, as the system keeps it. A Polhub opened after the wake, or relaunched by its own
-    /// update, did not see it happen: the system did. `nil`: the Mac has not slept since it started.
-    public nonisolated static func systemLastWake() -> Date? {
-        var time = timeval()
-        var size = MemoryLayout<timeval>.stride
-        guard sysctlbyname("kern.waketime", &time, &size, nil, 0) == 0, time.tv_sec > 0 else { return nil }
-        return Date(timeIntervalSince1970: Double(time.tv_sec) + Double(time.tv_usec) / 1_000_000)
+    /// How long ago the Mac last woke, in seconds, as the system keeps it: a Polhub opened after the wake, or
+    /// relaunched by its own update, did not see it happen. Read on the clock that counts the time awake, which a
+    /// change of the date cannot move (measured on 18/11: within a second of the dated one). `nil`: the Mac has not
+    /// slept since it started.
+    public nonisolated static func systemSinceWake() -> TimeInterval? {
+        var woke: UInt64 = 0
+        var size = MemoryLayout<UInt64>.size
+        guard sysctlbyname("kern.wake_abs_time", &woke, &size, nil, 0) == 0, woke > 0 else { return nil }
+        var base = mach_timebase_info_data_t()
+        guard mach_timebase_info(&base) == KERN_SUCCESS, base.denom > 0 else { return nil }
+        let now = mach_absolute_time()
+        guard now >= woke else { return nil }
+        return Double(now - woke) * Double(base.numer) / Double(base.denom) / 1_000_000_000
     }
 
     /// « comptes/second »: the end of the folder's path, enough to know it.
@@ -156,7 +163,7 @@ public final class ColinProbeControl: ObservableObject {
         if uptime() < wait { return false }
         // The wake this copy saw, and the one the system remembers when this copy was not there to see it.
         if let wokeAt, clock.now - wokeAt < settleAfterWake { return false }
-        if let woke = lastWake(), Date().timeIntervalSince(woke) < wait { return false }
+        if let since = sinceWake(), since < wait { return false }
         return true
     }
 

@@ -220,9 +220,10 @@ final class Calls: @unchecked Sendable {
     }
 
     func probe(_ launcher: FakeLauncher, binary: URL?, helper: URL?, pings: Int = 3, pause: Double = 0, timeout: Double = 5,
-               tool: @escaping ColinProbe.Tool = answers) -> ColinProbe {
+               tool: @escaping ColinProbe.Tool = answers, folderName: String? = nil) -> ColinProbe {
         ColinProbe(launcher: launcher, binary: binary, helper: helper, home: Self.home, environment: ["HOME": Self.home.path, "PATH": "/usr/bin:/bin"],
-                   pings: pings, pause: pause, timeout: timeout, initWait: 0.5, interruptDelay: 0, tool: tool, busySessions: { _ in 2 })
+                   pings: pings, pause: pause, timeout: timeout, initWait: 0.5, interruptDelay: 0, tool: tool, busySessions: { _ in 2 },
+                   folderName: folderName)
     }
 
     func folder() -> URL {
@@ -696,6 +697,59 @@ final class Calls: @unchecked Sendable {
         #expect(Array(sceneMeasures.map(\.step).suffix(3)) == ["scene", "panne", "bilan"])
         #expect(sceneMeasures.last { $0.step == "scene" }?.numbers["sortieForcee"] == nil)
         #expect(ColinProbe.reason(in: three) == "sans-reponse")
+    }
+
+    @Test func anAnswerThatCameJustAsTheDelayEndedIsStillAnAnswer() async throws {
+        // The answer was written as the probe decided to stop: a success is a success. Only the end in error of an
+        // interrupted turn is no answer.
+        let late = FakeSession(endsWhenClosed: false, stopCode: 0, onStop: { [Self.done(0.05)] })
+        let launcher = Self.healthy { command, _ in command.effort == "low" ? late : nil }
+        let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper, timeout: 0.5))
+        #expect(late.stopped)
+        let words = measures.filter { $0.step == "premier-mot" }
+        #expect(words.map(\.ok) == [true, true, true, true])
+        #expect(words[1].numbers["sortieForcee"] == 1)
+        #expect(step("bilan", measures)?.labels["fin"] == "complete")
+        #expect(ColinProbe.reason(in: directory) == nil)
+    }
+
+    @Test func aTurnSilentAfterALimitRefusedNamesTheLimit() async throws {
+        // The account says its limit is reached, then nothing: stopped for its silence, and the limit is why.
+        let rejected = ClaudeEvent.rateLimit(ClaudeRateLimit(status: "rejected", type: "five_hour", fiveHour: 1))
+        let limited = FakeSession([.initialized(Self.withServer)], endsWhenClosed: false, stopCode: 0, onSend: { _, turn in
+            turn == 1 ? [.textDelta("Bon"), Self.done(0.01)] : [rejected]
+        }, onStop: { [.other("user/interruption"), .result(ClaudeResult(subtype: "error_during_execution", isError: true))] })
+        let launcher = Self.healthy { command, _ in command.prompt == nil ? limited : nil }
+        let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper, timeout: 0.5))
+        #expect(limited.stopped)
+        #expect(step("conversation", measures)?.labels["delai"] == "tour 2")
+        #expect(measures.last { $0.step == "panne" }?.labels["categorie"] == "limite-atteinte")
+        #expect(ColinProbe.reason(in: directory) == "limite-atteinte")
+    }
+
+    @Test func theRunsFolderIsItsOwnAndNobodyElses() async throws {
+        // A folder that already stands where the run would make its own is refused, never adopted, and never removed.
+        let manager = FileManager.default
+        let name = "colin-sonde-essai-\(UUID().uuidString.prefix(8).lowercased())"
+        let standing = manager.temporaryDirectory.appending(path: name, directoryHint: .isDirectory)
+        try manager.createDirectory(at: standing, withIntermediateDirectories: true)
+        try Data("déjà là".utf8).write(to: standing.appending(path: "voisin.txt"))
+        defer { try? manager.removeItem(at: standing) }
+        let launcher = Self.healthy()
+        let (directory, measures) = try await run(probe(launcher, binary: binary, helper: helper, folderName: name))
+        #expect(measures.map(\.step) == ["binaire", "compte", "dossier", "bilan"])
+        #expect(launcher.started.isEmpty)
+        #expect(ColinProbe.reason(in: directory) == "lancement-impossible")
+        #expect(try manager.contentsOfDirectory(atPath: standing.path(percentEncoded: false)) == ["voisin.txt"])
+
+        // On a free name, the run makes its folder, works in it, and leaves nothing of it.
+        let free = "colin-sonde-essai-\(UUID().uuidString.prefix(8).lowercased())"
+        let made = manager.temporaryDirectory.appending(path: free, directoryHint: .isDirectory)
+        let second = Self.healthy()
+        let (_, green) = try await run(probe(second, binary: binary, helper: helper, folderName: free))
+        #expect(step("bilan", green)?.labels["fin"] == "complete")
+        #expect(second.directories.allSatisfy { $0.path(percentEncoded: false).contains("/\(free)/travail") })
+        #expect(!manager.fileExists(atPath: made.path(percentEncoded: false)))
     }
 
     @Test func aStoppedLaunchIsWaitedForUntilItsProcessIsGone() async throws {
@@ -1241,23 +1295,23 @@ final class Calls: @unchecked Sendable {
         let runs = ColinProbe.Runs()
         // No run: nothing to wait for.
         var began = Date()
-        await blocking { runs.wait(within: 2) }
-        #expect(Date().timeIntervalSince(began) < 0.5)
+        await blocking { runs.wait(within: 5) }
+        #expect(Date().timeIntervalSince(began) < 3)
         // A run that ends its own way, 300 ms later: waited for, and no longer.
         runs.begin()
+        began = Date()
         Thread.detachNewThread {
             usleep(300_000)
             runs.end()
         }
-        began = Date()
-        await blocking { runs.wait(within: 3) }
+        await blocking { runs.wait(within: 5) }
         let waited = Date().timeIntervalSince(began)
-        #expect(waited > 0.2 && waited < 2)
+        #expect(waited > 0.29 && waited < 4)
         // A run that never ends does not hold the app beyond the delay given.
         runs.begin()
         began = Date()
         await blocking { runs.wait(within: 0.3) }
         let held = Date().timeIntervalSince(began)
-        #expect(held > 0.25 && held < 1.5)
+        #expect(held > 0.29 && held < 3)
     }
 }

@@ -45,7 +45,7 @@ import Testing
     }
 
     func control(_ runner: Runner, defaults: UserDefaults? = nil, verdict: Bool? = true, reason: String? = nil,
-                 exists: Bool = true, isAccount: Bool = true, uptime: TimeInterval = 86_400, lastWake: Date? = nil,
+                 exists: Bool = true, isAccount: Bool = true, uptime: TimeInterval = 86_400, sinceWake: TimeInterval? = nil,
                  settle: Duration = .seconds(300), rest: Duration = .zero) -> ColinProbeControl {
         runner.verdict = verdict
         runner.reason = reason
@@ -59,7 +59,7 @@ import Testing
             runner.finish = onFinish
             return nil
         }, stop: { runner.stops += 1 }, report: { runner.verdict.map { (ok: $0, reason: runner.reason) } },
-        folderExists: { _ in exists }, isAccount: { _ in isAccount }, uptime: { uptime }, lastWake: { lastWake },
+        folderExists: { _ in exists }, isAccount: { _ in isAccount }, uptime: { uptime }, sinceWake: { sinceWake },
         watchEvery: .milliseconds(20), settleAfterWake: settle, restAfterFinish: rest)
     }
 
@@ -297,7 +297,7 @@ import Testing
             runner.finish = onFinish
             return nil
         }, stop: { runner.stops += 1 }, report: { nil }, folderExists: { _ in true }, isAccount: { _ in true },
-        uptime: { 86_400 }, lastWake: { nil }, watchEvery: .seconds(30))
+        uptime: { 86_400 }, sinceWake: { nil }, watchEvery: .seconds(30))
         control.choose("/Users/essai/comptes/second")
         await control.launch()
         #expect(runner.quietAtStart == true)
@@ -364,25 +364,33 @@ import Testing
     }
 
     @Test func aPolhubOpenedAfterTheMacWokeStillWaits() async {
-        // Opened, or updated and relaunched, after the wake: it did not see the wake happen. The system says when.
+        // Opened, or updated and relaunched, after the wake: it did not see the wake happen. The system says how
+        // long ago it was.
         let runner = Runner()
-        let fresh = control(runner, lastWake: Date().addingTimeInterval(-60))
+        let fresh = control(runner, sinceWake: 60)
         await fresh.launch()
         #expect(fresh.phase == .refused(Self.unsettled))
         #expect(runner.accounts.isEmpty)
         // An hour after the wake, or on a Mac that has not slept since it started: it runs.
-        let later = control(runner, lastWake: Date().addingTimeInterval(-3_600))
+        let later = control(runner, sinceWake: 3_600)
         await later.launch()
         #expect(later.phase == .running)
-        let never = control(Runner(), lastWake: nil)
+        let never = control(Runner(), sinceWake: nil)
         await never.launch()
         #expect(never.phase == .running)
     }
 
-    @Test func theSystemTellsWhenTheMacLastWoke() {
-        // When the Mac has slept since it started, its last wake is in the past, and no older than its uptime.
-        guard let wake = ColinProbeControl.systemLastWake() else { return }
-        let since = Date().timeIntervalSince(wake)
+    @Test func theSystemTellsHowLongAgoTheMacWoke() throws {
+        // Read on the clock that a change of the date cannot move. A Mac that has slept since it started has a
+        // last wake: it is in the past, and no older than the Mac's own uptime.
+        var slept: UInt64 = 0
+        var size = MemoryLayout<UInt64>.size
+        try #require(sysctlbyname("kern.sleep_abs_time", &slept, &size, nil, 0) == 0)
+        guard slept > 0 else {
+            #expect(ColinProbeControl.systemSinceWake() == nil)
+            return
+        }
+        let since = try #require(ColinProbeControl.systemSinceWake())
         #expect(since >= 0)
         #expect(since <= ProcessInfo.processInfo.systemUptime + 60)
     }
@@ -498,7 +506,7 @@ import Testing
             runner.accounts.append(account)
             runner.finish = onFinish
             return nil
-        }, stop: {}, report: { (ok: true, reason: nil) }, uptime: { 86_400 }, lastWake: { nil }, restAfterFinish: .zero)
+        }, stop: {}, report: { (ok: true, reason: nil) }, uptime: { 86_400 }, sinceWake: { nil }, restAfterFinish: .zero)
 
         control.choose(home.path(percentEncoded: false))
         #expect(control.phase == .refused("Choisis le dossier d'un compte Claude, pas ton dossier personnel."))
@@ -516,7 +524,7 @@ import Testing
         let old = ColinProbeControl(defaults: kept, home: home, isQuiet: { true }, start: { account, _ in
             runner.accounts.append(account)
             return nil
-        }, stop: {}, report: { nil }, uptime: { 86_400 }, lastWake: { nil })
+        }, stop: {}, report: { nil }, uptime: { 86_400 }, sinceWake: { nil })
         await old.launch()
         #expect(old.phase == .refused("Choisis le dossier d'un compte Claude, pas ton dossier personnel."))
         #expect(runner.accounts.isEmpty)

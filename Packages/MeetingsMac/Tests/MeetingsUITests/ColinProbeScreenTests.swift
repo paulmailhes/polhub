@@ -22,7 +22,7 @@ struct ColinProbeScreenTests {
                                             ending.finish = onFinish
                                             return nil
                                         }, stop: {}, report: { verdict.map { (ok: $0, reason: reason) } },
-                                        folderExists: { _ in true }, isAccount: { _ in true }, uptime: { 86_400 }, lastWake: { nil })
+                                        folderExists: { _ in true }, isAccount: { _ in true }, uptime: { 86_400 }, sinceWake: { nil })
         return (control, ending)
     }
 

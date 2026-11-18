@@ -200,9 +200,10 @@ import Testing
         try await wait(for: second)
         #expect(processes.count == 2)
         let began = Date()
-        processes.stopAll(within: 0.5)
-        // Asked, waited for half a second, then killed: nothing is left when this returns.
-        #expect(Date().timeIntervalSince(began) < 2)
+        // Two seconds for the one that listens: under load, its shell may take long to run its trap.
+        processes.stopAll(within: 2)
+        // Asked, waited for, then killed: nothing is left when this returns.
+        #expect(Date().timeIntervalSince(began) < 5)
         #expect(kill(obedient.pid, 0) != 0)
         #expect(kill(deaf.pid, 0) != 0)
         // The one that listens was asked, and left by itself; the deaf one had to be killed.

@@ -40,6 +40,7 @@ public struct ColinProbe: Probe {
     fileprivate let interruptDelay: Double
     fileprivate let tool: Tool
     fileprivate let busySessions: @Sendable (URL) -> Int?
+    fileprivate let folderName: String?
 
     /// - Parameters:
     ///   - helper: Polhub's command line, the server of the tools; `nil`: the tools are not measured.
@@ -49,11 +50,12 @@ public struct ColinProbe: Probe {
     ///   - initWait: seconds the conversation waits for Claude Code's first line before speaking.
     ///   - interruptDelay: seconds after the first word of the third answer before it is interrupted.
     ///   - busySessions: how many conversations of Claude Code are at work, for the account's folder given.
+    ///   - folderName: the name of the run's own folder among the temporary ones; `nil`: a new name at each run.
     public init(launcher: any ClaudeLaunching = LiveClaudeLauncher(), binary: URL? = ClaudeBinary.find(), helper: URL?,
                 home: URL = FileManager.default.homeDirectoryForCurrentUser, environment: [String: String] = ProcessInfo.processInfo.environment,
                 pings: Int = 20, pause: Double = 1, timeout: Double = 60, initWait: Double = 2, interruptDelay: Double = 0.4,
                 tool: @escaping Tool = { await ClaudeTool.run($0, arguments: $1, environment: $2, timeout: 15) },
-                busySessions: @escaping @Sendable (URL) -> Int? = { ColinProbe.busySessions(in: $0) }) {
+                busySessions: @escaping @Sendable (URL) -> Int? = { ColinProbe.busySessions(in: $0) }, folderName: String? = nil) {
         self.launcher = launcher
         self.binary = binary
         self.helper = helper
@@ -66,6 +68,7 @@ public struct ColinProbe: Probe {
         self.interruptDelay = interruptDelay
         self.tool = tool
         self.busySessions = busySessions
+        self.folderName = folderName
     }
 
     /// `request.variant`: the folder of the Claude account; empty, absent, or Claude Code's own folder: its own account.
@@ -246,7 +249,7 @@ private struct Run {
         self.account = account
         self.trace = trace
         self.directory = directory
-        token = "colin-sonde-" + UUID().uuidString.prefix(8).lowercased()
+        token = probe.folderName ?? "colin-sonde-" + UUID().uuidString.prefix(8).lowercased()
         root = FileManager.default.temporaryDirectory.appending(path: token, directoryHint: .isDirectory)
         began = clock.now
     }
@@ -606,8 +609,8 @@ private struct Run {
                     outcome.limits.append(limit)
                 case .result(let result):
                     // Stopped, Claude Code ends its turn in error before it leaves (measured on 17/11): the end of
-                    // an interrupted turn, not an answer.
-                    if stopped.isRaised { break }
+                    // an interrupted turn, not an answer. A success written as the probe stopped it is one.
+                    if stopped.isRaised, result.isError || result.subtype != "success" { break }
                     outcome.result = result
                     outcome.totalMs = milliseconds(clock.now - start)
                 case .other(let name):
@@ -936,7 +939,8 @@ private actor Conversation {
         guard !over, armed > turns.count ? closedAt != nil : (turn == armed && closedAt == nil) else { return }
         if armed <= turns.count {
             labels["delai"] = "tour \(armed)"
-            if cause == nil { cause = "sans-reponse" }
+            // Silent after the account said its limit is reached: the limit is why.
+            if cause == nil { cause = refused ? "limite-atteinte" : "sans-reponse" }
         } else {
             labels["delai"] = "fermeture"
         }
