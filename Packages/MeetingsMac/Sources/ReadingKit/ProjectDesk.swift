@@ -232,7 +232,7 @@ public struct ProjectDesk: Sendable {
 
     /// The status, the due date (« AAAA-MM-JJ », or « aucune »), the task of the moment (empty or « aucune »
     /// clears it), when Paul asks a session (16/11: « il m'a dit qu'il avait pas les droits »). Only the fields
-    /// given change; a new status puts the project at the bottom of its column, as on the board.
+    /// given change; a new status puts the project on top of its column, as on the board (19/11).
     /// Paul's 7 (16/11): the client too (empty or « aucun » clears it), the notes replaced whole (empty notes are no
     /// notes given: nothing is wiped), a contact linked (`contact`) or taken out (`removeContact`) as Paul does it
     /// on the project's page. Everything is read before anything is written: a refusal changes nothing.

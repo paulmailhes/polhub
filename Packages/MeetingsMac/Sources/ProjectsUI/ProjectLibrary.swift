@@ -68,8 +68,8 @@ public final class ProjectLibrary: ObservableObject {
         return (try? store.project(id: added.id)) ?? nil
     }
 
-    /// A change made on a project's page. A new status sends the card to the bottom of its new column,
-    /// as a move on the board does (review, minor 8).
+    /// A change made on a project's page. A new status sends the card on top of its new column, as a move on the
+    /// board does (19/11).
     /// A change on the project's page: only the fields that differ go over the stored project.
     public func save(from previous: ProjectRow, to changed: ProjectRow) {
         if previous.status != changed.status { try? store.move(changed.id, to: changed.status, before: nil) }

@@ -153,7 +153,8 @@ public struct ProjectStore: Sendable {
         }
     }
 
-    /// Drops a card in a column, just above `before`, or at the bottom.
+    /// Drops a card in a column, just above `before`; without one, on top of a new column (Paul, 19/11: at the bottom it
+    /// took a long scroll to find), at the end of its own.
     /// A move is Paul's doing: it counts as a sign of life, as a change of the note does in Obsidian.
     public func move(_ id: UUID, to status: ProjectStatus, before: UUID?, at date: Date = Date()) throws {
         guard before != id else { return }
@@ -161,14 +162,17 @@ public struct ProjectStore: Sendable {
         try write(at: date) { db in try Self.place(db, id, to: status, before: before, at: date, edited: edited) }
     }
 
-    /// The card in its column, just above `before`, or at the bottom, inside a transaction: a move, and the undoing of
-    /// a change of status. `edited`: a sign of Paul's life on the project.
-    static func place(_ db: Database, _ id: UUID, to status: ProjectStatus, before: UUID?, at date: Date, edited: Bool) throws {
+    /// The card in its column, just above `before`, inside a transaction: a move, and the undoing of a change of status.
+    /// Without `before`, a card coming from another column goes on top (19/11), unless `onTop` is off — the undoing
+    /// puts a card that was last back at the bottom; one already in the column goes to its end. `edited`: a sign of
+    /// Paul's life on the project.
+    static func place(_ db: Database, _ id: UUID, to status: ProjectStatus, before: UUID?, at date: Date, edited: Bool, onTop: Bool = true) throws {
         guard before != id, var project = try ProjectRow.fetchOne(db, key: key(id)) else { return }
         var column = try ProjectRow
             .filter(Column("status") == status.rawValue && Column("deletedAt") == nil && Column("id") != key(id))
             .order(Column("kanbanOrder"), Column("name")).fetchAll(db)
-        let index = before.flatMap { target in column.firstIndex { $0.id == target } } ?? column.count
+        let arriving = onTop && project.status != status
+        let index = before.flatMap { target in column.firstIndex { $0.id == target } } ?? (arriving ? 0 : column.count)
         let previous = index > 0 ? column[index - 1].kanbanOrder : nil
         let next = index < column.count ? column[index].kanbanOrder : nil
         let position: Double = switch (previous, next) {
@@ -194,7 +198,7 @@ public struct ProjectStore: Sendable {
     }
 
     /// A change of a rule (step 3 of Colin, 18/11), in one transaction and one batch of `author`'s: the status (the card
-    /// at the bottom of its new column), the task, the deadline, a line in the journal. Its event is answered once:
+    /// on top of its new column, 19/11), the task, the deadline, a line in the journal. Its event is answered once:
     /// `false` when it already was (undone or not), or when nothing is left to write. The rule computed on what it read
     /// a little earlier: here the card is read again as it is (final review, 18/11) — a card in the trash, in pause or
     /// finished is left; the status only leaves « priorité 2 »; a deadline is set only where there is none, or a past

@@ -175,7 +175,7 @@ public struct MCPServer: Sendable {
         ],
         [
             "name": "projet", "title": "Changer un projet",
-            "description": "Change le statut (sa priorité sur le tableau), l'échéance, la tâche du moment, le client, les notes ou les contacts liés d'un projet, quand Paul le demande. Seuls les champs donnés changent ; un nouveau statut met le projet en bas de sa colonne. La réponse nomme le projet et dit ce qui a changé.",
+            "description": "Change le statut (sa priorité sur le tableau), l'échéance, la tâche du moment, le client, les notes ou les contacts liés d'un projet, quand Paul le demande. Seuls les champs donnés changent ; un nouveau statut met le projet en haut de sa colonne. La réponse nomme le projet et dit ce qui a changé.",
             "inputSchema": ["type": "object", "properties": [
                 "projet": project,
                 "statut": ["type": "string", "enum": ["priorité 2", "priorité 1", "en pause", "terminé"],

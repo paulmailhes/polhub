@@ -61,6 +61,31 @@ import Testing
         #expect(try names(store, .enPause).isEmpty)
     }
 
+    /// Paul, 19/11: a card that comes into a column without a target goes on top, where he sees it — a drop on the
+    /// column, a new status on the project's page, an agent's change. At the bottom, it meant a long scroll.
+    @Test func aCardFromAnotherColumnGoesOnTop() throws {
+        let (store, _) = try stores()
+        _ = try store.addProject(name: "A", status: .termine, at: now)
+        _ = try store.addProject(name: "B", status: .termine, at: now)
+        let c = try store.addProject(name: "C", status: .priorite1, at: now)
+        try store.move(c.id, to: .termine, before: nil)
+        #expect(try names(store, .termine) == ["C", "A", "B"])
+        // Moved by an agent (`polhub mcp`), the same.
+        let d = try store.addProject(name: "D", status: .priorite1, at: now)
+        try store.signed(.agent).move(d.id, to: .termine, before: nil)
+        #expect(try names(store, .termine) == ["D", "C", "A", "B"])
+    }
+
+    /// Within its own column, a drop without a target is still a move to the end.
+    @Test func aCardDroppedInItsOwnColumnGoesToTheEnd() throws {
+        let (store, _) = try stores()
+        let a = try store.addProject(name: "A", status: .enPause, at: now)
+        _ = try store.addProject(name: "B", status: .enPause, at: now)
+        _ = try store.addProject(name: "C", status: .enPause, at: now)
+        try store.move(a.id, to: .enPause, before: nil)
+        #expect(try names(store, .enPause) == ["B", "C", "A"])
+    }
+
     @Test func movingBeforeACardPutsItJustAbove() throws {
         let (store, _) = try stores()
         let a = try store.addProject(name: "A", status: .priorite2, at: now)

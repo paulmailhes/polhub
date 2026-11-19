@@ -203,6 +203,19 @@ import Testing
 
     /// A rule's change (step 3, 18/11): one batch, in one transaction; its event answered once, never twice; not a sign
     /// of Paul's life on the project.
+    /// 19/11: a rule's new status puts the card on top of its column; « Annuler » puts the last card of its old column
+    /// back at the bottom, where it was.
+    @Test func aRulesCardGoesOnTopAndAnUndoPutsItBackLast() throws {
+        let (database, store, _, nord) = try world()
+        _ = try store.addProject(name: "Atelier Dupont", status: .priorite1, at: now)
+        let edit = KanbanEdit(projectID: nord.id, status: .priorite1, todo: nil, dueDate: nil, journal: nil, reason: "Après ton mail", source: "mail:m-9")
+        #expect(try store.edit(edit, by: .colin, at: now))
+        #expect(try store.projects().filter { $0.status == .priorite1 }.map(\.name) == ["Studio Nord", "Atelier Dupont"])
+        let line = try #require(try ProjectChanges(database).lines(since: .distantPast, authors: [.colin]).first)
+        #expect(try ProjectChanges(database).undo(line, at: now.addingTimeInterval(60)) == .undone)
+        #expect(try store.projects().filter { $0.status == .priorite2 }.map(\.name) == ["Cabinet Martin", "Studio Nord"])
+    }
+
     @Test func aKanbanEditIsOneBatchAndNeverTwice() throws {
         let (database, store, martin, _) = try world()
         let edit = KanbanEdit(projectID: martin.id, status: .priorite1, todo: "En attente retour de Claire", dueDate: nil,

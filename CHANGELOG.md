@@ -3,6 +3,14 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.38.1 — 19 novembre 2026
+
+**Un projet qui change de colonne se met en haut.**
+
+- Déplacé sur le tableau, changé de statut sur sa page, ou par un agent ou une règle de Colin : le projet arrive **en
+  haut** de sa nouvelle colonne, visible tout de suite, au lieu de tout en bas. Posé sur une autre carte, il se met
+  juste au-dessus d'elle, comme avant. « Annuler » le remet à sa place d'avant.
+
 ## 0.38.0 — 19 novembre 2026
 
 **Colin crée un projet quand tu le lui demandes.**

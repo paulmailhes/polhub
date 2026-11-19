@@ -481,7 +481,8 @@ public struct ProjectChanges: Sendable {
         case .status:
             let current = try String.fetchOne(db, sql: "SELECT status FROM project WHERE id = ? AND deletedAt IS NULL", arguments: [project])
             guard current == row.after, let before = row.before.flatMap(ProjectStatus.init(rawValue:)) else { return false }
-            try ProjectStore.place(db, row.projectID, to: before, before: try neighbour(of: row, in: before, db), at: date, edited: true)
+            // Back where it was: before its old neighbour, else at the bottom when it was the last.
+            try ProjectStore.place(db, row.projectID, to: before, before: try neighbour(of: row, in: before, db), at: date, edited: true, onTop: false)
             return true
         case .dueDate, .todo, .client, .notes:
             let column = row.field.rawValue

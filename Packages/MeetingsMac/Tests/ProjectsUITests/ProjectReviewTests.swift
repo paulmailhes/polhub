@@ -42,8 +42,8 @@ import Testing
         return false
     }
 
-    // Mineur 8 : changer le statut depuis la page met la carte en bas de sa nouvelle colonne.
-    @Test func aStatusChangedOnThePageGoesToTheBottomOfItsColumn() async throws {
+    // Mineur 8, puis Paul le 19/11 : changer le statut depuis la page met la carte en haut de sa nouvelle colonne.
+    @Test func aStatusChangedOnThePageGoesOnTopOfItsColumn() async throws {
         let (projects, store, _) = try library()
         _ = try store.addProject(name: "Déjà là", status: .priorite1, at: now)
         var moving = try store.addProject(name: "Arrive", status: .enPause, at: now)
@@ -51,8 +51,8 @@ import Testing
         moving.todo = "Nouvelle chose"
         projects.save(moving)
         let column = try store.projects().filter { $0.status == .priorite1 }.sorted { $0.kanbanOrder < $1.kanbanOrder }
-        #expect(column.map(\.name) == ["Déjà là", "Arrive"])
-        #expect(column.last?.todo == "Nouvelle chose" && column.last?.lastEditedAt != nil)
+        #expect(column.map(\.name) == ["Arrive", "Déjà là"])
+        #expect(column.first?.todo == "Nouvelle chose" && column.first?.lastEditedAt != nil)
     }
 
     // Mineur 9 : ranger une réunion met à jour « À surveiller » sans attendre.
