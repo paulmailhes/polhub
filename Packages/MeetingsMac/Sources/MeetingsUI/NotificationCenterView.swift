@@ -85,11 +85,16 @@ public struct NotificationBell: View {
         self.init(inbox: inbox, arrowEdge: arrowEdge, opensAlone: false, perform: perform)
     }
 
-    init(inbox: NotificationInbox, arrowEdge: Edge, opensAlone: Bool = false, request: Binding<Bool>? = nil,
+    /// In the window's toolbar, beside the sidebar's button (lot 4, 19/11): the toolbar draws its round, the bell its
+    /// count.
+    let inToolbar: Bool
+
+    init(inbox: NotificationInbox, arrowEdge: Edge, opensAlone: Bool = false, inToolbar: Bool = false, request: Binding<Bool>? = nil,
          perform: @escaping (NoticeAction) -> Void) {
         self.inbox = inbox
         self.arrowEdge = arrowEdge
         self.opensAlone = opensAlone
+        self.inToolbar = inToolbar
         self.request = request
         self.perform = perform
     }
@@ -108,31 +113,18 @@ public struct NotificationBell: View {
 
     public var body: some View {
         let count = inbox.unreadCount
-        Button {
-            open.toggle()
-        } label: {
-            // The same drawing as the sidebar's other icons (Phosphor), at the size of a row (15/11).
-            AppIconImage(.bell, size: 20)
-                .frame(width: SidebarFooterMetrics.rowHeight, height: SidebarFooterMetrics.rowHeight)
-                .overlay(alignment: .topTrailing) {
-                    if let text = Self.badgeText(count) {
-                        // What is new, in Polhub's ink, its figure the ink's opposite: the red says only « late » and
-                        // « recording » (design system v2, 19/11).
-                        Text(text)
-                            .font(.tag.weight(.semibold).monospacedDigit())
-                            .foregroundStyle(Tint.onAccent.color)
-                            .padding(.horizontal, 5)
-                            .frame(minWidth: 18, minHeight: 18)
-                            .background(Tint.accent, in: Capsule())
-                            .fixedSize()
-                            .offset(x: 5, y: -3)
-                            .transition(.scale.combined(with: .opacity))
-                    }
+        Group {
+            if inToolbar {
+                Button { open.toggle() } label: { label(count, size: 18) }
+            } else {
+                // The same drawing as the sidebar's other icons (Phosphor), at the size of a row (15/11).
+                Button { open.toggle() } label: {
+                    label(count, size: 20).frame(width: SidebarFooterMetrics.rowHeight, height: SidebarFooterMetrics.rowHeight)
                 }
-                .animation(Motion.quick, value: count)
+                .buttonStyle(.hover(.circle))
+                .foregroundStyle(.secondary)
+            }
         }
-        .buttonStyle(.hover(.circle))
-        .foregroundStyle(.secondary)
         .help(Self.accessibilityText(count))
         .accessibilityLabel(Self.accessibilityText(count))
         .popover(isPresented: $open, arrowEdge: arrowEdge) {
@@ -149,6 +141,26 @@ public struct NotificationBell: View {
             open = true
             if asked { request?.wrappedValue = false }
         }
+    }
+
+    /// The bell and its count: what is new, in Polhub's ink, its figure the ink's opposite; the red says only « late »
+    /// and « recording » (design system v2, 19/11).
+    private func label(_ count: Int, size: CGFloat) -> some View {
+        AppIconImage(.bell, size: size)
+            .overlay(alignment: .topTrailing) {
+                if let text = Self.badgeText(count) {
+                    Text(text)
+                        .font(.tag.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(Tint.onAccent.color)
+                        .padding(.horizontal, 5)
+                        .frame(minWidth: 18, minHeight: 18)
+                        .background(Tint.accent, in: Capsule())
+                        .fixedSize()
+                        .offset(x: inToolbar ? 9 : 13, y: inToolbar ? -7 : -11)
+                        .transition(.scale.combined(with: .opacity))
+                }
+            }
+            .animation(Motion.quick, value: count)
     }
 }
 

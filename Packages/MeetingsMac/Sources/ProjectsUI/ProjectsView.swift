@@ -69,13 +69,21 @@ public struct ProjectsView: View {
         }
         .overlay {
             if floating, let project = library.project(library.selected) {
-                FloatingPanel(close: { library.selected = nil }) {
-                    ProjectPage(project: project, library: library, close: { library.selected = nil }).id(project.id)
+                // ✕, Échap and a click beside go back where the project was opened from (lot 4, 19/11).
+                FloatingPanel(close: library.closePage) {
+                    ProjectPage(project: project, library: library, close: library.closePage).id(project.id)
                 }
             }
         }
         .animation(.snappy(duration: 0.25), value: library.selected)
-        .windowTitle(library.project(library.selected)?.name ?? "Projets")
+        // The sidebar's word; never the project's name, written large in its page (lot 4, 19/11).
+        .windowTitle("Projets")
+        // ⌘N, as the « + » (lot 4, 19/11).
+        .onChange(of: library.newRequest) { _, request in
+            guard request != nil else { return }
+            library.newRequest = nil
+            creating = .priorite1
+        }
         .sheet(item: $creating) { status in
             NewProjectSheet(status: status) { draft in
                 if let project = library.create(draft) { library.selected = project.id }

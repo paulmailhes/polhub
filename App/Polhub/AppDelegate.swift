@@ -786,18 +786,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         if let mails {
             navigationObservers.append(mails.$folder.sink { folder in MainActor.assumeIsolated { router.mailFolderChanged(folder) } })
         }
+        // And the window's keys (lot 4, 19/11): ⌘1 to ⌘7 in the sidebar's order, ⌘, ⌘N and ⌘F. A mail's editor writes too:
+        // ⌘← and ⌘→ are its line's start and end there, never « Précédent ».
         navigationMonitor = NSEvent.addLocalMonitorForEvents(matching: [.otherMouseDown, .keyDown, .swipe]) { [weak self] event in
             let handled: Bool = MainActor.assumeIsolated {
-                guard let window = self?.mainWindow, event.window === window else { return false }
-                switch NavigationInput.direction(of: event, editingText: window.firstResponder is NSTextView) {
-                case .back?: router.goBack()
-                case .forward?: router.goForward()
-                case nil: return false
-                }
-                return true
+                guard let self, let window = self.mainWindow, event.window === window,
+                      let command = NavigationInput.command(of: event, editingText: NavigationInput.isEditing(window.firstResponder))
+                else { return false }
+                return self.windowKeys.run(command, in: window)
             }
             return handled ? nil : event
         }
+    }
+
+    /// What the window's keys do, on the sidebar the window shows (lot 4, 19/11).
+    private var windowKeys: WindowKeys {
+        WindowKeys(router: router, mails: mails, projects: projects,
+                   sections: SidebarItem.numbered(hasProjects: projects != nil, hasAgenda: agenda != nil, hasMails: mails != nil,
+                                                  hasInspiration: inspiration != nil))
     }
 
     func showMeeting(_ id: UUID) {

@@ -35,17 +35,9 @@ struct MailSectionView: View {
             }
         }
         // The thread over the list, the new mail, the bar that calls a mail back, the files' preview and the
-        // dialogs: the same panels as over the Accueil (18/11).
+        // dialogs: the same panels as over the Accueil (18/11). ⌘N, the « Nouveau mail » of the toolbar, is the window's
+        // own key now (`WindowKeys`, lot 4, 19/11).
         .mailPanels(mails, router: router, thread: $router.mailSelection, floating: floating && !mails.accounts.isEmpty)
-        // ⌘N writes a new mail from Mails only; the button is at the top of « Mails », in the sidebar (15/11).
-        .background {
-            Button("Nouveau mail") { mails.writeNewMail(router: router) }
-                .keyboardShortcut("n", modifiers: .command)
-                .opacity(0)
-                .frame(width: 0, height: 0)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-        }
         .onAppear { mails.router = router }
     }
 }
@@ -246,7 +238,14 @@ struct MailFilingChip: View {
     var body: some View {
         let found = mails.filing(of: thread)
         if let label = label(found?.filing) {
-            Menu { MailFilingMenu(thread: thread, mails: mails) } label: {
+            Menu {
+                // The project's name leads to the project, first in its menu (lot 4, 19/11).
+                if case .project(let id)? = found?.filing, mails.project(id) != nil, let router = mails.router {
+                    Button("Ouvrir le projet") { router.openProject(id) }
+                    Divider()
+                }
+                MailFilingMenu(thread: thread, mails: mails)
+            } label: {
                 Text(label.text).font(.tag.weight(.medium)).lineLimit(1)
                     .padding(.horizontal, Space.s).padding(.vertical, 3)
                     // A project in yellow or brown still reads (correctifs, 15/11).
@@ -447,8 +446,9 @@ struct MailThreadView: View {
         _model = StateObject(wrappedValue: MailThreadModel(key: key, library: mails))
     }
 
+    /// Back where the thread was opened from, without a step of its own (lot 4, 19/11: « Fermer, c'est revenir »).
     private func back() {
-        if let close { close() } else { select(nil) }
+        if let close { close() } else if !router.close() { select(nil) }
     }
 
     /// The last message of the thread, the one a reply answers.
@@ -581,14 +581,15 @@ struct MailThreadView: View {
         .toolbar {
             if close == nil {
                 ToolbarItem(placement: .navigation) {
-                    Button(action: back) { Label("Mails", systemImage: "chevron.left") }.help("Revenir à la liste (Échap)")
+                    Button(action: back) { Label("Mails", systemImage: "chevron.left") }.help(router.returnHelp)
                 }
             }
         }
         .onExitCommand(perform: back)
         // Suppr is no gesture in the trash or the spam: only « Restaurer », « Pas un spam ».
         .onDeleteCommand(perform: aside == nil ? { gesture(.trash) } : nil)
-        .windowTitle(title, subtitle: close == nil ? (thread?.subject ?? "") : (browses ? mails.folder.title : ""))
+        // The sidebar's word and the folder; never the subject, written large in the page (lot 4, 19/11).
+        .windowTitle(title, subtitle: browses ? mails.folder.title : "")
         .task(id: key) {
             thread = try? mails.store.thread(key)
             if let thread { mails.markRead(thread) }
@@ -602,17 +603,18 @@ struct MailThreadView: View {
 
     private var header: some View {
         ViewThatFits(in: .horizontal) {
+            // ✕ at the top right, as on every panel and object open (lot 4, 19/11).
             HStack(alignment: .center, spacing: Space.m) {
-                if let close { PanelCloseButton(action: close) }
                 subjectBlock
                     .frame(minWidth: Self.subjectMinimumWidth, idealWidth: Self.subjectMinimumWidth, maxWidth: .infinity, alignment: .leading)
                 controls
+                if let close { PanelCloseButton(action: close) }
             }
             VStack(alignment: .leading, spacing: Space.m) {
                 HStack(spacing: Space.m) {
-                    if let close { PanelCloseButton(action: close) }
                     Spacer(minLength: 0)
                     controls
+                    if let close { PanelCloseButton(action: close) }
                 }
                 subjectBlock
             }

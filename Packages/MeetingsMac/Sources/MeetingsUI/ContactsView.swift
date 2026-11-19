@@ -31,7 +31,8 @@ struct ContactsView: View {
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .windowTitle("Contacts", subtitle: selected?.name ?? "")
+        // The sidebar's word; never the name the page writes large (lot 4, 19/11).
+        .windowTitle("Contacts")
         .searchable(text: $query, placement: .toolbar, prompt: "Nom, adresse, entreprise, projet")
         .task(id: agenda.contacts.map(\.email)) { await loadActivity() }
         .onAppear { openFirst(sections) }

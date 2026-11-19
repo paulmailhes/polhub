@@ -637,6 +637,6 @@ enum PanelModel {
         }
     }
 
-    /// ⌘1 to ⌘6: the pages, in the sidebar's order.
-    static let pages: [SidebarItem] = [.home, .projects, .meetings, .calendar, .mails, .contacts]
+    /// ⌘1 to ⌘7: the pages, in the sidebar's order, the same as in the window (lot 4, 19/11): computed from its list.
+    static let pages: [SidebarItem] = SidebarItem.allNumbered
 }

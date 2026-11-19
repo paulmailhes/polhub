@@ -65,11 +65,32 @@ public enum SidebarItem: String, Hashable, Sendable {
         }
     }
 
-    /// The work; Réglages sits apart, at the bottom of the sidebar (Paul, 14/11). Accueil, Calendrier and
-    /// Contacts need the agenda (13/11). « Inspiration » comes last, after Contacts (16/11).
+    /// The work, in the sidebar's list; Réglages sits apart, at the bottom (Paul, 14/11). Accueil, Calendrier and
+    /// Contacts need the agenda (13/11). « Inspiration » on one row, after Mails; Contacts at the bottom, with Réglages
+    /// (lot 4, 19/11: « Mails court »).
     static func visible(hasProjects: Bool, hasAgenda: Bool, hasMails: Bool = false, hasInspiration: Bool = false) -> [SidebarItem] {
         [hasAgenda ? .home : nil, hasProjects ? .projects : nil, .meetings, hasAgenda ? .calendar : nil, hasMails ? .mails : nil,
-         hasAgenda ? .contacts : nil, hasInspiration ? .inspiration : nil].compactMap { $0 }
+         hasInspiration ? .inspiration : nil].compactMap { $0 }
+    }
+
+    /// The rows at the bottom of the sidebar, apart from the work (lot 4, 19/11): Contacts, then Réglages.
+    static func footer(hasAgenda: Bool) -> [SidebarItem] {
+        [hasAgenda ? .contacts : nil, .settings].compactMap { $0 }
+    }
+
+    /// ⌘1 to ⌘7 (lot 4, 19/11): the sidebar's rows from top to bottom, Réglages apart (⌘,). Computed from its list, in
+    /// the window and in « Coup d'œil » alike: never a number written by hand.
+    public static func numbered(hasProjects: Bool, hasAgenda: Bool, hasMails: Bool = false, hasInspiration: Bool = false) -> [SidebarItem] {
+        visible(hasProjects: hasProjects, hasAgenda: hasAgenda, hasMails: hasMails, hasInspiration: hasInspiration)
+            + footer(hasAgenda: hasAgenda).filter { $0 != .settings }
+    }
+
+    /// The sidebar of the app, every section there: what « Coup d'œil » numbers, and what its help texts say.
+    static let allNumbered = numbered(hasProjects: true, hasAgenda: true, hasMails: true, hasInspiration: true)
+
+    /// Its key, ⌘ and this number (lot 4, 19/11); none for Réglages, which has ⌘,.
+    var shortcut: Int? {
+        Self.allNumbered.firstIndex(of: self).map { $0 + 1 }
     }
 }
 
@@ -183,6 +204,9 @@ public final class WindowRouter: ObservableObject {
     /// The page of « Inspiration » shown (Websites, Branding, Mock-ups), and the item open over it (16/11).
     @Published public var inspirationPage: InspirationKind = .website { didSet { moved() } }
     @Published public var inspirationItem: UUID? { didSet { moved() } }
+    /// ⌘N on a page whose « + » the router cannot reach itself (Inspiration's, lot 4, 19/11): the page adds once it is
+    /// on screen, then clears it. A new value per request.
+    @Published public var addRequest: UUID?
 
     public init() {}
 
@@ -242,7 +266,9 @@ public final class WindowRouter: ObservableObject {
 
     public func openProject(_ id: UUID) {
         section = .projects
-        projectSelection = id
+        // In the same turn as the section, where the app keeps the open project (lot 4, 19/11): one step, which « Fermer »
+        // goes back from, to where the project was opened. Without it, Projets opens it once on screen.
+        if let restoreProject { restoreProject(id) } else { projectSelection = id }
     }
 
     public func openEvent(_ id: String) {
@@ -381,6 +407,79 @@ public final class WindowRouter: ObservableObject {
         restore(next)
     }
 
+    // MARK: - « Fermer, c'est revenir » (lot 4, 19/11)
+
+    /// What is open over a section's root, the one thing « Fermer » closes there.
+    enum Opened: Equatable {
+        case homeMail, mail, project, inspirationItem, settingsPane
+    }
+
+    static func opened(_ place: Location) -> Opened? {
+        switch place.section {
+        case .home: place.homeMail != nil ? .homeMail : nil
+        case .mails: place.mail != nil ? .mail : nil
+        case .projects: place.project != nil ? .project : nil
+        case .inspiration: place.inspirationItem != nil ? .inspirationItem : nil
+        case .settings: place.settingsPane != nil ? .settingsPane : nil
+        case .meetings, .calendar, .contacts: nil
+        }
+    }
+
+    /// The steps behind, the gesture under way counted as one (as `settle` will keep it).
+    private var stepsBehind: [Location] {
+        let now = location
+        guard pending, now != current, !Self.refines(now, current) else { return back }
+        return back + [current]
+    }
+
+    /// How many steps « Fermer » goes back: past the neighbours browsed in the same section (a thread, then the next
+    /// one), to the place the object was opened from. Nil when it was open from the start (nothing behind it).
+    private func stepsToClose() -> Int? {
+        let now = location
+        guard let opened = Self.opened(now) else { return nil }
+        let behind = stepsBehind
+        let browsed = behind.reversed().prefix { $0.section == now.section && Self.opened($0) == opened }.count
+        return browsed < behind.count ? browsed + 1 : nil
+    }
+
+    /// ✕, Échap, a click beside a panel, the ‹ of a page (lot 4, 19/11: « Fermer, c'est revenir »): back where the
+    /// object was opened from, another section included, without a step of its own. Ten threads read are no twenty steps,
+    /// and « Suivant » opens the object again. Opened first thing (the window came up on it), it closes in place.
+    /// False when nothing is open: the page closes what it shows itself.
+    @discardableResult
+    public func close() -> Bool {
+        guard Self.opened(location) != nil else { return false }
+        if let steps = stepsToClose() {
+            for _ in 0..<steps { goBack() }
+            return true
+        }
+        settle()
+        restoring = true
+        switch Self.opened(location) {
+        case .homeMail?: homeMail = nil
+        case .mail?: mailSelection = nil
+        case .project?:
+            project = nil
+            restoreProject?(nil)
+        case .inspirationItem?: inspirationItem = nil
+        case .settingsPane?: settingsPane = nil
+        case nil: break
+        }
+        restoring = false
+        current = location
+        pending = false
+        return true
+    }
+
+    /// The help of a way back: where « Fermer » leads (« Revenir à l'Accueil (Échap) »).
+    public var returnHelp: String {
+        let now = location
+        guard Self.opened(now) != nil else { return "Fermer (Échap)" }
+        let behind = stepsBehind
+        let destination = stepsToClose().map { behind[behind.count - $0] }?.section ?? now.section
+        return "Revenir à \(destination == .home ? "l'Accueil" : destination.title) (Échap)"
+    }
+
     private func restore(_ place: Location) {
         restoring = true
         defer { restoring = false }
@@ -402,29 +501,66 @@ public final class WindowRouter: ObservableObject {
 }
 
 /// What goes back and what goes forward (Paul, 16/11): the mouse's side buttons, ⌘[ and ⌘] (by where they are on the
-/// keyboard, as Safari, whatever its layout), ⌘← and ⌘→ outside a text being written, the trackpad's swipe.
+/// keyboard, as Safari, whatever its layout), ⌘← and ⌘→ outside a text being written, the trackpad's swipe. And the
+/// window's keys (lot 4, 19/11): ⌘1 to ⌘9 for the sidebar's rows, ⌘, for Réglages, ⌘N for the page's « + », ⌘F for its
+/// search. The app has no menu bar of its own (an agent): its key monitor reads them here.
 public enum NavigationInput {
     public enum Direction: Equatable, Sendable { case back, forward }
 
+    /// What a key, a button or a swipe asks of the window.
+    public enum Command: Equatable, Sendable {
+        case back, forward
+        /// The sidebar's row of that number, from 1.
+        case section(Int)
+        case settings
+        /// The page's « + ».
+        case new
+        /// The page's search field.
+        case search
+    }
+
     public enum Gesture: Equatable {
         case mouse(button: Int)
-        case key(code: UInt16, modifiers: NSEvent.ModifierFlags, editingText: Bool)
+        /// `characters`: what the key writes without its modifiers (Shift aside), for the keys read by their letter.
+        case key(code: UInt16, modifiers: NSEvent.ModifierFlags, editingText: Bool, characters: String = "")
         case swipe(deltaX: CGFloat)
     }
 
     static let leftBracket: UInt16 = 33, rightBracket: UInt16 = 30, leftArrow: UInt16 = 123, rightArrow: UInt16 = 124
 
+    /// The digits' keys by where they are, the top row then the keypad: on an AZERTY keyboard, ⌘1 is the « & » key, as
+    /// in every app of the Mac.
+    static let digits: [UInt16: Int] = [18: 1, 19: 2, 20: 3, 21: 4, 23: 5, 22: 6, 26: 7, 28: 8, 25: 9,
+                                        83: 1, 84: 2, 85: 3, 86: 4, 87: 5, 88: 6, 89: 7, 91: 8, 92: 9]
+
     public static func direction(_ gesture: Gesture) -> Direction? {
+        switch command(gesture) {
+        case .back?: .back
+        case .forward?: .forward
+        default: nil
+        }
+    }
+
+    /// None of these keys is a text's: ⌘1, ⌘, ⌘N and ⌘F work while writing; ⌘← and ⌘→ stay the text's (its line's
+    /// start and end).
+    public static func command(_ gesture: Gesture) -> Command? {
         switch gesture {
         case .mouse(let button):
             return button == 3 ? .back : button == 4 ? .forward : nil
-        case .key(let code, let modifiers, let editingText):
+        case .key(let code, let modifiers, let editingText, let characters):
             guard modifiers.intersection([.command, .option, .control, .shift]) == .command else { return nil }
             switch code {
             case leftBracket: return .back
             case rightBracket: return .forward
             case leftArrow: return editingText ? nil : .back
             case rightArrow: return editingText ? nil : .forward
+            default: break
+            }
+            if let digit = digits[code] { return .section(digit) }
+            switch characters.lowercased() {
+            case ",": return .settings
+            case "n": return .new
+            case "f": return .search
             default: return nil
             }
         case .swipe(let deltaX):
@@ -433,13 +569,36 @@ public enum NavigationInput {
     }
 
     /// An event of the window, read.
-    public static func direction(of event: NSEvent, editingText: Bool) -> Direction? {
+    public static func command(of event: NSEvent, editingText: Bool) -> Command? {
         switch event.type {
-        case .otherMouseDown: direction(.mouse(button: event.buttonNumber))
-        case .keyDown: direction(.key(code: event.keyCode, modifiers: event.modifierFlags, editingText: editingText))
-        case .swipe: direction(.swipe(deltaX: event.deltaX))
+        case .otherMouseDown: command(.mouse(button: event.buttonNumber))
+        case .keyDown:
+            command(.key(code: event.keyCode, modifiers: event.modifierFlags, editingText: editingText,
+                         characters: event.charactersIgnoringModifiers ?? ""))
+        case .swipe: command(.swipe(deltaX: event.deltaX))
         default: nil
         }
+    }
+
+    public static func direction(of event: NSEvent, editingText: Bool) -> Direction? {
+        switch command(of: event, editingText: editingText) {
+        case .back?: .back
+        case .forward?: .forward
+        default: nil
+        }
+    }
+
+    /// Whether Paul is writing where the keyboard is (lot 4, 19/11): a text view (the editor of a field too), or a
+    /// mail's editor, a page made to be written in. ⌘← went back a page there instead of to the line's start. A mail
+    /// read is a page too, but not written in: the keys still go back and forth over it.
+    public static func isEditing(_ responder: NSResponder?) -> Bool {
+        if responder is NSTextView { return true }
+        var view = responder as? NSView
+        while let current = view {
+            if current is RichTextEditor.EditorWebView { return true }
+            view = current.superview
+        }
+        return false
     }
 }
 
@@ -448,9 +607,9 @@ public struct MainWindowView<Diagnostic: View>: View {
     /// The sidebar, the meetings' list, its divider and the smallest meeting page: derived from them, so that the
     /// narrowest window never squeezes the sidebar nor cuts the page (correctifs, 15/11: 860 had become too narrow).
     public static var minimumWidth: CGFloat { sidebarWidth + meetingListWidth + 1 + meetingPageMinimumWidth }
-    /// Fixed (Paul, 15/11): the smallest width that shows « Boîte de réception » with a two-digit count, and
-    /// « Tous les messages », whole at the large row size.
-    static var sidebarWidth: CGFloat { 252 }
+    /// Fixed (Paul, 15/11): one width, whatever the section. 224 since the folders went under « Plus » and the boxes
+    /// into Mails (lot 4, 19/11: 252 took 28 % of a narrow window).
+    static var sidebarWidth: CGFloat { 224 }
     /// The list of the meetings, fixed (13/11).
     static var meetingListWidth: CGFloat { 300 }
     /// A meeting's page, at its narrowest.
@@ -502,10 +661,10 @@ public struct MainWindowView<Diagnostic: View>: View {
 
     public var body: some View {
         NavigationSplitView(columnVisibility: $columns) {
-            Sidebar(router: router, library: library, agenda: agenda, mails: mails, inspiration: inspiration,
+            Sidebar(router: router, library: library, agenda: agenda, mails: mails,
                     items: SidebarItem.visible(hasProjects: projects != nil, hasAgenda: agenda != nil, hasMails: mails != nil,
                                                hasInspiration: inspiration != nil),
-                    inbox: notifications?.inbox)
+                    footer: SidebarItem.footer(hasAgenda: agenda != nil))
                 // One width, always: a sidebar free to resize changed size from one section to the next (Paul, 15/11).
                 .navigationSplitViewColumnWidth(Self.sidebarWidth)
                 // The window is made by hand: SwiftUI does not add this button there. It keeps a toolbar on every
@@ -518,6 +677,15 @@ public struct MainWindowView<Diagnostic: View>: View {
                             Label("Barre latérale", systemImage: "sidebar.left")
                         }
                         .help("Afficher ou masquer la barre latérale")
+                    }
+                    // The bell, up beside the sidebar's button, as Notion's inbox (lot 4, 19/11): no longer beside
+                    // Réglages, two gestures on one row.
+                    if let inbox = notifications?.inbox {
+                        ToolbarItem {
+                            NotificationBell(inbox: inbox, arrowEdge: .bottom, inToolbar: true, request: $router.notificationsRequested) {
+                                router.perform($0, agenda: agenda, mails: mails)
+                            }
+                        }
                     }
                 }
         } detail: {
@@ -539,6 +707,10 @@ public struct MainWindowView<Diagnostic: View>: View {
                             projects.openMeeting = { [weak router] id in router?.open(meetingID: id, at: nil) }
                             projects.openMail = { [weak router] key in router?.openMail(key) }
                             projects.openContact = { [weak router] id in router?.openContact(id) }
+                            // Lot 4, 19/11: its events lead to them; closing goes back where it was opened from.
+                            projects.openEvent = { [weak router] id in router?.openEvent(id) }
+                            projects.close = { [weak router] in router?.close() ?? false }
+                            projects.returnHelp = { [weak router] in router?.returnHelp ?? "Revenir à Projets (Échap)" }
                             openAskedProject(projects)
                         }
                         .onChange(of: router.projectSelection) { _, _ in openAskedProject(projects) }
@@ -578,7 +750,8 @@ public struct MainWindowView<Diagnostic: View>: View {
                     .frame(minWidth: Self.meetingPageMinimumWidth, maxWidth: .infinity, maxHeight: .infinity)
                     .belowToolbar()
                 }
-                .windowTitle("Réunions", subtitle: router.selection.flatMap { library.row($0)?.title } ?? "")
+                // The sidebar's word; never the meeting's title, written large in its page (lot 4, 19/11).
+                .windowTitle("Réunions")
                 .searchable(text: $router.query, placement: .toolbar, prompt: "Chercher dans les transcriptions")
             case .settings:
                 SettingsPage(router: router, updates: updates, projects: projects, agenda: agenda, mails: mails, inspiration: inspiration,
@@ -590,6 +763,8 @@ public struct MainWindowView<Diagnostic: View>: View {
             }
         }
         .frame(minWidth: Self.minimumWidth, minHeight: 520)
+        // A project's name in a thread leads to it, from Mails as from the Accueil (lot 4, 19/11).
+        .onAppear { mails?.router = router }
         // Polhub's own accent, ink, whatever the Mac's (design system v2, 19/11): the app sets it on the window's root
         // too; here, a window made by a test or a capture shows it as well.
         .tint(Tint.control.color)

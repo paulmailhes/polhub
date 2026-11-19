@@ -16,6 +16,8 @@ public enum AppIcon: String, CaseIterable, Sendable {
     /// The mail folder « Notifications », drawn apart from the center's bell.
     case notifications
     case subscriptions, spam, trash, allMail
+    /// « Plus », the rarer folders under Mails (lot 4, 19/11).
+    case more
     /// « Nouveau mail ».
     case newMail
     /// « Inspiration » and its three pages (16/11).
@@ -43,6 +45,8 @@ public enum AppIcon: String, CaseIterable, Sendable {
         case .spam: "warning-octagon"
         case .trash: "trash"
         case .allMail: "stack"
+        // From @phosphor-icons/core 2.1.1, as the others (lot 4, 19/11).
+        case .more: "dots-three"
         case .newMail: "note-pencil"
         case .inspiration: "lightbulb"
         case .websites: "globe"

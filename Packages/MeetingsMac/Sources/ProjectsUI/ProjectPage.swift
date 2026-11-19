@@ -88,11 +88,14 @@ struct ProjectPage: View {
         .toolbar {
             if close == nil {
                 ToolbarItem(placement: .navigation) {
-                    Button { library.selected = nil } label: { Label("Projets", systemImage: "chevron.left") }
-                        .help("Revenir aux projets")
+                    // Back where the project was opened from, the Accueil included (lot 4, 19/11).
+                    Button { library.closePage() } label: { Label("Projets", systemImage: "chevron.left") }
+                        .help(library.returnHelp?() ?? "Revenir à Projets (Échap)")
                 }
             }
         }
+        // Échap goes back too, as from a page floating (lot 4, 19/11).
+        .onExitCommand(perform: close == nil ? { library.closePage() } : nil)
         .onAppear(perform: reload)
         .onChange(of: project) { old, new in
             // A session changed the project meanwhile (`projet`, 16/11): what Paul is not changing shows at once, and
@@ -478,12 +481,14 @@ struct ProjectPage: View {
                 Card {
                     SectionTitle("Prochains rendez-vous", systemImage: "calendar", count: events.count)
                     ShowMoreList(events, limit: Self.sideRows) { event in
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(event.title).font(.rowBody).lineLimit(1)
-                            Text(event.startAt.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).hour().minute().locale(Self.locale)))
-                                .font(.meta).foregroundStyle(.secondary)
+                        // An event leads to itself, in Calendrier, as the meetings and the mails do (lot 4, 19/11).
+                        RowButton(action: { library.openEvent?(event.id) }) {
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(event.title).font(.rowBody).lineLimit(1).foregroundStyle(.primary)
+                                Text(event.startAt.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).hour().minute().locale(Self.locale)))
+                                    .font(.meta).foregroundStyle(.secondary)
+                            }
                         }
-                        .padding(.vertical, Space.xs)
                     }
                 }
             }

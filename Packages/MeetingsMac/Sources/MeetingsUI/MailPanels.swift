@@ -22,7 +22,10 @@ struct MailPanels: ViewModifier {
     /// The height of a bar of the page at its bottom: the bar of a sending stays above it.
     var lift: CGFloat = 0
 
-    private func close() { thread = nil }
+    /// ✕, Échap, a click beside: back where the thread was opened from, without a step of its own (lot 4, 19/11).
+    private func close() {
+        if !router.close() { thread = nil }
+    }
 
     /// A draft's bar is fixed at the bottom: a new mail, or an open thread with a reply below.
     private var composeBarShown: Bool {

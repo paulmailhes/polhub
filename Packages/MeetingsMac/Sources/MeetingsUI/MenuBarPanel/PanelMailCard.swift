@@ -54,7 +54,7 @@ struct PanelMailCard: View {
                 .padding(.horizontal, -Space.s)
                 // Its capsule spills into the card's padding: the line costs only its text, a third mail fits at rest.
                 .padding(.vertical, -2)
-                .help("Ouvrir la boîte de réception (⌘5)")
+                .help("Ouvrir la boîte de réception" + (SidebarItem.mails.shortcut.map { " (⌘\($0))" } ?? ""))
             }
         }
         .padding(.horizontal, Space.m)

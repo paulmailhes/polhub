@@ -370,6 +370,7 @@ import Updates
         #expect(!PanelModel.canRecord(.prompting(title: "Point")))
         #expect(!PanelModel.canRecord(.recording(title: "Point", since: now)))
         #expect(!PanelModel.canRecord(.presumedEnded(title: "Point")))
-        #expect(PanelModel.pages == [.home, .projects, .meetings, .calendar, .mails, .contacts])
+        // ⌘1 to ⌘7, in the sidebar's order (lot 4, 19/11).
+        #expect(PanelModel.pages == [.home, .projects, .meetings, .calendar, .mails, .inspiration, .contacts])
     }
 }

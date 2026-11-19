@@ -6,10 +6,11 @@ import Testing
 
 /// The sidebar keeps the work (Projets, Réunions); the app's own pages live in Réglages (Paul, 13/11).
 @MainActor @Suite struct SidebarTests {
-    /// 14/11: Réglages sits at the bottom of the sidebar, apart from the work.
+    /// 14/11: Réglages sits at the bottom of the sidebar, apart from the work; Contacts with it (lot 4, 19/11).
     @Test func theSidebarHasTheWorkAndReglagesApart() {
-        #expect(SidebarItem.visible(hasProjects: true, hasAgenda: true) == [.home, .projects, .meetings, .calendar, .contacts])
-        #expect(SidebarItem.visible(hasProjects: true, hasAgenda: true).map(\.title) == ["Accueil", "Projets", "Réunions", "Calendrier", "Contacts"])
+        #expect(SidebarItem.visible(hasProjects: true, hasAgenda: true) == [.home, .projects, .meetings, .calendar])
+        #expect(SidebarItem.visible(hasProjects: true, hasAgenda: true).map(\.title) == ["Accueil", "Projets", "Réunions", "Calendrier"])
+        #expect(SidebarItem.footer(hasAgenda: true).map(\.title) == ["Contacts", "Réglages"])
         #expect(SidebarItem.visible(hasProjects: false, hasAgenda: false) == [.meetings])
         #expect(SidebarItem.settings.title == "Réglages")
     }

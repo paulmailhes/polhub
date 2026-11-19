@@ -14,7 +14,8 @@ import ProjectsUI
     @Test func theMinimumWidthHoldsTheSidebarTheListAndAMeetingsPage() {
         typealias Window = MainWindowView<EmptyView>
         #expect(Window.sidebarWidth + Window.meetingListWidth + 1 + Window.meetingPageMinimumWidth <= Window.minimumWidth)
-        #expect(Window.sidebarWidth == 252 && Window.meetingListWidth == 300 && Window.meetingPageMinimumWidth == 360)
+        // 224 since lot 4 (19/11): the folders under « Plus », the boxes in Mails.
+        #expect(Window.sidebarWidth == 224 && Window.meetingListWidth == 300 && Window.meetingPageMinimumWidth == 360)
     }
 
     @Test func theWindowFitsItsMinimumWidthWithALongTranscript() async throws {

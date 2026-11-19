@@ -350,7 +350,7 @@ struct PanelHero: View {
             .contentShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         }
         .buttonStyle(PanelCardStyle(radius: Radius.card))
-        .help(context.agenda != nil ? "Ouvrir l'Accueil (⌘1)" : "Ouvrir Polhub")
+        .help(context.agenda != nil ? "Ouvrir l'Accueil" + (SidebarItem.home.shortcut.map { " (⌘\($0))" } ?? "") : "Ouvrir Polhub")
     }
 }
 
