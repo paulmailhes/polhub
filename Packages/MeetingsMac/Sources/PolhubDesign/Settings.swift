@@ -53,8 +53,9 @@ public struct SettingRow<Control: View>: View {
 /// The help of a setting (lot 7, 19/11): one line in the meta style, grey, under what it explains; the long detail behind
 /// « ⓘ », in a bubble. Never more than two lines on screen.
 public struct SettingHelp: View {
-    /// The longest help, in characters: two lines of a card of Réglages beside its control, at most.
-    public static let longest = 110
+    /// The longest help, in characters: two lines of a card of Réglages beside its control, at most, in the narrowest
+    /// window (measured on the captures of 20/11).
+    public static let longest = 100
 
     let text: String
     let detail: String?

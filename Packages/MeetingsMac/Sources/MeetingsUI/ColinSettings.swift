@@ -17,8 +17,10 @@ enum ColinSettingsText {
     static let knowledgeHelp = "Ce qu'il relit au début de chaque échange ; il ne le change jamais lui-même."
     static let knowledgeDetail = "Ta façon d'écrire, ton lien de rendez-vous, ce qu'il doit savoir de tes clients. « Garder », dans le fil, y ajoute une ligne."
 
-    static let replyHelp = "Une personne t'a écrit et tu ne lui as rien écrit depuis, dans aucun fil ; 14 jours au plus."
-    static let silentHelp = "Ton dernier mail d'un projet reste sans réponse, dans aucun fil, sans rendez-vous depuis ni à venir."
+    static let replyHelp = "Une personne t'a écrit et tu ne lui as rien écrit depuis."
+    static let replyDetail = "Dans aucun fil ni aucune boîte : signalé après le délai choisi, et jusqu'à 14 jours."
+    static let silentHelp = "Ton dernier mail d'un projet reste sans réponse ni rendez-vous."
+    static let silentDetail = "Un client est muet quand ton dernier mail d'un projet reste sans réponse, dans aucun fil, sans rendez-vous depuis ni à venir."
 
     /// Every help of the page, for its test.
     static let helps = [help, kanbanHelp, knowledgeHelp, replyHelp, silentHelp]
@@ -73,13 +75,13 @@ struct ColinSettingsPane: View {
                 }
             }
             Section {
-                SettingRow("Signaler un mail sans réponse après", help: ColinSettingsText.replyHelp) {
+                SettingRow("Signaler un mail sans réponse après", help: ColinSettingsText.replyHelp, detail: ColinSettingsText.replyDetail) {
                     Picker("Signaler un mail sans réponse après",
                            selection: shown($replyDays, among: Preferences.Default.colinReplyChoices, or: Preferences.Default.colinReplyDays)) {
                         ForEach(Preferences.Default.colinReplyChoices, id: \.self) { Text("\($0) jours").tag($0) }
                     }
                 }
-                SettingRow("Signaler un client muet après", help: ColinSettingsText.silentHelp) {
+                SettingRow("Signaler un client muet après", help: ColinSettingsText.silentHelp, detail: ColinSettingsText.silentDetail) {
                     Picker("Signaler un client muet après",
                            selection: shown($silentDays, among: Preferences.Default.colinSilentChoices, or: Preferences.Default.colinSilentDays)) {
                         ForEach(Preferences.Default.colinSilentChoices, id: \.self) { Text("\($0) jours").tag($0) }

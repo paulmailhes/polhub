@@ -98,10 +98,12 @@ struct SettingsScreenTests {
                                              size: Self.size, dark: dark, wait: .milliseconds(1_800))
             }
         }
-        // The narrowest window, on the page with the most helps.
-        router.openSettings(.notifications)
-        try await LiveWindow.capture(window(startup), to: output.appending(path: "reglages-notifications-etroit.png"),
-                                     size: NSSize(width: MainWindowView<EmptyView>.minimumWidth, height: 860))
+        // The narrowest window, on the pages with the most helps: two lines at most, beside a list too.
+        for pane in [SettingsPane.general, .notifications, .mails, .colin, .meetings, .inspiration] {
+            router.openSettings(pane)
+            try await LiveWindow.capture(window(startup), to: output.appending(path: "reglages-\(pane.rawValue)-etroit.png"),
+                                         size: NSSize(width: MainWindowView<EmptyView>.minimumWidth, height: 860))
+        }
         // During a meeting, the relaunch waits, in Général and in the Diagnostic alike (lot 7, 19/11).
         let busy = StartupControl(read: { true }, write: { _ in nil }, busy: { true })
         _ = busy.ask(false)

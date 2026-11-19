@@ -172,7 +172,7 @@ enum SettingsText {
     static let startupHelp = "Il se relance aussi tout seul s'il s'arrête."
     static let startupDetail = "Polhub reste dans la barre des menus quand sa fenêtre est fermée : les réunions s'enregistrent et les notifications arrivent."
     static let floating = "Ouvrir un mail ou un projet"
-    static let floatingHelp = "En fenêtre flottante, la liste reste visible derrière ; Échap la referme."
+    static let floatingHelp = "En fenêtre flottante, la liste reste visible derrière."
     static let meetMinutes = "Minutes avant un Meet dans la barre des menus"
     static let meetMinutesHelp = "« 8 min » à côté du logo, dans le quart d'heure avant un rendez-vous avec Meet."
 
@@ -193,7 +193,7 @@ enum SettingsText {
     static let summaries = "Comptes rendus automatiques"
     static let summariesHelp = "Écrits sur le Mac par le modèle d'Apple, après la transcription, jamais pendant une réunion."
     static let language = "Langue des réunions"
-    static let languageHelp = "Pour les prochaines réunions ; « Retranscrire », dans une réunion, en change une seule."
+    static let languageHelp = "Pour les prochaines réunions ; « Retranscrire » en change une seule."
 
     // Mises à jour
     static let autoInstall = "Installer automatiquement les mises à jour"

@@ -5,7 +5,7 @@ import SwiftUI
 /// The words of Réglages › Mails (lot 7, 19/11): one line of help under each setting that needs one, the long texts
 /// behind « ⓘ ».
 enum MailSettingsText {
-    static let densityHelp = "« Par défaut » montre les pièces jointes, « Confortable » les cache, « Compacte » serre les lignes."
+    static let densityHelp = "« Par défaut » montre les pièces jointes ; « Compacte » serre les lignes."
     static let imagesHelp = "Une image chargée dit à l'expéditeur que tu as ouvert son mail."
     static let imagesDetail = "Une image distante qui se charge montre à son expéditeur l'adresse IP de ton Mac et l'heure d'ouverture. « Pour les expéditeurs connus » : tes contacts, les personnes à qui tu as écrit, et ceux pour qui tu as dit « Toujours », quand Gmail confirme que le mail vient bien d'eux. Les images jointes au mail s'affichent toujours."
     static let undoHelp = "Le temps pendant lequel « Annuler » rappelle un mail, après « Envoyer »."
