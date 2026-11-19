@@ -29,16 +29,15 @@ struct HomeCard<Content: View>: View {
     }
 }
 
-/// A group inside a card, in small grey capitals: « EN RETARD ».
+/// A group inside a card: a grey label of 12 points, in its own case — « En retard » (lot 5, 19/11: no more capitals of
+/// 11 points, under the smallest text of the app).
 struct HomeGroupLabel: View {
     let text: String
 
     var body: some View {
-        Text(text.uppercased())
-            .font(.system(size: 11, weight: .semibold))
-            .tracking(0.6)
+        Text(text)
+            .font(.tag.weight(.semibold))
             .foregroundStyle(.secondary)
-            .accessibilityLabel(text)
     }
 }
 

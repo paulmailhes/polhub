@@ -79,11 +79,27 @@ enum ReviewText {
                     Dismissal(title: "Pas besoin", reason: .notNeeded), Dismissal(title: "Plus tard", reason: .later)]
         }
     }
+
+    /// What a line offers (lot 5, 19/11), the same under the pointer and at the right click.
+    struct Gestures: Equatable {
+        /// « Relire », « Ouvrir »: what a click on the line does.
+        var open: String
+        /// A meeting to file: « Ranger », and its projects.
+        var file: Bool
+        /// The ways to set it aside.
+        var dismissals: [Dismissal]
+    }
+
+    /// A meeting opens with a click, « Ranger » is its action; a draft is read again, a mail opened.
+    static func gestures(_ line: ReviewRules.Line) -> Gestures {
+        Gestures(open: line.kind == .unfiled ? "Ouvrir" : action(line.kind), file: line.kind == .unfiled, dismissals: dismissals(line))
+    }
 }
 
-/// « À valider » (the Accueil's pass, 18/11): what waits for Paul's click — the face of the person, one sentence, one
-/// quiet action always at the same edge, the « … » under the pointer; the age in red once late. A line leaves
-/// by itself once the thing is done.
+/// « À valider » (the Accueil's pass, 18/11): what waits for Paul's click — the face of the person, one sentence; the age
+/// in red once late. Its action and its « … » come under the pointer only, on a place kept for them at the end of the line,
+/// and at the right click (lot 5, 19/11: seven outlined buttons at rest made the Accueil loud). A line leaves by itself
+/// once the thing is done.
 struct ReviewCard: View {
     @ObservedObject var colin: ColinLibrary
     @ObservedObject var agenda: AgendaLibrary
@@ -93,9 +109,20 @@ struct ReviewCard: View {
     var limit = 5
     @State private var hovered: String?
 
-    /// The room kept at the end of a line for its button, and for its menu.
-    private static let actionWidth: CGFloat = 70
-    private static let menuWidth: CGFloat = 28
+    /// The place kept at the end of a line for its action and its « … »: nothing moves under the pointer.
+    private static let actionsWidth: CGFloat = 100
+
+    init(colin: ColinLibrary, agenda: AgendaLibrary, mails: MailLibrary?, router: WindowRouter, thresholds: ReviewRules.Thresholds = ReviewRules.Thresholds(),
+         limit: Int = 5, hovered: String? = nil) {
+        self.colin = colin
+        self.agenda = agenda
+        self.mails = mails
+        self.router = router
+        self.thresholds = thresholds
+        self.limit = limit
+        // The captures show a line under the pointer.
+        _hovered = State(initialValue: hovered)
+    }
 
     var body: some View {
         HomeCard("À valider", count: colin.review.isEmpty ? nil : colin.review.count) {
@@ -108,7 +135,8 @@ struct ReviewCard: View {
     }
 
     private func row(_ line: ReviewRules.Line) -> some View {
-        let dismissals = ReviewText.dismissals(line)
+        let gestures = ReviewText.gestures(line)
+        let shown = hovered == line.id
         return RowButton(action: { open(line) }) {
             HStack(alignment: .center, spacing: Space.m) {
                 face(line)
@@ -122,28 +150,38 @@ struct ReviewCard: View {
                     }
                 }
                 Spacer(minLength: 0)
-                // Room for the line's button and its menu, laid over the row so that its highlight runs to the end.
-                Color.clear.frame(width: Self.actionWidth + Self.menuWidth, height: 1)
+                // The place of the action and its « … », kept at rest, laid over the row so that its highlight runs to the end.
+                Color.clear.frame(width: Self.actionsWidth, height: 1)
             }
         }
         .overlay(alignment: .trailing) {
+            // At the card's edge, the « … » on its left (lot 5, 19/11).
             HStack(spacing: Space.xs) {
-                action(line)
-                ZStack {
-                    if !dismissals.isEmpty {
-                        IconMenu("ellipsis", help: "Écarter cette ligne") {
-                            ForEach(dismissals) { way in
-                                Button(way.title) { colin.dismiss(line, reason: way.reason) }
-                            }
-                        }
-                        .opacity(hovered == line.id ? 1 : 0)
-                    }
+                if !gestures.dismissals.isEmpty {
+                    IconMenu("ellipsis", help: "Écarter cette ligne") { dismissals(line, gestures.dismissals) }
                 }
-                .frame(width: Self.menuWidth)
+                action(line)
             }
+            .opacity(shown ? 1 : 0)
+            .allowsHitTesting(shown)
+            .animation(Motion.quick, value: shown)
         }
         .onHover { inside in hovered = inside ? line.id : (hovered == line.id ? nil : hovered) }
+        .contextMenu {
+            Button(gestures.open) { open(line) }
+            if gestures.file { Menu(ReviewText.action(.unfiled)) { fileItems(line) } }
+            if !gestures.dismissals.isEmpty {
+                Divider()
+                dismissals(line, gestures.dismissals)
+            }
+        }
         .help(ReviewText.title(line))
+    }
+
+    private func dismissals(_ line: ReviewRules.Line, _ ways: [ReviewText.Dismissal]) -> some View {
+        ForEach(ways) { way in
+            Button(way.title) { colin.dismiss(line, reason: way.reason) }
+        }
     }
 
     /// The person's name in bold, the rest in regular.
@@ -158,7 +196,7 @@ struct ReviewCard: View {
     private func face(_ line: ReviewRules.Line) -> some View {
         if line.kind == .unfiled || line.person.isEmpty {
             Image(systemName: ReviewText.symbol(line.kind))
-                .font(.system(size: 12, weight: .medium))
+                .font(.tag.weight(.medium))
                 .foregroundStyle(.secondary)
                 .frame(width: 28, height: 28)
                 .background(Surface.fill, in: Circle())
@@ -168,27 +206,34 @@ struct ReviewCard: View {
         }
     }
 
-    /// « Relire », « Ouvrir »: the same as a click on the line. « Ranger »: the projects, and « Aucun ».
+    /// « Relire », « Ouvrir »: the same as a click on the line. « Ranger »: the projects, and « Aucun ». One outline, small,
+    /// as every button of a line (lot 5, 19/11).
     @ViewBuilder
     private func action(_ line: ReviewRules.Line) -> some View {
         if line.kind == .unfiled {
-            Menu {
-                ForEach(projects) { project in
-                    Button(project.name) { Task { await colin.file(line, projectID: project.id) } }
-                }
-                Divider()
-                Button("Aucun") { Task { await colin.file(line, projectID: nil) } }
-            } label: {
-                Text(ReviewText.action(line.kind))
-            }
-            .menuStyle(.button)
-            .buttonStyle(.subtle)
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .help("Ranger cette réunion dans un projet")
+            Menu { fileItems(line) } label: { Text(ReviewText.action(line.kind)) }
+                .menuStyle(.button)
+                .buttonStyle(.secondary)
+                .controlSize(.small)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("Ranger cette réunion dans un projet")
         } else {
-            Button(ReviewText.action(line.kind)) { open(line) }.buttonStyle(.subtle)
+            Button(ReviewText.action(line.kind)) { open(line) }
+                .buttonStyle(.secondary)
+                .controlSize(.small)
+                .fixedSize()
         }
+    }
+
+    /// The projects a meeting may be filed in, then « Aucun ».
+    @ViewBuilder
+    private func fileItems(_ line: ReviewRules.Line) -> some View {
+        ForEach(projects) { project in
+            Button(project.name) { Task { await colin.file(line, projectID: project.id) } }
+        }
+        Divider()
+        Button("Aucun") { Task { await colin.file(line, projectID: nil) } }
     }
 
     /// The projects a meeting may go in, as the calendar offers them: by name, the finished ones apart.

@@ -176,8 +176,21 @@ struct HomeScreenTests {
         let todoLibrary = TodoLibrary(database: database)
         try await waitUntil { (todoLibrary.openActions[leroy.id]?.count ?? 0) == 3 }
         try await LiveWindow.capture(TodoCard(todo: todoLibrary, agenda: agenda, router: router, opened: leroy.id).padding(Space.l)
-                                        .frame(width: HomeLayout.listsWidth + 2 * Space.l).background(Color(nsColor: .windowBackgroundColor)),
-                                     to: output.appending(path: "accueil-a-faire-ouvert.png"), size: NSSize(width: HomeLayout.listsWidth + 2 * Space.l, height: 560))
+                                        .frame(width: HomeLayout.dayMinimumWidth + 2 * Space.l).background(Color(nsColor: .windowBackgroundColor)),
+                                     to: output.appending(path: "accueil-a-faire-ouvert.png"), size: NSSize(width: HomeLayout.dayMinimumWidth + 2 * Space.l, height: 560))
+
+        // Lot 5 (19/11): a line under the pointer in each list — its action on the place kept for it, nothing else moved —,
+        // the late line of « À faire » among them.
+        let marc = try #require(colin.review.first { $0.kind == .reply })
+        for dark in [false, true] {
+            try await LiveWindow.capture(VStack(spacing: Space.l) {
+                ReviewCard(colin: colin, agenda: agenda, mails: mails, router: router, thresholds: colin.thresholds, hovered: marc.id)
+                TodoCard(todo: todoLibrary, agenda: agenda, router: router, hovered: leroy.id)
+            }
+            .padding(Space.l).frame(width: HomeLayout.dayMinimumWidth + 2 * Space.l).background(Color(nsColor: .windowBackgroundColor)),
+            to: output.appending(path: "accueil-survol\(dark ? "-sombre" : "").png"), size: NSSize(width: HomeLayout.dayMinimumWidth + 2 * Space.l, height: 760),
+            dark: dark)
+        }
 
         // The evening (0.36.0): from the hour set, nothing left today, the Accueil shows tomorrow.
         let evening = try AppDatabase.inMemory()
@@ -269,7 +282,11 @@ struct HomeScreenTests {
                                      to: output.appending(path: "reglages-colin-barre.png"), size: NSSize(width: 700, height: 860))
         // The Accueil's pass (18/11): the bar with a long dictation, and with the day's suggestions.
         running.draft = "Prépare une relance pour Anne : la maquette est prête,\nles plans du rez-de-chaussée suivent jeudi,\net je peux passer la voir lundi.\nGarde un ton simple."
-        try await LiveWindow.capture(colinPage(running), to: output.appending(path: "accueil-barre-longue.png"), size: NSSize(width: 928, height: 760))
+        // The round to send, full of ink, in the dark too (lot 5, 19/11).
+        for dark in [false, true] {
+            try await LiveWindow.capture(colinPage(running), to: output.appending(path: "accueil-barre-longue\(dark ? "-sombre" : "").png"),
+                                         size: NSSize(width: 928, height: 760), dark: dark)
+        }
         let blank = try AppDatabase.inMemory()
         let fresh = try colinThreadOn(blank)
         try await LiveWindow.capture(ColinComposer(thread: fresh, suggestions: ["Qui attend ma réponse ?", "Où on en est sur Cabinet Martin ?", "Sur quoi je me lance demain ?"])
@@ -281,7 +298,11 @@ struct HomeScreenTests {
         try await LiveWindow.capture(colinPage(running), to: output.appending(path: "accueil-colin-reponse.png"), size: NSSize(width: 928, height: 760))
         running.turnOff()
         try await waitUntil { running.status == .off }
-        try await LiveWindow.capture(colinPage(running), to: output.appending(path: "accueil-colin-arret.png"), size: NSSize(width: 928, height: 760))
+        // « Allumer Colin », in the dark too (lot 5, 19/11).
+        for dark in [false, true] {
+            try await LiveWindow.capture(colinPage(running), to: output.appending(path: "accueil-colin-arret\(dark ? "-sombre" : "").png"),
+                                         size: NSSize(width: 928, height: 760), dark: dark)
+        }
         let calling = try colinThread(on: true, busy: true, hanging: false)
         calling.draft = "Prépare la relance d'Anne"
         calling.send()
@@ -310,5 +331,44 @@ struct HomeScreenTests {
             try await LiveWindow.capture(windowed, to: output.appending(path: "accueil-colin-fenetre-etroite.png"),
                                          size: NSSize(width: MainWindowView<EmptyView>.minimumWidth, height: 900))
         }
+
+        // Lot 5 (19/11): a Meet in eight minutes — « Rejoindre », the Accueil's one full button — wide and narrow, light and
+        // dark, beside the whole thread. Added last: the captures above keep their day.
+        try calendar.applyGoogle(account: Self.me, changed: [
+            event("e5", "Revue des maquettes", start: Date().addingTimeInterval(8 * 60), minutes: 30, meet: "klm-nopq-rst", project: leroy.id),
+        ], cancelled: [], at: Date())
+        try calendar.setProject(eventID: CalendarEventRow.key(account: Self.me, eventID: "e5"), projectID: leroy.id, origin: .paul)
+        try await waitUntil { agenda.shown.contains { $0.eventID == "e5" && $0.projectID == leroy.id } }
+        let whole = try colinThreadOn(database)
+        try await waitUntil { whole.messages.count >= 4 }
+        for dark in [false, true] {
+            let suffix = dark ? "-sombre" : ""
+            try await LiveWindow.capture(colinPage(whole), to: output.appending(path: "accueil-rejoindre\(suffix).png"), size: NSSize(width: 928, height: 760), dark: dark)
+            try await LiveWindow.capture(colinPage(whole), to: output.appending(path: "accueil-rejoindre-etroit\(suffix).png"),
+                                         size: NSSize(width: narrow, height: 900), dark: dark)
+            // The narrow window: a click on the bar's head opens the thread over the day, in an opaque panel.
+            try await LiveWindow.capture(HomeView(agenda: agenda, mails: mails, colin: colin, thread: whole, router: router, threadOpen: true)
+                                            .background(Color(nsColor: .windowBackgroundColor)),
+                                         to: output.appending(path: "accueil-fil-etroit\(suffix).png"), size: NSSize(width: narrow, height: 900), dark: dark)
+        }
+
+        // Lot 5 (19/11): Colin out of order (Claude Code not connected) — his header says so, never « en marche ». Last: its
+        // question and failed answer join the thread.
+        let brokenDefaults = try #require(UserDefaults(suiteName: "accueil-colin-\(UUID().uuidString)"))
+        brokenDefaults.set(true, forKey: Preferences.Key.colinOn)
+        let connected = ClaudeInit(model: "claude-opus-5-5", permissionMode: "dontAsk", apiKeySource: "none", tools: ColinTool.allowed, servers: ["polhub": "connected"])
+        let notLoggedIn = FakeLauncher { _, _ in
+            FakeSession(onSend: { _, rank in
+                rank == 1 ? [.initialized(connected), .result(ClaudeResult(isError: true, text: "Not logged in · Please run /login"))] : []
+            })
+        }
+        let brokenSetup = ColinSetup(binary: URL(fileURLWithPath: "/usr/bin/true"), helper: URL(fileURLWithPath: "/usr/bin/true"),
+                                     base: URL(fileURLWithPath: "/tmp/essai.sqlite"), account: nil, work: root.appending(path: "colin-panne", directoryHint: .isDirectory))
+        let broken = ColinThread(database: database, runner: ColinRunner(launcher: notLoggedIn, setup: { brokenSetup }), defaults: brokenDefaults)
+        broken.draft = "Où on en est sur Studio Nord ?"
+        broken.send()
+        try await waitUntil { if case .broken = broken.status { return true } else { return false } }
+        try await LiveWindow.capture(colinPage(broken), to: output.appending(path: "accueil-colin-panne.png"), size: NSSize(width: 928, height: 760))
+        try await LiveWindow.capture(colinPage(broken), to: output.appending(path: "accueil-colin-panne-etroit.png"), size: NSSize(width: narrow, height: 900))
     }
 }

@@ -34,7 +34,9 @@ struct ChangesSheet: View {
                                 router.homeMail = thread.id
                                 dismiss()
                             }
-                            .buttonStyle(.subtle)
+                            // One outline, small, as every button of a line on the Accueil (lot 5, 19/11).
+                            .buttonStyle(.secondary)
+                            .controlSize(.small)
                         }
                     }
                     ForEach(colin.briefingChanges.reversed()) { line in

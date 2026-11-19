@@ -141,6 +141,40 @@ enum ColinThreadText {
         }
     }
 
+    /// The start of an answer (lot 5, 19/11): its first line as Paul reads it — no stars, no fences, never the note of
+    /// its end —, for the head of the narrow window's bar.
+    static func opening(_ message: ColinMessageRow) -> String? {
+        plain(note(of: message).said).components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .first { !$0.isEmpty }
+    }
+
+    /// Whether an answer holds a message to copy: its card has « Copier », its foot does not (lot 5, 19/11).
+    static func copiesInItsCard(_ answer: String) -> Bool {
+        ColinAnswer.blocks(answer).contains { block in
+            if case .message = block { return true }
+            return false
+        }
+    }
+
+    /// The foot of an answer (lot 5, 19/11): how it ended, « Copier » once — unless its card copies —, « Réessayer » once
+    /// stopped and Colin on.
+    struct Foot: Equatable {
+        var note: String?
+        var copy: Bool
+        var retry: Bool
+
+        /// An empty foot takes no room.
+        var isEmpty: Bool { note == nil && !copy && !retry }
+    }
+
+    static func foot(of message: ColinMessageRow, colinOn: Bool) -> Foot {
+        let (said, note) = note(of: message)
+        let stopped = message.state == .interrupted || message.state == .failed
+        let copy = message.state != .answering && !said.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !copiesInItsCard(said)
+        return Foot(note: note, copy: copy, retry: stopped && colinOn)
+    }
+
     enum Bar: Equatable {
         case field(placeholder: String, enabled: Bool, note: String?)
         /// Colin off: « Allumer Colin » in place of the bar.
@@ -210,6 +244,8 @@ struct ColinThreadView: View {
 /// Colin's bar (the Accueil's pass, 18/11): a glass capsule of 44 points, its text centred on one line, growing up
 /// to eight; the round send button at its foot (■ while he answers). Return sends, Shift-Return goes to
 /// the line, Escape stops. Why it waits is said above the field, in the glass; off, a calm card to turn Colin on.
+/// In a narrow window (lot 5, 19/11), it floats at the foot of the day: a line at its head says Colin's state or the start
+/// of his last answer; a click on it, or a question sent, opens the thread over the day.
 struct ColinComposer: View {
     @ObservedObject var thread: ColinThread
     /// The day, for the suggestions: who waits, what is due.
@@ -217,6 +253,8 @@ struct ColinComposer: View {
     var due: [String] = []
     /// Given as they are (captures); else from the day.
     var suggestions: [String]?
+    /// The narrow window: the line at the head of the bar, and what opens the thread.
+    var open: (() -> Void)?
     @FocusState private var focused: Bool
 
     private var empty: Bool { thread.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -225,7 +263,7 @@ struct ColinComposer: View {
         Group {
             switch ColinThreadText.bar(thread.status) {
             case .turnOn:
-                ColinOffCard { thread.turnOn() }
+                ColinOffCard(open: open) { thread.turnOn() }
             case .field(let placeholder, let enabled, let note):
                 let asked = suggestions ?? thread.suggestions(review: review, due: due)
                 VStack(alignment: .leading, spacing: Space.s) {
@@ -238,12 +276,19 @@ struct ColinComposer: View {
         }
         .frame(maxWidth: ThreadMetrics.column)
         .frame(maxWidth: .infinity)
-        .padding(.bottom, Space.l)
         .onChange(of: focused) { _, now in if now { thread.focused() } }
+    }
+
+    /// A question sent from the narrow window's bar opens the thread: the answer is read as it comes.
+    private func send() {
+        guard !empty else { return }
+        thread.send()
+        open?()
     }
 
     private func field(placeholder: String, enabled: Bool, note: String?) -> some View {
         VStack(alignment: .leading, spacing: Space.xs) {
+            if let open { ColinBarLine(thread: thread, open: open) }
             if let note {
                 Text(note).font(.meta).foregroundStyle(.secondary).padding(.horizontal, Space.s).padding(.top, 2)
             }
@@ -261,7 +306,7 @@ struct ColinComposer: View {
                         switch ComposerKeys.action(key: press.key, modifiers: press.modifiers, composing: ComposerKeys.composing,
                                                    answering: thread.isAnswering) {
                         case .send:
-                            thread.send()
+                            send()
                             return .handled
                         case .newline:
                             thread.draft += "\n"
@@ -278,13 +323,41 @@ struct ColinComposer: View {
                 if thread.isAnswering {
                     RoundButton(symbol: "stop.fill", help: "Arrêter la réponse", prominent: false) { thread.stop() }
                 } else {
-                    RoundButton(symbol: "arrow.up", help: "Envoyer à Colin (↩)", prominent: !empty && enabled) { thread.send() }
+                    RoundButton(symbol: "arrow.up", help: "Envoyer à Colin (↩)", prominent: !empty && enabled) { send() }
                         .disabled(!enabled || empty)
                 }
             }
         }
         .padding(Space.s)
         .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+    }
+}
+
+/// The head of Colin's bar in a narrow window (lot 5, 19/11): his state's dot, « Colin », then his state, or, ready, the
+/// start of his last answer; ⌃ says it opens. A click opens his thread over the day.
+struct ColinBarLine: View {
+    @ObservedObject var thread: ColinThread
+    let open: () -> Void
+
+    var body: some View {
+        let state = ColinState(thread.status, answering: thread.isAnswering)
+        let last = thread.messages.last { $0.author == .colin && $0.state != .answering }.flatMap(ColinThreadText.opening)
+        Button(action: open) {
+            HStack(spacing: Space.s) {
+                ColinStateDot(state: state)
+                Text("\(Text("Colin").fontWeight(.semibold).foregroundStyle(.primary)) · \(ColinState.barLine(state, lastAnswer: last))")
+                    .font(.meta)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: Space.s)
+                Image(systemName: "chevron.up").font(.tag.weight(.semibold)).foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, Space.s)
+            .padding(.vertical, Space.xs)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.row)
+        .help("Ouvrir le fil de Colin")
     }
 }
 
@@ -300,7 +373,7 @@ private struct RoundButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 12, weight: .bold))
+                .font(.tag.weight(.bold))
                 .foregroundStyle(prominent ? Tint.onAccent.color : Color.secondary)
                 .contentTransition(.symbolEffect(.replace))
                 .frame(width: 28, height: 28)
@@ -335,21 +408,40 @@ private struct SuggestionChips: View {
     }
 }
 
-/// Colin off: a calm card in the bar's place.
+/// Colin off: a calm card in the bar's place. In a narrow window (lot 5, 19/11), its sentence opens the thread over the day.
 private struct ColinOffCard: View {
+    var open: (() -> Void)?
     let turnOn: () -> Void
 
     var body: some View {
         HStack(spacing: Space.m) {
-            Image(systemName: "moon.zzz").foregroundStyle(.secondary)
-            Text("Colin est à l'arrêt").font(.rowBody).foregroundStyle(.secondary)
+            if let open {
+                Button(action: open) {
+                    HStack(spacing: Space.m) {
+                        said
+                        Image(systemName: "chevron.up").font(.tag.weight(.semibold)).foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Ouvrir le fil de Colin")
+            } else {
+                said
+            }
             Spacer(minLength: Space.s)
             // A calm card, no glass: « Rejoindre » is the Accueil's one principal button (design system v2, 19/11).
             Button("Allumer Colin", action: turnOn).buttonStyle(.secondary).controlSize(.small)
         }
         .padding(.horizontal, Space.l)
         .padding(.vertical, Space.m)
-        .background(Surface.fill, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        .background(Color(nsColor: .windowBackgroundColor), in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         .overlay { RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Surface.stroke) }
+    }
+
+    private var said: some View {
+        HStack(spacing: Space.m) {
+            Image(systemName: "moon.zzz").foregroundStyle(.secondary)
+            Text("Colin est à l'arrêt").font(.rowBody).foregroundStyle(.secondary)
+        }
     }
 }

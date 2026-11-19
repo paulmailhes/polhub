@@ -5,14 +5,17 @@ import PolhubDesign
 import Testing
 @testable import MeetingsUI
 
-/// The new Accueil (18/11): Colin's column on the left, the lists on the right; one under the other when the
-/// window is narrow.
+/// « Colin à droite » (lot 5, 19/11): the day on the left, 640 points at most; Colin's panel on the right, 420 points, the
+/// whole height. In a narrow window, the day alone, Colin's bar floating at its foot.
 @Suite struct HomeLayoutTests {
-    @Test func twoColumnsFromTheBreakpoint() {
-        // 0.37.0: the day in cards, a little wider.
-        #expect(HomeLayout.breakpoint == 800 && HomeLayout.listsWidth == 420)
-        #expect(HomeLayout.of(width: 800) == .columns)
-        #expect(HomeLayout.of(width: 799) == .stacked)
+    @Test func colinsPanelStandsBesideTheDay() {
+        #expect(HomeLayout.panelWidth == 420 && HomeLayout.dayWidth == 640 && HomeLayout.dayMinimumWidth == 420)
+        // Two columns once the day keeps its 420 points beside the panel and its line, with the page's margins.
+        #expect(HomeLayout.breakpoint == 420 + 1 + 420 + 2 * PageMetrics.horizontal)
+        #expect(HomeLayout.of(width: HomeLayout.breakpoint) == .columns)
+        #expect(HomeLayout.of(width: HomeLayout.breakpoint - 1) == .stacked)
+        // The window at 1 180 points, its sidebar aside.
+        #expect(HomeLayout.of(width: 928) == .columns)
         #expect(HomeLayout.of(width: 1_400) == .columns)
     }
 
@@ -85,6 +88,55 @@ import Testing
         // A draft leaves when it is sent or deleted; a meeting when it is filed, under « Aucun » too.
         #expect(ReviewText.dismissals(line(.draft, "Claire")).isEmpty)
         #expect(ReviewText.dismissals(line(.unfiled, "Point Cabinet Martin")).isEmpty)
+    }
+
+    /// Lot 5 (19/11): under the date, one line says what came since Paul last came, then « Voir › ».
+    @Test func theLineUnderTheDateSaysWhatCameSince() {
+        #expect(BriefingText.since(["Cette semaine : 3 rendez-vous, le prochain demain 10:00.", "Depuis hier 19:40 : 1 mail de client, 2 projets ont bougé."])
+                == "Depuis hier 19:40 · 1 mail de client, 2 projets ont bougé")
+        #expect(BriefingText.since(["Depuis 8:05 : 3 mails de clients."]) == "Depuis 8:05 · 3 mails de clients")
+        #expect(BriefingText.since(["Cette semaine : aucun rendez-vous.", "À toi de jouer : Studio Nord."]) == nil)
+        #expect(BriefingText.since([]) == nil)
+    }
+
+    /// Lot 5 (19/11): when « Le point » was prepared is said under the pointer, as the day is said elsewhere.
+    @Test func whenThePointWasPreparedIsSaidUnderThePointer() {
+        var paris = Calendar(identifier: .gregorian)
+        paris.timeZone = TimeZone(identifier: "Europe/Paris")!
+        let now = Date(timeIntervalSince1970: 1_795_096_800)   // Thursday 19/11/2026, 15:00 in Paris
+        #expect(BriefingText.prepared(now.addingTimeInterval(-3_600), now: now, calendar: paris) == "Le point · aujourd'hui 14:00")
+        #expect(BriefingText.prepared(now.addingTimeInterval(-86_400 - 3 * 3_600), now: now, calendar: paris) == "Le point · hier 12:00")
+    }
+
+    /// Lot 5 (19/11): « Rejoindre » outlined, then the Accueil's one full button ten minutes before; far off (tomorrow's
+    /// first, in the evening), none before its last ten minutes.
+    @Test func joinIsTheOneFullButtonTenMinutesBefore() {
+        #expect(TodayText.join(minutesLeft: 40, sameDay: true) == .secondary)
+        #expect(TodayText.join(minutesLeft: 10, sameDay: true) == .primary)
+        #expect(TodayText.join(minutesLeft: 8, sameDay: true) == .primary)
+        #expect(TodayText.join(minutesLeft: -5, sameDay: true) == .primary)
+        #expect(TodayText.join(minutesLeft: 8, sameDay: false) == .primary)
+        #expect(TodayText.join(minutesLeft: 600, sameDay: false) == nil)
+    }
+
+    /// Lot 5 (19/11): a line's gestures, the same under the pointer and at the right click — its action, « Ranger » for a
+    /// meeting, the ways to set it aside.
+    @Test func eachLineHasItsGesturesUnderThePointerAndTheRightClick() {
+        #expect(ReviewText.gestures(line(.draft, "Claire")) == ReviewText.Gestures(open: "Relire", file: false, dismissals: []))
+        #expect(ReviewText.gestures(line(.reply, "Marc")) == ReviewText.Gestures(open: "Ouvrir", file: false, dismissals: ReviewText.dismissals(line(.reply, "Marc"))))
+        #expect(ReviewText.gestures(line(.silent, "Anne")).dismissals.map(\.title) == ["Anne a répondu ailleurs", "Pas besoin", "Plus tard"])
+        // A meeting opens with a click; « Ranger » is its action.
+        #expect(ReviewText.gestures(line(.unfiled, "Point Cabinet Martin")) == ReviewText.Gestures(open: "Ouvrir", file: true, dismissals: []))
+    }
+
+    /// Lot 5 (19/11): « Reporter » and « Livré » come under the pointer on every dated line, the late ones too, in the place
+    /// of its « quand »; an unfolded line shows them under its actions; the right click has them, after « Ouvrir le projet ».
+    @Test func aDatedLineShowsItsActionsUnderThePointer() {
+        #expect(TodoText.hoverActions(dated: true, unfolded: false))
+        #expect(!TodoText.hoverActions(dated: true, unfolded: true))
+        #expect(!TodoText.hoverActions(dated: false, unfolded: false))
+        #expect(TodoText.menu(dated: true) == ["Ouvrir le projet", "Reporter", "Livré"])
+        #expect(TodoText.menu(dated: false) == ["Ouvrir le projet"])
     }
 
     @Test func aSentenceOfThePointIsItsLabelAndItsText() {
@@ -247,8 +299,90 @@ import Testing
         #expect(ColinThreadText.note(of: answer("Trois projets.", .done)) == ("Trois projets.", nil))
     }
 
-    @Test func theBarIsAsWideAsColinsColumn() {
-        #expect(HomeLayout.colinWidth(content: 1_000) == 1_000 - HomeLayout.listsWidth - Space.l)
+    /// Lot 5 (19/11): in a panel of 420 points, Paul's bubble leaves 64 points beside it, no longer 140.
+    @Test func paulsBubbleLeavesSixtyFourPoints() {
+        #expect(ThreadMetrics.bubbleGap == 64)
+    }
+
+    /// Lot 5 (19/11): the head of Colin's panel says his real state — never « en marche » during a call or a breakdown,
+    /// as the switch alone said before.
+    @Test func theHeaderSaysColinsRealState() {
+        #expect(ColinState(.idle) == .ready && ColinState.ready.label == "prêt")
+        #expect(ColinState(.working("Colin lit tes mails…")) == .answering && ColinState.answering.label == "répond…")
+        #expect(ColinState(.starting) == .answering)
+        // A question on its way, before its first word.
+        #expect(ColinState(.idle, answering: true) == .answering)
+        #expect(ColinState(.broken("Limite atteinte."), answering: true) == .answering)
+        #expect(ColinState(.waitingCall) == .waitingCall && ColinState.waitingCall.label == "attend ton call")
+        #expect(ColinState(.settling) == .waking && ColinState.waking.label == "se réveille")
+        #expect(ColinState(.broken("Limite atteinte.")) == .broken && ColinState.broken.label == "en panne")
+        #expect(ColinState(.off) == .off && ColinState(.off, answering: true) == .off && ColinState.off.label == "à l'arrêt")
+        for status in [ColinThread.Status.off, .waitingCall, .settling, .idle, .starting, .working("…"), .broken("…")] {
+            #expect(ColinState(status).label != "en marche")
+        }
+        // Its dot: green while he works, the color of attention out of order, grey otherwise; it beats while he answers.
+        #expect(ColinState.ready.dot == .done && ColinState.answering.dot == .done && ColinState.broken.dot == .attention)
+        #expect(ColinState.off.dot == .quiet && ColinState.waitingCall.dot == .quiet && ColinState.waking.dot == .quiet)
+        #expect(ColinState.answering.beats && !ColinState.ready.beats)
+    }
+
+    /// Lot 5 (19/11): in a narrow window, the head of Colin's bar says his state, or, ready, the start of his last answer.
+    @Test func theNarrowBarSaysTheStateOrTheLastAnswer() {
+        #expect(ColinState.barLine(.ready, lastAnswer: "Marc t'a écrit lundi.") == "Marc t'a écrit lundi.")
+        #expect(ColinState.barLine(.ready, lastAnswer: nil) == "prêt")
+        #expect(ColinState.barLine(.answering, lastAnswer: "Marc t'a écrit lundi.") == "répond…")
+        #expect(ColinState.barLine(.waitingCall, lastAnswer: "Marc t'a écrit lundi.") == "attend ton call")
+        #expect(ColinState.barLine(.off, lastAnswer: "Marc t'a écrit lundi.") == "à l'arrêt")
+    }
+
+    /// The start of an answer is its first line as Paul reads it: no stars, no fences, never the note of its end.
+    @Test func theStartOfAnAnswerIsItsFirstLine() {
+        func answer(_ text: String, _ state: ColinMessageRow.State = .done) -> ColinMessageRow {
+            ColinMessageRow(author: .colin, text: text, state: state, createdAt: now)
+        }
+        #expect(ColinThreadText.opening(answer("Voilà, **court** et à ton ton.\n```message\nSalut Marc !\n```")) == "Voilà, court et à ton ton.")
+        #expect(ColinThreadText.opening(answer("```message\nSalut Marc !\n```")) == "Salut Marc !")
+        #expect(ColinThreadText.opening(answer("Marc t'a écrit\n\nArrêté : ton call commence.", .interrupted)) == "Marc t'a écrit")
+        #expect(ColinThreadText.opening(answer("Arrêté : le Mac s'endort.", .interrupted)) == nil)
+    }
+
+    /// Lot 5 (19/11): « Copier » once — an answer with a message to copy has it in its card, not in its foot; an empty foot
+    /// takes no room.
+    @Test func theFootOffersCopyOnceAndTakesNoRoomEmpty() {
+        func answer(_ text: String, _ state: ColinMessageRow.State = .done) -> ColinMessageRow {
+            ColinMessageRow(author: .colin, text: text, state: state, createdAt: now)
+        }
+        #expect(ColinThreadText.copiesInItsCard("Voilà.\n```message\nSalut Marc !\n```"))
+        #expect(!ColinThreadText.copiesInItsCard("Trois projets."))
+        #expect(ColinThreadText.foot(of: answer("Trois projets."), colinOn: true) == ColinThreadText.Foot(note: nil, copy: true, retry: false))
+        let card = ColinThreadText.foot(of: answer("Voilà, court.\n```message\nSalut Marc !\n```\n```retenir\nMarc préfère WhatsApp.\n```"), colinOn: true)
+        #expect(card == ColinThreadText.Foot(note: nil, copy: false, retry: false) && card.isEmpty)
+        #expect(ColinThreadText.foot(of: answer("Marc t'a\n\nArrêté : ton call commence.", .interrupted), colinOn: true)
+                == ColinThreadText.Foot(note: "Arrêté : ton call commence.", copy: true, retry: true))
+        #expect(ColinThreadText.foot(of: answer("Arrêté : le Mac s'endort.", .interrupted), colinOn: false)
+                == ColinThreadText.Foot(note: "Arrêté : le Mac s'endort.", copy: false, retry: false))
+        #expect(ColinThreadText.foot(of: answer("", .failed), colinOn: true) == ColinThreadText.Foot(note: "Colin n'a pas pu finir.", copy: false, retry: true))
+        #expect(!ColinThreadText.Foot(note: "Arrêté.", copy: false, retry: false).isEmpty)
+    }
+
+    /// Lot 5 (19/11): each card of the thread says at its head what it is.
+    @Test func eachCardSaysWhatItIs() {
+        #expect(ResultCard.message.label == "Message à copier")
+        #expect(ResultCard.draft.label == "Brouillon")
+        #expect(ResultCard.change.label == "Projet modifié")
+        #expect(ResultCard.creation.label == "Nouveau projet")
+        func row(_ field: ProjectChangeField) -> ProjectChangeRow {
+            ProjectChangeRow(id: 1, projectID: UUID(), field: field, subject: nil, before: nil, after: "priorité 1", detail: "priorité 1", who: .colin,
+                             batch: "b", reason: nil, source: nil, at: now, undoneAt: nil)
+        }
+        func line(_ fields: [ProjectChangeField]) -> ProjectChangeLine {
+            ProjectChangeLine(id: "c1", projectID: UUID(), projectName: "Vlog 2", who: .colin, at: now, reason: nil, rows: fields.map(row), undoneAt: nil)
+        }
+        #expect(ResultCard.of(line([.created, .client])) == .creation)
+        #expect(ResultCard.of(line([.status, .todo])) == .change)
+        // A draft says whom it is for.
+        #expect(ResultCard.draftFor([MailAddress(name: "Claire Morel", email: "claire@cabinet-martin.exemple")]) == "Pour Claire")
+        #expect(ResultCard.draftFor([]) == "Pour toi")
     }
 }
 

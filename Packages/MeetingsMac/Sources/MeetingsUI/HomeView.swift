@@ -83,10 +83,10 @@ enum HomeModel {
     }
 }
 
-/// Accueil (the Accueil's pass, 18/11): on the left, the conversation with Colin — his name fixed at its head, his
-/// thread, his bar floating over it; on the right, « ta journée » (0.36.0) — the date and what came since, « Aujourd'hui »
-/// (« Demain » in the evening), « À valider », « À faire ». In a narrow window, a strip of the day stays at the top,
-/// « À valider » and « À faire » open over the thread.
+/// Accueil (lot 5, 19/11, « Colin à droite »): the day is the page — its date as the title, what came since, « Aujourd'hui »
+/// (« Demain » in the evening), « À valider », « À faire » —, its column 640 points at most; Colin is a panel at the right
+/// edge, 420 points, the whole height, on his own ground, his bar at its foot the only glass. In a narrow window, the day
+/// alone: Colin's bar floats at its foot and opens his thread in a panel over the day, which Échap closes.
 struct HomeView: View {
     @ObservedObject var agenda: AgendaLibrary
     let mails: MailLibrary?
@@ -99,15 +99,16 @@ struct HomeView: View {
     @State private var barHeight: CGFloat = 0
     /// « Voir »: what moved without Paul, over the Accueil.
     @State private var seeing = false
-    /// The narrow window's « À valider » and « À faire », open over the thread.
-    @State private var reviewOpen = false
+    /// The narrow window: Colin's thread, open over the day.
+    @State private var threadOpen = false
     /// « À faire »: who set each deadline, the first actions, Paul's « Reporter » and « Livré ».
     @StateObject private var todo: TodoLibrary
     /// The Claude accounts read from Vigie; `nil` in a window made without them: nothing is read from a capture.
     let accounts: ClaudeAccountsModel?
 
+    /// `threadOpen`: the narrow window's thread open over the day, for the captures.
     init(agenda: AgendaLibrary, mails: MailLibrary?, colin: ColinLibrary, thread: ColinThread? = nil, router: WindowRouter,
-         accounts: ClaudeAccountsModel? = nil) {
+         accounts: ClaudeAccountsModel? = nil, threadOpen: Bool = false) {
         self.agenda = agenda
         self.mails = mails
         self.colin = colin
@@ -115,6 +116,7 @@ struct HomeView: View {
         self.router = router
         self.accounts = accounts
         _todo = StateObject(wrappedValue: TodoLibrary(database: agenda.database))
+        _threadOpen = State(initialValue: threadOpen)
     }
 
     /// The projects of « À faire » with a date: what Colin's bar proposes to ask about.
@@ -124,14 +126,18 @@ struct HomeView: View {
 
     var body: some View {
         Group {
-            switch layout {
-            case .columns: columns
-            case .stacked: stacked
+            if let thread {
+                switch layout {
+                case .columns: columns(thread)
+                case .stacked: stacked(thread)
+                }
+            } else {
+                dayPage
             }
         }
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
-            layout = HomeLayout.of(width: min(width, PageMetrics.maxWidth) - 2 * PageMetrics.horizontal)
-        }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in layout = HomeLayout.of(width: width) }
+        // Wide again: the thread is in its panel, nothing floats over the day.
+        .onChange(of: layout) { _, now in if now == .columns { threadOpen = false } }
         .windowTitle("Accueil")
         .modifier(HomeMailPanels(mails: mails, router: router, lift: barHeight))
         .sheet(isPresented: $seeing) { ChangesSheet(colin: colin, router: router) }
@@ -142,70 +148,59 @@ struct HomeView: View {
         .task { await accounts?.watch() }
     }
 
-    /// Two columns: the conversation, and the day at a fixed width; each scrolls alone.
-    private var columns: some View {
-        HStack(alignment: .top, spacing: Space.xl) {
-            if let thread { conversation(thread) }
-            ScrollView {
-                day
-                    .padding(.top, PageMetrics.top)
-                    .padding(.bottom, PageMetrics.bottom)
-            }
-            .belowToolbar()
-            .frame(width: thread == nil ? nil : HomeLayout.listsWidth)
-            .frame(maxWidth: thread == nil ? .infinity : nil)
-        }
-        .padding(.horizontal, PageMetrics.horizontal)
-        .frame(maxWidth: PageMetrics.maxWidth)
-        .frame(maxWidth: .infinity)
-    }
-
-    /// One column: a strip of the day at the top, the thread under it.
-    private var stacked: some View {
-        VStack(spacing: 0) {
-            DayStrip(colin: colin, agenda: agenda, todo: todo, reviewOpen: $reviewOpen, seeing: $seeing)
+    /// The day, a page that scrolls: its column 640 points at most, in the middle of what the panel leaves.
+    private var dayPage: some View {
+        ScrollView {
+            day
                 .padding(.horizontal, PageMetrics.horizontal)
-                .padding(.vertical, Space.m)
-            Divider()
-            if let thread {
-                conversation(thread)
-                    .padding(.horizontal, PageMetrics.horizontal)
-                    .overlay(alignment: .top) {
-                        if reviewOpen {
-                            ScrollView {
-                                VStack(alignment: .leading, spacing: Space.l) {
-                                    ReviewCard(colin: colin, agenda: agenda, mails: mails, router: router, thresholds: colin.thresholds)
-                                    TodoCard(todo: todo, agenda: agenda, router: router)
-                                }
-                                .padding(Space.m)
-                            }
-                            .frame(maxHeight: 340)
-                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-                            .padding(.horizontal, PageMetrics.horizontal)
-                            .padding(.top, Space.s)
-                            .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
-                        }
-                    }
-            } else {
-                ScrollView { day.padding(PageMetrics.horizontal) }
-            }
+                .padding(.top, PageMetrics.top)
+                .padding(.bottom, PageMetrics.bottom)
+                .frame(maxWidth: HomeLayout.dayWidth + 2 * PageMetrics.horizontal)
+                .frame(maxWidth: .infinity)
+        }
+        .belowToolbar()
+    }
+
+    /// The day on the left; Colin's panel on the right, on its own ground, a line between them, the whole height.
+    private func columns(_ thread: ColinThread) -> some View {
+        HStack(spacing: 0) {
+            dayPage
+            Divider().ignoresSafeArea(edges: .vertical)
+            ColinPanel(thread: thread, colin: colin, mails: mails, router: router, due: due, barHeight: $barHeight)
+                .frame(width: HomeLayout.panelWidth)
+                .background(Surface.fill)
         }
     }
 
-    /// Colin's name, his thread, his bar: a view of its own, which follows the thread.
-    private func conversation(_ thread: ColinThread) -> some View {
-        ColinConversation(thread: thread, colin: colin, agenda: agenda, mails: mails, router: router, due: due, barHeight: $barHeight)
+    /// The narrow window: the day alone, Colin's bar floating at its foot; his thread opens over the day.
+    private func stacked(_ thread: ColinThread) -> some View {
+        dayPage
+            .safeAreaBar(edge: .bottom) {
+                if !threadOpen {
+                    ColinComposer(thread: thread, review: colin.review, due: due, open: { threadOpen = true })
+                        .padding(.horizontal, PageMetrics.horizontal)
+                        .padding(.bottom, Space.m)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
+                }
+            }
+            .overlay {
+                if threadOpen {
+                    FloatingPanel(close: { threadOpen = false }) {
+                        ColinPanel(thread: thread, colin: colin, mails: mails, router: router, due: due, barHeight: $barHeight,
+                                   close: { threadOpen = false })
+                            .background(Surface.fill)
+                    }
+                }
+            }
+            .animation(Motion.standard, value: threadOpen)
     }
 
-    /// « Ta journée » (0.37.0, in cards): the point on the page, then « Aujourd'hui » put forward, « À valider », « À
-    /// faire », « Comptes Claude ».
+    /// « Ta journée »: its date and what came since, then « Aujourd'hui » put forward, « À valider », « À faire », « Comptes
+    /// Claude ».
     private var day: some View {
         VStack(alignment: .leading, spacing: Space.l) {
-            if let preparedAt = colin.briefingAt, !colin.briefing.isEmpty {
-                BriefingCard(sentences: colin.briefing, preparedAt: preparedAt,
-                             see: colin.briefingChanges.isEmpty && colin.briefingMails.isEmpty ? nil : { seeing = true })
-                    .transition(.opacity)
-            }
+            DayHeader(sentences: colin.briefingAt == nil ? [] : colin.briefing, preparedAt: colin.briefingAt,
+                      see: colin.briefingChanges.isEmpty && colin.briefingMails.isEmpty ? nil : { seeing = true })
             TodayCard(agenda: agenda, router: router)
                 .padding(.top, Space.s)
             ReviewCard(colin: colin, agenda: agenda, mails: mails, router: router, thresholds: colin.thresholds)
@@ -216,13 +211,41 @@ struct HomeView: View {
     }
 }
 
-/// The conversation with Colin (the Accueil's pass, 18/11): his name fixed at its head, his thread opened on its end,
-/// his bar floating over it. It follows what Colin writes only while Paul is at the end; a question of his always
-/// brings him there; otherwise ↓.
+/// Colin's panel (lot 5, 19/11): his name and his state at its head, a line, his thread fading under it, his bar at its
+/// foot. Docked at the right of the window; or floating over the day in a narrow one, with ✕ (`close`), Échap closing it.
+private struct ColinPanel: View {
+    @ObservedObject var thread: ColinThread
+    @ObservedObject var colin: ColinLibrary
+    let mails: MailLibrary?
+    @ObservedObject var router: WindowRouter
+    let due: [String]
+    @Binding var barHeight: CGFloat
+    var close: (() -> Void)?
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ColinHeader(thread: thread, router: router, close: close)
+                .padding(.horizontal, Space.l)
+                .padding(.top, PageMetrics.top)
+                .padding(.bottom, Space.m)
+            Divider()
+            ColinConversation(thread: thread, colin: colin, mails: mails, router: router, due: due, barHeight: $barHeight)
+        }
+        // Floating over the day, it takes the keys at once: Échap closes it before any click in it.
+        .focusable(close != nil)
+        .focusEffectDisabled()
+        .focused($focused)
+        .onAppear { if close != nil { focused = true } }
+    }
+}
+
+/// Colin's thread and his bar (the Accueil's pass, 18/11): the thread opened on its end, his bar floating over its foot. It
+/// follows what Colin writes only while Paul is at the end; a question of his always brings him there; otherwise ↓. At
+/// its top, under the line of the panel's head, the thread fades (lot 5, 19/11).
 private struct ColinConversation: View {
     @ObservedObject var thread: ColinThread
     @ObservedObject var colin: ColinLibrary
-    @ObservedObject var agenda: AgendaLibrary
     let mails: MailLibrary?
     @ObservedObject var router: WindowRouter
     /// The projects of « À faire » with a date, for the questions over the bar.
@@ -233,112 +256,64 @@ private struct ColinConversation: View {
     @State private var follow = ThreadFollow()
 
     var body: some View {
-        VStack(spacing: 0) {
-            ColinHeader(thread: thread, router: router)
-                .frame(maxWidth: ThreadMetrics.column)
-                .frame(maxWidth: .infinity)
-                .padding(.top, PageMetrics.top)
-                .padding(.bottom, Space.s)
-            ScrollView {
-                ColinThreadView(thread: thread, mails: mails, router: router)
-                    .padding(.top, Space.s)
-                    .padding(.bottom, Space.l)
-            }
-            // Opened on the last exchanges; a short thread stays at the top.
-            .scrollPosition($position)
-            .defaultScrollAnchor(.bottom, for: .initialOffset)
-            .scrollIndicators(.automatic)
-            .onScrollGeometryChange(for: Bool.self) { geometry in
-                ThreadScroll.follows(contentHeight: geometry.contentSize.height, offset: geometry.visibleRect.minY, visibleHeight: geometry.visibleRect.height)
-            } action: { _, atEnd in
-                // The thread grew while it followed (a word, a card, a foot): to its end. Paul's hand decides the rest.
-                if follow.geometry(atEnd: atEnd) { position.scrollTo(edge: .bottom) }
-            }
-            .onScrollPhaseChange { _, phase in
-                // Only Paul's own hand: a scroll animated by the code is not him going up.
-                let hand = phase == .interacting || phase == .decelerating
-                if hand != follow.userScrolling { follow.userScroll(began: hand) }
-            }
-            .onChange(of: thread.visible) { _, _ in if follow.scrollsOnTick { position.scrollTo(edge: .bottom) } }
-            .onChange(of: thread.liveSteps) { _, _ in if follow.scrollsOnTick { position.scrollTo(edge: .bottom) } }
-            .onChange(of: ColinThreadText.lastID(thread.messages, changes: thread.changes)) { _, _ in
-                if follow.scrollsOnTick { withAnimation(Motion.standard) { position.scrollTo(edge: .bottom) } }
-            }
-            // A question of Paul's always brings him to the end.
-            .onChange(of: thread.messages.last(where: { $0.author == .paul })?.id) { _, _ in
-                follow.asked()
-                withAnimation(Motion.standard) { position.scrollTo(edge: .bottom) }
-            }
-            .overlay(alignment: .bottom) {
-                if !follow.following {
-                    JumpToEnd {
-                        follow.asked()
-                        withAnimation(Motion.standard) { position.scrollTo(edge: .bottom) }
-                    }
-                    .padding(.bottom, Space.s)
-                    .transition(.opacity)
-                }
-            }
-            .animation(Motion.quick, value: follow.following)
-            // The bar floats over the thread, which passes under its glass.
-            .safeAreaBar(edge: .bottom) {
-                ColinComposer(thread: thread, review: colin.review, due: due)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
+        ScrollView {
+            ColinThreadView(thread: thread, mails: mails, router: router)
+                .padding(.horizontal, Space.l)
+                // Nothing fades at rest: the thread starts under its fade.
+                .padding(.top, ThreadMetrics.fade)
+                .padding(.bottom, Space.l)
+        }
+        // Opened on the last exchanges; a short thread stays at the top.
+        .scrollPosition($position)
+        // Colin off, his calm card is opaque: no edge under it, which drew a line across the panel (lot 5, 19/11).
+        .scrollEdgeEffectHidden(thread.status == .off, for: .bottom)
+        .defaultScrollAnchor(.bottom, for: .initialOffset)
+        .scrollIndicators(.automatic)
+        .onScrollGeometryChange(for: Bool.self) { geometry in
+            ThreadScroll.follows(contentHeight: geometry.contentSize.height, offset: geometry.visibleRect.minY, visibleHeight: geometry.visibleRect.height)
+        } action: { _, atEnd in
+            // The thread grew while it followed (a word, a card, a foot): to its end. Paul's hand decides the rest.
+            if follow.geometry(atEnd: atEnd) { position.scrollTo(edge: .bottom) }
+        }
+        .onScrollPhaseChange { _, phase in
+            // Only Paul's own hand: a scroll animated by the code is not him going up.
+            let hand = phase == .interacting || phase == .decelerating
+            if hand != follow.userScrolling { follow.userScroll(began: hand) }
+        }
+        .onChange(of: thread.visible) { _, _ in if follow.scrollsOnTick { position.scrollTo(edge: .bottom) } }
+        .onChange(of: thread.liveSteps) { _, _ in if follow.scrollsOnTick { position.scrollTo(edge: .bottom) } }
+        .onChange(of: ColinThreadText.lastID(thread.messages, changes: thread.changes)) { _, _ in
+            if follow.scrollsOnTick { withAnimation(Motion.standard) { position.scrollTo(edge: .bottom) } }
+        }
+        // A question of Paul's always brings him to the end.
+        .onChange(of: thread.messages.last(where: { $0.author == .paul })?.id) { _, _ in
+            follow.asked()
+            withAnimation(Motion.standard) { position.scrollTo(edge: .bottom) }
+        }
+        // Under the line of the head, the thread fades over 16 points instead of being cut.
+        .mask {
+            VStack(spacing: 0) {
+                LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom).frame(height: ThreadMetrics.fade)
+                Rectangle()
             }
         }
-    }
-}
-
-/// The narrow window's day, in one strip (0.36.0): the date and « Voir »; the next meeting — tomorrow's first in the
-/// evening — with « Rejoindre », and « À valider · À faire », which opens over the thread.
-private struct DayStrip: View {
-    @ObservedObject var colin: ColinLibrary
-    @ObservedObject var agenda: AgendaLibrary
-    @ObservedObject var todo: TodoLibrary
-    @Binding var reviewOpen: Bool
-    @Binding var seeing: Bool
-    @AppStorage(Preferences.Key.homeTomorrowFrom) private var tomorrowFrom = Preferences.Default.homeTomorrowFrom
-
-    var body: some View {
-        TimelineView(.periodic(from: .now, by: 30)) { context in
-            let calendar = CalendarView.calendar
-            let shown = HomeModel.dayShown(agenda.shown, now: context.date, tomorrowFrom: tomorrowFrom, calendar: calendar)
-            let next = shown.tomorrow ? shown.events.first { !$0.allDay } : HomeModel.next(agenda.shown, now: context.date, calendar: calendar)
-            let todoCount = todo.lines(projects: agenda.projects, events: agenda.shown).count
-            // Two lines: the day; the next meeting and what waits.
-            VStack(alignment: .leading, spacing: Space.s) {
-                HStack(alignment: .center, spacing: Space.s) {
-                    Text(BriefingText.today(context.date, calendar: calendar)).font(.headline).lineLimit(1).fixedSize()
-                    if !colin.briefingChanges.isEmpty || !colin.briefingMails.isEmpty {
-                        TextButton("Voir", quiet: true) { seeing = true }.fixedSize()
-                    }
-                    Spacer(minLength: 0)
+        .overlay(alignment: .bottom) {
+            if !follow.following {
+                JumpToEnd {
+                    follow.asked()
+                    withAnimation(Motion.standard) { position.scrollTo(edge: .bottom) }
                 }
-                HStack(alignment: .center, spacing: Space.s) {
-                    if let next {
-                        Text("\(shown.tomorrow ? "Demain " : "")\(next.startAt.formatted(date: .omitted, time: .shortened)) \(next.title)")
-                            .font(.meta).foregroundStyle(.secondary).lineLimit(1)
-                        if next.meetCode != nil, !shown.tomorrow || next.startAt.timeIntervalSince(context.date) <= 600 {
-                            Group {
-                                if next.startAt.timeIntervalSince(context.date) <= 600 {
-                                    // The Accueil's one principal button, ten minutes before; no glass in the content
-                                    // (design system v2, 19/11).
-                                    Button { agenda.join(next) } label: { Label("Rejoindre", systemImage: "video.fill") }
-                                        .buttonStyle(.primary)
-                                        .controlSize(.small)
-                                } else {
-                                    Button { agenda.join(next) } label: { Label("Rejoindre", systemImage: "video") }.buttonStyle(.subtle)
-                                }
-                            }
-                            .fixedSize()
-                        }
-                    }
-                    Spacer(minLength: Space.s)
-                    Button("À valider \(colin.review.count) · À faire \(todoCount)") { withAnimation(Motion.quick) { reviewOpen.toggle() } }
-                        .buttonStyle(.subtle)
-                        .fixedSize()
-                }
+                .padding(.bottom, Space.s)
+                .transition(.opacity)
             }
+        }
+        .animation(Motion.quick, value: follow.following)
+        // The bar floats over the thread, which passes under its glass.
+        .safeAreaBar(edge: .bottom) {
+            ColinComposer(thread: thread, review: colin.review, due: due)
+                .padding(.horizontal, Space.m)
+                .padding(.bottom, Space.m)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
         }
     }
 }
