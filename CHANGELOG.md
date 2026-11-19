@@ -3,6 +3,27 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.41.0 — 19 novembre 2026
+
+**Une barre latérale courte, et « fermer » ramène d'où l'on vient.**
+
+- **La barre latérale** ne liste plus que des lieux : sous Mails, Boîte de réception, Brouillons et Envoyés ; les
+  autres dossiers sous « Plus », qui se déplie de lui-même quand l'un d'eux est ouvert. Inspiration tient sur une
+  ligne, Contacts descend près de Réglages, et la cloche monte près du bouton de la barre latérale. Douze lignes au
+  lieu de vingt-deux, dans une barre plus étroite.
+- **Les boîtes** sont un menu « Boîtes » dans la barre de la liste des mails, à côté de « Non lus ». Il dit
+  « Boîtes : 2 sur 3 » quand une est masquée.
+- **Inspiration** : Websites, Branding et Mock-ups se choisissent en haut de la page, comme Kanban et Liste.
+- **Fermer, c'est revenir** : ✕, Échap, un clic à côté et la flèche de retour ramènent d'où l'on vient. Un projet
+  ouvert depuis l'Accueil revient à l'Accueil, sans ajouter de pas à « Précédent ». Le ✕ est toujours en haut à droite.
+- **Les raccourcis marchent dans la fenêtre**, les mêmes que dans Coup d'œil : ⌘1 à ⌘7 dans l'ordre de la barre
+  latérale (Inspiration ⌘6, Contacts ⌘7), ⌘, pour Réglages, ⌘N pour le « + » de la page, ⌘F pour sa recherche.
+  ⌘← et ⌘→ vont au début et à la fin de la ligne dans un mail qu'on écrit.
+- **Les titres** de la fenêtre disent la section, puis où l'on est dedans ; plus le nom de ce qui est déjà écrit en
+  grand dans la page.
+- **Les liens** : le projet d'un mail, d'une réunion ou d'un rendez-vous s'ouvre depuis son menu ; la date d'une
+  réunion mène à son rendez-vous ; les prochains rendez-vous d'un projet mènent au Calendrier.
+
 ## 0.40.0 — 19 novembre 2026
 
 **Polhub a sa propre couleur, l'encre, et chaque couleur ne dit plus qu'une chose.**
