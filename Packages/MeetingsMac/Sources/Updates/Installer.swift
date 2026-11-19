@@ -97,7 +97,7 @@ public struct Installer: Sendable {
         let script = SwapScript.make(
             newApp: newApp, installed: installed, keepOld: keepOld, version: version.description, signal: signal, log: log,
             pid: getpid(), processName: "Polhub", start: start, startTimeout: 30, failedKey: UpdateService.failedVersionKey,
-            register: SwapScript.launchServicesRegister
+            register: SwapScript.launchServicesRegister, verify: SwapScript.signatureCheck
         )
         let file = newApp.deletingLastPathComponent().appending(path: "echange.sh")
         try script.write(to: file, atomically: true, encoding: .utf8)

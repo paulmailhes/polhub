@@ -41,6 +41,13 @@ import Testing
         #expect(Verifier.signatureError(app: URL(fileURLWithPath: "/System/Applications/Calculator.app")) == .wrongTeam)
     }
 
+    /// Apple's notarization is required too (audit of 19/11): a version published without it never installs itself.
+    /// Measured on 19/11: the installed version and the last one built meet it. Not measured: a Developer ID app never
+    /// notarized (none on this Mac); Apple's requirement language says it fails.
+    @Test func theRequirementAsksForAppleNotarization() {
+        #expect(Verifier.requirement().hasSuffix(" and notarized"))
+    }
+
     static let built = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appending(path: "../../../../build/Polhub.app").standardizedFileURL
 
     /// Only after `make app`: a Polhub signed with the author's Developer ID passes.
@@ -104,7 +111,7 @@ import Testing
         let script = SwapScript.make(newApp: layout.newApp, installed: layout.installed, keepOld: layout.keep, version: "0.3.1",
                                      signal: layout.signal, log: layout.log, pid: 999_999, processName: "polhub-test-absent",
                                      start: "echo 0.3.1 > \(SwapScript.quote(layout.signal.path(percentEncoded: false)))",
-                                     startTimeout: 3, failedKey: nil)
+                                     startTimeout: 3, failedKey: nil, verify: "true")
         #expect(try run(script) == 0)
         #expect(try installedVersion(layout) == "0.3.1")
         let kept = try FileManager.default.contentsOfDirectory(atPath: layout.keep.path(percentEncoded: false))
@@ -116,7 +123,7 @@ import Testing
         defer { try? FileManager.default.removeItem(at: layout.root) }
         let script = SwapScript.make(newApp: layout.newApp, installed: layout.installed, keepOld: layout.keep, version: "0.3.1",
                                      signal: layout.signal, log: layout.log, pid: 999_999, processName: "polhub-test-absent",
-                                     start: "true", startTimeout: 2, failedKey: nil)
+                                     start: "true", startTimeout: 2, failedKey: nil, verify: "true")
         #expect(try run(script) != 0)
         #expect(try installedVersion(layout) == "0.3.0")
         let log = try String(contentsOf: layout.log, encoding: .utf8)
@@ -131,12 +138,40 @@ import Testing
         let script = SwapScript.make(newApp: layout.newApp, installed: layout.installed, keepOld: layout.keep, version: "0.3.1",
                                      signal: layout.signal, log: layout.log, pid: 999_999, processName: "polhub-test-absent",
                                      start: "echo 0.3.1 > \(SwapScript.quote(layout.signal.path(percentEncoded: false)))",
-                                     startTimeout: 3, failedKey: nil, register: "echo >> \(SwapScript.quote(marks.path(percentEncoded: false)))")
+                                     startTimeout: 3, failedKey: nil, register: "echo >> \(SwapScript.quote(marks.path(percentEncoded: false)))", verify: "true")
         #expect(try run(script) == 0)
         let installed = layout.installed.path(percentEncoded: false)
         let written = (try? String(contentsOf: marks, encoding: .utf8)) ?? ""
         #expect(written.contains(installed.hasSuffix("/") ? String(installed.dropLast()) : installed), "écrit : \(written)")
         #expect(SwapScript.launchServicesRegister.hasSuffix("LaunchServices.framework/Support/lsregister -f"))
+    }
+
+    /// The copy is checked again where it lands, and nothing is started that the author did not sign (audit of
+    /// 19/11): a version swapped in the temporary folder after its check is put back to the old one, which starts.
+    @Test func aCopyThatIsNotTheCheckedOneIsRolledBack() throws {
+        let layout = try layout()
+        defer { try? FileManager.default.removeItem(at: layout.root) }
+        // The test's own check: an app is « signed » when it holds this mark; the new one lost it on the way.
+        try "signée".write(to: layout.installed.appending(path: "Contents/signature"), atomically: true, encoding: .utf8)
+        let checker = layout.root.appending(path: "verifier.sh")
+        try "#!/bin/bash\ntest -f \"$1/Contents/signature\"\n".write(to: checker, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: checker.path(percentEncoded: false))
+        let started = layout.root.appending(path: "lancees.txt")
+        let script = SwapScript.make(newApp: layout.newApp, installed: layout.installed, keepOld: layout.keep, version: "0.3.1",
+                                     signal: layout.signal, log: layout.log, pid: 999_999, processName: "polhub-test-absent",
+                                     start: "cat \(SwapScript.quote(layout.installed.appending(path: "Contents/version").path(percentEncoded: false))) >> \(SwapScript.quote(started.path(percentEncoded: false)))",
+                                     startTimeout: 2, failedKey: nil, verify: SwapScript.quote(checker.path(percentEncoded: false)))
+        #expect(try run(script) != 0)
+        #expect(try installedVersion(layout) == "0.3.0")
+        #expect(try String(contentsOf: layout.log, encoding: .utf8).contains("pas signée par l'auteur"))
+        // Only the old version, signed, was started.
+        #expect(try String(contentsOf: started, encoding: .utf8) == "0.3.0")
+    }
+
+    /// The real check is Apple's: the author's Developer ID, Polhub, and Apple's notarization.
+    @Test func theRealCheckIsTheVerifiersRequirement() {
+        #expect(SwapScript.signatureCheck.hasPrefix("/usr/bin/codesign --verify --strict --deep -R "))
+        #expect(SwapScript.signatureCheck.contains(Verifier.requirement()))
     }
 
     @Test func quotesSurviveAnyPath() {

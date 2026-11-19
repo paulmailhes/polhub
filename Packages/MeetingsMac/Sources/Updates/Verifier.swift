@@ -21,17 +21,18 @@ public enum VerificationError: Error, Equatable, CustomStringConvertible {
 }
 
 /// An update is installed only if Apple's own check says its app is signed with the author's Developer ID
-/// (team CQ43U6XX4Z), is Polhub, and has the announced version: a hacked GitHub account cannot get
+/// (team CQ43U6XX4Z), notarized, is Polhub, and has the announced version: a hacked GitHub account cannot get
 /// anything else installed (review, critical 1: no reading of `codesign`'s text).
 public enum Verifier {
     public static let teamID = "CQ43U6XX4Z"
     public static let bundleID = "fr.paulmailhes.polhub"
 
-    /// The designated requirement of a Developer ID app of the team.
+    /// The designated requirement of a Developer ID app of the team, notarized by Apple (audit of 19/11: a version
+    /// published without notarization never installs itself).
     public static func requirement(identifier: String = bundleID) -> String {
         #"anchor apple generic and identifier ""# + identifier
             + #"" and certificate 1[field.1.2.840.113635.100.6.2.6] and certificate leaf[field.1.2.840.113635.100.6.1.13]"#
-            + #" and certificate leaf[subject.OU] = ""# + teamID + #"""#
+            + #" and certificate leaf[subject.OU] = ""# + teamID + #"" and notarized"#
     }
 
     /// `nil` when the bundle is a real folder whose signature, nested code included, meets the requirement.
@@ -113,11 +114,19 @@ public enum SwapScript {
     /// Registers an app with LaunchServices again: its new icon shows at once in the Dock and the Finder (14/11).
     public static let launchServicesRegister = "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f"
 
+    /// The check of an app where it lies, the verifier's own (audit of 19/11): the script runs it on the copy it made,
+    /// and before it starts any app; `codesign` answers by its exit code, never by its text.
+    public static var signatureCheck: String {
+        "/usr/bin/codesign --verify --strict --deep -R " + quote("=" + Verifier.requirement())
+    }
+
     /// - register: the command that registers the installed app again (`launchServicesRegister`); the tests pass a
     ///   harmless one, so that no test app is ever registered.
+    /// - verify: the command that says, by its exit code, whether the app whose path follows is the author's
+    ///   (`signatureCheck`); the tests pass their own.
     public static func make(
         newApp: URL, installed: URL, keepOld: URL, version: String, signal: URL, log: URL, pid: Int32, processName: String,
-        start: String, startTimeout: Int, failedKey: String?, register: String? = nil
+        start: String, startTimeout: Int, failedKey: String?, register: String? = nil, verify: String
     ) -> String {
         let registration = register.map { "touch \(quote(path(installed))); \($0) \(quote(path(installed))) 2>/dev/null || true" } ?? "true"
         let new = quote(path(newApp)), app = quote(path(installed)), parent = quote(path(installed.deletingLastPathComponent()))
@@ -130,7 +139,9 @@ public enum SwapScript {
         mkdir -p \(quote(path(log.deletingLastPathComponent()))) 2>/dev/null
         exec >>\(quote(path(log))) 2>&1 || exec >/dev/null 2>&1
         say() { echo "$(date '+%Y-%m-%d %H:%M:%S') $*"; }
-        start() { \(start); }
+        verified() { \(verify) "$1" >/dev/null 2>&1; }
+        # Nothing starts that the author did not sign: a copy changed after its check, or an old version replaced.
+        start() { if verified \(app); then \(start); else say "l'app en place n'est pas signée par l'auteur de Polhub : elle n'est pas lancée"; fi; }
         restore() { rm -rf \(app); ditto -x -k \(zip) \(parent); }
         DONE=0
         # Whatever happens, Paul is never left without an app.
@@ -152,6 +163,10 @@ public enum SwapScript {
         rm -rf \(app)
         if ! ditto \(new) \(app); then
           say "copie de la nouvelle version ratée : retour à l'ancienne version"
+          restore; \(failed); DONE=1; start; exit 1
+        fi
+        if ! verified \(app); then
+          say "la nouvelle version copiée n'est pas signée par l'auteur de Polhub : retour à l'ancienne version"
           restore; \(failed); DONE=1; start; exit 1
         fi
         xattr -dr com.apple.quarantine \(app) 2>/dev/null
