@@ -294,23 +294,28 @@ public enum GmailAPI {
 /// other half stays for what Paul does himself.
 public actor GmailPacer {
     let budget: Int
+    /// How far what Paul asks himself may go (audit of 19/11): everything else stops at `budget`, so the rest of the
+    /// minute is always his and he never waits behind it. By default, the budget itself.
+    let ceiling: Int
     let now: @Sendable () -> Date
     let sleep: @Sendable (TimeInterval) async -> Void
     private var spent: [(at: Date, units: Int)] = []
 
-    public init(unitsPerMinute: Int = 3_000, now: @escaping @Sendable () -> Date = { Date() },
+    public init(unitsPerMinute: Int = 3_000, ceiling: Int? = nil, now: @escaping @Sendable () -> Date = { Date() },
                 sleep: @escaping @Sendable (TimeInterval) async -> Void = { try? await Task.sleep(for: .seconds($0)) }) {
         self.budget = unitsPerMinute
+        self.ceiling = max(ceiling ?? unitsPerMinute, unitsPerMinute)
         self.now = now
         self.sleep = sleep
     }
 
-    /// Returns when these units fit in the last minute's budget.
-    public func take(_ units: Int) async {
+    /// Returns when these units fit in the last minute's budget; for what Paul asks himself (`paul`), under the ceiling.
+    public func take(_ units: Int, paul: Bool = false) async {
+        let limit = paul ? ceiling : budget
         while true {
             let date = now()
             spent.removeAll { date.timeIntervalSince($0.at) >= 60 }
-            if spent.isEmpty || spent.reduce(0, { $0 + $1.units }) + units <= budget {
+            if spent.isEmpty || spent.reduce(0, { $0 + $1.units }) + units <= limit {
                 spent.append((date, units))
                 return
             }

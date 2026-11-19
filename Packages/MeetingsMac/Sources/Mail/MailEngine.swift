@@ -124,15 +124,16 @@ public actor MailEngine {
 
     private func pacer(_ account: String) -> GmailPacer {
         if let pacer = pacers[account] { return pacer }
-        // Most of Gmail's 6 000 units a minute; the rest stays for what Paul does meanwhile.
-        let pacer = GmailPacer(unitsPerMinute: 4_500, now: now, sleep: pause)
+        // Gmail's 6 000 units a minute: the reading and the gestures stop at 4 500, so what Paul asks himself (`paul`: a
+        // send, a file, a search…) always finds the rest and never waits behind them (audit of 19/11).
+        let pacer = GmailPacer(unitsPerMinute: 4_500, ceiling: 6_000, now: now, sleep: pause)
         pacers[account] = pacer
         return pacer
     }
 
-    private func get<T: Decodable & Sendable>(_ type: T.Type, _ account: String, cost: Int,
+    private func get<T: Decodable & Sendable>(_ type: T.Type, _ account: String, cost: Int, paul: Bool = false,
                                               _ build: @escaping @Sendable (String) -> URLRequest) async throws -> T {
-        await pacer(account).take(cost)
+        await pacer(account).take(cost, paul: paul)
         return try GmailAPI.decode(type, from: try await sendFor(account)(build))
     }
 
@@ -210,8 +211,8 @@ public actor MailEngine {
     }
 
     /// Reads these messages whole, four at a time; or their `headers` only (`format=metadata`: the trash and the
-    /// spam). A message Gmail no longer has is simply left out.
-    private func fetch(_ ids: [String], account: String, headers: [String]? = nil) async throws -> [ParsedMail] {
+    /// spam). A message Gmail no longer has is simply left out. `paul`: he asked for it himself (a body to show).
+    private func fetch(_ ids: [String], account: String, headers: [String]? = nil, paul: Bool = false) async throws -> [ParsedMail] {
         let pacer = pacer(account), send = sendFor(account)
         let format: GmailAPI.Format = headers == nil ? .full : .metadata
         return try await withThrowingTaskGroup(of: ParsedMail?.self) { group in
@@ -220,7 +221,7 @@ public actor MailEngine {
             func add() {
                 guard let id = remaining.popFirst() else { return }
                 group.addTask {
-                    await pacer.take(headers == nil ? GmailAPI.Cost.full : GmailAPI.Cost.metadata)
+                    await pacer.take(headers == nil ? GmailAPI.Cost.full : GmailAPI.Cost.metadata, paul: paul)
                     do {
                         let data = try await send { GmailAPI.messageRequest(accessToken: $0, id: id, format: format, headers: headers ?? []) }
                         return MailParser.parse(try GmailAPI.decode(GmailAPI.Message.self, from: data), account: account)
@@ -276,11 +277,18 @@ public actor MailEngine {
             return
         }
         let known = try store.knownMessageIDs(account: account)
-        let toRead = added.union(relabeled.filter { !known.contains($0) }).subtracting(deleted)
-        let mails = toRead.isEmpty ? [] : try await fetch(Array(toRead), account: account)
-        try keep(mails, account: account)
+        // Read and kept slice by slice, each slice's arrivals announced once kept (audit of 19/11): a pass cut on the way
+        // keeps what it read, and the next one, from the same cursor, reads only what is still missing.
+        let toRead = Array(added.union(relabeled).subtracting(known).subtracting(deleted))
+        for offset in stride(from: 0, to: toRead.count, by: Self.slice) {
+            let mails = try await fetch(Array(toRead[offset..<min(offset + Self.slice, toRead.count)]), account: account)
+            try keep(mails, account: account)
+            let arrived = mails.map(\.row).filter { added.contains($0.messageID) && $0.labels.contains("INBOX") && $0.isUnread && !$0.labels.contains("SENT") }
+            if !arrived.isEmpty { onNew(arrived) }
+        }
         var labels: [String: [String]] = [:]
-        for id in relabeled where known.contains(id) && !added.contains(id) && !deleted.contains(id) {
+        // Known before this pass, so not read again (even new, kept by a pass cut on the way): only its labels are asked.
+        for id in relabeled where known.contains(id) && !deleted.contains(id) {
             do {
                 let message = try await get(GmailAPI.Message.self, account, cost: GmailAPI.Cost.metadata) {
                     GmailAPI.messageRequest(accessToken: $0, id: id, format: .minimal)
@@ -308,8 +316,6 @@ public actor MailEngine {
         cursor.lastSyncAt = now()
         cursor.lastError = nil
         try store.save(cursor)
-        let arrived = mails.map(\.row).filter { added.contains($0.messageID) && $0.labels.contains("INBOX") && $0.isUnread && !$0.labels.contains("SENT") }
-        if !arrived.isEmpty { onNew(arrived) }
     }
 
     /// Gmail forgot the cursor (the Mac stayed closed a long time): the copy is put square again. What Gmail no
@@ -407,11 +413,11 @@ public actor MailEngine {
     public func read(_ message: MailMessageRow) async throws -> (text: String, isHTML: Bool) {
         if message.labels.contains("SPAM") {
             files.forget(messageIDs: [message.messageID], account: message.account)
-            let mail = try await fetch([message.messageID], account: message.account).first
+            let mail = try await fetch([message.messageID], account: message.account, paul: true).first
             return (mail?.body ?? "", mail?.row.bodyIsHTML ?? false)
         }
         if message.hasBody, let data = try? Data(contentsOf: files.body(of: message)) { return (String(decoding: data, as: UTF8.self), message.bodyIsHTML) }
-        let mails = try await fetch([message.messageID], account: message.account)
+        let mails = try await fetch([message.messageID], account: message.account, paul: true)
         try keep(mails, account: message.account)
         return (mails.first?.body ?? "", mails.first?.row.bodyIsHTML ?? message.bodyIsHTML)
     }
@@ -424,7 +430,7 @@ public actor MailEngine {
         if FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) { return url }
         func bytes(_ attachmentID: String) async throws -> Data {
             let messageID = message.messageID
-            let body = try await get(GmailAPI.Body.self, message.account, cost: GmailAPI.Cost.attachment) {
+            let body = try await get(GmailAPI.Body.self, message.account, cost: GmailAPI.Cost.attachment, paul: true) {
                 GmailAPI.attachmentRequest(accessToken: $0, messageID: messageID, attachmentID: attachmentID)
             }
             guard let bytes = body.bytes else { throw GoogleError.badAnswer }
@@ -436,7 +442,7 @@ public actor MailEngine {
             data = try await bytes(attachmentID)
         } catch {
             // Gmail's attachment ids do not last: read the message again and take the fresh one.
-            guard let fresh = try await fetch([message.messageID], account: message.account).first?.row.attachments
+            guard let fresh = try await fetch([message.messageID], account: message.account, paul: true).first?.row.attachments
                 .first(where: { $0.partID == attachment.partID })?.attachmentID else { throw error }
             data = try await bytes(fresh)
         }
@@ -448,13 +454,13 @@ public actor MailEngine {
     public func search(_ query: String, accounts: [String]) async throws -> [String] {
         var keys: [String] = []
         for account in accounts.map({ $0.lowercased() }) {
-            let page = try await get(GmailAPI.IDPage.self, account, cost: GmailAPI.Cost.threadList) {
+            let page = try await get(GmailAPI.IDPage.self, account, cost: GmailAPI.Cost.threadList, paul: true) {
                 GmailAPI.threadsRequest(accessToken: $0, query: query, maxResults: 25)
             }
             for id in page.ids {
                 let key = MailThreadRow.key(account: account, threadID: id)
                 if try store.thread(key) == nil {
-                    let thread = try await get(GmailAPI.Thread.self, account, cost: GmailAPI.Cost.thread) {
+                    let thread = try await get(GmailAPI.Thread.self, account, cost: GmailAPI.Cost.thread, paul: true) {
                         GmailAPI.threadRequest(accessToken: $0, id: id, format: .full)
                     }
                     try keep((thread.messages ?? []).map { MailParser.parse($0, account: account) }, account: account)
@@ -539,7 +545,7 @@ public actor MailEngine {
 
     /// What a reply needs of the message it answers: its people, its thread's headers, its body.
     public func replySource(for message: MailMessageRow) async throws -> ReplySource {
-        let headers = try await get(GmailAPI.Message.self, message.account, cost: GmailAPI.Cost.metadata) {
+        let headers = try await get(GmailAPI.Message.self, message.account, cost: GmailAPI.Cost.metadata, paul: true) {
             GmailAPI.messageRequest(accessToken: $0, id: message.messageID, format: .metadata, headers: ["Reply-To", "References", "Message-ID"])
         }.payload
         let body = try await self.body(of: message)
@@ -629,9 +635,9 @@ public actor MailEngine {
     private func upload(_ draft: MailDraftRow, raw: Data) async throws -> MailDraftRow {
         let version = draft.updatedAt
         let threadID = draft.threadKey.map { String($0.dropFirst(draft.account.count + 1)) }
-        let answer: GmailAPI.Draft
+        let answer: GmailAPI.Draft, cost = draft.gmailDraftID == nil ? GmailAPI.Cost.draftCreate : GmailAPI.Cost.draftUpdate
         do {
-            answer = try await get(GmailAPI.Draft.self, draft.account, cost: draft.gmailDraftID == nil ? GmailAPI.Cost.draftCreate : GmailAPI.Cost.draftUpdate) {
+            answer = try await get(GmailAPI.Draft.self, draft.account, cost: cost, paul: true) {
                 GmailAPI.draftUploadRequest(accessToken: $0, draftID: draft.gmailDraftID, raw: raw, threadID: threadID)
             }
         } catch GoogleError.notFound where draft.gmailDraftID != nil {
@@ -646,7 +652,7 @@ public actor MailEngine {
     /// send keeps). A programmed one also stops once its conversation went to the trash in Gmail (wave B review).
     private func check(_ draft: MailDraftRow, _ gmailDraftID: String, known: String?, sealed: Bool = false) async throws {
         do {
-            let held = try await get(GmailAPI.Draft.self, draft.account, cost: GmailAPI.Cost.draftGet) {
+            let held = try await get(GmailAPI.Draft.self, draft.account, cost: GmailAPI.Cost.draftGet, paul: true) {
                 GmailAPI.draftRequest(accessToken: $0, draftID: gmailDraftID)
             }
             if let known, let current = held.message?.id, current != known {
@@ -673,7 +679,7 @@ public actor MailEngine {
                 break
             }
             do {
-                let held = try await get(GmailAPI.Draft.self, draft.account, cost: GmailAPI.Cost.draftGet) {
+                let held = try await get(GmailAPI.Draft.self, draft.account, cost: GmailAPI.Cost.draftGet, paul: true) {
                     GmailAPI.draftRequest(accessToken: $0, draftID: gmailDraftID)
                 }
                 try store.markPushed(draftID: draftID, gmailDraftID: gmailDraftID, gmailMessageID: held.message?.id,
@@ -705,7 +711,7 @@ public actor MailEngine {
         try dropSchedule(draftID)
         if flavor == .prod, let gmailDraftID = draft.gmailDraftID {
             do {
-                await pacer(draft.account).take(GmailAPI.Cost.draftDelete)
+                await pacer(draft.account).take(GmailAPI.Cost.draftDelete, paul: true)
                 _ = try await sendFor(draft.account)({ GmailAPI.draftDeleteRequest(accessToken: $0, draftID: gmailDraftID) })
             } catch GoogleError.notFound {}
         }
@@ -797,7 +803,7 @@ public actor MailEngine {
         // A send that fails and passes tries again against the copy Gmail holds now.
         if sealed != nil { noteGmailCopy(of: draftID, held) }
         do {
-            await pacer(draft.account).take(GmailAPI.Cost.draftSend)
+            await pacer(draft.account).take(GmailAPI.Cost.draftSend, paul: true)
             _ = try await sendFor(draft.account)({ GmailAPI.draftSendRequest(accessToken: $0, draftID: gmailDraftID) })
         } catch GoogleError.notFound {
             try store.setConflict(draftID, .absent)
@@ -818,7 +824,7 @@ public actor MailEngine {
         guard let draft = try store.draft(draftID) else { return }
         if flavor == .prod, let gmailDraftID = draft.gmailDraftID, draft.conflict != .modifie {
             do {
-                await pacer(draft.account).take(GmailAPI.Cost.draftDelete)
+                await pacer(draft.account).take(GmailAPI.Cost.draftDelete, paul: true)
                 _ = try await sendFor(draft.account)({ GmailAPI.draftDeleteRequest(accessToken: $0, draftID: gmailDraftID) })
             } catch GoogleError.notFound {
             } catch {
@@ -834,7 +840,7 @@ public actor MailEngine {
     /// Gmail no longer has this draft (asked again after an error).
     private func gmailDraftIsGone(_ account: String, _ gmailDraftID: String) async -> Bool {
         do {
-            _ = try await get(GmailAPI.Draft.self, account, cost: GmailAPI.Cost.draftGet) {
+            _ = try await get(GmailAPI.Draft.self, account, cost: GmailAPI.Cost.draftGet, paul: true) {
                 GmailAPI.draftRequest(accessToken: $0, draftID: gmailDraftID)
             }
             return false
@@ -882,7 +888,7 @@ public actor MailEngine {
         var gmailDraftID: String?, token: String?
         repeat {
             let pageToken = token
-            let page = try await get(GmailAPI.DraftList.self, message.account, cost: GmailAPI.Cost.draftList) {
+            let page = try await get(GmailAPI.DraftList.self, message.account, cost: GmailAPI.Cost.draftList, paul: true) {
                 GmailAPI.draftsRequest(accessToken: $0, pageToken: pageToken)
             }
             gmailDraftID = page.drafts?.first { $0.message?.id == message.messageID }?.id
@@ -890,7 +896,7 @@ public actor MailEngine {
         } while gmailDraftID == nil && token != nil
         guard let gmailDraftID else { throw GoogleError.notFound }
         if let already = try store.drafts().first(where: { $0.gmailDraftID == gmailDraftID }) { return already }
-        let headers = try await get(GmailAPI.Message.self, message.account, cost: GmailAPI.Cost.metadata) {
+        let headers = try await get(GmailAPI.Message.self, message.account, cost: GmailAPI.Cost.metadata, paul: true) {
             GmailAPI.messageRequest(accessToken: $0, id: message.messageID, format: .metadata, headers: ["Bcc", "In-Reply-To", "References"])
         }.payload
         let body = try await self.body(of: message)
@@ -1352,7 +1358,7 @@ public actor MailEngine {
 
     /// The message as it travelled, headers first: « Afficher l'original ». At most 400 ko of it.
     public func original(of message: MailMessageRow) async throws -> String {
-        let answer = try await get(GmailAPI.Message.self, message.account, cost: GmailAPI.Cost.full) {
+        let answer = try await get(GmailAPI.Message.self, message.account, cost: GmailAPI.Cost.full, paul: true) {
             GmailAPI.messageRequest(accessToken: $0, id: message.messageID, format: .raw)
         }
         guard let bytes = GmailAPI.Body(size: nil, data: answer.raw, attachmentId: nil).bytes else { throw GoogleError.badAnswer }

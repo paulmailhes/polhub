@@ -21,21 +21,23 @@ public enum MailParser {
         let plainIndex = parts.firstIndex { $0.mimeType == "text/plain" && ($0.filename ?? "").isEmpty }
         let html = htmlIndex.map { parts[$0] }
         let chosenIndex = htmlIndex ?? plainIndex
-        let chosen = chosenIndex.map { parts[$0] }
-        let body = chosen.flatMap { part in part.body?.bytes.map { text($0, declared: MailProbe.charset(of: part)) } }
+        let body = chosenIndex.flatMap { Self.body(at: $0, in: parts, parents: parents(of: payload)) }
         let lowerHTML = html != nil ? body?.lowercased() : nil
         var attachments: [MailAttachment] = []
         var inline: [String: Data] = [:]
         for (index, part) in parts.enumerated() {
             let name = part.filename ?? ""
             let contentID = part.header("Content-ID")?.trimmingCharacters(in: CharacterSet(charactersIn: "<> "))
-            guard !name.isEmpty || contentID != nil, part.mimeType?.hasPrefix("multipart/") != true, index != chosenIndex else { continue }
+            // An invitation from Outlook (audit of 19/11): its calendar part has neither name nor Content-ID. Kept, so the
+            // mail is known as a calendar's, but as part of the text: never a file to show nor one written on the Mac.
+            let invitation = name.isEmpty && contentID == nil && ["text/calendar", "application/ics"].contains(part.mimeType?.lowercased() ?? "")
+            guard !name.isEmpty || contentID != nil || invitation, part.mimeType?.hasPrefix("multipart/") != true, index != chosenIndex else { continue }
             let partID = part.partId ?? String(index)
             // Shown by the HTML itself: an image it names by `cid:`.
             let shown = contentID.map { lowerHTML?.contains("cid:\($0.lowercased())") == true } ?? false
-            attachments.append(MailAttachment(partID: partID, filename: AttachmentSafety.cleanName(name.isEmpty ? "image" : name),
+            attachments.append(MailAttachment(partID: partID, filename: AttachmentSafety.cleanName(name.isEmpty ? (invitation ? "invitation.ics" : "image") : name),
                                               mimeType: part.mimeType ?? "application/octet-stream", size: part.body?.size ?? 0,
-                                              attachmentID: part.body?.attachmentId, contentID: contentID, inline: shown))
+                                              attachmentID: part.body?.attachmentId, contentID: contentID, inline: shown || invitation))
             if shown, let bytes = part.body?.bytes { inline[partID] = bytes }
         }
         let date = message.internalDate.flatMap(Double.init).map { Date(timeIntervalSince1970: $0 / 1_000) } ?? Date(timeIntervalSince1970: 0)
@@ -51,6 +53,35 @@ public enum MailParser {
             hasBody: body != nil, bodyIsHTML: html != nil && body != nil, attachments: attachments
         )
         return ParsedMail(row: row, body: body, inline: inline)
+    }
+
+    /// The text of the part chosen. Apple Mail and the iPhone cut it around a file set in its middle, in pieces of
+    /// one type under a multipart/mixed (audit of 19/11): the part's sisters of its type, without name, Content-ID
+    /// nor « attachment », are the rest of the text, each kept whole, in their order. Never the two versions of a
+    /// multipart/alternative, nor what a forwarded message holds. `nil` when no piece has any byte.
+    static func body(at chosen: Int, in parts: [GmailAPI.Part], parents: [Int?]) -> String? {
+        var pieces = [chosen]
+        if let parent = parents[chosen], parts[parent].mimeType?.lowercased() == "multipart/mixed" {
+            pieces = parts.indices.filter { index in
+                let part = parts[index]
+                return index == chosen || (parents[index] == parent && part.mimeType == parts[chosen].mimeType && (part.filename ?? "").isEmpty
+                    && part.header("Content-ID") == nil && part.header("Content-Disposition")?.lowercased().hasPrefix("attachment") != true)
+            }
+        }
+        let texts = pieces.compactMap { index in parts[index].body?.bytes.map { text($0, declared: MailProbe.charset(of: parts[index])) } }
+        return texts.isEmpty ? nil : texts.joined(separator: "\n")
+    }
+
+    /// For each part of `all`, in its order, the index of its parent there; `nil` for the message itself.
+    static func parents(of root: GmailAPI.Part?) -> [Int?] {
+        var parents: [Int?] = []
+        func walk(_ part: GmailAPI.Part, under parent: Int?) {
+            let index = parents.count
+            parents.append(parent)
+            for child in part.parts ?? [] { walk(child, under: index) }
+        }
+        if let root { walk(root, under: nil) }
+        return parents
     }
 
     /// « Vérifié par Gmail » (audit of 19/11): Gmail's own header (`mx.google.com`) says `dmarc=pass` for the domain the

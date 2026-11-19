@@ -167,6 +167,19 @@ import Testing
         #expect(clock.slept == [60, 60])
     }
 
+    /// What Paul asks himself goes on up to the ceiling (audit of 19/11); the rest stops at the budget, Paul's own
+    /// spending counted, so his share is never taken.
+    @Test func paulsShareOfTheMinuteStaysHis() async {
+        let clock = Clock()
+        let pacer = GmailPacer(unitsPerMinute: 100, ceiling: 150, now: { clock.now }, sleep: { clock.sleep($0) })
+        await pacer.take(90)
+        await pacer.take(50, paul: true)
+        #expect(clock.slept.isEmpty)
+        // 140 units spent: the rest waits, even for 10.
+        await pacer.take(10)
+        #expect(clock.slept == [60])
+    }
+
     final class Calls: @unchecked Sendable {
         private let lock = NSLock()
         private var values: [String] = []
