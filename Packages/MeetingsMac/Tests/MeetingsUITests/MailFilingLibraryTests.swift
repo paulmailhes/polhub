@@ -46,6 +46,38 @@ import Testing
         #expect(try store.filingRules().senders.isEmpty)
     }
 
+    /// A client's thread where a colleague of Paul's own domain answered last, filed by hand: the thread takes its
+    /// case, but nothing is kept for the colleague, who writes about everything; the banner says the thread alone
+    /// (audit of 19/11).
+    @Test func filingAThreadAColleagueAnsweredLastKeepsNothingForHim() async throws {
+        let database = try AppDatabase.inMemory()
+        try CalendarStore(database).addAccount(email: account, at: Date())
+        let project = try ProjectStore(database).addProject(name: "Site vitrine", status: .priorite1, at: Date())
+        let store = MailStore(database)
+        let lea = MailAddress(name: "Léa Petit", email: "lea@exemple.fr")
+        try store.apply(account: account, upserts: [
+            MailMessageRow(account: account, messageID: "m1", threadID: "t1", date: Date().addingTimeInterval(-600),
+                           sender: MailAddress(name: "Lou Bernard", email: "lou@studio.exemple"), subject: "Une question", snippet: "", labels: ["INBOX", "CATEGORY_PERSONAL"]),
+            MailMessageRow(account: account, messageID: "m2", threadID: "t1", date: Date(), sender: lea, subject: "Re: Une question", snippet: "",
+                           labels: ["INBOX", "CATEGORY_PERSONAL"]),
+            MailMessageRow(account: account, messageID: "m3", threadID: "t2", date: Date(), sender: lea, subject: "Déjeuner vendredi", snippet: "",
+                           labels: ["INBOX", "CATEGORY_PERSONAL"]),
+        ])
+        let root = FileManager.default.temporaryDirectory.appending(path: "ranger-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let mails = MailLibrary(agenda: AgendaLibrary(database: database), root: root, defaults: UserDefaults(suiteName: "ranger-\(UUID().uuidString)")!)
+        let filed = try #require(try store.thread(MailThreadRow.key(account: account, threadID: "t1")))
+        let lunch = try #require(try store.thread(MailThreadRow.key(account: account, threadID: "t2")))
+        try await waitUntil { !mails.rules.mine.isEmpty }
+        #expect(filed.lastSender == lea.email)
+
+        mails.file(filed, as: .project(project.id))
+        try await waitUntil { mails.filing(of: filed)?.filing == .project(project.id) }
+        #expect(try store.filingRules().senders[lea.email] == nil)
+        #expect(mails.filing(of: lunch) == nil)
+        #expect(mails.undoable?.text == "Rangé dans « Site vitrine » : 1 fil")
+    }
+
     /// 15/11: several ticked threads in one project. Every thread takes the case; only people's threads (a person
     /// of Gmail's « Principale », a thread Paul wrote in) make their sender a contact; one « Annuler » takes all back.
     @Test func filingSeveralThreadsLinksOnlyPeopleAndUndoesAtOnce() async throws {

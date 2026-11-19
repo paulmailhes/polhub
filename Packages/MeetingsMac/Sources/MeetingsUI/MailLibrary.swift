@@ -495,7 +495,12 @@ public final class MailLibrary: ObservableObject {
     public func file(_ thread: MailThreadRow, as filing: MailFiling) {
         guard let takeBack = fileOne(thread, as: filing, at: Date(), linking: true) else { return }
         let who = thread.lastSender.map { address in thread.senders.first { $0.email.lowercased() == address.lowercased() }?.display ?? address }
-        offerUndo(Self.filedText(filing, project: project(filing.projectID)?.name, sender: who)) { takeBack.reversed().forEach { $0() } }
+        let name = project(filing.projectID)?.name
+        // A colleague's next mails do not follow (audit of 19/11): the banner says the thread alone.
+        let colleague = thread.lastSender.map(rules.isColleague) ?? false
+        offerUndo(colleague ? Self.filedText(filing, project: name, count: 1) : Self.filedText(filing, project: name, sender: who)) {
+            takeBack.reversed().forEach { $0() }
+        }
     }
 
     /// Several ticked threads in one case (15/11), and one « Annuler » for all. Only people's threads (Paul wrote
@@ -533,18 +538,20 @@ public final class MailLibrary: ObservableObject {
     private func fileOne(_ thread: MailThreadRow, as filing: MailFiling, at date: Date, linking: Bool, bringingBack: Bool = true) -> [() -> Void]? {
         let previousChoice = rules.choices[thread.id]
         let sender = thread.lastSender?.lowercased()
+        // Nothing is kept for a colleague of Paul's own domain, who writes about everything (audit of 19/11).
+        let follows = sender.map { !rules.isColleague($0) } ?? false
         let previousMemory = sender.flatMap { rules.senders[$0]?.filing }
         let store = self.store
         do {
             try store.file(threadKey: thread.id, as: filing, at: date)
-            if let sender { try store.remember(address: sender, filing: .some(filing.rawValue), at: date) }
+            if let sender, follows { try store.remember(address: sender, filing: .some(filing.rawValue), at: date) }
         } catch {
             message = "Rangement impossible : \(error)"
             return nil
         }
         var takeBack: [() -> Void] = [{
             try? store.file(threadKey: thread.id, as: previousChoice, at: Date())
-            if let sender { try? store.remember(address: sender, filing: .some(previousMemory), at: Date()) }
+            if let sender, follows { try? store.remember(address: sender, filing: .some(previousMemory), at: Date()) }
         }]
         if linking, let projectID = filing.projectID, let sender, !mine.contains(sender), !Self.isRobot(sender) {
             let contacts = ContactStore(agenda.database)
@@ -826,6 +833,8 @@ public final class MailLibrary: ObservableObject {
         if folder.aside != nil { return filterCopy() }
         switch MailSearch.mode(text) {
         case .none: found = nil
+        // Every mail of a sender (« Tous les mails de cet expéditeur »): the copy answers at once (audit of 19/11).
+        case .gmailOnly where MailSearch.local(text) != nil: filterCopy()
         case .tooShort, .gmailOnly: if gmailFound == nil { found = nil }
         case .local: filterCopy()
         }
@@ -841,11 +850,11 @@ public final class MailLibrary: ObservableObject {
     /// Gmail found on Enter. The copy is read again, away from the screen, when it changed.
     private func filterCopy() {
         if let aside = folder.aside { return filterAside(aside) }
-        guard case .local(let words) = MailSearch.mode(query) else { return }
+        guard let local = MailSearch.local(query) else { return }
         if indexedVersion != copyVersion { readCopy() }
         // The first reading takes a moment: the folder stays until it is there.
         guard let index = searchIndex else { return }
-        found = merged(MailSearch.filter(index, words: words, accounts: shownAccounts))
+        found = merged(MailSearch.filter(index, local, accounts: shownAccounts))
         refreshFiles(keepingKnown: true)
     }
 
@@ -922,8 +931,8 @@ public final class MailLibrary: ObservableObject {
             let keys = try await engine.search(query, accounts: accounts.map(\.email).filter { !hidden.contains($0) })
             guard token == searchToken else { return }
             gmailFound = (query, keys)
-            if case .local(let words) = MailSearch.mode(query), let index = searchIndex {
-                found = merged(MailSearch.filter(index, words: words, accounts: shownAccounts))
+            if let local = MailSearch.local(query), let index = searchIndex {
+                found = merged(MailSearch.filter(index, local, accounts: shownAccounts))
             } else {
                 found = merged([])
             }
@@ -1617,7 +1626,8 @@ public final class MailLibrary: ObservableObject {
         perform(.markRead, on: visible(inbox).filter { $0.unread && tab(of: $0) == tab })
     }
 
-    /// Every mail of a sender, as Gmail finds them: to archive or delete in one go.
+    /// Every mail of a sender, to archive or delete in one go: every thread of the copy he wrote in, then those Gmail
+    /// finds that the copy lacks. Gmail alone gave one page of them, 25 threads by mailbox (audit of 19/11).
     public func showAll(from sender: String) {
         router?.mailSelection = nil
         folder = .inbox

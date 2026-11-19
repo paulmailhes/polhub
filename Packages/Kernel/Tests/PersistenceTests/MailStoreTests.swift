@@ -658,6 +658,29 @@ import Testing
         #expect(MailSearch.mode("-in:inbox devis") == .gmailOnly)
     }
 
+    /// « Tous les mails de cet expéditeur » (audit of 19/11): the copy answers a sender's address too, with every
+    /// thread he wrote in, archived ones included; never a thread he is only written to, nor one in the trash.
+    @Test func everyThreadOfASenderIsInTheCopy() throws {
+        let mails = try store()
+        var toCamille = message("m3", thread: "t3", minutes: 5, from: account, labels: ["SENT"], subject: "Photos")
+        toCamille.to = [MailAddress(email: "camille@exemple.fr")]
+        try mails.apply(account: account, upserts: [
+            message("m1"), message("m2", thread: "t2", minutes: 3, labels: ["CATEGORY_PERSONAL"], subject: "Archivé"), toCamille,
+            message("m4", thread: "t4", minutes: 9, labels: ["TRASH"], subject: "À la corbeille"),
+            message("m5", thread: "t5", minutes: 11, from: "jules@atelier.exemple", subject: "Planning"),
+        ])
+        let entries = try mails.searchEntries()
+        let camille = try #require(MailSearch.local("From:Camille@Exemple.fr"))
+        #expect(camille == .sender("camille@exemple.fr"))
+        #expect(MailSearch.filter(entries, camille).map(\.threadID) == ["t2", "t1"])
+        #expect(MailSearch.filter(entries, camille, accounts: ["autre@exemple.fr"]).isEmpty)
+        // Words as before; a name alone, another operator, more than the address: only Gmail answers, on Enter.
+        #expect(MailSearch.local("devis") == .words(["devis"]) && MailSearch.local("r") == nil && MailSearch.local("") == nil)
+        for text in ["from:camille", "from:@exemple.fr", "to:camille@exemple.fr", "from:camille@exemple.fr devis", "from:a@b@exemple.fr"] {
+            #expect(MailSearch.local(text) == nil, "\(text)")
+        }
+    }
+
     @Test func theSentThreadsAndTheDraftsWrittenElsewhere() throws {
         let mails = try store()
         try mails.apply(account: account, upserts: [

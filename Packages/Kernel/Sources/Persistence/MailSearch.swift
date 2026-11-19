@@ -38,6 +38,40 @@ public enum MailSearch {
         return .local(words)
     }
 
+    /// What the copy answers of a text: the words it filters by; or a sender's address, as « Tous les mails de cet
+    /// expéditeur » writes it (`from:camille@exemple.fr`), for every thread he wrote in. Gmail's search gives one page
+    /// of a sender's mails, the copy holds them all (audit of 19/11).
+    public enum Local: Equatable, Sendable {
+        case words([String])
+        case sender(String)
+    }
+
+    /// `nil` for what only Gmail answers, on Enter: an operator of Gmail's, a name alone after `from:` included.
+    public static func local(_ text: String) -> Local? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if trimmed.hasPrefix("from:") {
+            let address = String(trimmed.dropFirst("from:".count))
+            let parts = address.split(separator: "@", omittingEmptySubsequences: false)
+            guard parts.count == 2, !parts[0].isEmpty, PublicMailDomains.domain(of: address) != nil,
+                  !address.contains(where: { $0.isWhitespace || "():\"".contains($0) }) else { return nil }
+            return .sender(address)
+        }
+        guard case .local(let words) = mode(text) else { return nil }
+        return .words(words)
+    }
+
+    /// The threads that answer, in the order of the entries (the most recent first), from these mailboxes only.
+    public static func filter(_ entries: [MailSearchEntry], _ local: Local, accounts: Set<String>? = nil) -> [MailThreadRow] {
+        switch local {
+        case .words(let words):
+            return filter(entries, words: words, accounts: accounts)
+        case .sender(let address):
+            return entries.filter { entry in
+                (accounts?.contains(entry.thread.account) ?? true) && entry.thread.senders.contains { $0.email.lowercased() == address }
+            }.map(\.thread)
+        }
+    }
+
     /// The words of a search typed in « Corbeille » or « Spam », which never reaches Gmail (wave B, 15/11): an
     /// operator of Gmail's keeps only its value (« from:camille » looks for « camille »). `nil` under two letters.
     public static func localWords(_ text: String) -> [String]? {

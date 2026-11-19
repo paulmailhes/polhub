@@ -365,6 +365,22 @@ import Testing
         #expect(world.colin.review.isEmpty)
     }
 
+    /// Réunions › Supprimer: a recording put in the Trash is no meeting to file any more, and its line leaves
+    /// (audit of 19/11).
+    @Test func aMeetingPutInTheTrashLeavesItsLine() async throws {
+        let world = try await world { database, _, clock in try meeting(database, clock, id: "e1", daysAgo: 2) }
+        defer { try? FileManager.default.removeItem(at: world.root) }
+        try await waitUntil { world.colin.review.map(\.kind) == [.unfiled] }
+        let eventID = try #require(world.colin.review.first?.eventID)
+        let recording = try #require(try CalendarStore(world.database).event(id: eventID)?.meetingID)
+        try MeetingStore(world.database).softDelete(id: recording, at: world.clock.now)
+        try await waitUntil { world.colin.review.isEmpty }
+        try await settled(world.colin)
+        #expect(world.colin.review.isEmpty)
+        // The event no longer says it was recorded: the Agenda shows no recording to open.
+        #expect(try CalendarStore(world.database).event(id: eventID)?.meetingID == nil)
+    }
+
     @Test func aChangedThresholdChangesTheList() async throws {
         let world = try await world { database, project, clock in
             try marcWaits(database, clock)

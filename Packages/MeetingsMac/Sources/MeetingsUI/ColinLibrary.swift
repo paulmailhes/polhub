@@ -550,8 +550,9 @@ public final class ColinLibrary: ObservableObject {
             let drafts = ReviewRules.drafts(self.drafts, hidden: hiddenDrafts, threads: threads, rules: rules)
             let exchanges = Exchanges(mails.exchanges, projects: ReviewRules.projects(of: threads, rules: rules, recipients: mails.recipients))
             let finished = Set(base.projects.filter { $0.status == .termine }.map(\.id))
+            // A reply programmed, or on its way to Gmail, answers whatever its age (audit of 19/11).
             let replies = ReviewRules.repliesByPerson(threads, rules: rules, conversations: mails.conversations, exchanges: exchanges, drafts: self.drafts + leaving,
-                                                      gmailDrafts: gmailDrafts,
+                                                      outgoing: hiddenDrafts.union(leaving.map(\.id)), gmailDrafts: gmailDrafts,
                                                       events: base.events, hiddenAccounts: hiddenAccounts, dismissed: base.dismissed, now: now,
                                                       thresholds: thresholds, calendar: calendar)
             let silent = ReviewRules.silentByProject(threads, rules: rules, conversations: mails.conversations, recipients: mails.recipients,
