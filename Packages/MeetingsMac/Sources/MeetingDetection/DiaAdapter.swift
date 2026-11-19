@@ -112,7 +112,7 @@ public struct DiaAdapter: BrowserAdapter {
     /// is running, so it can never wake it up if Dia quit after `isRunning` was asked.
     static func source(for variant: Variant) -> String {
         let record = """
-        set out to out & wid & fs & (id of t) & fs & (loading of t) & fs & (isFocused of t) & fs & (isPinned of t) & fs & (URL of t) & fs & (title of t) & rs
+        set out to out & wid & fs & (id of t) & fs & (loading of t) & fs & (isFocused of t) & fs & (isPinned of t) & fs & (URL of t) & fs & (my clean(title of t)) & rs
         """
         let windowTabs: String
         let profileTabs: String
@@ -168,8 +168,22 @@ public struct DiaAdapter: BrowserAdapter {
           end tell
         end timeout
         return out
+        \(cleaner)
         """
     }
+
+    /// A page's title is chosen by its author (audit of 19/11): the two separators in it become spaces, so that it can
+    /// never forge a record (a Meet tab in front).
+    static let cleaner = """
+    on clean(s)
+      set AppleScript's text item delimiters to {character id 30, character id 31}
+      set parts to text items of s
+      set AppleScript's text item delimiters to " "
+      set s to parts as text
+      set AppleScript's text item delimiters to ""
+      return s
+    end clean
+    """
 }
 
 @MainActor

@@ -166,7 +166,8 @@ struct ProjectPage: View {
                 }
             }
             if let folder = draft.codeFolder, !folder.isEmpty {
-                Button("Ouvrir le dossier de code") { NSWorkspace.shared.open(URL(fileURLWithPath: folder, isDirectory: true)) }
+                // In a Finder window, whatever the folder is: an app given as a folder is shown, never launched (audit of 19/11).
+                Button("Ouvrir le dossier de code") { NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folder) }
             }
             Button(draft.codeFolder?.isEmpty == false ? "Changer de dossier de code…" : "Choisir un dossier de code…") { choosingFolder = true }
             Button("Copier le nom") {

@@ -354,13 +354,18 @@ public struct ProjectDesk: Sendable {
     }
 
     /// A new project's code folder: a folder of the Mac, its own. Never the home folder or one above it (every session
-    /// would take the project for its own), never one that holds another project's folder (review of 16/11).
+    /// would take the project for its own), never one that holds another project's folder (review of 16/11), never an
+    /// app or a package (audit of 19/11).
     func newCodeFolder(_ folder: String) throws -> String {
         let path = Self.normalized(folder)
         guard path.hasPrefix("/") else { throw ToolError("« dossier » attend le chemin complet d'un dossier du Mac (/Users/…), pas « \(folder) ».") }
         var isFolder: ObjCBool = false
         guard FileManager.default.fileExists(atPath: path, isDirectory: &isFolder), isFolder.boolValue else {
             throw ToolError("« dossier » : \(path) n'est pas un dossier du Mac.")
+        }
+        // An app is a folder too, which « Ouvrir le dossier de code » would launch (audit of 19/11).
+        if (try? URL(fileURLWithPath: path, isDirectory: true).resourceValues(forKeys: [.isPackageKey]))?.isPackage == true {
+            throw ToolError("« dossier » : \(path) est une app ou un paquet, pas un dossier de code. Rien n'a été créé.")
         }
         let home = Self.normalized(self.home.path(percentEncoded: false))
         guard path != "/", !(home + "/").hasPrefix(path + "/") else {

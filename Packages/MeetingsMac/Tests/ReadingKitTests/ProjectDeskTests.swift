@@ -113,6 +113,9 @@ struct DeskFixture {
         refused(top.appending(path: "absent").path(percentEncoded: false), "n'est pas un dossier")
         try Data("x".utf8).write(to: top.appending(path: "note.txt"))
         refused(top.appending(path: "note.txt").path(percentEncoded: false), "n'est pas un dossier")
+        // An app is a folder too, which a click would launch (audit of 19/11).
+        try FileManager.default.createDirectory(at: top.appending(path: "Outil.app/Contents", directoryHint: .isDirectory), withIntermediateDirectories: true)
+        refused(top.appending(path: "Outil.app").path(percentEncoded: false), "paquet")
         _ = try desk.create(name: "Piste", status: nil, client: nil, due: nil, folder: base.path(percentEncoded: false))
         refused(base.path(percentEncoded: false), "« Piste »")
         refused(home.appending(path: "Code").path(percentEncoded: false), "« Piste »")

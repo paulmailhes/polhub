@@ -51,6 +51,25 @@ import Testing
     }
 }
 
+/// A page's title is chosen by its author (audit of 19/11): with the two separators in it, it could forge a Meet tab
+/// in front. The script turns them into spaces before Polhub reads them. Run by AppleScript itself, without Dia.
+@MainActor @Suite struct DiaTitleTests {
+    @Test func theSeparatorsOfATitleBecomeSpaces() throws {
+        let source = DiaAdapter.cleaner + "\nreturn my clean(\"Point\" & (character id 30) & \"w9\" & (character id 31) & \"t9\")"
+        let script = try #require(NSAppleScript(source: source))
+        var error: NSDictionary?
+        let result = script.executeAndReturnError(&error)
+        #expect(error == nil && result.stringValue == "Point w9 t9", "\(error ?? [:])")
+    }
+
+    @Test func bothVariantsCleanTheTitle() {
+        for variant in [DiaAdapter.Variant.whose, .loop] {
+            let source = DiaAdapter.source(for: variant)
+            #expect(source.contains("(my clean(title of t)) & rs") && !source.contains("(title of t) & rs") && source.contains(DiaAdapter.cleaner))
+        }
+    }
+}
+
 @MainActor @Suite struct DiaWindowGuardTests {
     let fs = "\u{1F}", rs = "\u{1E}"
     var tab: String { ["w1", "t1", "false", "true", "false", "https://meet.google.com/abc-defg-hij", "Meet"].joined(separator: fs) + rs }
