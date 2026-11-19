@@ -40,12 +40,20 @@ extension Font {
     public static let tag = Font.system(size: TextSize.tag)
 }
 
-/// Corner radii, always with the continuous style.
+/// Corner radii, always with the continuous style (design system v2, 19/11): three, and the capsule.
 public enum Radius {
-    public static let small: CGFloat = 6
-    public static let control: CGFloat = 10
+    /// What is clicked: a button, a row, a field, a chip.
+    public static let control: CGFloat = 8
+    /// Inside a card: a tile, an image, a quote, a band.
+    public static let inner: CGFloat = 12
+    /// A card, a panel, a sheet.
     public static let card: CGFloat = 16
-    public static let hero: CGFloat = 22
+    /// Before 19/11: 6. Now `control`.
+    @available(*, deprecated, renamed: "control")
+    public static let small: CGFloat = control
+    /// Before 19/11: 22. Now `card`.
+    @available(*, deprecated, renamed: "card")
+    public static let hero: CGFloat = card
 }
 
 /// The width and margins of a page's content.
@@ -62,7 +70,8 @@ public enum Surface {
     public static let fill = Color.primary.opacity(0.045)
     public static let raised = Color.primary.opacity(0.07)
     public static let stroke = Color.primary.opacity(0.08)
-    public static let selected = Color.accentColor.opacity(0.12)
+    /// What is chosen: the app's accent (ink), lightly.
+    public static let selected = Tint.accent.opacity(0.12)
     /// Paul's bubble in Colin's thread: a light grey, a little more in the dark (the Accueil's pass, 18/11).
     public static let bubble = Color(nsColor: NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? NSColor.white.withAlphaComponent(0.11) : NSColor.black.withAlphaComponent(0.055)
@@ -78,17 +87,19 @@ public enum MailSurface {
     public static let read = Color(nsColor: NSColor(name: nil) { appearance in
         appearance.isDark ? NSColor(white: 0.158, alpha: 1) : NSColor(white: 0.955, alpha: 1)
     })
-    /// A thread ticked: the selection's accent, as everywhere in the app.
+    /// A thread ticked: the selection's accent (ink), as everywhere in the app; opaque, the gestures cover the line.
     public static let ticked = Color(nsColor: NSColor(name: nil) { appearance in
         var color = NSColor.white
         appearance.performAsCurrentDrawingAppearance {
             let ground = NSColor.windowBackgroundColor.usingColorSpace(.sRGB) ?? .white
-            color = ground.blended(withFraction: appearance.isDark ? 0.24 : 0.16, of: NSColor.controlAccentColor.usingColorSpace(.sRGB) ?? .systemBlue) ?? ground
+            let ink = appearance.isDark ? Tint.ink.dark : Tint.ink.light
+            let accent = NSColor(srgbRed: ink.red, green: ink.green, blue: ink.blue, alpha: 1)
+            color = ground.blended(withFraction: appearance.isDark ? 0.14 : 0.09, of: accent) ?? ground
         }
         return color
     })
     /// The boxes ticked and the line the keys are on: the app's accent.
-    public static let accent = Color.accentColor
+    public static let accent = Tint.accent
     /// The thin line between two threads.
     public static let line = Color(nsColor: NSColor(name: nil) { appearance in
         appearance.isDark ? NSColor(white: 1, alpha: 0.07) : NSColor(white: 0, alpha: 0.08)
@@ -256,7 +267,7 @@ public struct Avatar: View {
     let size: CGFloat
     let tint: Color
 
-    public init(_ initials: String, size: CGFloat = 30, tint: Color = .accentColor) {
+    public init(_ initials: String, size: CGFloat = 30, tint: Color = .secondary) {
         self.initials = initials
         self.size = size
         self.tint = tint

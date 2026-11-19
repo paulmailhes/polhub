@@ -128,3 +128,21 @@ public struct Banner<Actions: View>: View {
         }
     }
 }
+
+/// A problem said in one line (design system v2, 19/11): the icon of attention in its color, the sentence in the
+/// text's own color, never a colored sentence. Its font is the one around it.
+public struct ErrorLine: View {
+    let text: String
+
+    public init(_ text: String) {
+        self.text = text
+    }
+
+    public var body: some View {
+        Label {
+            Text(text).foregroundStyle(.primary)
+        } icon: {
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Tint.attention)
+        }
+    }
+}

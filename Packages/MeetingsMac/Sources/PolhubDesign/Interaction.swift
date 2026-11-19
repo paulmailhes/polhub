@@ -169,7 +169,8 @@ public struct TextButton: View {
     let quiet: Bool
     let action: () -> Void
 
-    /// `quiet`: grey, not orange — a gesture that is there, not one that calls (the Accueil's pass, 18/11).
+    /// `quiet`: grey — a gesture that is there, not one that calls (the Accueil's pass, 18/11); otherwise the app's
+    /// accent, ink (design system v2, 19/11).
     public init(_ title: String, quiet: Bool = false, action: @escaping () -> Void) {
         self.title = title
         self.quiet = quiet
@@ -181,7 +182,7 @@ public struct TextButton: View {
             Text(title).font(.meta.weight(.medium)).padding(.horizontal, Space.s).padding(.vertical, 3)
         }
         .buttonStyle(.hover(.capsule))
-        .foregroundStyle(quiet ? Color.secondary : Color.accentColor)
+        .foregroundStyle(quiet ? Color.secondary : Tint.accent)
         .padding(.horizontal, -Space.s)
     }
 }
