@@ -104,7 +104,8 @@ struct ComposeBar: View {
         }
     }
 
-    /// « Envoyer » and, next to it, the arrow of « Programmer l'envoi » (wave B): one prominent glass control.
+    /// « Envoyer » and, next to it, the arrow of « Programmer l'envoi » (wave B): one prominent glass control. Glass
+    /// stays in the floating bar, untinted: it takes the root's ink (design system v2, 19/11).
     private func send(_ draft: MailDraftRow, planned: ScheduledSend?) -> some View {
         let problem = mails.sendProblem(draft)
         let blocked = problem != nil || mails.sending != nil || planned != nil
@@ -198,14 +199,15 @@ struct ComposeStatus: View {
     var body: some View {
         Group {
             if let planned {
+                // Late: the late's red, as in « Programmés »; a failure is said by `ErrorLine` (design system v2, 19/11).
                 Label(planned.state == .held ? "En retard" : "Programmé · \(MailText.scheduledShort(planned.sendAt))", systemImage: "clock")
-                    .foregroundStyle(planned.state == .held ? Color.red : Color.secondary)
+                    .foregroundStyle(planned.state == .held ? Tint.late : Color.secondary)
             } else if leaving {
                 Text("Envoi en cours…")
             } else if draft.conflict != nil {
                 Text("En attente de ton choix")
             } else if let error = draft.lastError {
-                Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange).help(error)
+                ErrorLine(error).help(error)
             } else if draft.gmailDraftID != nil, !draft.needsPush {
                 Text("Enregistré dans Gmail")
             } else {

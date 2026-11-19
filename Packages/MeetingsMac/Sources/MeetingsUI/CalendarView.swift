@@ -144,7 +144,7 @@ struct CalendarView: View {
                 Text("Polhub lit tes rendez-vous, et crée ou modifie ceux que tu lui demandes : les invités deviennent des contacts, rangés dans les projets de leurs rendez-vous.")
                     .multilineTextAlignment(.center).foregroundStyle(.secondary).frame(maxWidth: 460)
                 Button("Ajouter un compte Google…") { Task { await agenda.connect() } }
-                    .buttonStyle(.glassProminent).controlSize(.large)
+                    .buttonStyle(.primary).controlSize(.large)
             } else {
                 Text("La clé Google n'est pas encore en place : lance « configurer-google.command », dans le dossier scripts de Polhub, puis reviens ici.")
                     .multilineTextAlignment(.center).foregroundStyle(.secondary).frame(maxWidth: 460)
@@ -188,14 +188,15 @@ struct CalendarView: View {
             Color.clear.frame(width: Self.gutter, height: 1)
             ForEach(days, id: \.self) { day in
                 let today = Self.calendar.isDateInToday(day)
+                // Today at the app's accent, ink; its number in the accent's opposite (design system v2, 19/11).
                 HStack(spacing: 6) {
                     Text(day.formatted(.dateTime.weekday(.abbreviated).locale(Self.locale)).uppercased())
-                        .font(.caption.weight(.medium)).foregroundStyle(today ? Color.accentColor : .secondary)
+                        .font(.caption.weight(.medium)).foregroundStyle(today ? Tint.accent : .secondary)
                     Text(day.formatted(.dateTime.day().locale(Self.locale)))
                         .font(.title3.weight(today ? .bold : .regular).monospacedDigit())
-                        .foregroundStyle(today ? Color.white : .primary)
+                        .foregroundStyle(today ? Tint.onAccent.color : .primary)
                         .frame(minWidth: 30, minHeight: 30)
-                        .background { if today { Circle().fill(Color.accentColor) } }
+                        .background { if today { Circle().fill(Tint.accent) } }
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -218,7 +219,7 @@ struct CalendarView: View {
                             Text(event.title).font(.caption.weight(.medium)).foregroundStyle(.primary).lineLimit(1)
                                 .padding(.horizontal, 6).padding(.vertical, 2)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(color.opacity(0.22), in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
+                                .background(color.opacity(0.22), in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
                                 .contentShape(Rectangle())
                         }
                         // Its color a shade stronger under the pointer, pressed a touch smaller (15/11).
@@ -334,9 +335,9 @@ struct CalendarView: View {
         .padding(.vertical, 3)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .foregroundStyle(.primary)
-        .background(color.opacity(selected ? 0.38 : 0.2), in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
+        .background(color.opacity(selected ? 0.38 : 0.2), in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
         .overlay(alignment: .leading) { Capsule().fill(color).frame(width: 3).padding(.vertical, 3).padding(.leading, 2) }
-        .overlay { if selected { RoundedRectangle(cornerRadius: Radius.small, style: .continuous).strokeBorder(color, lineWidth: 1) } }
+        .overlay { if selected { RoundedRectangle(cornerRadius: Radius.control, style: .continuous).strokeBorder(color, lineWidth: 1) } }
         .contentShape(Rectangle())
     }
 
@@ -345,12 +346,13 @@ struct CalendarView: View {
     }
 }
 
-/// The red line of the current time, with its dot.
+/// The line of the current time, with its dot, in the color of « now » (design system v2, 19/11: no longer the
+/// system's red, which says « late » and « recording »).
 struct NowLine: View {
     var body: some View {
         HStack(spacing: 0) {
-            Circle().fill(Color.red).frame(width: 8, height: 8)
-            Rectangle().fill(Color.red).frame(height: 1.5)
+            Circle().fill(Tint.attention).frame(width: 8, height: 8)
+            Rectangle().fill(Tint.attention).frame(height: 1.5)
         }
         .frame(height: 8)
         .offset(x: -4)
@@ -391,7 +393,7 @@ struct EventPopover: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Space.m) {
             HStack(alignment: .top, spacing: Space.s) {
-                RoundedRectangle(cornerRadius: 2).fill(color).frame(width: 4).frame(maxHeight: .infinity)
+                Capsule().fill(color).frame(width: 4).frame(maxHeight: .infinity)
                 VStack(alignment: .leading, spacing: Space.xs) {
                     Text(event.title).font(.title3.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
                     Text(when).foregroundStyle(.secondary)
@@ -415,8 +417,9 @@ struct EventPopover: View {
                 } label: {
                     Label("Rejoindre", systemImage: "video.fill").frame(maxWidth: .infinity)
                 }
+                // Glass in a popover, at the app's accent whatever the account: the account's color stays in its
+                // stripe (design system v2, 19/11).
                 .buttonStyle(.glassProminent)
-                .tint(color)
                 .controlSize(.large)
                 .keyboardShortcut(.defaultAction)
                 .help("Ouvre le Meet dans Dia avec le compte \(event.account)")

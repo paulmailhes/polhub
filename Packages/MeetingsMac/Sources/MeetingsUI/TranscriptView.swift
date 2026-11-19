@@ -19,23 +19,29 @@ struct TranscriptHeader: View {
                 }
                 Spacer(minLength: 8)
                 if case .failed? = status {
-                    Button("Réessayer") { Task { await queue?.retry(meetingID: meetingID) } }.buttonStyle(.glass).controlSize(.small)
+                    Button("Réessayer") { Task { await queue?.retry(meetingID: meetingID) } }.buttonStyle(.secondary).controlSize(.small)
                 }
             }
             // On its own line, so that a long sentence wraps instead of widening the window.
             if let text = TranscriptModel.text(status) {
-                Text(text)
-                    .foregroundStyle(color)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                Group {
+                    if problem {
+                        ErrorLine(text)
+                    } else {
+                        Text(text).foregroundStyle(.secondary)
+                    }
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
 
-    private var color: Color {
+    /// A failure, or a transcript to check: said by `ErrorLine`, no longer in orange (design system v2, 19/11).
+    private var problem: Bool {
         switch status {
-        case .failed?, .done(doubtful: true)?: .orange
-        default: .secondary
+        case .failed?, .done(doubtful: true)?: true
+        default: false
         }
     }
 }
@@ -103,9 +109,10 @@ struct DialogueParagraph: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 14) {
             VStack(alignment: .leading, spacing: 2) {
+                // « Moi » and the time that plays at the app's accent, ink (design system v2, 19/11).
                 Text(paragraph.speaker.label)
                     .font(.callout.weight(.semibold))
-                    .foregroundStyle(paragraph.speaker == .moi ? Color.accentColor : Color.primary)
+                    .foregroundStyle(paragraph.speaker == .moi ? Tint.accent : Color.primary)
                 if let seek {
                     Button { seek(Double(paragraph.startMs) / 1_000) } label: {
                         HStack(spacing: 3) {
@@ -117,7 +124,7 @@ struct DialogueParagraph: View {
                         .padding(.vertical, 1)
                     }
                     .buttonStyle(.hover(.capsule))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Tint.accent)
                     .padding(.horizontal, -5)
                     .help("Écouter à partir d'ici")
                 } else {
@@ -130,8 +137,9 @@ struct DialogueParagraph: View {
                 .lineSpacing(3)
                 .frame(maxWidth: .infinity, alignment: .leading)
             if paragraph.doubtful {
+                // To check: the color of attention (design system v2, 19/11).
                 Image(systemName: "exclamationmark.triangle")
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Tint.attention)
                     .help("À vérifier : le moteur a peut-être inventé un passage.")
             }
         }

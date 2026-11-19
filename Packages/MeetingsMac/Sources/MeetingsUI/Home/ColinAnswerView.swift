@@ -32,7 +32,7 @@ struct PaulBubble: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 9)
-                .background(Surface.bubble, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .background(Surface.bubble, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
                 .help(Briefing.dayLabel(message.createdAt, now: Date(), calendar: calendar))
         }
     }
@@ -190,7 +190,8 @@ struct StepRow: View {
                     Image(systemName: ColinStepText.symbol(group.tool))
                         .font(.system(size: 12, weight: .medium))
                         .symbolEffect(.pulse, isActive: group.running)
-                        .foregroundStyle(group.failed ? Color.red : Color.secondary)
+                        // A failure: the icon of attention, its sentence grey (design system v2, 19/11).
+                        .foregroundStyle(group.failed ? Tint.attention : Color.secondary)
                         .frame(width: 16)
                     Text(verbatim: group.running ? ColinStepText.present(group, subject: subject) : ColinStepText.past(group, subject: subject))
                         .font(.meta)
@@ -239,8 +240,8 @@ private struct ThreadCard<Content: View>: View {
         VStack(alignment: .leading, spacing: Space.s) { content }
             .padding(Space.m)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Surface.fill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay { RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Surface.stroke) }
+            .background(Surface.fill, in: RoundedRectangle(cornerRadius: Radius.inner, style: .continuous))
+            .overlay { RoundedRectangle(cornerRadius: Radius.inner, style: .continuous).strokeBorder(Surface.stroke) }
     }
 }
 

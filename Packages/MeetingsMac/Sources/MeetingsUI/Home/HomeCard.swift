@@ -3,17 +3,16 @@ import SwiftUI
 
 /// A card of « ta journée » (0.37.0, Paul: « mets-le dans des cartes, ça va rendre le truc beaucoup plus digeste et
 /// lisible »): calm, as Polhub's other cards — no glass under text —, its title in 17 points with its count in a pill,
-/// twenty points of air inside. « Aujourd'hui » is the one put forward: rounder.
+/// twenty points of air inside. One radius for every card (design system v2, 19/11): « Aujourd'hui » is no longer
+/// rounder than the others.
 struct HomeCard<Content: View>: View {
     let title: String
     var count: Int?
-    var hero = false
     let content: Content
 
-    init(_ title: String, count: Int? = nil, hero: Bool = false, @ViewBuilder content: () -> Content) {
+    init(_ title: String, count: Int? = nil, @ViewBuilder content: () -> Content) {
         self.title = title
         self.count = count
-        self.hero = hero
         self.content = content()
     }
 
@@ -26,7 +25,7 @@ struct HomeCard<Content: View>: View {
         }
         .padding(Self.padding)
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .cardSurface(radius: hero ? Radius.hero : Radius.card)
+        .cardSurface(radius: Radius.card)
     }
 }
 

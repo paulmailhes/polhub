@@ -188,9 +188,10 @@ enum PersonBadge: Equatable {
 
 /// How Paul's projects show with people.
 enum PeopleStyle {
-    /// A project's color, as its chip in the mails and its card on the board.
+    /// A project's color, as its chip in the mails and its card on the board; grey without a project, never the accent
+    /// (design system v2, 19/11).
     static func color(of project: ProjectRow?) -> Color {
-        project.map(ProjectViews.tint) ?? .accentColor
+        project.map(ProjectViews.tint) ?? .secondary
     }
 
     /// The first name, for a chip: « Camille » for « Camille Martin », the address's start without a name.

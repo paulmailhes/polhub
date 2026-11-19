@@ -379,9 +379,9 @@ public struct FloatingPanel<Content: View>: View {
                 .transition(.opacity)
             content
                 .frame(maxWidth: 1_040, maxHeight: .infinity)
-                .background(Color(nsColor: .windowBackgroundColor), in: RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
-                .clipShape(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous).strokeBorder(Surface.stroke))
+                .background(Color(nsColor: .windowBackgroundColor), in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Surface.stroke))
                 .shadow(color: .black.opacity(0.3), radius: 36, y: 14)
                 .padding(.horizontal, Space.xl)
                 .padding(.top, Space.m)

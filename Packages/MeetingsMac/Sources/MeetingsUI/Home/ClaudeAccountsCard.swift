@@ -36,7 +36,8 @@ import SwiftUI
 }
 
 /// « Comptes Claude »: a line per account — its name, a bar of the tightest quota, how much is used —, and under it
-/// whether it holds until the reset or when it fills, in the accent then. Nothing at all without Vigie.
+/// whether it holds until the reset or when it fills, in the color of attention then (design system v2, 19/11). Nothing
+/// at all without Vigie.
 struct ClaudeAccountsCard: View {
     @ObservedObject var model: ClaudeAccountsModel
 
@@ -64,7 +65,7 @@ struct ClaudeAccountsCard: View {
             }
             HStack(spacing: Space.xs) {
                 Text(row.verdict)
-                    .foregroundStyle(row.alarming ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
+                    .foregroundStyle(row.alarming ? AnyShapeStyle(Tint.attention) : AnyShapeStyle(.secondary))
                     .fontWeight(row.alarming ? .semibold : .regular)
                 if let model = row.model { Text("· \(model)").foregroundStyle(.secondary) }
                 if let session = row.session { Text("· \(session)").foregroundStyle(.secondary) }

@@ -14,7 +14,7 @@ struct AccountsSettingsPane: View {
             Section {
                 ForEach(agenda.accounts) { account in AccountSettingsRow(account: account, agenda: agenda) { leaving = account } }
                 Button { Task { await agenda.connect() } } label: { Label("Ajouter un compte Google…", systemImage: "plus") }
-                    .buttonStyle(.glass)
+                    .buttonStyle(.secondary)
                     .disabled(!agenda.hasGoogleKey)
                 if let message = agenda.message { Text(message).font(.meta).foregroundStyle(.secondary) }
             } header: {
@@ -51,7 +51,7 @@ struct AccountSettingsRow: View {
                     Text(account.email).font(.meta).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button("Déconnecter…", role: .destructive, action: disconnect).buttonStyle(.glass).controlSize(.small)
+                Button("Déconnecter…", role: .destructive, action: disconnect).buttonStyle(.secondary).controlSize(.small)
             }
             HStack(spacing: Space.xs) {
                 ForEach(Array(AccountStyle.choices.enumerated()), id: \.element) { index, hex in
@@ -67,14 +67,15 @@ struct AccountSettingsRow: View {
                     .accessibilityAddTraits(chosen ? .isSelected : [])
                 }
             }
+            // Its error said by `ErrorLine`, « Mails autorisés » in the color of « done » (design system v2, 19/11).
             if let error = account.lastError {
-                Label(error, systemImage: "exclamationmark.triangle").font(.meta).foregroundStyle(.orange)
+                ErrorLine(error).font(.meta)
                     .fixedSize(horizontal: false, vertical: true)
             } else if let last = account.lastSyncAt {
                 Text("Agenda lu à \(last.formatted(date: .omitted, time: .shortened))").font(.meta).foregroundStyle(.secondary)
             }
             if agenda.mailGranted(account) {
-                Label("Mails autorisés", systemImage: "checkmark.circle.fill").font(.meta).foregroundStyle(.green)
+                Label("Mails autorisés", systemImage: "checkmark.circle.fill").font(.meta).foregroundStyle(Tint.done)
             } else {
                 HStack(spacing: Space.s) {
                     Text("Mails pas encore autorisés").font(.meta).foregroundStyle(.secondary)

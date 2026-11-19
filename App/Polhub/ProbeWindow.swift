@@ -1,5 +1,6 @@
 import AppKit
 import Observability
+import PolhubDesign
 import ProbeKit
 import SwiftUI
 
@@ -48,7 +49,9 @@ struct ProbeWindow: View {
             Divider()
 
             if let message = runner.message {
-                Text(message).foregroundStyle(.red)
+                // A problem in one line: the icon of attention, the sentence in the text's own color
+                // (design system v2, 19/11).
+                ErrorLine(message)
             }
             LabeledContent("Dossier des traces") {
                 Text(TracePaths.root.path)

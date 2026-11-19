@@ -145,7 +145,7 @@ struct PersonSuggestionRow: View {
             if let project { Chip(project.name, tint: PeopleStyle.color(of: project)) }
         }
         .padding(.horizontal, Space.s).padding(.vertical, 5)
-        .hoverRow(selected: highlighted, radius: Radius.small)
+        .hoverRow(selected: highlighted, radius: Radius.control)
     }
 }
 
@@ -302,7 +302,8 @@ struct ThreadPeopleRow: View {
                     } label: {
                         Label("Ajouter \(newcomers.count) au projet « \(project.name) »", systemImage: "person.badge.plus")
                     }
-                    .buttonStyle(.glass)
+                    // No glass in the content: a secondary action (design system v2, 19/11).
+                    .buttonStyle(.secondary)
                     .controlSize(.small)
                     .help(newcomers.map(\.display).joined(separator: ", "))
                     .transition(.opacity.combined(with: .scale(scale: 0.9)))

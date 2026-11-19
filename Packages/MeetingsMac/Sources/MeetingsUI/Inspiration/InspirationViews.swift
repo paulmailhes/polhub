@@ -211,8 +211,9 @@ struct InspirationEmptyState: View {
         } description: {
             Text(kind.emptyText)
         } actions: {
+            // The screen's one action: the principal button, no glass in the content (design system v2, 19/11).
             Button(kind.addTitle, action: add)
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.primary)
                 .controlSize(.large)
         }
     }
@@ -228,7 +229,8 @@ struct InspirationNoMatch: View {
         } description: {
             Text("Rien ne répond à cette recherche et à ces filtres.")
         } actions: {
-            Button("Tout afficher", action: showAll).buttonStyle(.glass)
+            // No glass in the content: a secondary action (design system v2, 19/11).
+            Button("Tout afficher", action: showAll).buttonStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, Space.xxl)
@@ -250,7 +252,8 @@ struct InspirationMessageBar: View {
                         Text("Annuler").fontWeight(.semibold).padding(.horizontal, Space.s).padding(.vertical, Space.xs)
                     }
                     .buttonStyle(.hover(.capsule))
-                    .foregroundStyle(Color.accentColor)
+                    // A gesture to make: the accent, ink (design system v2, 19/11).
+                    .foregroundStyle(Tint.accent)
                     .keyboardShortcut("z", modifiers: .command)
                 }
             } else if let message = library.message {
@@ -287,10 +290,17 @@ struct InspirationAddSiteSheet: View {
                 TextField("Adresse du site", text: $address, prompt: Text("exemple.fr"))
                     .textFieldStyle(.roundedBorder)
                     .onSubmit(add)
-                Text(problem ?? "Polhub lit son titre, sa description et son image.")
-                    .font(.meta)
-                    .foregroundStyle(problem == nil ? Color.secondary : .orange)
-                    .fixedSize(horizontal: false, vertical: true)
+                // A problem in one line: the icon of attention in its color, the sentence in the text's own, never an
+                // orange sentence (design system v2, 19/11).
+                Group {
+                    if let problem {
+                        ErrorLine(problem)
+                    } else {
+                        Text("Polhub lit son titre, sa description et son image.").foregroundStyle(.secondary)
+                    }
+                }
+                .font(.meta)
+                .fixedSize(horizontal: false, vertical: true)
             }
             HStack {
                 if library.adding { ProgressView().controlSize(.small) }
@@ -299,7 +309,8 @@ struct InspirationAddSiteSheet: View {
                     .keyboardShortcut(.cancelAction)
                 Button("Ajouter", action: add)
                     .keyboardShortcut(.defaultAction)
-                    .buttonStyle(.glassProminent)
+                    // The window's principal action: full and matte, at the accent (design system v2, 19/11).
+                    .buttonStyle(.primary)
                     .disabled(InspirationLibrary.siteURL(address) == nil || library.adding)
             }
         }

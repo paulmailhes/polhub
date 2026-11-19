@@ -159,7 +159,14 @@ struct RichTextEditor: NSViewRepresentable {
         override func scrollWheel(with event: NSEvent) { nextResponder?.scrollWheel(with: event) }
     }
 
-    /// The editor's page: no request of any kind (its policy), a block that edits, the system's font and colours.
+    /// A color of the design system, written for the editor's page: `rgb(29, 29, 31)`.
+    private static func css(_ color: Legibility.RGB) -> String {
+        "rgb(\(Int((color.red * 255).rounded())), \(Int((color.green * 255).rounded())), \(Int((color.blue * 255).rounded())))"
+    }
+
+    /// The editor's page: no request of any kind (its policy), a block that edits, the system's font and colours. A
+    /// link takes the app's accent, ink, and is underlined: it is known by its line, not by its color (design system
+    /// v2, 19/11).
     static let page = """
     <!doctype html><html><head><meta charset="utf-8">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'none'">
@@ -172,7 +179,8 @@ struct RichTextEditor: NSViewRepresentable {
     #texte p { margin: 0 0 0.7em; }
     #texte ul, #texte ol { margin: 0.2em 0 0.7em; padding-left: 1.6em; }
     #texte blockquote { margin: 0.3em 0 0.7em; padding-left: 0.8em; border-left: 2px solid GrayText; color: GrayText; }
-    #texte a { color: LinkText; }
+    #texte a { color: \(RichTextEditor.css(Tint.Role.accent.text.light)); text-decoration: underline; }
+    @media (prefers-color-scheme: dark) { #texte a { color: \(RichTextEditor.css(Tint.Role.accent.text.dark)); } }
     </style></head><body><div id="texte" contenteditable="false" spellcheck="true"></div>
     <script>
     (function () {

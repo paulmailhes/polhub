@@ -112,11 +112,12 @@ struct MeetingDetailView: View {
             Text(row.title).font(.title.bold()).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
             FlowLayout(spacing: Space.s) {
                 Chip(dateText, systemImage: "calendar")
+                // Being recorded: its own red; interrupted: to check (design system v2, 19/11).
                 if row.status.isUnfinished {
-                    Chip("En cours", systemImage: "record.circle", tint: .red).symbolEffect(.pulse)
+                    Chip("En cours", systemImage: "record.circle", tint: Tint.recording).symbolEffect(.pulse)
                 } else {
                     Chip(MeetingListModel.durationText(row, now: .now), systemImage: "clock")
-                    if row.status == .interrupted { Chip("Interrompue", tint: .orange) }
+                    if row.status == .interrupted { Chip("Interrompue", tint: Tint.attention) }
                 }
             }
             if !projects.isEmpty || !participants.isEmpty {
@@ -147,7 +148,8 @@ struct MeetingDetailView: View {
             Label(project?.name ?? "Ranger dans un projet", systemImage: "square.grid.3x2")
         }
         .menuStyle(.button)
-        .buttonStyle(.glass)
+        // No glass in the content: the secondary role (design system v2, 19/11).
+        .buttonStyle(.secondary)
         .fixedSize()
     }
 
@@ -214,10 +216,11 @@ struct MeetingDetailView: View {
             Label("Réunion importée d'Obsidian : pas d'audio, transcription sans distinction des voix.", systemImage: "tray.and.arrow.down")
                 .foregroundStyle(.secondary)
         } else if row.status.isUnfinished {
+            // Being recorded: its own red; a meeting that does not play: said by `ErrorLine` (design system v2, 19/11).
             Label("Enregistrement en cours. La réunion se réécoute dès qu'elle est terminée.", systemImage: "record.circle")
-                .foregroundStyle(.red)
+                .foregroundStyle(Tint.recording)
         } else if let loadError {
-            Label(loadError, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+            ErrorLine(loadError)
         }
         if let status = TranscriptModel.status(job, meeting: row, meetingActive: meetingActive) {
             VStack(alignment: .leading, spacing: Space.m) {
@@ -310,7 +313,8 @@ struct MeetingDetailView: View {
                 LabeledContent("Coupures", value: health.gapCount == 0 ? "Aucune" : "\(health.gapCount)")
                 LabeledContent("Changements de périphérique", value: "\(health.rebuilds)")
                 if health.selfTestPassed == false {
-                    Text("Le son des autres n'a pas été entendu au début.").foregroundStyle(.orange)
+                    // A problem: said by `ErrorLine` (design system v2, 19/11).
+                    ErrorLine("Le son des autres n'a pas été entendu au début.")
                 }
             }
             if let reason = row.endReason { LabeledContent("Fin", value: Self.words(reason)) }

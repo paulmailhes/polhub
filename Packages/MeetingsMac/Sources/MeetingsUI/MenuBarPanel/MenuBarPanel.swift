@@ -56,6 +56,8 @@ public struct MenuBarPanel: View {
         // an older, shorter height, and squeezed the hero (Paul's capture, 16/11, during a recording).
         .fixedSize(horizontal: false, vertical: true)
         .environment(\.projectLogos, context.projectLogos)
+        // Polhub's accent, ink, whatever the Mac's (design system v2, 19/11): the panel's glass buttons take it.
+        .tint(Tint.accent)
     }
 
     /// The panel's height cap: 640 points, or the screen's height less 40 when it is smaller.
@@ -239,13 +241,10 @@ struct OptionalObserving<Object: ObservableObject, Content: View>: View {
 
 // MARK: - Shared pieces
 
-/// The panel's colors: one per section, as in the sidebar, and the meeting's red.
+/// The recipe of the panel's tinted cards (the hero while it records or asks for a look, « À régler »). Their color is
+/// `Tint`'s (design system v2, 19/11): the recording's (`Tint.recording`) or attention's (`Tint.attention`), nothing
+/// else; the violet and the grey said nothing, and a calm card is `PanelSurface`'s.
 enum PanelTint {
-    static let red = Color(hex: Palette.red)
-    static let orange = Color(hex: Palette.orange)
-    static let violet = Color(hex: SidebarItem.meetings.tint)
-    static let gray = Color(hex: Palette.gray)
-
     /// A tinted card's fill and edge: a little stronger in dark, where the ground is.
     static func fill(_ tint: Color, dark: Bool) -> Color { tint.opacity(dark ? 0.16 : 0.1) }
     static func edge(_ tint: Color, dark: Bool) -> Color { tint.opacity(dark ? 0.26 : 0.18) }

@@ -321,8 +321,10 @@ private struct DayStrip: View {
                         if next.meetCode != nil, !shown.tomorrow || next.startAt.timeIntervalSince(context.date) <= 600 {
                             Group {
                                 if next.startAt.timeIntervalSince(context.date) <= 600 {
+                                    // The Accueil's one principal button, ten minutes before; no glass in the content
+                                    // (design system v2, 19/11).
                                     Button { agenda.join(next) } label: { Label("Rejoindre", systemImage: "video.fill") }
-                                        .buttonStyle(.glassProminent).controlSize(.small)
+                                        .buttonStyle(.primary)
                                 } else {
                                     Button { agenda.join(next) } label: { Label("Rejoindre", systemImage: "video") }.buttonStyle(.subtle)
                                 }

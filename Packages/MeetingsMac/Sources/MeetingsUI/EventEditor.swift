@@ -166,13 +166,14 @@ struct EventEditor: View {
 
     private var footer: some View {
         VStack(alignment: .leading, spacing: Space.s) {
+            // A failure: said by `ErrorLine` (design system v2, 19/11).
             if let failure {
                 HStack(spacing: Space.s) {
-                    Label(failure.description, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+                    ErrorLine(failure.description)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             } else if let otherFailure {
-                Label(otherFailure, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+                ErrorLine(otherFailure)
             } else if editing?.recurringEventID != nil {
                 Label("Ce rendez-vous fait partie d'une série : seul celui-ci change.", systemImage: "repeat")
                     .font(.tag).foregroundStyle(.secondary)
@@ -187,9 +188,9 @@ struct EventEditor: View {
                 Spacer()
                 if saving { ProgressView().controlSize(.small) }
                 Button("Annuler", role: .cancel) { dismiss() }.keyboardShortcut(.cancelAction).disabled(saving)
+                // The principal action, at the app's accent whatever the calendar (design system v2, 19/11).
                 Button(editing == nil ? "Créer" : "Enregistrer", action: save)
-                    .buttonStyle(.glassProminent)
-                    .tint(color)
+                    .buttonStyle(.primary)
                     .keyboardShortcut(.defaultAction)
                     .disabled(saving || (editing == nil && draft.title.trimmingCharacters(in: .whitespaces).isEmpty) || account.isEmpty
                               || (editing != nil && !detailsRead))

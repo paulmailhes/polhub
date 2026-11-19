@@ -228,16 +228,21 @@ private struct HUDView: View {
                     .lineLimit(2)
             }
             Spacer(minLength: 8)
+            // The principal and secondary roles (design system v2, 19/11): drawn by hand, they keep their ink in a panel
+            // that never becomes key, where the system's prominent button turned grey (the meeting card's, the same
+            // panel, 16/11).
             switch model.kind {
             case .prompt:
                 Button("Pas cette fois") { model.onDecline() }
+                    .buttonStyle(.secondary)
                 Button("Enregistrer") { model.onAccept() }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.primary)
             case .alert:
                 Button("Fermer") { model.onClose() }
+                    .buttonStyle(.secondary)
                 if model.actionTitle != "OK" {
                     Button(model.actionTitle) { model.onAction() }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.primary)
                 }
             case .toast:
                 EmptyView()
@@ -245,17 +250,21 @@ private struct HUDView: View {
         }
         .padding(.horizontal, 14)
         .frame(width: HUDPanelController.panelSize.width, height: HUDPanelController.panelSize.height)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        // The HUD's root: Polhub's accent, ink, whatever the Mac's (design system v2, 19/11).
+        .tint(Tint.accent)
     }
 
     @ViewBuilder private var icon: some View {
         switch model.kind {
         case .prompt:
-            Image(systemName: "record.circle").font(.system(size: 22)).foregroundStyle(.red)
+            // Grey while nothing records, as the logo's outlined circle: the red starts with the recording (design system
+            // v2, 19/11).
+            Image(systemName: "record.circle").font(.system(size: 22)).foregroundStyle(.secondary)
         case .toast:
             Image(systemName: "waveform").font(.system(size: 20)).foregroundStyle(.secondary)
         case .alert:
-            Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 20)).foregroundStyle(.orange)
+            Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 20)).foregroundStyle(Tint.attention)
         }
     }
 }

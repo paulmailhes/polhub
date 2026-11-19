@@ -34,7 +34,8 @@ enum ReviewText {
         }
     }
 
-    /// Late: past twice its threshold (the Accueil's pass, 18/11); its age is then said in the accent.
+    /// Late: past twice its threshold (the Accueil's pass, 18/11); its age is then said in red (`Tint.late`, design
+    /// system v2, 19/11).
     static func late(_ line: ReviewRules.Line, thresholds: ReviewRules.Thresholds) -> Bool {
         guard let days = line.days else { return false }
         switch line.kind {
@@ -81,7 +82,7 @@ enum ReviewText {
 }
 
 /// « À valider » (the Accueil's pass, 18/11): what waits for Paul's click — the face of the person, one sentence, one
-/// quiet action always at the same edge, the « … » under the pointer; the age in the accent once late. A line leaves
+/// quiet action always at the same edge, the « … » under the pointer; the age in red once late. A line leaves
 /// by itself once the thing is done.
 struct ReviewCard: View {
     @ObservedObject var colin: ColinLibrary
@@ -115,7 +116,8 @@ struct ReviewCard: View {
                     title(line).font(.rowBody).foregroundStyle(.primary).lineLimit(1)
                     if let detail = ReviewText.detail(line) {
                         Text(detail).font(.meta)
-                            .foregroundStyle(ReviewText.late(line, thresholds: thresholds) ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
+                            // Late: red (design system v2, 19/11).
+                            .foregroundStyle(ReviewText.late(line, thresholds: thresholds) ? AnyShapeStyle(Tint.late) : AnyShapeStyle(.secondary))
                             .lineLimit(1)
                     }
                 }

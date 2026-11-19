@@ -68,7 +68,17 @@ struct InspirationSettingsPane: View {
             ColorDot(Color(hex: InspirationBrowse.color(ofSource: source.name, in: library.sources)), size: 10)
             VStack(alignment: .leading, spacing: 1) {
                 Text(source.name).font(.rowBody.weight(.medium))
-                Text(line.text).font(.meta).foregroundStyle(line.problem ? Color.orange : .secondary).lineLimit(2)
+                // A problem: the icon of attention in its color, the sentence in the text's own, never an orange
+                // sentence (design system v2, 19/11).
+                Group {
+                    if line.problem {
+                        ErrorLine(line.text)
+                    } else {
+                        Text(line.text).foregroundStyle(.secondary)
+                    }
+                }
+                .font(.meta)
+                .lineLimit(2)
             }
             Spacer(minLength: Space.s)
             IconButton("pencil", help: "Modifier", size: 13) { editing = SourceDraft(source: source) }
@@ -87,7 +97,15 @@ struct InspirationSettingsPane: View {
             }
             ForEach(lines) { line in
                 let text = InspirationSettingsText.statusLine(line)
-                Text(text.text).font(.meta).foregroundStyle(text.problem ? Color.orange : .secondary)
+                // As a page's line: a problem in one line, never in orange (design system v2, 19/11).
+                Group {
+                    if text.problem {
+                        ErrorLine(text.text)
+                    } else {
+                        Text(text.text).foregroundStyle(.secondary)
+                    }
+                }
+                .font(.meta)
             }
             HStack(spacing: Space.s) {
                 Button("Collecter maintenant") { Task { await library.collectNow() } }
@@ -174,16 +192,24 @@ struct InspirationSourceSheet: View {
                 ColorPicker("Couleur", selection: $color, supportsOpacity: false)
             }
             .formStyle(.columns)
-            Text(problem ?? "La page publique d'un studio, celle de son entreprise sur LinkedIn.")
-                .font(.meta)
-                .foregroundStyle(problem == nil ? Color.secondary : .orange)
-                .fixedSize(horizontal: false, vertical: true)
+            // A problem in one line: the icon of attention in its color, the sentence in the text's own, never an orange
+            // sentence (design system v2, 19/11).
+            Group {
+                if let problem {
+                    ErrorLine(problem)
+                } else {
+                    Text("La page publique d'un studio, celle de son entreprise sur LinkedIn.").foregroundStyle(.secondary)
+                }
+            }
+            .font(.meta)
+            .fixedSize(horizontal: false, vertical: true)
             HStack {
                 Spacer()
                 Button("Annuler", role: .cancel) { dismiss() }.keyboardShortcut(.cancelAction)
                 Button(source == nil ? "Ajouter" : "Enregistrer", action: save)
                     .keyboardShortcut(.defaultAction)
-                    .buttonStyle(.glassProminent)
+                    // The window's principal action: full and matte, at the accent (design system v2, 19/11).
+                    .buttonStyle(.primary)
                     .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || link.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }

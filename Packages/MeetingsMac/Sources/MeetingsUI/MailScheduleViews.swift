@@ -165,7 +165,7 @@ struct SchedulePicker: View {
 }
 
 /// Above a programmed mail in the composer: when it leaves, and the way back; it is locked meanwhile. One that
-/// waits for Paul (too late) says so, in orange, with « Envoyer maintenant ».
+/// waits for Paul (too late) says so, with the late's red, and « Envoyer maintenant ».
 struct ScheduledBanner: View {
     let entry: ScheduledSend
     let draftID: String
@@ -173,8 +173,9 @@ struct ScheduledBanner: View {
 
     var body: some View {
         let held = entry.state == .held
-        // Gmail's blue while it waits, whatever the system's accent; orange once it waits for Paul (to check).
-        let tint = held ? Color.orange : MailSurface.accent
+        // Only the icon carries a color, on a neutral band (design system v2, 19/11): grey while the mail waits for its
+        // time (it is told, not called); the late's red once it waits for Paul, as « En retard » in the bar and the list.
+        let tint = held ? Tint.late : Color.secondary
         VStack(alignment: .leading, spacing: Space.m) {
             HStack(alignment: .center, spacing: Space.m) {
                 Image(systemName: held ? "exclamationmark.circle.fill" : "clock.fill")
@@ -198,8 +199,9 @@ struct ScheduledBanner: View {
             }
             if held {
                 HStack(spacing: Space.m) {
+                    // The screen's principal action, in the content: full and matte (design system v2, 19/11).
                     Button("Envoyer maintenant") { mails.sendScheduledNow(draftID) }
-                        .buttonStyle(.glassProminent)
+                        .buttonStyle(.primary)
                         .disabled(mails.sending != nil)
                         .help("Il part dans quelques secondes, que tu peux encore annuler")
                     cancel
@@ -208,12 +210,12 @@ struct ScheduledBanner: View {
             }
         }
         .padding(Space.m)
-        .background(tint.opacity(held ? 0.12 : 0.1), in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
+        .background(Surface.raised, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
     }
 
     private var cancel: some View {
         Button("Annuler l'envoi programmé") { mails.unschedule(draftID) }
-            .buttonStyle(.glass)
+            .buttonStyle(.secondary)
             .help("Le mail redevient un brouillon, que tu peux modifier")
     }
 }
@@ -266,12 +268,13 @@ struct MailScheduledLine: View {
         let held = entry.state == .held
         let people = draft.to.map { $0.name ?? $0.email }
         HStack(spacing: 0) {
-            RoundedRectangle(cornerRadius: 1.5).fill(color).frame(width: 3, height: 22).padding(.leading, Space.m).help(draft.account)
+            Capsule().fill(color).frame(width: 3, height: 22).padding(.leading, Space.m).help(draft.account)
+            // Late: the late's red, on the icon, the word and the hour (design system v2, 19/11).
             Image(systemName: held ? "exclamationmark.circle" : "clock")
                 .font(.system(size: 15))
-                .foregroundStyle(held ? Color.red : Color.secondary)
+                .foregroundStyle(held ? Tint.late : Color.secondary)
                 .frame(width: 44)
-            (Text(held ? "En retard" : "Programmé").foregroundStyle(held ? Color.red : Color.secondary)
+            (Text(held ? "En retard" : "Programmé").foregroundStyle(held ? Tint.late : Color.secondary)
                 + Text(people.isEmpty ? "" : " · \(people.joined(separator: ", "))"))
                 .font(.rowTitle)
                 .lineLimit(1)
@@ -282,7 +285,7 @@ struct MailScheduledLine: View {
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Text(MailText.scheduledShort(entry.sendAt))
-                .font(.meta.weight(.medium)).foregroundStyle(held ? Color.red : Color.primary).monospacedDigit().lineLimit(1)
+                .font(.meta.weight(.medium)).foregroundStyle(held ? Tint.late : Color.primary).monospacedDigit().lineLimit(1)
                 .frame(minWidth: 58, alignment: .trailing)
                 .help("Part \(MailText.scheduled(entry.sendAt))")
         }

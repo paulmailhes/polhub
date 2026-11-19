@@ -308,7 +308,9 @@ struct ContactPage: View {
                 }
                 if let next {
                     Button { router.openEvent(next.id) } label: {
-                        Chip(ContactsModel.nextText(next, now: now), systemImage: "calendar", tint: agenda.color(for: next.account))
+                        // Neutral, as the chip beside it: an account's color on a button goes (design system v2, 19/11); it
+                        // read as a state, a red account as an alert. The account's dot stays on the event's row.
+                        Chip(ContactsModel.nextText(next, now: now), systemImage: "calendar")
                     }
                     .buttonStyle(.hover(.capsule))
                     .help(next.title)
@@ -325,7 +327,8 @@ struct ContactPage: View {
                     Button { mails.write(to: person, router: router) } label: {
                         Label("Écrire", systemImage: "square.and.pencil")
                     }
-                    .buttonStyle(.glassProminent)
+                    // The page's principal action; no glass in the content (design system v2, 19/11).
+                    .buttonStyle(.primary)
                     .controlSize(.large)
                     .help("Un nouveau mail à \(person.email)")
                 }
@@ -341,8 +344,8 @@ struct ContactPage: View {
                         .contentTransition(.symbolEffect(.replace))
                         .frame(width: 18)
                 }
-                .buttonStyle(.glass)
-                .buttonBorderShape(.circle)
+                // A secondary action beside the principal one: a thin outline, no glass (design system v2, 19/11).
+                .buttonStyle(.secondary)
                 .controlSize(.large)
                 .help(copied ? "Adresse copiée" : "Copier l'adresse")
                 .accessibilityLabel("Copier l'adresse")
@@ -382,7 +385,8 @@ struct ContactPage: View {
         } label: {
             Label("Ajouter", systemImage: "plus")
                 .font(.meta.weight(.medium))
-                .foregroundStyle(Color.accentColor)
+                // A gesture to make, as `TextButton`: the accent, ink (design system v2, 19/11).
+                .foregroundStyle(Tint.accent)
                 .padding(.horizontal, Space.s).padding(.vertical, 3)
         }
         .menuStyle(.button)
@@ -440,7 +444,9 @@ struct ContactPage: View {
                             Text(ContactsModel.eventWhen(event, now: now)).font(.meta.monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
                         }
                         Spacer(minLength: Space.s)
-                        if coming { Chip(event.startAt <= now ? "En cours" : "À venir", tint: agenda.color(for: event.account)) }
+                        // Neutral: the account's color stays in its dot, at the start of the row; on a chip it read as
+                        // a state (design system v2, 19/11).
+                        if coming { Chip(event.startAt <= now ? "En cours" : "À venir") }
                     }
                 }
             }
@@ -459,7 +465,8 @@ struct ContactPage: View {
                         Text(ContactsModel.meetingWhen(meeting, now: now)).font(.meta.monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
                         if let line = summaries[meeting.id] {
                             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                                Image(systemName: "sparkles").font(.system(size: 11, weight: .semibold)).foregroundStyle(Color(hex: Palette.violet))
+                                // A mark that informs, nothing to click: grey (design system v2, 19/11).
+                                Image(systemName: "sparkles").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
                                 Text(line).font(.meta).foregroundStyle(.secondary).lineLimit(2)
                             }
                         }

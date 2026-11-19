@@ -209,9 +209,9 @@ private struct SubtleButtonBody: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
             .background {
-                RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
+                RoundedRectangle(cornerRadius: Radius.control, style: .continuous)
                     .fill(hovering ? Surface.raised : Color.clear)
-                    .overlay { RoundedRectangle(cornerRadius: Radius.small, style: .continuous).strokeBorder(Color(nsColor: .separatorColor)) }
+                    .overlay { RoundedRectangle(cornerRadius: Radius.control, style: .continuous).strokeBorder(Color(nsColor: .separatorColor)) }
             }
             .opacity(configuration.isPressed ? 0.7 : 1)
             .contentShape(Rectangle())

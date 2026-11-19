@@ -79,9 +79,15 @@ public enum ProjectViews {
         }
     }
 
-    /// Late in red, today in orange, else neutral.
+    /// What a due date says by its color (design system v2, 19/11): late in the tint of the late, today in the tint of
+    /// attention, both readable as text; else nothing, neutral.
+    public static func dueRole(_ label: String) -> Tint.Role? {
+        label.hasPrefix("En retard") ? .late : label == "Échéance aujourd'hui" ? .attention : nil
+    }
+
+    /// The color of `dueRole`, else neutral.
     public static func dueTint(_ label: String) -> Color? {
-        label.hasPrefix("En retard") ? .red : label == "Échéance aujourd'hui" ? .orange : nil
+        dueRole(label)?.color
     }
 
     /// « RDV aujourd'hui à 14:00 », « RDV demain à 9:30 », « RDV jeudi à 14:00 », « RDV le 2 déc. »: the next

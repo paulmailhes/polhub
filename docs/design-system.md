@@ -8,13 +8,21 @@ Référence : [Adopting Liquid Glass](https://developer.apple.com/documentation/
 
 ## Le principe
 
-- **Le verre est pour la navigation et les commandes**, qui flottent au-dessus du contenu : la barre
-  d'outils, la barre latérale, les popovers, les feuilles, les commandes flottantes (le lecteur d'une
-  réunion), les boutons `.glass` et `.glassProminent`.
-- **Le contenu reste calme** : texte sur le fond de la fenêtre, cartes arrondies (`Card`), jamais de verre
-  sur du texte à lire, jamais de verre sur du verre.
-- **Des composants standard d'abord** (`NavigationSplitView`, `toolbar`, `Table`, `Form` groupé, `sheet`,
-  `popover`) : ils prennent Liquid Glass tout seuls. Aucun fond personnalisé sur une barre.
+Le design system v2 (plan d'affinage du 19/11) tient en cinq règles :
+
+- **Le contenu est calme, les commandes flottent.** Le verre est pour la navigation et les commandes qui flottent
+  au-dessus du contenu : la barre d'outils, la barre latérale, les popovers, les feuilles, les barres flottantes
+  (le lecteur d'une réunion, la barre de saisie de Colin), les panneaux en verre (Coup d'œil, le HUD, la carte avant
+  une visio). **Jamais un bouton en verre dans le contenu** : dans une fenêtre qui n'est pas au premier plan, il
+  paraît désactivé (mesuré le 19/11). Jamais de verre sur du texte à lire, jamais de verre sur du verre.
+- **Une couleur a un seul sens** (`Tint`, ci-dessous). L'accent est celui de Polhub, l'encre, quel que soit l'accent
+  du Mac : aucune vue n'écrit `Color.accentColor`.
+- **La hiérarchie vient de la taille et de l'air**, pas de la couleur.
+- **Tout ce qui se clique répond, et rien ne bouge au survol.**
+- **Peu de mots, toujours les mêmes.**
+
+Des composants standard d'abord (`NavigationSplitView`, `toolbar`, `Table`, `Form` groupé, `sheet`, `popover`) :
+ils prennent Liquid Glass tout seuls. Aucun fond personnalisé sur une barre.
 
 ## La fenêtre
 
@@ -45,7 +53,7 @@ Référence : [Adopting Liquid Glass](https://developer.apple.com/documentation/
 | | Valeur |
 |---|---|
 | Espacements (`Space`) | 4, 8, 12, 16, 24, 32 |
-| Rayons (`Radius`), toujours `style: .continuous` | 6 (petit), 10 (commande), 16 (carte), 22 (carte mise en avant) |
+| Rayons (`Radius`), toujours `style: .continuous` | 8 (`control` : ce qui se clique, une ligne, un champ, une puce), 12 (`inner` : dans une carte), 16 (`card` : une carte, un panneau), et la capsule |
 | Page (`PageMetrics`) | largeur 1 080 (lecture : 860), marges 28, haut 16, bas 40 |
 
 ## La typographie
@@ -117,15 +125,31 @@ les autres gardent la leur sous leur carte. Le bandeau du bas (`MailUndoBar`) mo
 
 ## Les couleurs
 
-- Une seule palette (`Palette`) pour les comptes Google, les projets et les statuts.
-- La couleur d'un **compte** marque ses rendez-vous (et « Rejoindre », sur la ligne du prochain rendez-vous de l'Accueil) ;
-  celle d'un **statut** marque les colonnes du Kanban (un point, un fond très léger) ; celle d'un **projet**
-  teinte sa carte (≈ 14 % en clair, 22 % en sombre, un trait plus franc à gauche), et marque son logo, sa
-  pastille dans les mails, son point dans Contacts : une seule source, `ProjectViews.tint(_:)`.
-- Chaque **section** a sa couleur, la même dans la barre latérale et dans Réglages : Accueil sarcelle, Projets
-  bleu, Réunions violet, Calendrier orange, Mails rose, Contacts vert, Inspiration jaune, Réglages gris.
-- La couleur d'accent du système reste celle de la sélection et de « Moi » dans les transcriptions.
-- Rouge pour le retard, orange pour aujourd'hui et pour ce qui est à vérifier, jamais pour décorer.
+**Une couleur, un sens** (`Tint`, module `PolhubDesign`, fichier `Tint.swift`). Chaque valeur est celle d'un texte :
+lisible à 4,5:1 au moins sur une fenêtre et sur une carte, en clair et en sombre (`TintTests`). Une couleur de sens
+ne va jamais seule : toujours un mot ou un symbole avec elle.
+
+| Jeton | Sens | Clair | Sombre |
+|---|---|---|---|
+| `Tint.accent` | l'encre de Polhub : le bouton principal, la sélection, un lien | `#1D1D1F` | `#F5F5F7` |
+| `Tint.late` | en retard, une échéance passée | `#B42318` | `#FF6961` |
+| `Tint.attention` | maintenant, bientôt, à vérifier, un problème | `#944A00` | `#FFB340` |
+| `Tint.recording` | une réunion qui s'enregistre, « Arrêter » | `#C00013` | `#FF7A70` |
+| `Tint.done` | fait, livré, accepté, en marche | `#17712F` | `#4CD964` |
+| `Tint.agent` | préparé par un agent ou par Colin | `#6340C8` | `#B79CFF` |
+
+- **L'accent est posé à la racine** de chaque fenêtre et de chaque panneau (`.tint(Tint.accent)`) : les commandes
+  du système le prennent.
+- **Un lien dans un texte** se reconnaît à son soulignement, pas à sa couleur.
+- **Une erreur** se dit par l'icône d'attention dans sa couleur et une phrase dans la couleur du texte
+  (`ErrorLine`) ; jamais une phrase colorée.
+- **Les couleurs d'identité** (un compte Google, un projet, une section) ne colorent que des points, des traits, des
+  monogrammes, les blocs du calendrier et les cartes du Kanban ; jamais un bouton ni un texte. Une seule palette
+  (`Palette`) ; une seule source pour un projet, `ProjectViews.tint(_:)`.
+- Chaque **section** garde sa couleur dans la barre latérale et dans Réglages : Accueil sarcelle, Projets bleu,
+  Réunions violet, Calendrier orange, Mails rose, Contacts vert, Inspiration jaune, Réglages gris.
+- Les surfaces : `Surface.fill` (une carte), `.raised` (au survol, un cran plus haut), `.selected` (ce qui est
+  choisi : l'encre à 12 %), `.stroke` (le seul trait).
 
 ## Les composants
 
@@ -134,6 +158,8 @@ les autres gardent la leur sous leur carte. Le bandeau du bas (`MailUndoBar`) mo
 | `Page { }` | Une page qui défile, à la bonne largeur et aux bonnes marges |
 | `PageHeader("Titre", subtitle:)` | Le titre d'une page qui en a besoin (la page d'un projet) |
 | `Card { }` | Une surface de contenu ; `.cardSurface()` pour une vue existante |
+| `Banner(.attention, "Titre", detail:) { boutons }` | Un bandeau d'information : seule l'icône porte la couleur (`.information`, `.attention`, `.late`, `.done`, `.agent`) |
+| `ErrorLine("Phrase")` | Un problème en une ligne : l'icône d'attention dans sa couleur, la phrase dans celle du texte |
 | `SectionTitle("Titre", systemImage:, count:) { trailing }` | Le titre d'une carte ou d'une partie |
 | `Chip("Texte", systemImage:, tint:)` | Un statut, une date, une étiquette |
 | `Avatar(initiales, size:)` | Une personne |
@@ -158,15 +184,21 @@ la page Contacts :
 
 ## Les boutons
 
-- L'action principale d'un écran ou d'une fiche : `.buttonStyle(.glassProminent)`, teintée si la couleur
-  a un sens (« Rejoindre » prend la couleur du compte).
-- Une action secondaire visible : `.buttonStyle(.glass)`.
-- Dans une liste ou une carte : `.buttonStyle(.hover)` (ou `IconButton` pour une icône), qui reste discret au
-  repos et répond au survol et à l'appui ; plus de `.borderless` ni de `.plain` sans retour.
-- Une ligne qui est un bouton : `.buttonStyle(.row)` (ou `RowButton`) ; une ligne pleine largeur d'une liste à
-  la Gmail (les brouillons) : `LineButtonStyle(ground:)`.
-- Dans une capsule de verre (le lecteur, les gestes d'un fil ouvert), des `IconButton` : pas de verre sur le
-  verre.
+Quatre rôles, et rien d'autre ne dessine un bouton dans le contenu :
+
+| Rôle | Style | Usage |
+|---|---|---|
+| Principal | `.buttonStyle(.primary)` | L'action principale d'un écran, **une par écran** : plein et mat, à l'encre, son libellé à l'opposé (blanc en clair, encre en sombre) |
+| Secondaire | `.buttonStyle(.secondary)` | Une autre action visible : un contour fin, la couleur du texte, un fond au survol |
+| Discret | `IconButton`, `TextButton(_:quiet:)` | Un geste qui est là sans appeler : gris (`quiet`), ou à l'encre ; un fond au survol |
+| Ligne | `RowButton`, `.buttonStyle(.row)`, `LineButtonStyle(ground:)` | Une ligne entière qui est un bouton |
+
+- Dans la barre d'outils, les popovers, les barres flottantes et les panneaux en verre : les styles du système en
+  verre (`.glass`, `.glassProminent`), sans teinte posée à la main ; ils prennent l'encre de la racine. Seul
+  « Arrêter » prend `.tint(Tint.recording)`.
+- Une teinte de compte ou de projet ne va jamais sur un bouton : « Rejoindre » est à l'encre, la couleur du compte
+  reste dans son rond.
+- Dans une capsule de verre (le lecteur, les gestes d'un fil ouvert), des `IconButton` : pas de verre sur le verre.
 
 ## L'interaction
 
@@ -238,7 +270,7 @@ compte.
   (`HomeSectionHeader`), son nombre dans une pastille (`Surface.raised`). Un groupe en petites capitales grises de 11
   points (`HomeGroupLabel`, « EN RETARD »). Un trait fin entre deux lignes (`homeRow`), six points d'air de part et
   d'autre.
-- **L'orange (l'accent) pour ce qui compte, seulement** : envoyer (le rond plein de la barre), « Rejoindre » dix
+- **L'encre (l'accent) pour ce qui compte, seulement** : envoyer (le rond plein de la barre), « Rejoindre » dix
   minutes avant, « dans N min » à un quart d'heure, le retard d'une ligne à valider (plus de deux fois son seuil), le
   retard d'une échéance (« depuis 6 j ») et un compte Claude plein ou qui le sera avant sa remise à zéro.
   « Voir » et ■ sont neutres. Les actions des lignes sont neutres (`.subtle` : petit, bordé d'un trait, la couleur du texte) ; les
@@ -440,15 +472,23 @@ puis nourries par la collecte et ses ajouts. La logique vit à part, testée san
 Les captures hors écran ne dessinent ni le verre ni la barre d'outils. Pour voir le vrai rendu :
 
 ```sh
+POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter DesignCatalogueScreenTests # les couleurs et les boutons, avant / après
 POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter "WindowSnapshotTests|MailScreenTests/theMailScreens|PeopleScreenTests"
 POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter CoupDoeilScreenTests   # Coup d'œil et le logo
 POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter InspirationScreenTests  # Inspiration, données inventées
 POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter HomeScreenTests         # l'Accueil, données inventées
 ```
 
-Les fenêtres de test ne deviennent jamais actives (aucune touche ne doit les atteindre) : les boutons
-`.glassProminent` y restent gris au lieu de prendre leur couleur.
+Une suite à la fois : lancées ensemble, les captures ont laissé des corps de mails vides (19/11).
+
+Les fenêtres de test ne deviennent jamais actives (aucune touche ne doit les atteindre) : un bouton en verre y
+paraît gris, ce qui est la raison de la règle « jamais de verre dans le contenu ». Un bouton `.primary` garde son
+encre.
 
 La fenêtre se pose sous toutes les autres, juste au-dessus du fond d'écran, sans jamais passer devant le travail en
 cours (19/11), puis le système prend son image seule (il faut l'autorisation d'enregistrement de l'écran pour le
 terminal). Hors de tout écran, rien ne se dessine : elle reste donc sur un écran, en dessous.
+
+**Le garde-fou** (`DesignGuardTests`) compte dans le code de l'interface ce qui doit disparaître : `Color.accentColor`,
+les rayons écrits à la main, les boutons en verre hors des barres et des panneaux. Le nombre ne peut que baisser :
+un lot qui en retire abaisse le plafond.

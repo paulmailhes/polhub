@@ -163,10 +163,12 @@ public struct DiagnosticView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Diagnostic").font(.title2.bold())
-                Text(model.allGood
-                     ? "Tout est prêt : chaque Meet ouvert dans Dia s'enregistre tout seul."
-                     : "Il manque quelque chose pour que les réunions s'enregistrent toutes seules.")
-                    .foregroundStyle(model.allGood ? Color.secondary : Color.orange)
+                // What is missing: a problem, said by `ErrorLine` (design system v2, 19/11).
+                if model.allGood {
+                    Text("Tout est prêt : chaque Meet ouvert dans Dia s'enregistre tout seul.").foregroundStyle(.secondary)
+                } else {
+                    ErrorLine("Il manque quelque chose pour que les réunions s'enregistrent toutes seules.")
+                }
 
                 ForEach(model.items) { item in
                     row(item)
@@ -176,7 +178,8 @@ public struct DiagnosticView: View {
                 HStack {
                     Button("Tout revérifier") { Task { await model.testAll(prompt: false) } }
                     Spacer()
-                    Button("Sondes de mesure…", action: openProbes).buttonStyle(.link)
+                    // A link that acts: a word at the app's accent, the discreet role (design system v2, 19/11).
+                    TextButton("Sondes de mesure…", action: openProbes)
                 }
 
                 if let colin {
@@ -198,7 +201,8 @@ public struct DiagnosticView: View {
                 Text(item.title).font(.headline)
                 Text(item.explanation).font(.callout).foregroundStyle(.secondary)
                 if case .denied(let reason) = state {
-                    Text(reason).font(.callout).foregroundStyle(.red)
+                    // In the text's color: the icon on the left carries the attention (design system v2, 19/11).
+                    Text(reason).font(.callout).foregroundStyle(.primary)
                 }
                 if item == .relaunch, let message = model.relaunchMessage {
                     Text(message).font(.callout).foregroundStyle(.secondary)
@@ -225,10 +229,12 @@ public struct DiagnosticView: View {
         if testing {
             ProgressView().controlSize(.small).frame(width: 22)
         } else {
+            // Ready in the color of « done »; missing or refused, in the color of what is to check (design system v2,
+            // 19/11): one color for « something is wrong », the symbol tells which.
             switch state {
-            case .ok: Image(systemName: "checkmark.circle.fill").foregroundStyle(.green).font(.title3)
-            case .missing: Image(systemName: "circle.dashed").foregroundStyle(.orange).font(.title3)
-            case .denied: Image(systemName: "xmark.octagon.fill").foregroundStyle(.red).font(.title3)
+            case .ok: Image(systemName: "checkmark.circle.fill").foregroundStyle(Tint.done).font(.title3)
+            case .missing: Image(systemName: "circle.dashed").foregroundStyle(Tint.attention).font(.title3)
+            case .denied: Image(systemName: "xmark.octagon.fill").foregroundStyle(Tint.attention).font(.title3)
             case .unknown: Image(systemName: "questionmark.circle").foregroundStyle(.secondary).font(.title3)
             }
         }

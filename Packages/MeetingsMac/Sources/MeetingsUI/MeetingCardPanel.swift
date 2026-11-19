@@ -17,9 +17,10 @@ public final class MeetingCardPresenter: ObservableObject {
     private let joinMeet: (CalendarEventRow) -> Void
     private let accountColor: (String) -> Color
 
-    /// `showsPanel`: false in the tests, which read `cards` only.
+    /// `showsPanel`: false in the tests, which read `cards` only. `color`: an account's color, for its round; grey
+    /// without one (design system v2, 19/11).
     public init(showsPanel: Bool = true, join: @escaping (CalendarEventRow) -> Void,
-                color: @escaping (String) -> Color = { _ in .accentColor }) {
+                color: @escaping (String) -> Color = { _ in .secondary }) {
         self.showsPanel = showsPanel
         self.joinMeet = join
         self.accountColor = color
@@ -109,11 +110,13 @@ struct MeetingCardStack: View {
             }
         }
         .frame(width: MeetingCardMetrics.width, alignment: .top)
+        // The card's root: Polhub's accent, ink, whatever the Mac's (design system v2, 19/11).
+        .tint(Tint.accent)
     }
 }
 
-/// One card, in glass (it floats over everything): the account's color, the title, « Dans 2 min », « Rejoindre »
-/// in that color, and the cross.
+/// One card, in glass (it floats over everything): the account's color in its round, the title, « Dans 2 min »,
+/// « Rejoindre » in Polhub's ink (design system v2, 19/11: an account's color never goes on a button), and the cross.
 struct MeetingCardView: View {
     let event: CalendarEventRow
     let color: Color
@@ -141,15 +144,16 @@ struct MeetingCardView: View {
                 }
             }
             Spacer(minLength: Space.xs)
-            // Drawn in the account's color rather than as a prominent button: the panel never becomes key, and a
-            // prominent button turns grey there.
+            // Drawn by hand in Polhub's ink, its label the ink's opposite, rather than as a prominent button: the panel
+            // never becomes key, and a prominent button turns grey there. The account stays in its round (design
+            // system v2, 19/11).
             Button(action: join) {
                 Text("Rejoindre")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Tint.onAccent.color)
                     .padding(.horizontal, Space.m)
                     .padding(.vertical, 6)
-                    .background(color, in: Capsule())
+                    .background(Tint.accent, in: Capsule())
                     .contentShape(Capsule())
             }
             .buttonStyle(.plain)
@@ -167,6 +171,6 @@ struct MeetingCardView: View {
         .padding(.leading, Space.m)
         .padding(.trailing, Space.s + 2)
         .frame(width: MeetingCardMetrics.width, height: MeetingCardMetrics.height)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
     }
 }

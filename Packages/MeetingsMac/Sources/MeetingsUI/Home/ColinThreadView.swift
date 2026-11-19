@@ -284,11 +284,12 @@ struct ColinComposer: View {
             }
         }
         .padding(Space.s)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
     }
 }
 
-/// A round button of the bar, 28 points: filled with the accent when it is the one to press, quiet otherwise.
+/// A round button of the bar, 28 points: filled with the accent when it is the one to press, quiet otherwise. The
+/// accent is Polhub's ink, its arrow the accent's opposite (design system v2, 19/11).
 private struct RoundButton: View {
     let symbol: String
     let help: String
@@ -300,10 +301,10 @@ private struct RoundButton: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(prominent ? Color.white : Color.secondary)
+                .foregroundStyle(prominent ? Tint.onAccent.color : Color.secondary)
                 .contentTransition(.symbolEffect(.replace))
                 .frame(width: 28, height: 28)
-                .background(prominent ? Color.accentColor : Color.primary.opacity(enabled ? 0.08 : 0.04), in: Circle())
+                .background(prominent ? Tint.accent : Color.primary.opacity(enabled ? 0.08 : 0.04), in: Circle())
         }
         .buttonStyle(.plain)
         .help(help)
@@ -343,11 +344,12 @@ private struct ColinOffCard: View {
             Image(systemName: "moon.zzz").foregroundStyle(.secondary)
             Text("Colin est à l'arrêt").font(.rowBody).foregroundStyle(.secondary)
             Spacer(minLength: Space.s)
-            Button("Allumer Colin", action: turnOn).buttonStyle(.glassProminent)
+            // A calm card, no glass: « Rejoindre » is the Accueil's one principal button (design system v2, 19/11).
+            Button("Allumer Colin", action: turnOn).buttonStyle(.secondary)
         }
         .padding(.horizontal, Space.l)
         .padding(.vertical, Space.m)
-        .background(Surface.fill, in: RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: Radius.hero, style: .continuous).strokeBorder(Surface.stroke) }
+        .background(Surface.fill, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Surface.stroke) }
     }
 }

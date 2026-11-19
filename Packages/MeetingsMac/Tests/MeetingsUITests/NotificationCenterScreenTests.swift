@@ -85,7 +85,7 @@ struct NotificationCenterScreenTests {
 
         var body: some View {
             NotificationPanel(inbox: inbox, clock: now, expanded: expanded) { _ in }
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
                 .padding(Space.xl)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .background(Color(nsColor: .windowBackgroundColor))

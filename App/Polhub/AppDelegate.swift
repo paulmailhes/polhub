@@ -514,9 +514,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             guard self?.colinThread?.answeredRecently != true else { return }
             Task { await hub.draftsReady(drafts) }
         }
-        // The card before a Meet: « Rejoindre » opens it in Dia under the event's account, as Coup d'œil does.
+        // The card before a Meet: « Rejoindre » opens it in Dia under the event's account, as Coup d'œil does. An
+        // account without its color is grey, never the Mac's accent (design system v2, 19/11).
         meetingCards = MeetingCardPresenter(join: { [weak agenda] event in agenda?.join(event) },
-                                            color: { [weak agenda] account in agenda?.color(for: account) ?? .accentColor })
+                                            color: { [weak agenda] account in agenda?.color(for: account) ?? .secondary })
         SystemNotifications.registerCategories()
         Task { @MainActor in
             _ = await SystemNotifications.requestAuthorization()
@@ -747,8 +748,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                     DiagnosticView(model: diagnostic, colin: probe) { [weak self] in self?.showProbeWindow() }
                 }
             }
-            // Every logo of a project reads it there; without it, initials (15/11).
-            let host = NSHostingController(rootView: view.environment(\.projectLogos, projectLogos))
+            // Every logo of a project reads it there; without it, initials (15/11). Polhub's own accent, ink, whatever
+            // the Mac's (design system v2, 19/11).
+            let host = NSHostingController(rootView: view.environment(\.projectLogos, projectLogos).tint(Tint.accent))
             // Each page's title and toolbar go to the window (14/11).
             host.sceneBridgingOptions = [.title, .toolbars]
             let window = NSWindow(contentViewController: host)
@@ -915,7 +917,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
     func showProbeWindow() {
         if probeWindow == nil {
-            let window = NSWindow(contentViewController: NSHostingController(rootView: ProbeWindow(runner: runner)))
+            // Polhub's own accent, ink, as in the main window (design system v2, 19/11).
+            let window = NSWindow(contentViewController: NSHostingController(rootView: ProbeWindow(runner: runner).tint(Tint.accent)))
             window.title = "Sondes — Polhub"
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             window.isReleasedWhenClosed = false

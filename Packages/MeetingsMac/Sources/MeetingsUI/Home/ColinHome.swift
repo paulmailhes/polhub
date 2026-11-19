@@ -11,7 +11,8 @@ struct ColinHeader: View {
     var body: some View {
         HStack(alignment: .center, spacing: Space.s) {
             Text("Colin").font(.system(size: 15, weight: .semibold))
-            ColorDot(thread.isOn ? Color(hex: Palette.green) : Color.secondary, size: 7)
+            // « En marche » is the green of what works (design system v2, 19/11).
+            ColorDot(thread.isOn ? Tint.done : Color.secondary, size: 7)
             Text(thread.isOn ? "en marche" : "à l'arrêt").font(.meta).foregroundStyle(.secondary)
             Spacer(minLength: Space.s)
             IconMenu("ellipsis", help: "Colin") {

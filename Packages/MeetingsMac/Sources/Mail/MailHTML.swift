@@ -28,14 +28,17 @@ public enum MailHTML {
                 + (parts.quote.map { block($0, " data-polhub-quote") } ?? "")
         }
         // Hidden until the script has adapted the colors: no white flash. CSS shows it anyway after a moment.
+        // A link the mail leaves unstyled takes the app's accent, ink (`Tint.ink` of PolhubDesign: #1D1D1F in light,
+        // #F5F5F7 in dark), and keeps WebKit's own underline: it is known by its line, no longer by its blue (design
+        // system v2, 19/11). The mail's own styles still win.
         let darkStyle = dark
-            ? "html,body{color:#e3e3e3}a{color:#8ab4f8}body{visibility:hidden;animation:polhub-show 0s .8s forwards}@keyframes polhub-show{to{visibility:visible}}"
+            ? "html,body{color:#e3e3e3}a{color:#F5F5F7}body{visibility:hidden;animation:polhub-show 0s .8s forwards}@keyframes polhub-show{to{visibility:visible}}"
             : ""
         return """
         <!doctype html><html><head><meta charset="utf-8">
         <meta http-equiv="Content-Security-Policy" content="\(policy(images: images))">
         <meta name="color-scheme" content="\(dark ? "dark" : "light only")">
-        <style>html,body{margin:0;padding:0;background:transparent;color:#222;font:15px/1.5 Arial,Helvetica,sans-serif;overflow-wrap:break-word}\(foldStyle)\(darkStyle)</style>
+        <style>html,body{margin:0;padding:0;background:transparent;color:#222;font:15px/1.5 Arial,Helvetica,sans-serif;overflow-wrap:break-word}a{color:#1D1D1F}\(foldStyle)\(darkStyle)</style>
         </head><body data-collapse="\(collapseQuote ? "1" : "0")" data-dark="\(dark ? "1" : "0")">\(content)</body></html>
         """
     }

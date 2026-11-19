@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import Pipeline
+import PolhubDesign
 
 /// The menu bar's logo and the few characters next to it (« Coup d'œil », 15/11). From the most to the least
 /// important: a recording (the red circle and its clock), a meeting just detected (the circle in outline and the
@@ -77,14 +78,24 @@ public struct MenuBarLabel: Equatable, Sendable {
         }
     }
 
-    /// The menu bar draws its images in one colour; this one stays red.
+    /// The menu bar draws its images in one colour; this one stays the recording's red (design system v2, 19/11).
     @MainActor static let redCircle: NSImage = {
-        let configuration = NSImage.SymbolConfiguration(paletteColors: [.systemRed])
+        let configuration = NSImage.SymbolConfiguration(paletteColors: [MenuBarLabel.recordingRed()])
         let image = NSImage(systemSymbolName: "record.circle.fill", accessibilityDescription: "Enregistrement")?
             .withSymbolConfiguration(configuration) ?? NSImage()
         image.isTemplate = false
         return image
     }()
+
+    /// `Tint.recording` for AppKit: its light or dark value as the menu bar is. Made off the main actor, as `Tint`'s own
+    /// colors are: the dynamic color's closure assumes no thread.
+    static func recordingRed() -> NSColor {
+        let recording = Tint.Role.recording.text
+        return NSColor(name: nil) { appearance in
+            let rgb = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? recording.dark : recording.light
+            return NSColor(srgbRed: rgb.red, green: rgb.green, blue: rgb.blue, alpha: 1)
+        }
+    }
 
     /// Drawn once, as the others: the menu bar asks for its label twice a second, and a new image each time would be a
     /// new label for it.

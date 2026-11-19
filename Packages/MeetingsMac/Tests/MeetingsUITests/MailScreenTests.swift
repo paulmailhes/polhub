@@ -86,14 +86,20 @@ final class CountingServer: @unchecked Sendable {
         }
     }
 
-    /// Shows the page in a window that never comes on screen, and waits for it to settle.
+    /// Shows the page in a window that never comes on screen, and waits for it to settle: until the app's own script
+    /// measured it (10 s at most, under load), then a moment for what it might have tried to load. A fixed wait failed
+    /// once while ten suites of captures ran at the same time (19/11).
     func render(_ body: String, images: Bool, heights: Heights = Heights()) async throws {
         let document = MailHTML.document(body: body, isHTML: true, images: images, collapseQuote: false)
         let window = NSWindow(contentViewController: NSHostingController(rootView: Host(document: document, images: images, heights: heights)))
         window.isReleasedWhenClosed = false
         window.setContentSize(NSSize(width: 600, height: 400))
         window.layoutIfNeeded()
-        try await Task.sleep(for: .milliseconds(2_500))
+        let deadline = ContinuousClock.now + .seconds(10)
+        while heights.last <= 10, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        try await Task.sleep(for: .milliseconds(800))
         window.close()
     }
 

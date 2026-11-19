@@ -68,7 +68,7 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
                 Section {
                     ForEach(group, id: \.self) { pane in
                         Button { router.settingsPane = pane } label: { SettingsRow(pane: pane) }
-                            .buttonStyle(.row(radius: Radius.small, inset: Space.s))
+                            .buttonStyle(.row(radius: Radius.control, inset: Space.s))
                     }
                 }
             }
@@ -124,7 +124,7 @@ struct SettingsRow: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(width: 26, height: 26)
-                .background(Color(hex: pane.tint), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .background(Color(hex: pane.tint), in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
             VStack(alignment: .leading, spacing: 1) {
                 Text(pane.title).font(.rowBody.weight(.medium))
                 Text(pane.subtitle).font(.meta).foregroundStyle(.secondary)
@@ -198,7 +198,8 @@ struct StartupToggle: View {
         } message: {
             Text("macOS prend Polhub sous sa garde : cette fenêtre se ferme, rouvre-la par l'icône de la barre des menus.")
         }
-        if let message = startup.message { Text(message).font(.meta).foregroundStyle(.orange) }
+        // What holds the switch back: a problem, said by `ErrorLine` (design system v2, 19/11).
+        if let message = startup.message { ErrorLine(message).font(.meta) }
     }
 }
 
@@ -227,10 +228,11 @@ struct NotificationsSettingsPane: View {
                         HStack(spacing: Space.xs) {
                             ForEach(Preferences.Default.reminderChoices, id: \.self) { minute in
                                 let on = Preferences.minutes(minutesText).contains(minute)
+                                // The minutes chosen at the accent, the others outlined (design system v2, 19/11).
                                 if on {
-                                    Button("\(minute) min") { toggle(minute) }.buttonStyle(.borderedProminent)
+                                    Button("\(minute) min") { toggle(minute) }.buttonStyle(.primary)
                                 } else {
-                                    Button("\(minute) min") { toggle(minute) }.buttonStyle(.bordered)
+                                    Button("\(minute) min") { toggle(minute) }.buttonStyle(.secondary)
                                 }
                             }
                         }
@@ -328,8 +330,13 @@ struct MeetingsSettingsPane: View {
         Form {
             Section {
                 Toggle("Comptes rendus automatiques", isOn: $summaries)
-                Text(library.summaryUnavailable ?? "Écrits sur le Mac par le modèle d'Apple, après la transcription, jamais pendant une réunion.")
-                    .font(.meta).foregroundStyle(library.summaryUnavailable == nil ? Color.secondary : .orange)
+                // Why they cannot be written: a problem, said by `ErrorLine` (design system v2, 19/11).
+                if let unavailable = library.summaryUnavailable {
+                    ErrorLine(unavailable).font(.meta)
+                } else {
+                    Text("Écrits sur le Mac par le modèle d'Apple, après la transcription, jamais pendant une réunion.")
+                        .font(.meta).foregroundStyle(.secondary)
+                }
             }
             Section("Transcription") {
                 Picker("Langue des réunions", selection: $language) {
@@ -361,13 +368,18 @@ struct UpdatesSettingsView: View {
                 Text("Jamais pendant une réunion ni une transcription : elle attend que tout soit au repos.")
                     .font(.meta).foregroundStyle(.secondary)
                 if let text = UpdateService.text(updates.state) {
-                    Text(text).foregroundStyle(stateColor)
+                    // A failure: said by `ErrorLine` (design system v2, 19/11); the other states in grey.
+                    if case .failed = updates.state {
+                        ErrorLine(text)
+                    } else {
+                        Text(text).foregroundStyle(.secondary)
+                    }
                 }
                 HStack {
                     Button("Vérifier maintenant") { Task { await updates.check() } }
                     if let latest = updates.latest {
                         Button("Mettre à jour vers \(latest.version.description)") { Task { await updates.installNow() } }
-                            .buttonStyle(.borderedProminent)
+                            .buttonStyle(.primary)
                     }
                 }
                 if updates.newer.isEmpty, updates.lastCheck != nil, updates.state == .idle {
@@ -385,11 +397,6 @@ struct UpdatesSettingsView: View {
         }
         .formStyle(.grouped)
         .frame(maxWidth: 640)
-    }
-
-    private var stateColor: Color {
-        if case .failed = updates.state { return .orange }
-        return .secondary
     }
 }
 

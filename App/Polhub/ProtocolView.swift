@@ -1,3 +1,4 @@
+import PolhubDesign
 import ProbeKit
 import SwiftUI
 
@@ -36,7 +37,8 @@ struct ProtocolView: View {
                             Button(remaining > 0 ? "Étape suivante (encore \(remaining) s)" : "Étape suivante") {
                                 board.next()
                             }
-                            .buttonStyle(.borderedProminent)
+                            // The screen's principal action (design system v2, 19/11).
+                            .buttonStyle(.primary)
                         }
                         Spacer()
                         Button("Arrêter l'essai", role: .destructive) { confirmingStop = true }

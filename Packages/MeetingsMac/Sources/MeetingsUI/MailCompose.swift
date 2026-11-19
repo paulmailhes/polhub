@@ -72,8 +72,10 @@ struct RecipientField: View {
                             .accessibilityLabel("Retirer \(address.email)")
                         }
                         .padding(.leading, Space.s + 2).padding(.trailing, 4).padding(.vertical, 2)
-                        .background(!valid ? Color.red.opacity(0.18) : (known ? Surface.raised : Color.orange.opacity(0.16)), in: Capsule())
-                        .foregroundStyle(!valid ? Color.red : (known ? Color.primary : Color.orange))
+                        // Invalid, or never written to: the one color of « to check » (design system v2, 19/11); the
+                        // « ? » tells the stranger.
+                        .background(!valid ? Tint.attention.opacity(0.18) : (known ? Surface.raised : Tint.attention.opacity(0.16)), in: Capsule())
+                        .foregroundStyle(!valid ? Tint.attention : (known ? Color.primary : Tint.attention))
                         .help(!valid ? "« \(address.email) » n'est pas une adresse valide"
                               : (known ? address.email : "\(address.email) : tu n'as jamais écrit à cette adresse, vérifie-la"))
                     }
@@ -157,12 +159,16 @@ struct ComposeView: View {
                 Divider()
                 if let conflict = draft.conflict { conflictBanner(conflict) }
                 if draft.origin == .agent {
-                    Label("Préparé par un agent : relis-le avant d'envoyer. Une adresse en orange n'est ni un contact ni une personne à qui tu as écrit.",
-                          systemImage: "sparkles")
-                        .font(.meta)
-                        .padding(Space.m)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
+                    // Only the icon says « an agent », in its color; the band is neutral (design system v2, 19/11).
+                    Label {
+                        Text("Préparé par un agent : relis-le avant d'envoyer. Une adresse en orange n'est ni un contact ni une personne à qui tu as écrit.")
+                    } icon: {
+                        Image(systemName: "sparkles").foregroundStyle(Tint.agent)
+                    }
+                    .font(.meta)
+                    .padding(Space.m)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Surface.raised, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
                 }
                 // The text, written with formatting as in Gmail (17/11); an agent's formatted draft opens as it leaves.
                 // Its buttons are in the bar fixed at the bottom of the page, in reach wherever the text is scrolled.
@@ -205,8 +211,9 @@ struct ComposeView: View {
             .background(Surface.fill, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
             .focusedValue(\.writingMail, true)
             .overlay {
+                // Where the files drop: the selection's ink (design system v2, 19/11).
                 if dropping {
-                    RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [6]))
+                    RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Tint.accent, style: StrokeStyle(lineWidth: 2, dash: [6]))
                 }
             }
             .disabled(leaving)
@@ -303,7 +310,8 @@ struct ComposeView: View {
         HStack(spacing: 6) {
             ColorDot(mails.color(for: draft.account), size: 8)
             if choose {
-                Text("Choisir la boîte…").foregroundStyle(Color.accentColor)
+                // A choice to make: the app's accent, ink (design system v2, 19/11).
+                Text("Choisir la boîte…").foregroundStyle(Tint.accent)
             } else {
                 Text(AccountStyle.label(for: draft.account)).fontWeight(.medium)
                 Text(draft.account).foregroundStyle(.secondary)
@@ -338,7 +346,7 @@ struct ComposeView: View {
     /// Gmail's copy went its own way: Paul chooses which version lives on.
     private func conflictBanner(_ conflict: MailDraftRow.Conflict) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: Space.m) {
-            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Tint.attention)
             switch conflict {
             case .absent:
                 Text("Ce brouillon n'est plus dans Gmail : il a peut-être été envoyé ou supprimé ailleurs. Regarde dans Envoyés avant de le renvoyer.")
@@ -355,7 +363,8 @@ struct ComposeView: View {
         }
         .font(.meta)
         .padding(Space.m)
-        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
+        // Only the icon carries the color; the band is neutral (design system v2, 19/11).
+        .background(Surface.raised, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
     }
 
 }
@@ -432,8 +441,8 @@ struct MailDraftListView: View {
     }
 }
 
-/// A draft on one line, as Gmail's: « Brouillon » in red and to whom; the subject and the start of the text;
-/// the date at the end.
+/// A draft on one line, as Gmail's: « Brouillon » and to whom; the subject and the start of the text; the date at
+/// the end. Gmail writes « Brouillon » in red; here it is grey, red says « late » only (design system v2, 19/11).
 struct MailDraftLine: View {
     let account: String
     let color: Color
@@ -453,9 +462,9 @@ struct MailDraftLine: View {
 
     private var line: some View {
         HStack(spacing: 0) {
-            RoundedRectangle(cornerRadius: 1.5).fill(color).frame(width: 3, height: 22).padding(.leading, Space.m).help(account)
+            Capsule().fill(color).frame(width: 3, height: 22).padding(.leading, Space.m).help(account)
             Color.clear.frame(width: 44, height: 1)
-            (Text("Brouillon").foregroundStyle(.red) + Text(people.isEmpty ? "" : " · \(people.joined(separator: ", "))"))
+            (Text("Brouillon").foregroundStyle(.secondary) + Text(people.isEmpty ? "" : " · \(people.joined(separator: ", "))"))
                 .font(.rowTitle)
                 .lineLimit(1)
                 .frame(width: MailRow.sendersWidth, alignment: .leading)
@@ -464,10 +473,11 @@ struct MailDraftLine: View {
                 + Text(extract.isEmpty ? "" : " — \(extract.replacingOccurrences(of: "\n", with: " "))").font(.rowBody).foregroundStyle(.secondary))
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
+            // Written by an agent: its own color; a failure: the attention's (design system v2, 19/11).
             if agent {
-                Label("préparé par un agent", systemImage: "sparkles").font(.meta).foregroundStyle(Color.accentColor).fixedSize().padding(.horizontal, Space.s)
+                Label("préparé par un agent", systemImage: "sparkles").font(.meta).foregroundStyle(Tint.agent).fixedSize().padding(.horizontal, Space.s)
             }
-            if error != nil { Image(systemName: "exclamationmark.triangle").font(.meta).foregroundStyle(.orange).help(error ?? "").padding(.horizontal, Space.s) }
+            if error != nil { Image(systemName: "exclamationmark.triangle").font(.meta).foregroundStyle(Tint.attention).help(error ?? "").padding(.horizontal, Space.s) }
             Text(MailText.date(date)).font(.meta).foregroundStyle(.secondary).monospacedDigit().lineLimit(1).frame(minWidth: 58, alignment: .trailing)
         }
         .foregroundStyle(.primary)

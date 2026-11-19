@@ -86,7 +86,8 @@ struct ColumnView: View {
         .padding(Space.m)
         .frame(width: width)
         .frame(maxHeight: .infinity, alignment: .top)
-        .background(color.opacity(targeted ? 0.12 : 0.04), in: RoundedRectangle(cornerRadius: Radius.card + 4, style: .continuous))
+        // A panel: the card's radius (design system v2, 19/11). Its tint waits for the Kanban's own lot.
+        .background(color.opacity(targeted ? 0.12 : 0.04), in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         .animation(Motion.quick, value: targeted)
         .dropDestination(for: String.self) { items, _ in
             drop(items, before: nil)

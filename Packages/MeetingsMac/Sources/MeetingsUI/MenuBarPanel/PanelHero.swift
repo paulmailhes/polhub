@@ -3,9 +3,11 @@ import Persistence
 import PolhubDesign
 import SwiftUI
 
-/// The hero of « Coup d'œil » (15/11): a large calm card, tinted with what it speaks of, that says what matters now and
-/// offers one main action (`.glassProminent`, ↩), sometimes a second (`.glass`). It changes with a fade. The
-/// countdown and the recording's clock tick in their own timeline; the rest follows the panel's, every 30 s.
+/// The hero of « Coup d'œil » (15/11): a large calm card that says what matters now and offers one main action
+/// (`.glassProminent`, ↩, in the panel's ink), sometimes a second (`.glass`). It is tinted only while a meeting records
+/// (`Tint.recording`) or when something asks for a look (`Tint.attention`), neutral otherwise (design system v2, 19/11:
+/// one color, one meaning). It changes with a fade. The countdown and the recording's clock tick in their own
+/// timeline; the rest follows the panel's, every 30 s.
 struct PanelHero: View {
     let hero: PanelModel.Hero
     let now: Date
@@ -47,9 +49,11 @@ struct PanelHero: View {
     private func detected(title: String, deadline: Date, canForget: Bool) -> some View {
         // Aligned on the deadline, so both turn with the HUD's.
         let countdown = PeriodicTimelineSchedule(from: deadline.addingTimeInterval(-60), by: 1)
-        return HeroCard(tint: PanelTint.red) {
+        // Neutral, as the logo's outlined circle: nothing records yet, the red starts with the recording (design
+        // system v2, 19/11).
+        return HeroCard(tint: nil) {
             HStack(alignment: .firstTextBaseline) {
-                HeroEyebrow("Réunion détectée", systemImage: "record.circle", tint: PanelTint.red)
+                HeroEyebrow("Réunion détectée", systemImage: "record.circle", tint: nil)
                 Spacer(minLength: Space.s)
                 TimelineView(countdown) { timeline in
                     Text("\(HUDText.remaining(until: deadline, now: timeline.date)) s")
@@ -71,8 +75,8 @@ struct PanelHero: View {
                 Button { actions.user(.accept) } label: {
                     Label("Enregistrer", systemImage: "record.circle").frame(maxWidth: .infinity)
                 }
+                // The panel's ink, as every main action but Arrêter (design system v2, 19/11).
                 .buttonStyle(.glassProminent)
-                .tint(PanelTint.red)
                 .keyboardShortcut(.defaultAction)
                 .help("Enregistrer maintenant (↩)")
             }
@@ -86,11 +90,12 @@ struct PanelHero: View {
         }
     }
 
-    /// Red, the only red of the panel with the round button: voices are recorded. Arrêter is a click, never a key.
+    /// The recording's red (`Tint.recording`), the panel's only red with « Arrêter »: voices are recorded. Arrêter is a
+    /// click, never a key.
     private func recording(title: String, since: Date, detail: String?, meetingID: UUID?) -> some View {
-        HeroCard(tint: PanelTint.red) {
+        HeroCard(tint: Tint.recording) {
             HStack(alignment: .firstTextBaseline) {
-                HeroEyebrow("Enregistre", systemImage: "circle.fill", tint: PanelTint.red, pulse: true)
+                HeroEyebrow("Enregistre", systemImage: "circle.fill", tint: Tint.recording, pulse: true)
                 Spacer(minLength: Space.s)
                 TimelineView(.periodic(from: since, by: 1)) { timeline in
                     Text(DurationText.clock(Int(timeline.date.timeIntervalSince(since))))
@@ -106,15 +111,16 @@ struct PanelHero: View {
             } primary: {
                 Button { actions.user(.stop) } label: { Label("Arrêter", systemImage: "stop.fill") }
                     .buttonStyle(.glassProminent)
-                    .tint(PanelTint.red)
+                    .tint(Tint.recording)
                     .help("Arrêter l'enregistrement")
             }
         }
     }
 
+    /// It still records, and asks for a look: attention's orange (`Tint.attention`, design system v2, 19/11).
     private func presumedEnded(title: String, stopsAt: Date?, meetingID: UUID?, canForget: Bool) -> some View {
-        HeroCard(tint: PanelTint.orange) {
-            HeroEyebrow("Fin de réunion ?", systemImage: "record.circle", tint: PanelTint.orange)
+        HeroCard(tint: Tint.attention) {
+            HeroEyebrow("Fin de réunion ?", systemImage: "record.circle", tint: Tint.attention)
             HeroTitle(title)
             HeroDetail(stopsAt.map { "S'arrête seule à \(PanelModel.clock($0)), sauf si l'on reparle" }
                        ?? "S'arrête seule, sauf si l'on reparle", lines: 2)
@@ -127,7 +133,7 @@ struct PanelHero: View {
             } primary: {
                 Button { actions.user(.stop) } label: { Label("Arrêter maintenant", systemImage: "stop.fill") }
                     .buttonStyle(.glassProminent)
-                    .tint(PanelTint.red)
+                    .tint(Tint.recording)
                     .help("Arrêter l'enregistrement")
             }
         }
@@ -135,16 +141,18 @@ struct PanelHero: View {
 
     // MARK: - The calendar
 
-    /// In the account's color: « Rejoindre » opens the Meet in Dia under that account (↩ or J).
+    /// « Rejoindre » opens the Meet in Dia under the event's account (↩ or J). The account is in its dot, never on the
+    /// card nor on the button, which is ink (design system v2, 19/11): a red or orange account read as an alert.
+    /// Attention's orange says « dans N min », and tints the card once the Meet started without being recorded.
     private func upcoming(_ upcoming: PanelModel.Upcoming) -> some View {
         let event = upcoming.event
-        let color = agenda?.color(for: event.account) ?? PanelTint.gray
-        return HeroCard(tint: upcoming.started ? PanelTint.orange : color) {
+        let color = agenda?.color(for: event.account) ?? Color.secondary
+        return HeroCard(tint: upcoming.started ? Tint.attention : nil) {
             HStack(alignment: .firstTextBaseline) {
                 if upcoming.started {
-                    HeroEyebrow("En cours · pas enregistrée", systemImage: "exclamationmark.circle.fill", tint: PanelTint.orange)
+                    HeroEyebrow("En cours · pas enregistrée", systemImage: "exclamationmark.circle.fill", tint: Tint.attention)
                 } else {
-                    HeroEyebrow(HomeModel.when(event, now: now), systemImage: "calendar", tint: color)
+                    HeroEyebrow(HomeModel.when(event, now: now), systemImage: "calendar", tint: Tint.attention)
                 }
                 Spacer(minLength: Space.s)
                 HStack(spacing: 5) {
@@ -170,7 +178,6 @@ struct PanelHero: View {
                 if event.meetCode != nil {
                     Button { agenda?.join(event) } label: { Label("Rejoindre", systemImage: "video.fill") }
                         .buttonStyle(.glassProminent)
-                        .tint(color)
                         .keyboardShortcut(.defaultAction)
                         .help("Ouvrir le Meet dans Dia avec le compte \(event.account) (↩ ou J)")
                 } else {
@@ -185,15 +192,15 @@ struct PanelHero: View {
 
     /// One action, beside the title: the card stays short.
     private func paused(until: Date, missed: CalendarEventRow?) -> some View {
-        HeroCard(tint: PanelTint.gray) {
-            HeroEyebrow("Détection suspendue", systemImage: "pause.circle.fill", tint: PanelTint.gray)
+        HeroCard(tint: nil) {
+            HeroEyebrow("Détection suspendue", systemImage: "pause.circle.fill", tint: nil)
             HStack(alignment: .center, spacing: Space.m) {
                 HeroTitle("Jusqu'à \(PanelModel.clock(until))")
                 Spacer(minLength: Space.s)
-                // Orange, as the lit round Reprendre under it: one action, one color, whatever the Mac's accent.
+                // The panel's ink, as every main action but Arrêter, and as the lit round Reprendre under it: one
+                // action, one color (design system v2, 19/11).
                 Button { actions.resumeDetection() } label: { Label("Reprendre", systemImage: "play.fill") }
                     .buttonStyle(.glassProminent)
-                    .tint(PanelTint.orange)
                     .controlSize(HeroMetrics.buttons)
                     .keyboardShortcut(.defaultAction)
                     .help("Reprendre la détection (↩)")
@@ -213,11 +220,14 @@ struct PanelHero: View {
         case .transcriptionFailed, .summaryFailed: true
         default: false
         }
-        let tint = failed ? PanelTint.orange : PanelTint.violet
+        // A failure asks for a look (`Tint.attention`); a summary on its way or ready is neutral: the violet said
+        // nothing (design system v2, 19/11).
+        let tint: Color? = failed ? Tint.attention : nil
         return HeroCard(tint: tint) {
             HStack(alignment: .firstTextBaseline) {
+                // A failure colors its icon only: never a colored sentence.
                 HeroEyebrow(eyebrow(report), systemImage: failed ? "exclamationmark.triangle.fill" : report.isPreparing ? "sparkles" : "checkmark.circle.fill",
-                            tint: tint)
+                            tint: tint, iconOnly: failed)
                 Spacer(minLength: Space.s)
                 // When it got ready; while it is prepared, the meeting's length.
                 if let since = report.since, !report.isPreparing {
@@ -249,7 +259,7 @@ struct PanelHero: View {
                 HeroDetail(message, lines: 2)
             default:
                 if let progress = report.progress {
-                    HeroProgress(value: progress, tint: PanelTint.violet).padding(.vertical, 4)
+                    HeroProgress(value: progress, tint: .secondary).padding(.vertical, 4)
                 }
             }
             if report.isPreparing {
@@ -292,19 +302,20 @@ struct PanelHero: View {
     @ViewBuilder
     private func reportAction(_ report: PanelModel.Report) -> some View {
         let open = { context.open(.meeting(report.meetingID)) }
+        // The panel's ink, as every main action but Arrêter (design system v2, 19/11).
         switch report.stage {
         case .ready:
             Button("Lire le compte rendu", action: open)
-                .buttonStyle(.glassProminent).tint(PanelTint.violet)
+                .buttonStyle(.glassProminent)
                 .keyboardShortcut(.defaultAction).help("Ouvrir la réunion sur son compte rendu (↩)")
         case .transcriptReady:
             Button("Lire la transcription", action: open)
-                .buttonStyle(.glassProminent).tint(PanelTint.violet)
+                .buttonStyle(.glassProminent)
                 .keyboardShortcut(.defaultAction).help("Ouvrir la réunion (↩)")
         case .transcriptionFailed:
             if let queue = library?.queue {
                 Button { Task { await queue.retry(meetingID: report.meetingID) } } label: { Label("Réessayer", systemImage: "arrow.clockwise") }
-                    .buttonStyle(.glassProminent).tint(PanelTint.orange)
+                    .buttonStyle(.glassProminent)
                     .keyboardShortcut(.defaultAction).help("Relancer la transcription (↩)")
             } else {
                 Button("Ouvrir la réunion", action: open).buttonStyle(.glass).keyboardShortcut(.defaultAction)
@@ -337,10 +348,10 @@ struct PanelHero: View {
             .padding(Space.l)
             .frame(maxWidth: .infinity, minHeight: HeroMetrics.minHeight, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
-            .background(PanelSurface.card, in: RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
+            .background(PanelSurface.card, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         }
-        .buttonStyle(PanelCardStyle(radius: Radius.hero))
+        .buttonStyle(PanelCardStyle(radius: Radius.card))
         .help(context.agenda != nil ? "Ouvrir l'Accueil (⌘1)" : "Ouvrir Polhub")
     }
 }
@@ -365,34 +376,37 @@ enum HeroMetrics {
     static let minHeight: CGFloat = 90
 }
 
-/// The hero's card: its color at 10 % (16 % in dark), a firmer edge of it, radius 22. No glass under its text. From
-/// 90 to 130 points tall, as the brief wants, so the grid under it moves little from one state to the next: a little
-/// less padding above and below than on the sides, buttons of the regular size. One exception: « Réunion détectée »
-/// with a Meet link, the five lines of the brief's mockup, for its ten seconds.
+/// The hero's card: its color at 10 % (16 % in dark), a firmer edge of it; without a color (`tint` nil), the panel's
+/// calm card (`PanelSurface`), as the tiles and the mails (design system v2, 19/11). Radius 16 (`Radius.card`). No
+/// glass under its text. From 90 to 130 points tall, as the brief wants, so the grid under it moves little from one
+/// state to the next: a little less padding above and below than on the sides, buttons of the regular size. One
+/// exception: « Réunion détectée » with a Meet link, the five lines of the brief's mockup, for its ten seconds.
 private struct HeroCard<Content: View>: View {
-    let tint: Color
+    /// `Tint.recording` or `Tint.attention`; nil, neutral.
+    let tint: Color?
     let content: Content
     @Environment(\.colorScheme) private var scheme
 
-    init(tint: Color, @ViewBuilder content: () -> Content) {
+    init(tint: Color?, @ViewBuilder content: () -> Content) {
         self.tint = tint
         self.content = content()
     }
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: Radius.hero, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+        let dark = scheme == .dark
         VStack(alignment: .leading, spacing: Space.xs) { content }
             .padding(HeroMetrics.padding)
             .frame(maxWidth: .infinity, minHeight: HeroMetrics.minHeight, alignment: .topLeading)
             // Never squeezed under its content: short of room, its buttons spilled over the tiles (16/11).
             .fixedSize(horizontal: false, vertical: true)
-            .background(PanelTint.fill(tint, dark: scheme == .dark), in: shape)
-            .overlay(shape.strokeBorder(PanelTint.edge(tint, dark: scheme == .dark)))
+            .background(tint.map { PanelTint.fill($0, dark: dark) } ?? PanelSurface.card, in: shape)
+            .overlay(shape.strokeBorder(tint.map { PanelTint.edge($0, dark: dark) } ?? PanelSurface.edge))
     }
 }
 
-/// The transcription's or the summary's progress: a thin bar in the hero's color, whatever the Mac's accent; it
-/// moves smoothly, without a jump.
+/// The transcription's or the summary's progress: a thin bar in `tint`, grey in the hero (design system v2, 19/11: the
+/// violet said nothing); it moves smoothly, without a jump.
 private struct HeroProgress: View {
     let value: Double
     let tint: Color
@@ -412,49 +426,52 @@ private struct HeroProgress: View {
     }
 }
 
-/// What will go wrong if nothing is done: in orange, a shade that reads.
+/// What will go wrong if nothing is done: a problem in one line (`ErrorLine`, design system v2, 19/11), its icon in
+/// attention's orange, its sentence in the text's color, never a colored sentence.
 private struct HeroWarning: View {
     let text: String
-    @Environment(\.self) private var environment
 
     init(_ text: String) {
         self.text = text
     }
 
     var body: some View {
-        Label(text, systemImage: "exclamationmark.circle.fill")
+        ErrorLine(text)
             .font(.meta.weight(.medium))
-            .foregroundStyle(PanelTint.orange.readable(in: environment))
             .lineLimit(2)
             .fixedSize(horizontal: false, vertical: true)
     }
 }
 
-/// « DANS 8 MIN », « ENREGISTRE »: the hero's first line, in a shade of its color that reads.
+/// « DANS 8 MIN », « ENREGISTRE »: the hero's first line, in its color (a `Tint`, already one text reads in), grey
+/// without one. A problem colors its icon only (`iconOnly`), never its words (design system v2, 19/11).
 private struct HeroEyebrow: View {
     let text: String
     let systemImage: String
-    let tint: Color
+    let tint: Color?
+    var iconOnly = false
     var pulse = false
-    @Environment(\.self) private var environment
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    init(_ text: String, systemImage: String, tint: Color, pulse: Bool = false) {
+    init(_ text: String, systemImage: String, tint: Color?, iconOnly: Bool = false, pulse: Bool = false) {
         self.text = text
         self.systemImage = systemImage
         self.tint = tint
+        self.iconOnly = iconOnly
         self.pulse = pulse
     }
 
     var body: some View {
+        let colored = tint.map { AnyShapeStyle($0) } ?? AnyShapeStyle(.secondary)
         HStack(alignment: .firstTextBaseline, spacing: 5) {
             Image(systemName: systemImage)
                 .font(.system(size: 11, weight: .bold))
                 .symbolEffect(.pulse, isActive: pulse && !reduceMotion)
+                .foregroundStyle(colored)
             Text(text.uppercased()).tracking(0.3).lineLimit(1)
+                .foregroundStyle(iconOnly ? AnyShapeStyle(.secondary) : colored)
         }
         .font(.meta.weight(.semibold))
-        .foregroundStyle(tint.readable(in: environment))
     }
 }
 

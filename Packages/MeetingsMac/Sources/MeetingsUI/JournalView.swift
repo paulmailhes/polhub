@@ -27,10 +27,12 @@ struct JournalView: View {
         }
     }
 
+    /// A missed meeting and an alert in the one color of « something is wrong », the symbol tells which (design system
+    /// v2, 19/11).
     @ViewBuilder private func icon(_ kind: JournalKind) -> some View {
         switch kind {
-        case .missed: Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.orange)
-        case .alert: Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+        case .missed: Image(systemName: "exclamationmark.circle.fill").foregroundStyle(Tint.attention)
+        case .alert: Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Tint.attention)
         case .info: Image(systemName: "info.circle").foregroundStyle(.secondary)
         }
     }

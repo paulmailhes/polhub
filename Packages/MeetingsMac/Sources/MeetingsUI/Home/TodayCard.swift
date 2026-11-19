@@ -10,8 +10,9 @@ enum TodayText {
     }
 }
 
-/// « Aujourd'hui » (the Accueil's pass, 18/11): the next meeting large — its countdown in the accent from a quarter of
-/// an hour, « Rejoindre » lit ten minutes before —, the others on one line each; when nothing is left, the next one.
+/// « Aujourd'hui » (the Accueil's pass, 18/11): the next meeting large — its countdown in the color of attention from a
+/// quarter of an hour, « Rejoindre » the principal button ten minutes before (design system v2, 19/11) —, the others on
+/// one line each; when nothing is left, the next one.
 /// In the evening (0.36.0), from the hour set in Réglages › Calendrier and once the day's last meeting is over:
 /// « Demain · jeudi 19 novembre », tomorrow's meetings.
 struct TodayCard: View {
@@ -27,8 +28,8 @@ struct TodayCard: View {
             let now = context.date
             let shown = HomeModel.dayShown(agenda.shown, now: now, tomorrowFrom: tomorrowFrom, calendar: calendar)
             let next = shown.tomorrow ? shown.events.first { !$0.allDay } : HomeModel.next(agenda.shown, now: now, calendar: calendar)
-            // The card put forward (0.37.0): the first of the day, the roundest.
-            HomeCard(shown.title, hero: true) {
+            // The card put forward (0.37.0): the first of the day; as round as the others (design system v2, 19/11).
+            HomeCard(shown.title) {
                 if shown.events.isEmpty {
                     let day = shown.tomorrow ? calendar.date(byAdding: .day, value: 1, to: now) ?? now : now
                     if shown.tomorrow, !agenda.accounts.isEmpty { EmptyLine("Rien demain.") }
@@ -66,7 +67,8 @@ struct TodayCard: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(event.title).font(.title3.weight(.semibold)).foregroundStyle(.primary).lineLimit(2)
                     HStack(spacing: 0) {
-                        Text(when).foregroundStyle(soon ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
+                        // « dans 12 min »: soon, the color of attention (design system v2, 19/11).
+                        Text(when).foregroundStyle(soon ? AnyShapeStyle(Tint.attention) : AnyShapeStyle(.secondary))
                             .fontWeight(soon ? .semibold : .regular)
                         Text(String(rest)).foregroundStyle(.secondary)
                     }
@@ -82,9 +84,10 @@ struct TodayCard: View {
             // Far off (tomorrow's first, from the evening): no « Rejoindre » before its last ten minutes.
             if joinable, left <= 10 || calendar.isDate(event.startAt, inSameDayAs: now) {
                 if left <= 10 {
+                    // The Accueil's one principal button, ten minutes before: full and matte, at the accent; no glass
+                    // in the content (design system v2, 19/11).
                     Button { agenda.join(event) } label: { Label("Rejoindre", systemImage: "video.fill") }
-                        .buttonStyle(.glassProminent)
-                        .controlSize(.small)
+                        .buttonStyle(.primary)
                         .help("Ouvre le Meet dans Dia avec le compte \(event.account)")
                 } else {
                     Button { agenda.join(event) } label: { Label("Rejoindre", systemImage: "video") }

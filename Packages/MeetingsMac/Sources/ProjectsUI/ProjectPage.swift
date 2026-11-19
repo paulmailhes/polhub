@@ -316,8 +316,9 @@ struct ProjectPage: View {
                 VStack(alignment: .leading, spacing: Space.s) {
                     TextField("Ce qui a été fait aujourd'hui", text: $newEntryTitle).textFieldStyle(.roundedBorder)
                     TextEditor(text: $newEntryBody).font(.body).frame(minHeight: 70)
-                        .overlay(RoundedRectangle(cornerRadius: Radius.small, style: .continuous).stroke(Surface.stroke))
-                    Button("Ajouter au journal", action: addEntry).buttonStyle(.glass)
+                        .overlay(RoundedRectangle(cornerRadius: Radius.control, style: .continuous).stroke(Surface.stroke))
+                    // No glass in the content: a secondary action (design system v2, 19/11).
+                    Button("Ajouter au journal", action: addEntry).buttonStyle(.secondary)
                         .disabled(newEntryTitle.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
                 .transition(.opacity)
@@ -416,8 +417,13 @@ struct ProjectPage: View {
                         .help(draft.codeFolder ?? "Le dossier de code, pour que Claude Code reconnaisse le projet")
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }
-                if let github = draft.github.flatMap(URL.init(string:)) { Link("GitHub", destination: github) }
-                if let notion = draft.notion.flatMap(URL.init(string:)) { Link("Notion", destination: notion) }
+                // A link reads by its underline, in the accent's ink, no longer by its color (design system v2, 19/11).
+                if let github = draft.github.flatMap(URL.init(string:)) {
+                    Link(destination: github) { Text("GitHub").underline().foregroundStyle(Tint.accent) }
+                }
+                if let notion = draft.notion.flatMap(URL.init(string:)) {
+                    Link(destination: notion) { Text("Notion").underline().foregroundStyle(Tint.accent) }
+                }
             }
             Card {
                 SectionTitle("Contacts", systemImage: "person.2", count: contacts.count)
@@ -511,7 +517,8 @@ struct ProjectLogoEditor: View {
     @State private var choosing = false
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 48 * 0.22 + 4, style: .continuous)
+        // Around an image: the radius inside a card (design system v2, 19/11).
+        let shape = RoundedRectangle(cornerRadius: Radius.inner, style: .continuous)
         Menu {
             Button("Choisir une image…") { choosing = true }
             if logos.hasOwnImage(project.id) {
@@ -534,7 +541,8 @@ struct ProjectLogoEditor: View {
         .menuIndicator(.hidden)
         .fixedSize()
         .overlay {
-            shape.strokeBorder(Color.accentColor, lineWidth: 2).opacity(targeted ? 1 : 0)
+            // Where a drop lands, as what is chosen: the accent, ink (design system v2, 19/11).
+            shape.strokeBorder(Tint.accent, lineWidth: 2).opacity(targeted ? 1 : 0)
         }
         .animation(Motion.quick, value: targeted)
         // A file only, read away from the main thread: a web address from a browser is refused (correctifs, 15/11).

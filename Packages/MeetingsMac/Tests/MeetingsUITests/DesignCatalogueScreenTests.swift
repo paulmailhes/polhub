@@ -50,7 +50,7 @@ private struct DesignCatalogue: View {
                     swatch(.recording, "Enregistrement", "une réunion en cours")
                     swatch(.done, "Livré", "c'est fait")
                     swatch(.agent, "Préparé par Colin", "écrit par un agent")
-                    (Text("Dans un texte, ") + Text("un lien").underline() + Text(" se reconnaît à son soulignement."))
+                    Text("Dans un texte, \(Text("un lien").underline()) se reconnaît à son soulignement.")
                         .font(.system(size: 13)).foregroundStyle(.secondary)
                 }
                 section("Boutons : quatre rôles") {

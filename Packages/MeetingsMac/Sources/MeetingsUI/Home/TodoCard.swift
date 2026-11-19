@@ -4,8 +4,9 @@ import PolhubDesign
 import SwiftUI
 
 /// « À faire » (0.36.0, in a card 0.37.0): the projects where it is Paul's turn and those whose deadline is close,
-/// grouped by day, the late first. A line: the project and its client, when in words — the late in the accent —, the task
-/// of the moment under it. A click unfolds it on what is to do (the task, every action left, « Ouvrir le projet »).
+/// grouped by day, the late first. A line: the project and its client, when in words — the late in red (`Tint.late`,
+/// design system v2, 19/11) —, the task of the moment under it. A click unfolds it on what is to do (the task, every
+/// action left, « Ouvrir le projet »).
 /// « Reporter » and « Livré »: always on a late line or an unfolded one, at the hover on the other dated ones; « Livré »
 /// proposes the project's next call as the new deadline; « Annuler » for a few seconds at the head of the card.
 struct TodoCard: View {
@@ -96,7 +97,8 @@ struct TodoCard: View {
                             Text(when)
                                 .font(.meta.monospacedDigit())
                                 .fontWeight(late ? .semibold : .regular)
-                                .foregroundStyle(late ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
+                                // « depuis 6 j »: late, in red (design system v2, 19/11).
+                                .foregroundStyle(late ? AnyShapeStyle(Tint.late) : AnyShapeStyle(.secondary))
                                 .lineLimit(1)
                                 // At the hover, the buttons take its place.
                                 .opacity(hoverActions ? 0 : 1)

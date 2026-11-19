@@ -61,7 +61,8 @@ struct SummaryCard: View {
     private func controls(missing: String?) -> some View {
         HStack(spacing: Space.xs) {
             if let missing {
-                Chip("Partiel", systemImage: "exclamationmark.triangle", tint: .orange)
+                // To check: the color of attention (design system v2, 19/11).
+                Chip("Partiel", systemImage: "exclamationmark.triangle", tint: Tint.attention)
                     .help(missing.prefix(1).uppercased() + missing.dropFirst() + ".")
             }
             // The words when there is room, the icons alone otherwise.
@@ -101,13 +102,20 @@ struct SummaryCard: View {
                 }
             }
             HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-                Text(status)
-                    .font(.rowBody)
-                    .foregroundStyle(job?.state == .failed ? Color.orange : .secondary)
-                    .contentTransition(.numericText())
-                    .fixedSize(horizontal: false, vertical: true)
+                // A failure: said by `ErrorLine`; « Réessayer » in the secondary role, no glass in the content (design
+                // system v2, 19/11).
+                Group {
+                    if job?.state == .failed {
+                        ErrorLine(status)
+                    } else {
+                        Text(status).foregroundStyle(.secondary)
+                    }
+                }
+                .font(.rowBody)
+                .contentTransition(.numericText())
+                .fixedSize(horizontal: false, vertical: true)
                 if job?.state == .failed, let redo {
-                    Button("Réessayer", action: redo).buttonStyle(.glass).controlSize(.small)
+                    Button("Réessayer", action: redo).buttonStyle(.secondary).controlSize(.small)
                 }
             }
         }
@@ -139,7 +147,8 @@ struct SummaryCard: View {
                 part("Points clés") {
                     ForEach(Array(sections.points.enumerated()), id: \.offset) { _, point in
                         HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-                            Text("•").font(.rowBody.weight(.bold)).foregroundStyle(Color(hex: Palette.violet))
+                            // Decor, in grey: a color keeps one meaning (design system v2, 19/11).
+                            Text("•").font(.rowBody.weight(.bold)).foregroundStyle(.secondary)
                             Text(point).font(.rowBody).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                         }
                     }
@@ -149,7 +158,8 @@ struct SummaryCard: View {
                 part("Décisions") {
                     ForEach(Array(sections.decisions.enumerated()), id: \.offset) { _, decision in
                         HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-                            Image(systemName: "checkmark.seal.fill").font(.system(size: 12)).foregroundStyle(Color(hex: Palette.green))
+                            // Decor, in grey: a color keeps one meaning (design system v2, 19/11).
+                            Image(systemName: "checkmark.seal.fill").font(.system(size: 12)).foregroundStyle(.secondary)
                             Text(decision).font(.rowBody).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                         }
                     }

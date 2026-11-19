@@ -4,8 +4,9 @@ import SwiftUI
 
 /// The three round buttons of « Coup d'œil », as Control Center's toggles: a circle of glass, filled with its color
 /// when it is « on », its name under it. Enregistrer only starts a recording, from rest: a meeting is answered and
-/// stopped in the hero, so Arrêter is never there twice (« Tuiles allégées », Paul, 16/11). Suspendre becomes Reprendre
-/// (orange) while detection is paused. A gesture leaves the panel open; the hero follows.
+/// stopped in the hero, so Arrêter is never there twice (« Tuiles allégées », Paul, 16/11). Suspendre becomes Reprendre,
+/// lit in Polhub's ink as the hero's Reprendre (design system v2, 19/11), while detection is paused. A gesture leaves
+/// the panel open; the hero follows.
 struct PanelButtons: View {
     let context: CoupDoeilContext
     let hasMailboxes: Bool
@@ -33,12 +34,13 @@ struct PanelButtons: View {
         if app.isDevelopment {
             // The development build never detects on its own: its switch, here.
             RoundToggle(title: "Détection", systemImage: app.detectionOn ? "dot.radiowaves.left.and.right" : "antenna.radiowaves.left.and.right.slash",
-                        lit: app.detectionOn, tint: Color.accentColor,
+                        lit: app.detectionOn, tint: Tint.accent,
                         help: app.detectionOn ? "Couper la détection (version de développement)" : "Activer la détection (version de développement)") {
                 context.actions.setDetection(!app.detectionOn)
             }
         } else if let until = app.pausedUntil {
-            RoundToggle(title: "Reprendre", systemImage: "play.fill", lit: true, tint: PanelTint.orange,
+            // Lit in Polhub's ink, as the hero's Reprendre above it: one action, one color (design system v2, 19/11).
+            RoundToggle(title: "Reprendre", systemImage: "play.fill", lit: true, tint: Tint.accent,
                         help: "Détection suspendue jusqu'à \(PanelModel.clock(until)) : la reprendre") {
                 context.actions.resumeDetection()
             }
@@ -50,12 +52,13 @@ struct PanelButtons: View {
     }
 }
 
-/// A round toggle: 44 points of glass, its color when on, its name in 12 points under it.
+/// A round toggle: 44 points of glass, its color when on (Polhub's ink unless told otherwise, design system v2, 19/11),
+/// its name in 12 points under it.
 struct RoundToggle: View {
     let title: String
     let systemImage: String
     var lit = false
-    var tint: Color = .accentColor
+    var tint: Color = Tint.accent
     let help: String
     let action: () -> Void
 
@@ -87,15 +90,19 @@ private struct RoundToggleCircle: View {
     @Environment(\.panelPressed) private var pressed
 
     var body: some View {
+        // Lit, the glyph and its veil take the accent's opposite (`Tint.onAccent`), as a `.primary` button's label:
+        // white on ink in light, ink on the near-white ink of dark, where a white glyph would vanish (design system v2,
+        // 19/11).
+        let onTint = lit ? Tint.onAccent.color : Color.primary
         Image(systemName: systemImage)
             .font(.system(size: 16, weight: .medium))
-            .foregroundStyle(lit ? Color.white : Color.primary)
+            .foregroundStyle(onTint)
             .frame(width: 44, height: 44)
             .background {
                 if lit { Circle().fill(tint) }
             }
             .overlay {
-                Circle().fill((lit ? Color.white : Color.primary).opacity(pressed ? 0.16 : hovered ? 0.08 : 0))
+                Circle().fill(onTint.opacity(pressed ? 0.16 : hovered ? 0.08 : 0))
             }
             .glassEffect(lit ? .regular.tint(tint) : .regular, in: .circle)
     }

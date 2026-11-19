@@ -69,7 +69,8 @@ struct NewProjectSheet: View {
                     create(draft)
                     dismiss()
                 }
-                .buttonStyle(.glassProminent)
+                // The window's principal action: full and matte, at the accent (design system v2, 19/11).
+                .buttonStyle(.primary)
                 .keyboardShortcut(.defaultAction)
                 .disabled(!named)
             }

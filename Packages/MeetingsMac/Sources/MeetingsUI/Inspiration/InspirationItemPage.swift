@@ -115,7 +115,8 @@ struct InspirationItemPage: View {
                             Button { InspirationActions.open(link.target) } label: {
                                 Label(link.title, systemImage: link.isFinder ? "folder" : "arrow.up.right")
                             }
-                            .buttonStyle(.glass)
+                            // No glass in the content: secondary actions (design system v2, 19/11).
+                            .buttonStyle(.secondary)
                             .help(link.help)
                         }
                     }
@@ -133,7 +134,8 @@ struct InspirationItemPage: View {
                                 .padding(.vertical, 3)
                             }
                             .buttonStyle(.hover(.capsule))
-                            .foregroundStyle(Color.accentColor)
+                            // A link, its icon says so: the accent, ink (design system v2, 19/11).
+                            .foregroundStyle(Tint.accent)
                             .help(url.absoluteString)
                         }
                     }

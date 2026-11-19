@@ -6,6 +6,7 @@ import MeetingsUI
 import Observability
 import Persistence
 import Pipeline
+import PolhubDesign
 import ProbeKit
 import SwiftUI
 
@@ -17,7 +18,9 @@ struct PolhubApp: App {
     /// clock while open). It never opens by itself, and is never closed by hand: it closes as the focus leaves.
     var body: some Scene {
         MenuBarExtra {
+            // Polhub's own accent, ink, whatever the Mac's (design system v2, 19/11).
             MenuBarPanel(context: delegate.coupDoeil)
+                .tint(Tint.accent)
         } label: {
             MenuBarIcon(model: delegate.model)
         }

@@ -73,8 +73,9 @@ struct MailListView: View {
     private func content(_ threads: [MailThreadRow], mine: Set<String>) -> some View {
         VStack(spacing: 0) {
             if let failure = mails.failure {
+                // A mailbox that fails: the icon at the attention's color, the sentence grey (design system v2, 19/11).
                 HStack(spacing: Space.s) {
-                    Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange)
+                    Image(systemName: "exclamationmark.triangle").foregroundStyle(Tint.attention)
                     Text("\(AccountStyle.label(for: failure.account)) : \(failure.text)").foregroundStyle(.secondary).lineLimit(2)
                     Spacer(minLength: Space.m)
                     Button("Comptes Google") { router.openSettings(.accounts) }
@@ -320,8 +321,9 @@ struct MailRow: View {
     /// Where the subject starts: the files line up under it.
     static let subjectStart: CGFloat = boxEnd + sendersWidth + Space.l
 
-    /// What the line says of Paul's drafts in the thread: « Brouillon » (red) while one is under way; « Programmé »
-    /// (grey) when his reply waits for its time; « En retard » (red, as in Programmés) when it waits for Paul.
+    /// What the line says of Paul's drafts in the thread: « Brouillon » (grey: red says « late » only, design system
+    /// v2, 19/11) while one is under way; « Programmé » (grey) when his reply waits for its time; « En retard » (the
+    /// late's red, as in Programmés) when it waits for Paul.
     enum DraftMark: Equatable {
         case none, draft, planned, late
     }
@@ -338,7 +340,7 @@ struct MailRow: View {
         let ground = ticked ? MailSurface.ticked : (thread.unread ? MailSurface.unread : MailSurface.read)
         VStack(alignment: .leading, spacing: Space.s) {
             HStack(spacing: 0) {
-                RoundedRectangle(cornerRadius: 1.5).fill(mails.color(for: thread.account)).frame(width: 3, height: 22)
+                Capsule().fill(mails.color(for: thread.account)).frame(width: 3, height: 22)
                     .padding(.leading, Space.m)
                     .help(thread.account)
                 Button { mails.select(thread.id, extend: NSEvent.modifierFlags.contains(.shift)) } label: {
@@ -417,9 +419,10 @@ struct MailRow: View {
         }
     }
 
-    /// « Camille, moi 3 », and « Brouillon » in red when Paul has one under way, as Gmail says it; « Programmé »
-    /// in grey when his reply waits for its time, « En retard » in red when it waits for him (wave B). In
-    /// « Envoyés », who Paul wrote to: « À : Camille, Jules » (15/11).
+    /// « Camille, moi 3 », and « Brouillon » in grey when Paul has one under way (Gmail writes it in red, but red now
+    /// says « late » only: design system v2, 19/11); « Programmé » in grey when his reply waits for its time,
+    /// « En retard » in the late's red when it waits for him (wave B). In « Envoyés », who Paul wrote to:
+    /// « À : Camille, Jules » (15/11).
     private var senders: some View {
         let mark = Self.draftMark(mails.drafts.filter { $0.threadKey == thread.id }, scheduled: mails.scheduled)
         let weight: Font.Weight = thread.unread ? .bold : .regular
@@ -427,9 +430,10 @@ struct MailRow: View {
         let names = recipients.isEmpty
             ? Text(MailText.names(thread, mine: mine)).font(.rowTitle.weight(weight))
             : Text("À : ").font(.rowTitle).foregroundStyle(.secondary) + Text(MailText.recipients(recipients, mine: mine)).font(.rowTitle.weight(weight))
+        let markColor: Color = mark == .late ? Tint.late : .secondary
         return (names
             + Text(thread.messageCount > 1 ? " \(thread.messageCount)" : "").font(.meta).foregroundStyle(.secondary)
-            + Text(mark == .draft ? ", Brouillon" : mark == .late ? ", En retard" : "").font(.rowTitle).foregroundStyle(.red)
+            + Text(mark == .draft ? ", Brouillon" : mark == .late ? ", En retard" : "").font(.rowTitle).foregroundStyle(markColor)
             + Text(mark == .planned ? ", Programmé" : "").font(.rowTitle).foregroundStyle(.secondary))
             .lineLimit(1)
     }
@@ -488,16 +492,6 @@ struct MailFileChips: View {
         if ["zip", "rar", "7z"].contains(where: { name.hasSuffix("." + $0) }) { return "doc.zipper" }
         return "doc.text.fill"
     }
-
-    static func tint(_ file: MailAttachment) -> Color {
-        switch icon(file) {
-        case "doc.richtext.fill": Color(hex: Palette.red)
-        case "photo.fill": Color(hex: Palette.violet)
-        case "tablecells.fill": Color(hex: Palette.green)
-        case "doc.zipper": .secondary
-        default: Color(hex: Palette.blue)
-        }
-    }
 }
 
 /// One file under a line: its icon (a wheel while it comes from Gmail), its name; a click previews it, or
@@ -516,7 +510,9 @@ struct MailFileChip: View {
                     if opening {
                         ProgressView().controlSize(.mini)
                     } else {
-                        Image(systemName: MailFileChips.icon(file)).foregroundStyle(MailFileChips.tint(file))
+                        // The symbol tells the kind of file; a color per kind was decoration, and red says « late »
+                        // now (design system v2, 19/11): grey.
+                        Image(systemName: MailFileChips.icon(file)).foregroundStyle(.secondary)
                     }
                 }
                 .frame(width: 16, height: 16)

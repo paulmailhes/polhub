@@ -123,7 +123,7 @@ struct GuestRow: View {
             standing(link, person: person)
         }
         .padding(.vertical, 2)
-        .hoverRow(radius: Radius.small, inset: Space.xs)
+        .hoverRow(radius: Radius.control, inset: Space.xs)
         .contextMenu { items }
     }
 
@@ -135,17 +135,18 @@ struct GuestRow: View {
                 Chip("Dans « \(project.name) »", systemImage: "checkmark", tint: PeopleStyle.color(of: project))
                     .help("Contact lié au projet « \(project.name) »")
             } else {
+                // A gesture to make, at the app's accent (design system v2, 19/11).
                 Button { add(person) } label: { Label("Ajouter au projet", systemImage: "plus") }
                     .buttonStyle(.hover(.capsule))
                     .font(.meta.weight(.medium))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Tint.accent)
                     .help(link == .stranger ? "En faire un contact du projet « \(project.name) »" : "Lier ce contact au projet « \(project.name) »")
             }
         } else if link == .stranger {
             Button { add(person) } label: { Label("Ajouter aux contacts", systemImage: "plus") }
                 .buttonStyle(.hover(.capsule))
                 .font(.meta.weight(.medium))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(Tint.accent)
         } else {
             Chip("Contact", systemImage: "person.crop.circle.badge.checkmark")
         }
@@ -155,7 +156,8 @@ struct GuestRow: View {
     private var answer: some View {
         switch guest.response {
         case "declined": Image(systemName: "xmark.circle").font(.meta).foregroundStyle(.secondary).help("A refusé")
-        case "accepted": Image(systemName: "hand.thumbsup.fill").font(.meta).foregroundStyle(.green).help("A accepté l'invitation")
+        // Accepted: the color of « done » (design system v2, 19/11).
+        case "accepted": Image(systemName: "hand.thumbsup.fill").font(.meta).foregroundStyle(Tint.done).help("A accepté l'invitation")
         case "tentative": Image(systemName: "questionmark.circle").font(.meta).foregroundStyle(.secondary).help("Peut-être")
         default: EmptyView()
         }

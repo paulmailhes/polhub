@@ -49,7 +49,7 @@ enum ClaudeAccountsText {
         var model: String?
         /// « tient · lun. 20 h », « plein jeu. 14 h », « plein · reprend lun. 20 h », « pas de relevé récent ».
         var verdict: String
-        /// Full, or to be before the reset: said in the accent.
+        /// Full, or to be before the reset: said in the color of attention (design system v2, 19/11).
         var alarming: Bool
         /// The five hours, past three quarters only: « session 82 % · reprend à 23:40 ».
         var session: String?

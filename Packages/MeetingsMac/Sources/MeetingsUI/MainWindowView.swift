@@ -590,6 +590,9 @@ public struct MainWindowView<Diagnostic: View>: View {
             }
         }
         .frame(minWidth: Self.minimumWidth, minHeight: 520)
+        // Polhub's own accent, ink, whatever the Mac's (design system v2, 19/11): the app sets it on the window's root
+        // too; here, a window made by a test or a capture shows it as well.
+        .tint(Tint.accent)
     }
 
     private func openAskedProject(_ projects: ProjectLibrary) {
@@ -700,11 +703,13 @@ struct MeetingRowView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Image(systemName: summary.kind == .failed ? "exclamationmark.triangle" : "sparkles")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(summary.kind == .failed ? Color.orange : Color(hex: Palette.violet))
+                        // A summary that failed: the icon of attention, its sentence grey as the others, never an
+                        // orange sentence; the sparkles, a decoration, grey (design system v2, 19/11).
+                        .foregroundStyle(summary.kind == .failed ? Tint.attention : Color.secondary)
                         .symbolEffect(.pulse, isActive: summary.kind == .writing)
                     Text(summary.text)
                         .font(.rowBody)
-                        .foregroundStyle(summary.kind == .failed ? Color.orange : .secondary)
+                        .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
             }
@@ -716,13 +721,15 @@ struct MeetingRowView: View {
 
     @ViewBuilder
     private var chips: some View {
+        // A meeting that records: the red of the recording; one interrupted, failed or to check: the color of attention
+        // (design system v2, 19/11).
         if row.status.isUnfinished {
-            Chip("En cours", systemImage: "record.circle", tint: .red)
+            Chip("En cours", systemImage: "record.circle", tint: Tint.recording)
         } else if row.status == .interrupted {
-            Chip("Interrompue", tint: .orange)
+            Chip("Interrompue", tint: Tint.attention)
         }
         if let badge, !row.status.isUnfinished {
-            Chip(badge, tint: badge == "Échec" || badge == "À vérifier" ? .orange : nil)
+            Chip(badge, tint: badge == "Échec" || badge == "À vérifier" ? Tint.attention : nil)
         }
     }
 }

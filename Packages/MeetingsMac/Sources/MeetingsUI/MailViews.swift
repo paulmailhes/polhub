@@ -62,7 +62,8 @@ struct MailUndoBar: View {
                 TimelineView(.periodic(from: .now, by: 0.5)) { context in
                     let left = max(0, Int(sending.at.timeIntervalSince(context.date).rounded(.up)))
                     HStack(spacing: Space.m) {
-                        Image(systemName: "paperplane.fill").foregroundStyle(Color.accentColor)
+                        // What leaves is told, not called: grey; « Annuler » is the action (design system v2, 19/11).
+                        Image(systemName: "paperplane.fill").foregroundStyle(.secondary)
                         Text(left > 0 ? "« \(sending.subject) » part dans \(left) s" : "Envoi de « \(sending.subject) »…").lineLimit(1)
                         if !sending.leaving {
                             undoButton { mails.cancelSend() }.disabled(left == 0)
@@ -89,14 +90,14 @@ struct MailUndoBar: View {
         .animation(.snappy, value: mails.undoable?.text)
     }
 
-    /// « Annuler » in the accent color, a fill under the pointer: the glass is the capsule's only, never glass on
-    /// glass (correctifs, 15/11).
+    /// « Annuler » at the app's accent, ink (design system v2, 19/11), a fill under the pointer: the glass is the
+    /// capsule's only, never glass on glass (correctifs, 15/11).
     private func undoButton(_ action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text("Annuler").fontWeight(.semibold).padding(.horizontal, Space.s).padding(.vertical, Space.xs)
         }
         .buttonStyle(.hover(.capsule))
-        .foregroundStyle(Color.accentColor)
+        .foregroundStyle(Tint.accent)
         .keyboardShortcut("z", modifiers: .command)
     }
 }
@@ -262,13 +263,15 @@ struct MailFilingChip: View {
         }
     }
 
+    /// A project's chip keeps the project's color; a project not found and the cases are neutral (design system v2,
+    /// 19/11): the pink of « Perso » said nothing, and green now says « done ».
     private func label(_ filing: MailFiling?) -> (text: String, color: Color)? {
         switch filing {
         case .project(let id)?:
             let project = mails.project(id)
-            return (project?.name ?? "Projet", project.map(ProjectViews.tint) ?? .accentColor)
-        case .perso?: return ("Perso", .pink)
-        case .payments?: return ("Paiements", .green)
+            return (project?.name ?? "Projet", project.map(ProjectViews.tint) ?? .secondary)
+        case .perso?: return ("Perso", .secondary)
+        case .payments?: return ("Paiements", .secondary)
         case .services? where always: return ("Services", .secondary)
         case .newsletters? where always: return ("Newsletters", .secondary)
         default: return always ? ("Ranger", .secondary) : nil
@@ -547,7 +550,9 @@ struct MailThreadView: View {
                             Button { reply(.forward) } label: { Label("Transférer", systemImage: "arrowshape.turn.up.right") }
                                 .help("Transférer")
                         }
-                        .buttonStyle(.glass)
+                        // No glass in the content (design system v2, 19/11): three secondary buttons; « Répondre » as
+                        // the principal comes with lot 6.
+                        .buttonStyle(.secondary)
                         .controlSize(.large)
                         .padding(.top, Space.xl)
                     }
@@ -704,7 +709,8 @@ struct MailThreadView: View {
 }
 
 /// At the top of a thread put aside (wave B, 15/11): where it is, what Gmail does with it, and the way back. On the
-/// page's ground, never glass: the prominent button is the page's action.
+/// page's ground, never glass: the principal button is the page's action. Only its icon carries a color (design
+/// system v2, 19/11).
 struct MailAsideBanner: View {
     let aside: MailAside
     let bringBack: () -> Void
@@ -713,19 +719,18 @@ struct MailAsideBanner: View {
         HStack(spacing: Space.m) {
             Image(systemName: aside == .spam ? "exclamationmark.octagon.fill" : "trash.fill")
                 .font(.system(size: 18))
-                // Orange is « to check », as the design system says: a spam is; the trash is only grey.
-                .foregroundStyle(aside == .spam ? Color(hex: Palette.orange) : Color.secondary)
+                // « To check » is the attention's color (design system v2, 19/11): a spam is; the trash is only grey.
+                .foregroundStyle(aside == .spam ? Tint.attention : Color.secondary)
             Text(aside.banner).font(.rowBody).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: Space.m)
             Button(action: bringBack) {
                 Label(aside.gesture.title(), systemImage: aside.gesture.icon)
             }
-            .buttonStyle(.glassProminent)
+            .buttonStyle(.primary)
             .help(aside == .spam ? "Remettre ce fil en boîte de réception : Gmail apprend que ce n'est pas un spam" : "Remettre ce fil en boîte de réception")
         }
         .padding(.horizontal, Space.l).padding(.vertical, Space.m)
-        .background((aside == .spam ? Color(hex: Palette.orange).opacity(0.1) : Surface.fill),
-                    in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
+        .background(Surface.fill, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
     }
 }
 
@@ -874,7 +879,7 @@ struct MailMessageView: View {
         }
         .font(.meta)
         .padding(Space.m)
-        .background(Surface.fill, in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
+        .background(Surface.fill, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
     }
 
     @ViewBuilder
@@ -902,7 +907,7 @@ struct MailMessageView: View {
                         }
                     }
                     .padding(.horizontal, Space.m).padding(.vertical, Space.s)
-                    .background(Surface.fill, in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
+                    .background(Surface.fill, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
                 }
                 MailBodyView(document: MailHTML.document(body: body, isHTML: isHTML, images: images, collapseQuote: collapseQuote,
                                                          dark: scheme == .dark && !onLight),
@@ -916,7 +921,8 @@ struct MailMessageView: View {
                 if !message.files.isEmpty, !isSpam { files }
             }
         } else if let failure = model.failed[message.id] {
-            Label("Ce message n'a pas pu être lu : \(failure)", systemImage: "exclamationmark.triangle").font(.rowBody).foregroundStyle(.orange)
+            // A failure: the icon at the attention's color, the sentence at the text's (design system v2, 19/11).
+            ErrorLine("Ce message n'a pas pu être lu : \(failure)").font(.rowBody)
         } else {
             ProgressView().controlSize(.small)
         }
@@ -1044,9 +1050,10 @@ struct MailSubscriptionsView: View {
                 Text("Dernier : \(MailText.date(subscription.lastAt))").font(.meta).foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            // No glass in the content: secondary buttons (design system v2, 19/11).
             if !subscription.inboxThreads.isEmpty {
                 Button("Tout archiver (\(subscription.inboxThreads.count))") { mails.archiveAll(subscription) }
-                    .buttonStyle(.glass)
+                    .buttonStyle(.secondary)
                     .help("Archiver ses mails encore en boîte de réception")
             }
             if let left {
@@ -1054,7 +1061,7 @@ struct MailSubscriptionsView: View {
                     .font(.meta).foregroundStyle(.secondary)
             } else if let method {
                 Button("Se désabonner") { mails.askUnsubscribe(sender: subscription.sender, method: method) }
-                    .buttonStyle(.glass)
+                    .buttonStyle(.secondary)
                     .help({
                         switch method {
                         case .oneClick: "En un clic, auprès de \(method.domain)"

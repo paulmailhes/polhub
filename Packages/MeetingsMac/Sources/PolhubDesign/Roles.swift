@@ -31,14 +31,16 @@ private struct RoleButtonBody: View {
     let primary: Bool
     @State private var hovering = false
     @Environment(\.isEnabled) private var enabled
+    @Environment(\.controlSize) private var size
 
     var body: some View {
+        let metrics = RoleButton.metrics(size)
         let shape = RoundedRectangle(cornerRadius: RoleButton.radius, style: .continuous)
         configuration.label
-            .font(.system(size: 13, weight: primary ? .semibold : .medium))
+            .font(.system(size: metrics.text, weight: primary ? .semibold : .medium))
             .foregroundStyle(primary ? Tint.onAccent.color : Color.primary)
-            .padding(.horizontal, RoleButton.padding)
-            .frame(minHeight: RoleButton.height)
+            .padding(.horizontal, metrics.padding)
+            .frame(minHeight: metrics.height)
             .background {
                 if primary {
                     shape.fill(Tint.accent.opacity(configuration.isPressed ? 0.72 : hovering ? 0.86 : 1))
@@ -54,11 +56,28 @@ private struct RoleButtonBody: View {
     }
 }
 
-/// The measures of the principal and secondary buttons.
+/// The measures of the principal and secondary buttons: 28 points high by default, as the system's own; the
+/// `.controlSize` around them says smaller or larger, as for the system's buttons.
 public enum RoleButton {
     public static let height: CGFloat = 28
     public static let padding: CGFloat = 12
     public static let radius: CGFloat = 8
+
+    public struct Metrics: Equatable, Sendable {
+        public let height: CGFloat
+        public let padding: CGFloat
+        public let text: CGFloat
+    }
+
+    public static func metrics(_ size: ControlSize) -> Metrics {
+        switch size {
+        case .mini: Metrics(height: 18, padding: 6, text: 11)
+        case .small: Metrics(height: 22, padding: 9, text: 12)
+        case .large: Metrics(height: 34, padding: 16, text: 14)
+        case .extraLarge: Metrics(height: 40, padding: 18, text: 15)
+        default: Metrics(height: height, padding: padding, text: 13)
+        }
+    }
 }
 
 extension ButtonStyle where Self == PrimaryButtonStyle {

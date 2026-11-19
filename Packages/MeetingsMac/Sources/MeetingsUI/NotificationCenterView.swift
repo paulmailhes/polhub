@@ -116,12 +116,14 @@ public struct NotificationBell: View {
                 .frame(width: SidebarFooterMetrics.rowHeight, height: SidebarFooterMetrics.rowHeight)
                 .overlay(alignment: .topTrailing) {
                     if let text = Self.badgeText(count) {
+                        // What is new, in Polhub's ink, its figure the ink's opposite: the red says only « late » and
+                        // « recording » (design system v2, 19/11).
                         Text(text)
                             .font(.tag.weight(.semibold).monospacedDigit())
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Tint.onAccent.color)
                             .padding(.horizontal, 5)
                             .frame(minWidth: 18, minHeight: 18)
-                            .background(Color.red, in: Capsule())
+                            .background(Tint.accent, in: Capsule())
                             .fixedSize()
                             .offset(x: 5, y: -3)
                             .transition(.scale.combined(with: .opacity))
@@ -196,6 +198,8 @@ public struct NotificationPanel: View {
             inbox.markAllSeen()
         }
         .onDisappear { inbox.markAllSeen() }
+        // The popover's root: Polhub's accent, ink, whatever the Mac's (design system v2, 19/11).
+        .tint(Tint.accent)
     }
 
     private var header: some View {
@@ -345,7 +349,7 @@ struct NoticeCard: View {
     @State private var offset: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    static let radius: CGFloat = 16
+    static let radius: CGFloat = Radius.card
     /// How far a card goes sideways before it is let go.
     static let swipeDistance: CGFloat = 90
 
@@ -365,9 +369,9 @@ struct NoticeCard: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
         HStack(alignment: .top, spacing: Space.xs + 1) {
-            // Mail's blue dot, whatever the Mac's accent: orange means « à vérifier » in Polhub.
+            // What is new, in Polhub's ink, as the bell's count (design system v2, 19/11).
             Circle()
-                .fill(Color.blue)
+                .fill(Tint.accent)
                 .frame(width: 8, height: 8)
                 .opacity(new ? 1 : 0)
                 .frame(width: 10, height: SectionTile.size)
@@ -483,7 +487,7 @@ struct SectionTile: View {
             .font(.system(size: 14, weight: .semibold))
             .foregroundStyle(.white)
             .frame(width: Self.size, height: Self.size)
-            .background(section.tint.gradient, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .background(section.tint.gradient, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
             .accessibilityLabel(section.title)
     }
 }

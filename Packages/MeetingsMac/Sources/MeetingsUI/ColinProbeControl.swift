@@ -314,9 +314,16 @@ struct ColinProbeSection: View {
                 }
             }
             if let message = control.message {
-                Text(message)
-                    .font(.callout)
-                    .foregroundStyle(isRefusal ? Color.orange : Color.secondary)
+                // A refusal is a problem in one line: the icon of attention, the sentence in the text's own color, never
+                // an orange sentence (design system v2, 19/11).
+                Group {
+                    if isRefusal {
+                        ErrorLine(message)
+                    } else {
+                        Text(message).foregroundStyle(.secondary)
+                    }
+                }
+                .font(.callout)
             }
         }
     }

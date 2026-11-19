@@ -37,8 +37,9 @@ public struct ProjectsView: View {
                 } description: {
                     Text("Crée ton premier projet : il prendra place dans le Kanban.")
                 } actions: {
+                    // The screen's one action: the principal button, no glass in the content (design system v2, 19/11).
                     Button("Nouveau projet") { creating = .priorite1 }
-                        .buttonStyle(.glassProminent)
+                        .buttonStyle(.primary)
                         .controlSize(.large)
                 }
             } else {

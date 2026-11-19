@@ -226,7 +226,8 @@ struct SidebarLabel: View {
                     Spacer(minLength: 0)
                     Image(systemName: "circle.fill")
                         .font(.system(size: 8))
-                        .foregroundStyle(.red)
+                        // The red of the recording, its only meaning (design system v2, 19/11).
+                        .foregroundStyle(Tint.recording)
                         .symbolEffect(.pulse)
                         .help("Enregistrement en cours")
                         .accessibilityLabel("Enregistrement en cours")
