@@ -1,5 +1,7 @@
 import Agenda
+import Domain
 import Foundation
+import GoogleKit
 import Notifications
 import Persistence
 import PolhubDesign
@@ -113,6 +115,48 @@ import Testing
         let center = Center()
         await hub(center).tick(recording: false, paused: true, now: now)
         #expect(center.delivered.isEmpty)
+    }
+
+    /// A refresh token for every address: the agenda's session never reaches the Keychain here.
+    final class Vault: TokenVault, @unchecked Sendable {
+        func save(refreshToken: String, for email: String) throws {}
+        func refreshToken(for email: String) -> String? { "jeton-de-test" }
+        func remove(for email: String) {}
+    }
+
+    /// Audit of 19/11: an event an agent made in Paul's own agenda is said at once and kept in the list, its click opening
+    /// it; until now only a line under Réglages › Comptes Google said so. Google is a fake; nothing leaves the Mac.
+    @Test func anEventMadeByAnAgentIsAnnounced() async throws {
+        let calendar = CalendarStore(database)
+        try calendar.addAccount(email: "paul@exemple.fr", at: now)
+        let root = FileManager.default.temporaryDirectory.appending(path: "agent-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        // The token's refresh, then the event Google makes from what was sent.
+        let session = GoogleSession(config: { GoogleClientConfig(clientID: "id", clientSecret: "secret") }, vault: Vault(), fetch: { request in
+            if request.url == GoogleClientConfig.tokenEndpoint { return (Data(#"{"access_token":"jeton","expires_in":3600}"#.utf8), 200) }
+            let body = (try? JSONSerialization.jsonObject(with: request.httpBody ?? Data()) as? [String: Any]) ?? [:]
+            let event: [String: Any] = ["id": "agent1", "status": "confirmed", "summary": body["summary"] ?? "", "start": body["start"] ?? [:],
+                                        "end": body["end"] ?? [:], "organizer": ["email": "paul@exemple.fr", "self": true]]
+            return (try JSONSerialization.data(withJSONObject: event), 200)
+        })
+        let agenda = AgendaLibrary(database: database, session: session, sync: CalendarSync(fetch: { _ in throw URLError(.notConnectedToInternet) }))
+        let center = Center(), inbox = NotificationInbox(file: nil)
+        let defaults = defaults
+        let hub = NotificationHub(agenda: agenda, client: center, settings: { Preferences(defaults: defaults) }, inbox: inbox)
+        agenda.notifications = hub
+        try AgentEventFiles(root: root).request(AgentEventRequest(title: "Point devis", start: now.addingTimeInterval(86_400), minutes: 30,
+                                                                 account: "paul@exemple.fr", createdAt: Date()))
+
+        agenda.startAgentEvents(root: root, flavor: .prod)
+        // The list is written once macOS's center has the notice: waiting for it, both are done.
+        for _ in 0..<150 where inbox.notices.isEmpty { try await Task.sleep(for: .milliseconds(20)) }
+
+        // The event was made: what is missing is only the word to Paul.
+        #expect(try calendar.allEvents().map(\.eventID) == ["agent1"])
+        let notice = try #require(center.delivered.first)
+        #expect(notice.body.contains("Point devis"))
+        #expect(inbox.notices.first?.action(now: now) == .event(CalendarEventRow.key(account: "paul@exemple.fr", eventID: "agent1")))
+        withExtendedLifetime(hub) {}
     }
 
     @Test func aSummaryReadyIsAnnouncedUnlessTurnedOff() async {

@@ -1,5 +1,6 @@
 import Agenda
 import Domain
+import MailFormat
 import Persistence
 import PolhubDesign
 import SwiftUI
@@ -229,6 +230,14 @@ struct EventEditor: View {
         guestQuery = ""
     }
 
+    /// The guests to send: those chosen, and what is typed and not yet taken when it is an address (« Nom <adresse> »
+    /// too), as the mails' composer does (`ComposeBar.commitPending`); `nil` when what is typed is no address (audit of 19/11).
+    static func guests(_ chosen: [String], pending: String) -> [String]? {
+        let typed = RecipientField.parse(pending).map { $0.email.lowercased() }
+        guard typed.allSatisfy(MIMEBuilder.isValid) else { return nil }
+        return typed.reduce(into: chosen) { all, email in if !all.contains(email) { all.append(email) } }
+    }
+
     /// Moving the start moves the end with it, as in Google.
     private func moveStart(to start: Date) {
         let length = draft.end.timeIntervalSince(draft.start)
@@ -237,13 +246,23 @@ struct EventEditor: View {
     }
 
     private func save() {
-        saving = true
         failure = nil
         otherFailure = nil
+        // What is typed and not yet taken goes with the event when it is an address; anything else stops « Créer »
+        // (audit of 19/11).
+        guard let guests = Self.guests(draft.guests, pending: guestQuery) else {
+            otherFailure = "« \(guestQuery.trimmingCharacters(in: .whitespaces)) » n'est pas une adresse : choisis l'invité dans la liste, ou efface-le."
+            return
+        }
+        var sent = draft
+        sent.guests = guests
+        draft.guests = guests
+        guestQuery = ""
+        saving = true
         Task {
             defer { saving = false }
             do {
-                try await agenda.save(draft, account: account, editing: editing, original: original, details: details)
+                try await agenda.save(sent, account: account, editing: editing, original: original, details: details)
                 if editing == nil { lastAccount = account }
                 dismiss()
             } catch let error as GoogleError {

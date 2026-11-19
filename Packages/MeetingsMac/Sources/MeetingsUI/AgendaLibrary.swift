@@ -243,6 +243,8 @@ public final class AgendaLibrary: ObservableObject {
             if pass.unsure { Task { [weak self] in await self?.syncAll() } }
             guard let last = pass.made.last else { continue }
             message = "Un agent a créé « \(last.title) » dans ton agenda."
+            // Said at once, in a notification kept in the bell's list: only Réglages › Comptes Google said it (audit of 19/11).
+            await notifications?.agentMade(pass.made)
             await runLinks()
         } while serveAgentsAgain
     }
@@ -265,10 +267,30 @@ public final class AgendaLibrary: ObservableObject {
     /// Paul files an event: it wins over every rule, in each calendar that has it, and its recording follows.
     public func setProject(_ event: CalendarEventRow, projectID: UUID?) async {
         try? CalendarStore(database).setProject(googleEventID: event.eventID, projectID: projectID, origin: .paul)
+        // A filing of the loop put right: the guests it had put in the old project leave it; the loop puts back those
+        // that another event of that project justifies (audit of 19/11).
+        if let old = event.projectID, old != projectID, event.projectOrigin != .paul {
+            let contacts = ContactStore(database)
+            let guests = Set(event.guests.compactMap { try? contacts.contact(email: $0.email)?.id })
+            for link in (try? contacts.links()) ?? []
+            where link.projectID == old && link.origin == .agenda && !link.excluded && guests.contains(link.contactID) {
+                try? contacts.unlink(contactID: link.contactID, projectID: old)
+            }
+        }
         for meetingID in Set(copies(of: event).compactMap(\.meetingID) + [event.meetingID].compactMap { $0 }) {
             try? ProjectStore(database).setProject(meetingID: meetingID, projectID: projectID)
         }
         await runLinks()
+    }
+
+    /// Paul files a recording from its page: its event, in every calendar, takes the choice as his (« Aucun » included),
+    /// so that the loop never files it back (audit of 19/11). A recording without an event is filed alone.
+    public func file(meetingID: UUID, projectID: UUID?) async {
+        if let event = events.first(where: { $0.meetingID == meetingID }) {
+            await setProject(event, projectID: projectID)
+        } else {
+            try? ProjectStore(database).setProject(meetingID: meetingID, projectID: projectID)
+        }
     }
 
     public func copies(of event: CalendarEventRow) -> [CalendarEventRow] {
@@ -314,8 +336,10 @@ public final class AgendaLibrary: ObservableObject {
         objectWillChange.send()
     }
 
-    public func save(_ contact: ContactRow) {
-        try? ContactStore(database).save(contact, at: Date())
+    /// Throws what the base refuses (audit of 19/11): an address that is already another contact's, the base holding one
+    /// contact per address.
+    public func save(_ contact: ContactRow) throws {
+        try ContactStore(database).save(contact, at: Date())
     }
 
     public func projects(of contact: ContactRow) -> [ProjectRow] {

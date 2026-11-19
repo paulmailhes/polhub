@@ -151,8 +151,13 @@ struct MeetingDetailView: View {
         .fixedSize()
     }
 
+    /// Through its event when the agenda is there: the loop then never files it back (audit of 19/11).
     private func file(_ projectID: UUID?) {
-        try? ProjectStore(store.database).setProject(meetingID: row.id, projectID: projectID)
+        if let agenda {
+            Task { await agenda.file(meetingID: row.id, projectID: projectID) }
+        } else {
+            try? ProjectStore(store.database).setProject(meetingID: row.id, projectID: projectID)
+        }
     }
 
     // MARK: - Summary

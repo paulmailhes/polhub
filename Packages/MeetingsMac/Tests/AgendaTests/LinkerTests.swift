@@ -54,6 +54,18 @@ import Testing
         // A word inside another is not a project's name.
         #expect(Linker.project(for: event(title: "Alphabet"), meetingProject: nil, seriesProjects: [:], contactProjects: [:], projects: projects) == nil)
     }
+
+    /// Audit of 19/11: guests of several projects and a title that names one of them: that one, as the mails do with a
+    /// subject (`MailFiling.swift`). A project none of them is in is never read in the title.
+    @Test func guestsOfSeveralProjectsLetTheTitleChooseAmongThem() throws {
+        let both: [String: Set<UUID>] = ["camille@exemple.fr": [alpha, beta]]
+        let found = try #require(Linker.project(for: event(title: "Point Alpha", guests: ["camille@exemple.fr"]), meetingProject: nil,
+                                                seriesProjects: [:], contactProjects: both, projects: projects))
+        #expect(found.id == alpha && found.origin == .titre)
+        let gamma = UUID()
+        #expect(Linker.project(for: event(title: "Point Gamma", guests: ["camille@exemple.fr"]), meetingProject: nil, seriesProjects: [:],
+                               contactProjects: both, projects: projects + [(id: gamma, name: "Gamma")]) == nil)
+    }
 }
 
 @Suite struct MeetingMatchTests {
@@ -162,6 +174,57 @@ import Testing
         ], cancelled: [], at: now)
         try LinkRunner(database: database).run(now: now)
         #expect(try calendar.event(id: CalendarEventRow.key(account: "moi@exemple.fr", eventID: "evt-ancien"))?.meetingID == old.id)
+    }
+
+    /// Audit of 19/11: an event that covers a recording without its Meet code (a day's block, an invitation not followed)
+    /// never takes it from the event of that code, though it starts first.
+    @Test func theEventOfTheMeetCodeKeepsItsRecordingFromABlockAroundIt() throws {
+        let database = try AppDatabase.inMemory()
+        let calendar = CalendarStore(database), meetings = MeetingStore(database)
+        try calendar.addAccount(email: "moi@exemple.fr", at: now)
+        let recorded = MeetingRow(createdAt: now, status: .ended, source: .dia, candidateKey: "t/a", meetCode: "abc-defg-hij", title: "Google Meet",
+                                  startedAt: now.addingTimeInterval(60), endedAt: now.addingTimeInterval(1_800))
+        try meetings.save(recorded)
+        try calendar.applyGoogle(account: "moi@exemple.fr", changed: [
+            CalendarEventRow(account: "moi@exemple.fr", eventID: "bloc", title: "Journée à l'atelier", startAt: now.addingTimeInterval(-5 * 3_600),
+                             endAt: now.addingTimeInterval(4 * 3_600), updatedAt: now),
+            CalendarEventRow(account: "moi@exemple.fr", eventID: "point", title: "Point maquette", startAt: now, endAt: now.addingTimeInterval(1_800),
+                             meetCode: "abc-defg-hij", updatedAt: now),
+        ], cancelled: [], at: now)
+
+        try LinkRunner(database: database).run(now: now)
+
+        #expect(try calendar.event(id: CalendarEventRow.key(account: "moi@exemple.fr", eventID: "point"))?.meetingID == recorded.id)
+        #expect(try calendar.event(id: CalendarEventRow.key(account: "moi@exemple.fr", eventID: "bloc"))?.meetingID == nil)
+        #expect(try meetings.meeting(id: recorded.id)?.title == "Point maquette")
+    }
+
+    /// Audit of 19/11: a project in the Trash files nothing any more, as for the mails (15/11). Linked to it and to a live
+    /// project, a guest files the event in the live one; linked to it alone, nowhere.
+    @Test func aProjectInTheTrashFilesNoEvent() throws {
+        let database = try AppDatabase.inMemory()
+        let projects = ProjectStore(database), contacts = ContactStore(database), calendar = CalendarStore(database)
+        let alpha = try projects.addProject(name: "Alpha", status: .priorite1, at: now)
+        let devis = try projects.addProject(name: "Devis atelier", status: .priorite2, at: now)
+        try calendar.addAccount(email: "moi@exemple.fr", at: now)
+        let camille = try contacts.upsert(email: "camille@exemple.fr", name: "Camille", company: nil, at: now)
+        let jules = try contacts.upsert(email: "jules@exemple.fr", name: "Jules", company: nil, at: now)
+        try contacts.link(contactID: camille.id, projectID: alpha.id, origin: .coffre, at: now)
+        try contacts.link(contactID: camille.id, projectID: devis.id, origin: .coffre, at: now)
+        try contacts.link(contactID: jules.id, projectID: devis.id, origin: .coffre, at: now)
+        try projects.moveToTrash(projectID: devis.id, at: now)
+        func event(_ id: String, with guest: String) -> CalendarEventRow {
+            CalendarEventRow(account: "moi@exemple.fr", eventID: id, title: "Point", startAt: now, endAt: now.addingTimeInterval(1_800),
+                             attendees: [Attendee(email: guest), Attendee(email: "moi@exemple.fr", isSelf: true)], updatedAt: now)
+        }
+        try calendar.applyGoogle(account: "moi@exemple.fr", changed: [event("e1", with: "camille@exemple.fr"), event("e2", with: "jules@exemple.fr")],
+                                 cancelled: [], at: now)
+
+        try LinkRunner(database: database).run(now: now)
+
+        let withCamille = try #require(try calendar.event(id: CalendarEventRow.key(account: "moi@exemple.fr", eventID: "e1")))
+        #expect(withCamille.projectID == alpha.id && withCamille.projectOrigin == .invites)
+        #expect(try calendar.event(id: CalendarEventRow.key(account: "moi@exemple.fr", eventID: "e2"))?.projectID == nil)
     }
 }
 

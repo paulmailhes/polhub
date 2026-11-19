@@ -118,6 +118,16 @@ import Testing
         #expect(PeopleStyle.addedText([camille, lou], project: "Site vitrine") == "Camille et Lou rejoignent « Site vitrine ».")
         #expect(PeopleStyle.addedText([camille, lou, camille, lou], project: nil) == "4 personnes sont dans tes contacts.")
     }
+
+    /// Audit of 19/11: what is typed in « Ajouter un invité » and not yet taken goes with the event when it is an address
+    /// (« Nom <adresse> » too), as the mails' composer does (`ComposeBar.commitPending`); a name half typed stops « Créer ».
+    @MainActor @Test func anAddressTypedButNotTakenIsInvited() {
+        #expect(EventEditor.guests(["lou@studio.exemple"], pending: " Camille@Studio.exemple ") == ["lou@studio.exemple", "camille@studio.exemple"])
+        #expect(EventEditor.guests(["lou@studio.exemple"], pending: "Camille Martin <camille@studio.exemple>") == ["lou@studio.exemple", "camille@studio.exemple"])
+        #expect(EventEditor.guests(["camille@studio.exemple"], pending: "camille@studio.exemple") == ["camille@studio.exemple"])
+        #expect(EventEditor.guests(["lou@studio.exemple"], pending: "  ") == ["lou@studio.exemple"])
+        #expect(EventEditor.guests([], pending: "cam") == nil)
+    }
 }
 
 /// The gestures on people go through ContactStore, and « Annuler » takes back exactly what they did.
@@ -236,5 +246,82 @@ import Testing
         mails.undo()
         try await waitUntil { mails.newcomers(people, project: project.id).count == 2 }
         #expect(try ContactStore(database).contacts().isEmpty)
+    }
+
+    /// Audit of 19/11: « Aucun » on a recorded meeting's page holds. Its event, in every calendar, takes the choice as Paul's:
+    /// the loop never files the meeting back in the project of its guests.
+    @Test func aRecordingTakenOutOfItsProjectStaysOut() async throws {
+        let database = try AppDatabase.inMemory()
+        let calendar = CalendarStore(database), contacts = ContactStore(database), meetings = MeetingStore(database)
+        try calendar.addAccount(email: account, at: Date())
+        let project = try ProjectStore(database).addProject(name: "Site vitrine", status: .priorite1, at: Date())
+        let camille = try contacts.upsert(email: "camille@studio.exemple", name: "Camille Martin", company: "Studio", at: Date())
+        try contacts.include(contactID: camille.id, projectID: project.id, at: Date())
+        let start = Date().addingTimeInterval(-7_200)
+        let recorded = MeetingRow(createdAt: start, status: .ended, source: .dia, candidateKey: "t/a", meetCode: "abc-defg-hij", title: "Google Meet",
+                                  startedAt: start.addingTimeInterval(60), endedAt: start.addingTimeInterval(1_800))
+        try meetings.save(recorded)
+        try calendar.applyGoogle(account: account, changed: [
+            CalendarEventRow(account: account, eventID: "e1", title: "Point maquette", startAt: start, endAt: start.addingTimeInterval(1_800),
+                             meetCode: "abc-defg-hij", attendees: [Attendee(email: "camille@studio.exemple"), Attendee(email: account, isSelf: true)],
+                             updatedAt: start),
+        ], cancelled: [], at: start)
+        let agenda = AgendaLibrary(database: database)
+        await agenda.runLinks()
+        #expect(try meetings.meeting(id: recorded.id)?.projectID == project.id)
+        try await waitUntil { agenda.events.first?.meetingID == recorded.id }
+
+        // « Aucun », on the meeting's page.
+        await agenda.file(meetingID: recorded.id, projectID: nil)
+        await agenda.runLinks()
+
+        #expect(try meetings.meeting(id: recorded.id)?.projectID == nil)
+        let event = try #require(try calendar.event(id: CalendarEventRow.key(account: account, eventID: "e1")))
+        #expect(event.projectID == nil && event.projectOrigin == .paul)
+    }
+
+    /// Audit of 19/11: Paul puts right an event the loop filed in the wrong project: the guests the loop had put in that
+    /// project leave it; someone Paul put there himself stays.
+    @Test func puttingAnEventRightTakesItsGuestsOutOfTheWrongProject() async throws {
+        let database = try AppDatabase.inMemory()
+        let calendar = CalendarStore(database), contacts = ContactStore(database), projects = ProjectStore(database)
+        try calendar.addAccount(email: account, at: Date())
+        let vitrine = try projects.addProject(name: "Site vitrine", status: .priorite1, at: Date())
+        let identite = try projects.addProject(name: "Identité visuelle", status: .priorite1, at: Date())
+        let camille = try contacts.upsert(email: "camille@studio.exemple", name: "Camille Martin", company: "Studio", at: Date())
+        try contacts.include(contactID: camille.id, projectID: vitrine.id, at: Date())
+        let start = Date().addingTimeInterval(86_400)
+        try calendar.applyGoogle(account: account, changed: [
+            CalendarEventRow(account: account, eventID: "e1", title: "Lancement", startAt: start, endAt: start.addingTimeInterval(3_600),
+                             attendees: [Attendee(email: "camille@studio.exemple"), Attendee(email: "marc@atelier.exemple"),
+                                         Attendee(email: account, isSelf: true)],
+                             updatedAt: Date()),
+        ], cancelled: [], at: Date())
+        let agenda = AgendaLibrary(database: database)
+        await agenda.runLinks()
+        // Filed after Camille, the event put Marc, new, in « Site vitrine » with her.
+        let marc = try #require(try contacts.contact(email: "marc@atelier.exemple"))
+        #expect(Set(try contacts.contacts(projectID: vitrine.id).map(\.id)) == [camille.id, marc.id])
+        try await waitUntil { agenda.events.first?.projectOrigin == .invites }
+        let event = try #require(agenda.events.first)
+
+        await agenda.setProject(event, projectID: identite.id)
+
+        #expect(try contacts.contacts(projectID: vitrine.id).map(\.id) == [camille.id])
+        #expect(Set(try contacts.contacts(projectID: identite.id).map(\.id)) == [camille.id, marc.id])
+    }
+
+    /// Audit of 19/11: an address that is already another contact's is refused out loud (the base holds one contact per
+    /// address); the contact keeps its own.
+    @Test func anAddressAlreadyTakenIsRefusedOutLoud() throws {
+        let database = try AppDatabase.inMemory()
+        let contacts = ContactStore(database)
+        _ = try contacts.upsert(email: "camille@studio.exemple", name: "Camille Martin", company: nil, at: Date())
+        var other = try contacts.upsert(email: "c.martin@atelier.exemple", name: "Camille M.", company: nil, at: Date())
+        let agenda = AgendaLibrary(database: database)
+        other.email = "camille@studio.exemple"
+        other.notes = "Préfère le téléphone."
+        #expect(throws: (any Error).self) { try agenda.save(other) }
+        #expect(try contacts.contact(id: other.id)?.email == "c.martin@atelier.exemple")
     }
 }

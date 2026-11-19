@@ -85,6 +85,19 @@ public final class NotificationHub: ObservableObject {
         madeHere.insert(eventID)
     }
 
+    /// The events an agent just made in Paul's agendas (audit of 19/11): said at once, as a draft an agent prepared is, and
+    /// kept in the list; a click opens the event. Never said again as new at the next reading. Not under « Nouveaux
+    /// rendez-vous » of Réglages › Notifications: it also guards against an agent misled by a mail.
+    public func agentMade(_ events: [CalendarEventRow], now: Date = Date()) async {
+        for event in events {
+            madeHere.insert(event.eventID)
+            var notice = NotificationPlan.newEventNotice(event, now: now)
+            notice.id = "agent|\(event.id)"
+            notice.title = "Rendez-vous créé par un agent"
+            await deliver(notice)
+        }
+    }
+
     /// Every minute: a meeting of the calendar under way for five minutes while nothing records. Not while
     /// detection is paused, nor for a meeting already recorded, declined at the prompt or never to record (review of
     /// 14/11).
