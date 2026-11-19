@@ -224,6 +224,19 @@ private struct ColinPanel: View {
     @FocusState private var focused: Bool
 
     var body: some View {
+        if close == nil {
+            panel
+        } else {
+            // Floating over the day, it takes the keys at once: Échap closes it before any click in it.
+            panel
+                .focusable()
+                .focusEffectDisabled()
+                .focused($focused)
+                .onAppear { focused = true }
+        }
+    }
+
+    private var panel: some View {
         VStack(spacing: 0) {
             ColinHeader(thread: thread, router: router, close: close)
                 .padding(.horizontal, Space.l)
@@ -232,11 +245,6 @@ private struct ColinPanel: View {
             Divider()
             ColinConversation(thread: thread, colin: colin, mails: mails, router: router, due: due, barHeight: $barHeight)
         }
-        // Floating over the day, it takes the keys at once: Échap closes it before any click in it.
-        .focusable(close != nil)
-        .focusEffectDisabled()
-        .focused($focused)
-        .onAppear { if close != nil { focused = true } }
     }
 }
 
