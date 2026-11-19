@@ -424,6 +424,24 @@ import Testing
         #expect(byPerson(threads, messages, dismissed: [other]).count == 1)
     }
 
+    /// Set aside, a person comes back by a new message: the line opens the thread of that message, at its age, not
+    /// the thread Paul already said needed nothing (audit of 19/11).
+    @Test func aPersonBackFromAsideIsSaidOnTheirNewThread() {
+        // Marc wrote eight days ago; four days ago Paul said « Pas besoin » with that mail before him.
+        let first = thread("t1", [received(Self.marc, 8)])
+        let said = exchanges("t1", [received(Self.marc, 8)])
+        let aside = ColinDismissalRow(kind: "reply", subject: Self.marc, reason: .notNeeded, createdAt: ago(4), lastMessageAt: ago(8))
+        #expect(byPerson([first], said, dismissed: [aside]).isEmpty)
+        // Half a day after the click, Marc wrote again in a new thread: three days later, the line is back on it.
+        let again = thread("t3", [received(Self.marc, 3.5)])
+        let lines = byPerson([first, again], said + exchanges("t3", [received(Self.marc, 3.5)]), dismissed: [aside])
+        #expect(lines.map(\.threadKey) == [again.id])
+        #expect(lines.first?.days == 3)
+        // « Plus tard » hides the person until the next day, whatever the thread, as before.
+        let later = ColinDismissalRow(kind: "reply", subject: Self.marc, reason: .later, createdAt: now, lastMessageAt: ago(8))
+        #expect(byPerson([first, again], said + exchanges("t3", [received(Self.marc, 3.5)]), dismissed: [later]).isEmpty)
+    }
+
     /// An invitation, an answer to one, a list's mail, an absent mailbox's answer: sent from a person's address,
     /// and nobody expects an answer to them.
     @Test func aCalendarsMailOrAnAutomaticOneNeverWaits() {
@@ -468,6 +486,28 @@ import Testing
         var touched = draft("old", origin: .paul, to: [person(Self.marc)], minutesAgo: 20 * 1_440)
         touched.updatedAt = ago(1)
         #expect(byPerson(threads, messages, drafts: [touched]).isEmpty)
+    }
+
+    /// A reply begun after the person's message and then left (a ⌘R, an interruption): untouched for longer than
+    /// the threshold, it no longer says that the answer is being written, and the person waits again (audit of
+    /// 19/11). Programmed, or on its way out, it answers whatever its age.
+    @Test func aDraftLeftAloneStopsHidingTheLine() {
+        let threads = [thread("t1", [sent(20), received(Self.marc, 8)])]
+        let messages = exchanges("t1", to: [Self.marc], [sent(20), received(Self.marc, 8)])
+        // Begun six days ago, two days after Marc's message, and never touched since.
+        var left = draft("r1", origin: .paul, to: [person(Self.marc)], minutesAgo: 6 * 1_440, thread: threads[0].id)
+        #expect(byPerson(threads, messages, drafts: [left]).map(\.id) == ["reply:\(Self.marc)"])
+        // Programmed, or leaving for Gmail: the answer is on its way.
+        #expect(ReviewRules.repliesByPerson(threads, rules: rules, exchanges: Exchanges(messages), drafts: [left], outgoing: ["r1"], dismissed: [], now: now,
+                                            thresholds: thresholds, calendar: calendar).isEmpty)
+        // Touched yesterday: it is the answer being written.
+        left.updatedAt = ago(1)
+        #expect(byPerson(threads, messages, drafts: [left]).isEmpty)
+        // The same for a reply begun in Gmail: what Gmail dated six days ago is left.
+        let gmail = MailMessageRow(account: Self.me, messageID: "g1", threadID: "t1", date: ago(6), sender: MailAddress(email: Self.me),
+                                   to: [MailAddress(email: Self.marc)], subject: "Re: Maquette v2", snippet: "", labels: ["DRAFT"])
+        #expect(ReviewRules.repliesByPerson(threads, rules: rules, exchanges: Exchanges(messages), gmailDrafts: [gmail], dismissed: [], now: now,
+                                            thresholds: thresholds, calendar: calendar).count == 1)
     }
 
     /// A reply begun in Gmail, on the phone or the web, is a draft too: Polhub knows it as a message of Gmail's.

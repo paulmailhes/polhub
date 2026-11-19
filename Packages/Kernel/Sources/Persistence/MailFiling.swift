@@ -221,7 +221,10 @@ public struct MailFilingRules: Sendable {
     public func filing(of thread: MailThreadRow) -> (filing: MailFiling, origin: MailFilingOrigin)? {
         // A project deleted since (15/11) is no case any more: its threads follow the rules again.
         if let choice = choices[thread.id], exists(choice) { return (choice, .paul) }
-        if let last = thread.lastSender?.lowercased(), let memory = senders[last]?.filing.flatMap(MailFiling.init(rawValue:)), exists(memory) {
+        // A colleague of Paul's own domain writes about everything: a case kept for him (a client's thread he answered
+        // last, filed by Paul) files none of his other threads, no more than his links do (audit of 19/11).
+        if let last = thread.lastSender?.lowercased(), !isColleague(last), let memory = senders[last]?.filing.flatMap(MailFiling.init(rawValue:)),
+           exists(memory) {
             return (memory, .sender)
         }
         let others = thread.senders.map { $0.email.lowercased() }.filter { !mine.contains($0) }

@@ -124,6 +124,15 @@ struct CalendarView: View {
         weekStart = Self.calendar.date(byAdding: .day, value: days, to: weekStart) ?? weekStart
     }
 
+    /// What the copy does not hold of the week shown, as the agents are told (`AgendaDesk.gaps`): an empty week past it is
+    /// not a free one (audit of 19/11).
+    static func copyNotice(weekStart: Date, days: Int, accounts: [GoogleAccountRow]) -> String? {
+        guard let covered = CalendarWindow.covered(by: accounts),
+              let end = calendar.date(byAdding: .day, value: days, to: weekStart), end > covered.to else { return nil }
+        let last = covered.to.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(locale))
+        return "Polhub lit tes agendas jusqu'au \(last) : au-delà, regarde Google Agenda."
+    }
+
     /// Accueil asked for an event: its week, and its card open.
     private func openAsked() {
         guard let id = router.eventSelection else { return }
@@ -159,6 +168,13 @@ struct CalendarView: View {
     private var week: some View {
         VStack(spacing: 0) {
             dayHeader
+            // Past what Polhub reads of the agendas, the week says so (audit of 19/11).
+            if let notice = Self.copyNotice(weekStart: weekStart, days: days.count, accounts: agenda.accounts) {
+                Label(notice, systemImage: "info.circle")
+                    .font(.tag).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, Space.s)
+            }
             allDayRow
             Divider()
             ScrollViewReader { scroll in

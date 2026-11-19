@@ -513,4 +513,180 @@ final class FakeGmail: @unchecked Sendable {
         #expect(AttachmentSafety.canOpen(name: "devis final.pdf") && !AttachmentSafety.canOpen(name: "facture.pdf.html") && !AttachmentSafety.canOpen(name: "outil.dmg"))
         #expect(AttachmentSafety.cleanName(".caché") == "caché" && AttachmentSafety.cleanName("///") == "piece-jointe")
     }
+
+    /// Apple Mail and the iPhone cut the text around a file set in its middle, in pieces of HTML under one
+    /// multipart/mixed (audit of 19/11): the body is every piece, in its order, and the file stays a file.
+    @Test func aTextCutByAFileKeepsAllItsPieces() throws {
+        let plain = Data("Bonjour, voici le devis.\n\nDis-moi si la date te va ?".utf8).base64EncodedString()
+        let before = Data("<html><body><div>Bonjour, voici le devis.</div></body></html>".utf8).base64EncodedString()
+        let after = Data("<html><body><div>Dis-moi si la date te va ?</div></body></html>".utf8).base64EncodedString()
+        let json = #"""
+        {"id":"m1","threadId":"t1","labelIds":["INBOX"],"snippet":"Bonjour, voici le devis.","internalDate":"1794562920000",
+         "payload":{"mimeType":"multipart/alternative","headers":[{"name":"From","value":"Camille Martin <camille@exemple.fr>"},{"name":"Subject","value":"Devis"}],
+          "parts":[
+           {"partId":"0","mimeType":"text/plain","filename":"","headers":[{"name":"Content-Type","value":"text/plain; charset=utf-8"}],"body":{"size":52,"data":"\#(plain)"}},
+           {"partId":"1","mimeType":"multipart/mixed","filename":"","headers":[],"body":{"size":0},"parts":[
+             {"partId":"1.0","mimeType":"text/html","filename":"","headers":[{"name":"Content-Type","value":"text/html; charset=utf-8"}],"body":{"size":61,"data":"\#(before)"}},
+             {"partId":"1.1","mimeType":"application/pdf","filename":"devis.pdf","headers":[{"name":"Content-Disposition","value":"inline; filename=devis.pdf"}],"body":{"size":245000,"attachmentId":"a1"}},
+             {"partId":"1.2","mimeType":"text/html","filename":"","headers":[{"name":"Content-Type","value":"text/html; charset=utf-8"}],"body":{"size":63,"data":"\#(after)"}}]}]}}
+        """#
+        let mail = MailParser.parse(try GmailAPI.decode(GmailAPI.Message.self, from: Data(json.utf8)), account: account)
+        let body = try #require(mail.body)
+        // Today the body stops at the file: « Dis-moi… » is lost for Paul, for the quote of his reply and for the agents.
+        let first = try #require(body.range(of: "voici le devis")), second = try #require(body.range(of: "Dis-moi si la date te va ?"))
+        #expect(first.lowerBound < second.lowerBound && mail.row.bodyIsHTML)
+        #expect(mail.row.files.map(\.filename) == ["devis.pdf"])
+        // The quote of Paul's reply and what the agents read hold both pieces too.
+        for text in [HTMLText.quotable(body), HTMLText.visible(body)] {
+            #expect(text.contains("Bonjour, voici le devis.") && text.contains("Dis-moi si la date te va ?"))
+        }
+    }
+
+    /// Only the sisters under one multipart/mixed are pieces of the text (audit of 19/11): a plain text cut by a file
+    /// is joined the same way, and what a forwarded message holds never joins it.
+    @Test func onlySistersUnderAMixedPartJoinTheText() throws {
+        func data(_ text: String) -> String { Data(text.utf8).base64EncodedString() }
+        let json = #"""
+        {"id":"m2","threadId":"t2","labelIds":["INBOX"],"snippet":"Bonjour,","internalDate":"1794562920000",
+         "payload":{"mimeType":"multipart/mixed","headers":[{"name":"From","value":"Camille Martin <camille@exemple.fr>"},{"name":"Subject","value":"Devis"}],
+          "parts":[
+           {"partId":"0","mimeType":"text/plain","filename":"","headers":[],"body":{"size":8,"data":"\#(data("Bonjour,"))"}},
+           {"partId":"1","mimeType":"application/pdf","filename":"devis.pdf","headers":[],"body":{"size":245000,"attachmentId":"a1"}},
+           {"partId":"2","mimeType":"text/plain","filename":"","headers":[],"body":{"size":12,"data":"\#(data("à bientôt."))"}},
+           {"partId":"3","mimeType":"message/rfc822","filename":"Ancien devis.eml","headers":[],"body":{"size":900},"parts":[
+             {"partId":"3.0","mimeType":"text/plain","filename":"","headers":[],"body":{"size":14,"data":"\#(data("Texte de Jules"))"}}]}]}}
+        """#
+        let mail = MailParser.parse(try GmailAPI.decode(GmailAPI.Message.self, from: Data(json.utf8)), account: account)
+        #expect(mail.body == "Bonjour,\nà bientôt." && !mail.row.bodyIsHTML)
+        #expect(mail.row.files.map(\.filename) == ["devis.pdf", "Ancien devis.eml"])
+    }
+
+    /// Between the engine and the fake Gmail: counts the whole reads, drops one of them as a lost connection would,
+    /// and gives the history as Gmail does, every record since the cursor asked from, until the engine moves it.
+    final class Network: @unchecked Sendable {
+        private let lock = NSLock()
+        private var count = 0
+        private var drop: Int?
+        private var pages: [String: Data] = [:]
+        var reads: Int { lock.withLock { count } }
+        /// The `index`-th whole read from now on fails.
+        func dropRead(_ index: Int) { lock.withLock { drop = count + index } }
+
+        func send(through gmail: FakeGmail) -> MailProbe.Send {
+            { [self] build in
+                let request = build("jeton")
+                let items = request.url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.queryItems } ?? []
+                if items.contains(URLQueryItem(name: "format", value: "full")) {
+                    let lost = lock.withLock { count += 1; return count == drop }
+                    if lost { throw URLError(.networkConnectionLost) }
+                }
+                guard request.url?.path().hasSuffix("/history") == true, let start = items.first(where: { $0.name == "startHistoryId" })?.value else {
+                    return try await gmail.send(build)
+                }
+                // The fake gives what changed since its last answer: added to what it gave before for this cursor.
+                let fresh = try await gmail.send(build)
+                return try lock.withLock {
+                    var page = try JSONSerialization.jsonObject(with: fresh) as? [String: Any] ?? [:]
+                    let earlier = try pages[start].flatMap { try JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+                    page["history"] = (earlier?["history"] as? [Any] ?? []) + (page["history"] as? [Any] ?? [])
+                    let data = try JSONSerialization.data(withJSONObject: page)
+                    pages[start] = data
+                    return data
+                }
+            }
+        }
+    }
+
+    /// Back after a few days (audit of 19/11): what the history brings is kept slice by slice. A connection lost on
+    /// the way keeps what was read before it, and the next pass reads only what is still missing.
+    @Test func aCatchUpKeepsWhatItReadBeforeAFailure() async throws {
+        let database = try AppDatabase.inMemory()
+        try CalendarStore(database).addAccount(email: account, at: Date(timeIntervalSince1970: 1_794_562_920))
+        let gmail = FakeGmail(), clock = Clock(), network = Network(), arrivals = Arrivals()
+        let root = FileManager.default.temporaryDirectory.appending(path: "mails-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let send = network.send(through: gmail)
+        let engine = MailEngine(database: database, root: root, sendFor: { _ in send }, flavor: .prod, now: { clock.now }, pause: { _ in },
+                                onNew: { arrivals.add($0) })
+        let store = MailStore(database)
+        gmail.add("m0", .init(thread: "t0", labels: ["INBOX"]), history: false)
+        await engine.step(account)
+        for index in 1...60 { gmail.add("n\(index)", .init(thread: "u\(index)", labels: ["INBOX", "UNREAD"], minutes: Double(index))) }
+        network.dropRead(50)
+        await engine.step(account)
+        // The slices read before the loss are in the copy. Today: none of the 49 read.
+        #expect(try store.knownMessageIDs(account: account).count - 1 >= 2 * MailEngine.slice)
+        // Meanwhile Paul reads on the phone one of the mails kept.
+        let kept = try #require(try store.knownMessageIDs(account: account).subtracting(["m0"]).sorted().first)
+        gmail.change(kept, labels: ["INBOX"])
+        let before = network.reads
+        await engine.step(account)
+        #expect(try store.knownMessageIDs(account: account).count == 61)
+        // Only what was still missing is read again. Today: all 60.
+        #expect(network.reads - before <= 60 - 2 * MailEngine.slice)
+        // Not read again, the mail kept still takes what the phone did.
+        #expect(try store.message(MailMessageRow.key(account: account, messageID: kept))?.isUnread == false)
+        // Each mail that arrived is announced once, whichever pass kept it.
+        #expect(arrivals.all.count == 60 && Set(arrivals.all).count == 60)
+    }
+
+    /// A clock that stands still: only the pacer's naps move it, and they are counted.
+    final class StillClock: @unchecked Sendable {
+        private let lock = NSLock()
+        private var date = Date(timeIntervalSince1970: 1_794_562_920)
+        private var naps: [TimeInterval] = []
+        var now: Date { lock.withLock { date } }
+        var slept: [TimeInterval] { lock.withLock { naps } }
+        func sleep(_ seconds: TimeInterval) { lock.withLock { naps.append(seconds); date += seconds } }
+    }
+
+    /// The rest of Gmail's quota stays for what Paul does (audit of 19/11): a first reading that took the minute's
+    /// budget never makes « Envoyer » wait.
+    @Test func sendingNeverWaitsBehindTheFirstReading() async throws {
+        let database = try AppDatabase.inMemory()
+        try CalendarStore(database).addAccount(email: account, at: Date(timeIntervalSince1970: 1_794_562_920))
+        let gmail = FakeGmail(), clock = StillClock()
+        let root = FileManager.default.temporaryDirectory.appending(path: "mails-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let engine = MailEngine(database: database, root: root, sendFor: { _ in gmail.send }, flavor: .prod, now: { clock.now },
+                                pause: { clock.sleep($0) })
+        let store = MailStore(database)
+        // 74 mails read whole in the same minute: 4 450 units of the 4 500 the reading allows itself.
+        for index in 1...74 { gmail.add("m\(index)", .init(thread: "t\(index)", labels: ["INBOX"], minutes: Double(index)), history: false) }
+        while await engine.step(account) {}
+        #expect(try store.cursor(account: account)?.finishedAt != nil && clock.slept.isEmpty)
+        let row = MailDraftRow(account: account, mode: .new, to: [MailAddress(email: "jules@exemple.fr")], subject: "Devis", body: "Le voici.",
+                               createdAt: Date(timeIntervalSince1970: 1_794_562_000))
+        try store.saveDraft(row)
+        try await engine.send(row.id)
+        #expect(gmail.calls.contains("POST /drafts/send"))
+        // Today the send waited a whole minute behind the reading: [60].
+        #expect(clock.slept.isEmpty)
+    }
+
+    /// An invitation from Outlook (audit of 19/11): its calendar part has neither name nor Content-ID, and its subject
+    /// is the meeting's title. It is still a calendar's mail, which nobody answers, and it shows as no file.
+    @Test func anOutlookInvitationIsACalendarsMail() throws {
+        let plain = Data("Point projet, jeudi 10 h".utf8).base64EncodedString()
+        let html = Data("<html><body><p>Point projet, jeudi 10 h</p></body></html>".utf8).base64EncodedString()
+        let ics = Data("BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\nSUMMARY:Point projet\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n".utf8).base64EncodedString()
+        let json = #"""
+        {"id":"m1","threadId":"t1","labelIds":["INBOX","UNREAD"],"snippet":"Point projet, jeudi 10 h","internalDate":"1794562920000",
+         "payload":{"mimeType":"multipart/alternative","headers":[
+           {"name":"From","value":"Claire Morel <claire@cabinet.exemple>"},{"name":"To","value":"moi@exemple.fr"},{"name":"Subject","value":"Point projet"}],
+          "parts":[
+           {"partId":"0","mimeType":"text/plain","filename":"","headers":[{"name":"Content-Type","value":"text/plain; charset=utf-8"}],"body":{"size":24,"data":"\#(plain)"}},
+           {"partId":"1","mimeType":"text/html","filename":"","headers":[{"name":"Content-Type","value":"text/html; charset=utf-8"}],"body":{"size":57,"data":"\#(html)"}},
+           {"partId":"2","mimeType":"text/calendar","filename":"","headers":[{"name":"Content-Type","value":"text/calendar; charset=utf-8; method=REQUEST"}],"body":{"size":96,"data":"\#(ics)"}}]}}
+        """#
+        let mail = MailParser.parse(try GmailAPI.decode(GmailAPI.Message.self, from: Data(json.utf8)), account: account)
+        let database = try AppDatabase.inMemory()
+        try CalendarStore(database).addAccount(email: account, at: Date(timeIntervalSince1970: 1_794_562_000))
+        let store = MailStore(database)
+        try store.apply(account: account, upserts: [mail.row])
+        let exchange = try #require(try store.exchanges(since: Date(timeIntervalSince1970: 1_794_000_000)).first)
+        // Today it is a person's mail: Colin can say « Claire attend ta réponse ».
+        #expect(exchange.calendar && !exchange.mine)
+        #expect(mail.row.files.isEmpty)
+    }
 }

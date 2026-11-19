@@ -119,6 +119,21 @@ import Testing
         #expect(rules.filing(of: thread(senders: ["lou@studio.exemple"]))! == (.project(site), .domain))
     }
 
+    /// A colleague of Paul's own domain answered last in a client's thread that Paul filed by hand: the case kept for
+    /// him files nothing else, neither his internal mails nor another client's thread he answered last (as with his
+    /// links, second review of 14/11; audit of 19/11).
+    @Test func aColleaguesKeptCaseFilesNothingElse() {
+        var rules = rules
+        rules.senders = ["alex@atelier.exemple": MailSenderRow(address: "alex@atelier.exemple", principal: false, images: false, createdAt: Date(), tab: nil,
+                                                               filing: "projet:\(site.uuidString.lowercased())")]
+        #expect(rules.filing(of: thread(senders: ["alex@atelier.exemple"], subject: "Déjeuner vendredi")) == nil)
+        #expect(rules.filing(of: thread("t2", senders: ["nina.fictive.polhub@gmail.com", "alex@atelier.exemple"], subject: "Retours"))! == (.project(logo), .contacts))
+        // Anyone else's kept case still files his threads.
+        rules.senders["camille@studio.exemple"] = MailSenderRow(address: "camille@studio.exemple", principal: false, images: false, createdAt: Date(), tab: nil,
+                                                               filing: "projet:\(logo.uuidString.lowercased())")
+        #expect(rules.filing(of: thread("t3", senders: ["camille@studio.exemple"]))! == (.project(logo), .sender))
+    }
+
     @Test func aCaseReadsBackAsItWasWritten() {
         for filing in [MailFiling.project(site), .perso, .newsletters, .payments, .services, .none] {
             #expect(MailFiling(rawValue: filing.rawValue) == filing)

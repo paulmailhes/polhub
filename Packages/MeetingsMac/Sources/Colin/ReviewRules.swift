@@ -163,13 +163,15 @@ public enum ReviewRules {
     /// - Paul wrote nothing to them since, in whatever thread of whatever mailbox (`exchanges`);
     /// - that message is neither a calendar's own nor an automatic one, and they are no colleague of his;
     /// - no draft to them was begun or touched since their message (`drafts`: all of them, Paul's own and an agent's;
-    ///   `gmailDrafts`: those begun in Gmail, on the phone or the web);
+    ///   `gmailDrafts`: those begun in Gmail, on the phone or the web), and touched within as many days as a message
+    ///   waits, unless it is programmed or on its way out (`outgoing`, by draft);
     /// - no meeting with them was held since, nor comes within a week (`events`).
-    /// One line by person, on their oldest thread that waits, set aside by person; the oldest first. Never said from
-    /// a mailbox Paul hid (`hiddenAccounts`), though what he wrote from it counts.
+    /// One line by person, on their oldest thread that waits, set aside by person with the threads Paul had before
+    /// him then; the oldest first. Never said from a mailbox Paul hid (`hiddenAccounts`), though what he wrote from it
+    /// counts.
     public static func repliesByPerson(_ threads: [MailThreadRow], rules: MailFilingRules, conversations: [String: String] = [:], exchanges: Exchanges,
-                                       drafts: [MailDraftRow] = [], gmailDrafts: [MailMessageRow] = [], events: [CalendarEventRow] = [],
-                                       hiddenAccounts: Set<String> = [],
+                                       drafts: [MailDraftRow] = [], outgoing: Set<String> = [], gmailDrafts: [MailMessageRow] = [],
+                                       events: [CalendarEventRow] = [], hiddenAccounts: Set<String> = [],
                                        dismissed: [ColinDismissalRow], now: Date,
                                        thresholds: Thresholds, calendar: Calendar = .current) -> [Line] {
         var window = thresholds
@@ -177,9 +179,13 @@ public enum ReviewRules {
         let byKey = Dictionary(threads.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let aside = rows(dismissed, of: .reply)
         let colleagues = ownDomains(rules)
-        // Who a draft is written to, and when it was last touched: a draft older than the message answers nothing.
+        // Who a draft is written to, and when it was last touched: a draft older than the message answers nothing,
+        // nor one left untouched for as long as a message waits (a ⌘R, a reply given up: audit of 19/11), unless it
+        // is programmed or on its way out.
+        let fresh = { (date: Date) in age(of: date, now: now) < thresholds.replyDays }
         var writing: [String: Date] = [:]
-        let begun = drafts.map { ($0.to + $0.cc, $0.updatedAt) } + gmailDrafts.map { ($0.to + $0.cc, $0.date) }
+        let begun = drafts.filter { outgoing.contains($0.id) || fresh($0.updatedAt) }.map { ($0.to + $0.cc, $0.updatedAt) }
+            + gmailDrafts.filter { fresh($0.date) }.map { ($0.to + $0.cc, $0.date) }
         for (people, date) in begun {
             for person in people { writing[person.email.lowercased()] = max(writing[person.email.lowercased()] ?? .distantPast, date) }
         }
@@ -189,11 +195,14 @@ public enum ReviewRules {
             guard let key = line.threadKey, let thread = byKey[key], let address = thread.lastSender?.lowercased(),
                   let received = thread.lastReceivedAt, !hiddenAccounts.contains(thread.account) else { continue }
             if let domain = PublicMailDomains.domain(of: address), colleagues.contains(domain) { continue }
+            // A person set aside stays aside with every thread Paul had before him then: back by a newer message, the
+            // line is said on that message's thread, at its age, never on one he already set aside (audit of 19/11).
+            guard !isAside(aside[address], lastMessage: received, now: now, calendar: calendar) else { continue }
             guard !exchanges.wrote(to: address, after: received, until: now) else { continue }
             if let last = exchanges.lastReceived(in: key, asOf: now), last.calendar || last.automatic { continue }
             guard (writing[address] ?? .distantPast) <= received, !met(address, since: received, events: events, now: now) else { continue }
             if let known = byPerson[address] {
-                // Their oldest thread that waits says the line; their latest message says until when it is set aside.
+                // Their oldest thread that waits says the line; their latest message is what Paul has before him.
                 byPerson[address] = (line: (line.days ?? 0) > (known.line.days ?? 0) ? line : known.line, last: max(known.last, received))
             } else {
                 order.append(address)
@@ -201,7 +210,7 @@ public enum ReviewRules {
             }
         }
         return order.compactMap { address -> Line? in
-            guard let found = byPerson[address], !isAside(aside[address], lastMessage: found.last, now: now, calendar: calendar) else { return nil }
+            guard let found = byPerson[address] else { return nil }
             var line = found.line
             line.id = id(.reply, address)
             // What Paul has before him: their latest message in whatever thread, even one too young yet to be said.

@@ -143,8 +143,8 @@ public actor InspirationCollector {
     }
 
     /// A site's item from its page's OpenGraph tags: its title (else its host), its description, its image made
-    /// light (else `fallbackImage`). A page that cannot be read still gives an item, named after its host; only a
-    /// lost connection stops.
+    /// light (else `fallbackImage`). A page or an image that cannot be read still gives an item, named after its
+    /// host; only a lost connection stops, at the image too (audit of 19/11: the site was kept grey for good).
     private func siteItem(url: URL, key: String, fallbackImage: URL?, links: [String], now: Date) async throws -> InspirationItemRow {
         var graph = OpenGraph()
         var base = url
@@ -166,9 +166,14 @@ public actor InspirationCollector {
         var images: [String] = []
         for candidate in [graph.imageURL(base: base), fallbackImage].compactMap({ $0 }) {
             try Task.checkCancellation()
-            if (try? await fetchImage(candidate, to: destination)) != nil {
+            do {
+                try await fetchImage(candidate, to: destination)
                 images = [name]
                 break
+            } catch let error as URLError where Self.isOffline(error) {
+                throw error
+            } catch {
+                // Not an image, too heavy, refused by its server: the next candidate.
             }
         }
         let host = url.host(percentEncoded: false).map { $0.hasPrefix("www.") ? String($0.dropFirst(4)) : $0 } ?? key
@@ -275,7 +280,7 @@ public actor InspirationCollector {
             }
             let wanted = min(configuration.maxBrandingImages, content.images.count)
             if sameProject?.deletedAt == nil, wanted > (sameProject?.images.count ?? 0) {
-                item.images = await brandingImages(content.images, key: item.key)
+                item.images = try await brandingImages(content.images, key: item.key)
             }
             try Task.checkCancellation()
             let result = try store.upsert(item, at: now)
@@ -306,16 +311,24 @@ public actor InspirationCollector {
     }
 
     /// The post's images made light, the first still image first (a GIF's first frame is often blank), named
-    /// `<key>-1.jpg`… in that order.
-    private func brandingImages(_ candidates: [String], key: String) async -> [String] {
+    /// `<key>-1.jpg`… in that order. An image that cannot be had is left aside; a lost connection deletes the images
+    /// already downloaded and throws, so that the post is not kept without them but read again at the next run
+    /// (audit of 19/11: it kept two images out of five for good).
+    private func brandingImages(_ candidates: [String], key: String) async throws -> [String] {
         let folder = paths.inspirationImages(.branding)
         var fetched: [(file: URL, animated: Bool)] = []
         for address in candidates {
             guard fetched.count < configuration.maxBrandingImages, !Task.isCancelled else { break }
             guard let url = URL(string: address) else { continue }
             let partial = folder.appending(path: ".\(key)-\(UUID().uuidString).partiel.jpg")
-            if let animated = try? await fetchImage(url, to: partial) {
+            do {
+                let animated = try await fetchImage(url, to: partial)
                 fetched.append((partial, animated))
+            } catch let error as URLError where Self.isOffline(error) {
+                for image in fetched { try? FileManager.default.removeItem(at: image.file) }
+                throw error
+            } catch {
+                // Too heavy, not an image, refused by its server: left aside.
             }
         }
         if let still = fetched.firstIndex(where: { !$0.animated }), still > 0 {

@@ -129,4 +129,39 @@ import Testing
         try await waitUntil { mails.preview == url }
         #expect(mails.opening.isEmpty)
     }
+
+    /// « Tous les mails de cet expéditeur »: every thread he wrote in, from the copy, which holds the whole mailbox;
+    /// not one page of Gmail's search (25 threads by mailbox), which an « Archiver » on all would leave short (audit
+    /// of 19/11).
+    @Test func everyMailOfASenderShowsAllOfThem() async throws {
+        let database = try AppDatabase.inMemory()
+        let calendar = CalendarStore(database)
+        try calendar.addAccount(email: account, at: Date())
+        try calendar.setGrantedScopes(email: account, scopes: "openid https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.modify")
+        let letter = MailAddress(name: "La Lettre", email: "lettre@lettre.exemple")
+        let store = MailStore(database)
+        try store.apply(account: account, upserts: (0..<30).map { index in
+            mail("l\(index)", thread: "l\(index)", from: letter, subject: "Numéro \(index)", labels: ["INBOX", "CATEGORY_PROMOTIONS"], minutes: Double(index) * 60)
+        } + [mail("c1", thread: "c", from: camille, subject: "Maquette", labels: ["INBOX", "CATEGORY_PERSONAL"])])
+        let root = FileManager.default.temporaryDirectory.appending(path: "liste-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        // Gmail answers nothing here: what shows comes from the copy.
+        let gmail = SilentGmail()
+        let mails = MailLibrary(agenda: AgendaLibrary(database: database), root: root, defaults: UserDefaults(suiteName: "liste-\(UUID().uuidString)")!,
+                                send: { _ in gmail.send })
+        try await waitUntil { mails.accounts.count == 1 && mails.inbox.count == 31 }
+        mails.showAll(from: letter.email)
+        try await waitUntil { mails.found?.count == 30 }
+        #expect(mails.found?.allSatisfy { $0.lastSender == letter.email } == true)
+        // An archived one is his too; one in the trash is not.
+        try store.apply(account: account, upserts: [
+            mail("l0", thread: "l0", from: letter, subject: "Numéro 0", labels: ["CATEGORY_PROMOTIONS"]),
+            mail("l1", thread: "l1", from: letter, subject: "Numéro 1", labels: ["TRASH", "CATEGORY_PROMOTIONS"], minutes: 60),
+        ])
+        try await waitUntil { mails.found?.count == 29 }
+        #expect(mails.found?.contains { $0.threadID == "l0" } == true && mails.found?.contains { $0.threadID == "l1" } == false)
+        // A name alone, typed, still waits for Enter: only Gmail answers an operator.
+        mails.query = "from:lettre"
+        #expect(mails.found == nil)
+    }
 }

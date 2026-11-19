@@ -30,7 +30,7 @@ public enum Linker {
     }
 
     /// The first rule that answers: Paul's choice, the recorded meeting's project, the series', the one
-    /// project shared by the guests, a project's name in the title.
+    /// project shared by the guests, a project's name in the title (among the guests' projects when they have several).
     public static func project(
         for event: CalendarEventRow, meetingProject: UUID?, seriesProjects: [String: UUID], contactProjects: [String: Set<UUID>],
         projects: [(id: UUID, name: String)]
@@ -44,7 +44,10 @@ public enum Linker {
         if let series = event.recurringEventID, let id = seriesProjects[series] { return (id, .serie) }
         let guestProjects = event.guests.compactMap { contactProjects[$0.email] }.reduce(into: Set<UUID>()) { $0.formUnion($1) }
         if guestProjects.count == 1, let id = guestProjects.first { return (id, .invites) }
-        if guestProjects.isEmpty, let id = projectNamed(in: event.title, projects: projects) { return (id, .titre) }
+        // Guests of several projects: the one the title names among theirs, as the mails do with a subject; a project none
+        // of them is in is never read in the title (audit of 19/11).
+        let named = guestProjects.isEmpty ? projects : projects.filter { guestProjects.contains($0.id) }
+        if let id = projectNamed(in: event.title, projects: named) { return (id, .titre) }
         return nil
     }
 
@@ -68,8 +71,9 @@ public enum Linker {
     }
 
     /// The recording of an event: same Meet code around the same time, else a meeting covering half of
-    /// the shorter of the two. An imported meeting is only found by Google's id.
-    public static func meeting(for event: CalendarEventRow, among meetings: [MeetingRow]) -> MeetingRow? {
+    /// the shorter of the two. An imported meeting is only found by Google's id. `sameCodeOnly`: the Meet code alone, for
+    /// the loop's first round (audit of 19/11).
+    public static func meeting(for event: CalendarEventRow, among meetings: [MeetingRow], sameCodeOnly: Bool = false) -> MeetingRow? {
         guard !event.allDay else { return nil }
         let recorded = meetings.filter { $0.source != .imported }
         let margin: TimeInterval = 30 * 60
@@ -81,6 +85,7 @@ public enum Linker {
                 return nearest
             }
         }
+        if sameCodeOnly { return nil }
         let scored = recorded.compactMap { meeting -> (MeetingRow, TimeInterval)? in
             guard let end = meeting.endedAt ?? meeting.presumedEndAt, end > meeting.startedAt else { return nil }
             let overlap = min(end, event.endAt).timeIntervalSince(max(meeting.startedAt, event.startAt))
@@ -131,29 +136,38 @@ public struct LinkRunner: Sendable {
         // The copies of one event share its recording: a copy whose sibling has it never looks for another one
         // (review of 14/11).
         var recorded = Set(events.filter { $0.meetingID != nil }.map(\.eventID))
-        for index in events.indices {
-            let event = events[index]
-            let found = byGoogleID[event.eventID] ?? (event.meetingID == nil && !recorded.contains(event.eventID)
-                ? Linker.meeting(for: event, among: allMeetings.filter { !taken.contains($0.id) }) : nil)
-            if let found, found.id != event.meetingID {
-                try calendar.setMeeting(eventID: event.id, meetingID: found.id)
-                events[index].meetingID = found.id
-                taken.insert(found.id)
-                recorded.insert(event.eventID)
+        // The same Meet code first, for every event; then the overlap, for those left: an event that only covers a
+        // recording (a day's block, an invitation not followed) never takes it from the event of its code, though it
+        // starts first (audit of 19/11).
+        for sameCodeOnly in [true, false] {
+            for index in events.indices {
+                let event = events[index]
+                let found = byGoogleID[event.eventID] ?? (event.meetingID == nil && !recorded.contains(event.eventID)
+                    ? Linker.meeting(for: event, among: allMeetings.filter { !taken.contains($0.id) }, sameCodeOnly: sameCodeOnly) : nil)
+                if let found, found.id != event.meetingID {
+                    try calendar.setMeeting(eventID: event.id, meetingID: found.id)
+                    events[index].meetingID = found.id
+                    taken.insert(found.id)
+                    recorded.insert(event.eventID)
+                }
             }
         }
         let meetingByID = Dictionary(try meetings.recent(limit: 100_000).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
 
         // 3. Events → projects.
         let projectList = try projects.projects().map { (id: $0.id, name: $0.name) }
+        // A project in the Trash files nothing any more, as for the mails (15/11): its contacts' links, its series and its
+        // recordings count for none. Paul's own filing stays as it is (audit of 19/11).
+        let live = Set(projectList.map(\.id))
         let contactIDs = Dictionary(byEmail.map { ($0.value.id, $0.key) }, uniquingKeysWith: { first, _ in first })
         var contactProjects: [String: Set<UUID>] = [:]
-        for link in try contacts.links() where !link.excluded {
+        for link in try contacts.links() where !link.excluded && live.contains(link.projectID) {
             if let email = contactIDs[link.contactID] { contactProjects[email, default: []].insert(link.projectID) }
         }
         var seriesProjects: [String: UUID] = [:]
         for event in events.sorted(by: { ($0.projectOrigin == .paul ? 0 : 1) < ($1.projectOrigin == .paul ? 0 : 1) }) {
-            guard let series = event.recurringEventID, let id = event.projectID, [.paul, .reunion].contains(event.projectOrigin) else { continue }
+            guard let series = event.recurringEventID, let id = event.projectID, live.contains(id), [.paul, .reunion].contains(event.projectOrigin)
+            else { continue }
             if seriesProjects[series] == nil { seriesProjects[series] = id }
         }
         // The recording is linked to one copy of an event; every copy takes its project (review of 14/11, Important 7).
@@ -163,6 +177,7 @@ public struct LinkRunner: Sendable {
             // Paul's filing, « no project » included, is never recomputed (review, Important 2).
             if event.projectOrigin == .paul { continue }
             let meetingProject = (event.meetingID ?? recordingOf[event.eventID]).flatMap { meetingByID[$0]?.projectID }
+                .flatMap { live.contains($0) ? $0 : nil }
             let found = Linker.project(for: event, meetingProject: meetingProject, seriesProjects: seriesProjects,
                                        contactProjects: contactProjects, projects: projectList)
             if found?.id != event.projectID || found?.origin != event.projectOrigin {

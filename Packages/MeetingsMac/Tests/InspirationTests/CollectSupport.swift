@@ -84,6 +84,39 @@ final class FakeHTTP: InspirationHTTP, @unchecked Sendable {
     }
 }
 
+/// The fake web, its line dropping while images come down (the Wi-Fi goes, the Mac falls asleep): the first
+/// `imagesBeforeDrop` images come, then nothing comes, page nor image, until `reconnect()` (audit of 19/11).
+/// `FakeHTTP.fail` keeps a failure for good: this one cuts the line, then gives it back.
+final class DroppingLine: InspirationHTTP, @unchecked Sendable {
+    let web: FakeHTTP
+    private let lock = NSLock()
+    private var imagesBeforeDrop: Int
+    private var down = false
+
+    init(_ web: FakeHTTP, imagesBeforeDrop: Int) {
+        self.web = web
+        self.imagesBeforeDrop = imagesBeforeDrop
+    }
+
+    func reconnect() {
+        lock.withLock {
+            down = false
+            imagesBeforeDrop = .max
+        }
+    }
+
+    func get(_ request: InspirationRequest) async throws -> InspirationResponse {
+        let lineIsUp: Bool = lock.withLock {
+            if !down, request.purpose == .image {
+                if imagesBeforeDrop == 0 { down = true } else { imagesBeforeDrop -= 1 }
+            }
+            return !down
+        }
+        guard lineIsUp else { throw URLError(.networkConnectionLost) }
+        return try await web.get(request)
+    }
+}
+
 /// Quick Look as the tests see it: a drawn image for any file, or nothing.
 struct FakeThumbnailer: MockupThumbnailing {
     var image: Data? = TestImages.png(width: 2400, height: 1800)
@@ -153,9 +186,10 @@ struct CollectWorld {
 
     var store: InspirationStore { InspirationStore(database) }
 
-    func collector(thumbnailer: any MockupThumbnailing = FakeThumbnailer(), runLog: CollectionRunLog? = nil,
-                   configuration: InspirationCollector.Configuration = .init()) -> InspirationCollector {
-        InspirationCollector(database: database, paths: paths, http: http, thumbnailer: thumbnailer, runLog: runLog,
+    /// `http`: another way to the fake web (a `DroppingLine`), else the fake web itself.
+    func collector(http: (any InspirationHTTP)? = nil, thumbnailer: any MockupThumbnailing = FakeThumbnailer(),
+                   runLog: CollectionRunLog? = nil, configuration: InspirationCollector.Configuration = .init()) -> InspirationCollector {
+        InspirationCollector(database: database, paths: paths, http: http ?? self.http, thumbnailer: thumbnailer, runLog: runLog,
                              configuration: configuration, sleep: pauses.sleep)
     }
 

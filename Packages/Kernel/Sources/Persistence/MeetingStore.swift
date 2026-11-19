@@ -104,6 +104,9 @@ public struct MeetingStore: Sendable {
                 sql: "UPDATE meeting SET deletedAt = ?, updatedAt = ? WHERE id = ?",
                 arguments: [date, date, Self.key(id)]
             )
+            // In the Trash, a recording is no event's any more, as when it is deleted for good: « Réunion à ranger »
+            // and the Agenda no longer offer it (audit of 19/11).
+            try db.execute(sql: "UPDATE calendar_event SET meetingID = NULL WHERE meetingID = ?", arguments: [Self.key(id)])
         }
     }
 

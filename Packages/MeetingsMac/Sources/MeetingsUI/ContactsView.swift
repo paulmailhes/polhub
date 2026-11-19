@@ -189,6 +189,8 @@ struct ContactPage: View {
     @State private var summaries: [UUID: String] = [:]
     @State private var mails: [MailThreadRow] = []
     @State private var saving: Task<Void, Never>?
+    /// Why the address typed was not kept (audit of 19/11): the base holds one contact per address.
+    @State private var addressRefused: String?
     @State private var copied = false
     /// The width of the page's content: two columns when wide enough (as a project's page), the header's buttons
     /// under the name when narrow.
@@ -481,7 +483,13 @@ struct ContactPage: View {
         Card {
             SectionTitle("Coordonnées", systemImage: "person.text.rectangle")
             field("Entreprise", text: optional(\.company))
-            field("E-mail", text: Binding(get: { contact.email ?? "" }, set: { contact.email = $0.isEmpty ? nil : $0.lowercased() }))
+            field("E-mail", text: Binding(get: { contact.email ?? "" }, set: {
+                contact.email = $0.isEmpty ? nil : $0.lowercased()
+                addressRefused = nil
+            }))
+            if let addressRefused {
+                Text(addressRefused).font(.meta).foregroundStyle(.orange).frame(maxWidth: .infinity, alignment: .trailing)
+            }
             field("Téléphone", text: optional(\.phone))
         }
     }
@@ -532,7 +540,18 @@ struct ContactPage: View {
         if clean.name.isEmpty { clean.name = saved.name }
         guard clean != saved else { return }
         let addressChanged = clean.email != saved.email
-        agenda.save(clean)
+        do {
+            try agenda.save(clean)
+        } catch {
+            // Nothing the base refused is taken as saved (audit of 19/11): the address goes back to the one it holds, the
+            // rest is saved at the next pass, and the page says why.
+            if addressChanged {
+                let owner = clean.email.flatMap { agenda.contact(email: $0) }.flatMap { $0.id == clean.id ? nil : $0 }
+                addressRefused = owner.map { "Cette adresse est déjà celle de « \($0.name) »." } ?? "Cette adresse n'a pas pu être enregistrée."
+                contact.email = saved.email
+            }
+            return
+        }
         saved = clean
         if addressChanged { reload() }
     }

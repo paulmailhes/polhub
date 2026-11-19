@@ -177,6 +177,18 @@ import Testing
         #expect(slots.map(\.columns) == [2, 2, 1, 2])
     }
 
+    /// Audit of 19/11: a week past what Polhub reads of the agendas says so, as the agents are told (`AgendaDesk.gaps`): an
+    /// empty week there is not a free one.
+    @Test func aWeekPastTheCopySaysSo() throws {
+        let read = Date(timeIntervalSince1970: 1_794_562_920)
+        let accounts = [GoogleAccountRow(email: "moi@exemple.fr", addedAt: read, lastSyncAt: read)]
+        let thisWeek = CalendarView.monday(of: read)
+        let inTenWeeks = try #require(CalendarView.calendar.date(byAdding: .day, value: 70, to: thisWeek))
+        #expect(CalendarView.copyNotice(weekStart: thisWeek, days: 7, accounts: accounts) == nil)
+        let notice = try #require(CalendarView.copyNotice(weekStart: inTenWeeks, days: 7, accounts: accounts))
+        #expect(notice.contains("Google Agenda"))
+    }
+
     /// The week's lines (19/11): one device pixel wide, on a pixel, whatever the window's width. Half a point between
     /// two pixels faded away on a screen that is not Retina, the more as the window widened.
     @Test func gridLinesSitOnAPixel() {
