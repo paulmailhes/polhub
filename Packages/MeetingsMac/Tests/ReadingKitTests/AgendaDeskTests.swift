@@ -226,6 +226,45 @@ struct AgendaFixture {
         #expect(answer.contains("préparé par un agent") && answer.contains("`brouillon`"))
     }
 
+    /// An agent fooled by a mail could fill the agenda (audit of 19/11): three events an hour per session at most; the
+    /// fourth never reaches the app.
+    @Test func aSessionCreatesThreeEventsAnHourAtMost() throws {
+        let fixture = try AgendaFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let files = fixture.files
+        let answered = Counter()
+        let app = Thread {
+            let deadline = Date().addingTimeInterval(20)
+            while Date() < deadline {
+                for pending in files.take() {
+                    guard let request = pending.request else { continue }
+                    answered.add()
+                    files.answer(AgentEventResult(eventID: "agent\(answered.count)", account: "paul@exemple.fr", title: request.title, start: request.start,
+                                                  end: request.end, meetCode: nil), id: pending.id)
+                }
+                Thread.sleep(forTimeInterval: 0.05)
+            }
+        }
+        app.start()
+        let clock = Moment(fixture.now)
+        let desk = AgendaDesk(database: fixture.database, root: fixture.root, projects: nil, now: { clock.date }, timeZone: fixture.paris)
+        for hour in ["10:00", "11:00", "12:00"] {
+            _ = try desk.create(title: "Point \(hour)", start: "2026-11-17 \(hour)", end: nil, minutes: 30, meet: false, account: nil, notes: "",
+                                project: nil, wait: 10)
+        }
+        do {
+            _ = try desk.create(title: "Point 13:00", start: "2026-11-17 13:00", end: nil, minutes: 30, meet: false, account: nil, notes: "", project: nil, wait: 2)
+            Issue.record("un quatrième rendez-vous a été demandé")
+        } catch {
+            #expect("\(error)".contains("Trois rendez-vous"), "\(error)")
+        }
+        #expect(answered.count == 3)
+        // An hour later, the session may ask again.
+        clock.date = fixture.now.addingTimeInterval(3_601)
+        _ = try desk.create(title: "Point 14:00", start: "2026-11-17 14:00", end: nil, minutes: 30, meet: false, account: nil, notes: "", project: nil, wait: 10)
+        #expect(answered.count == 4)
+    }
+
     @Test func aWrongRequestIsRefusedBeforeReachingTheApp() throws {
         let fixture = try AgendaFixture()
         defer { try? FileManager.default.removeItem(at: fixture.root) }
@@ -320,6 +359,23 @@ struct AgendaFixture {
         let before = MCPServer(reader: try Fixture().reader, desk: fixture.projects)
         #expect(!(try #require(before.handle(#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#))).contains("rendez_vous"))
     }
+}
+
+final class Moment: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Date
+    init(_ date: Date) { value = date }
+    var date: Date {
+        get { lock.withLock { value } }
+        set { lock.withLock { value = newValue } }
+    }
+}
+
+final class Counter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+    var count: Int { lock.withLock { value } }
+    func add() { lock.withLock { value += 1 } }
 }
 
 final class RequestBox: @unchecked Sendable {

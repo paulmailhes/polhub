@@ -23,6 +23,11 @@ public struct AgendaDesk: Sendable {
     let mailScope: @Sendable () -> MailDesk.Scope
     let now: @Sendable () -> Date
     let timeZone: TimeZone
+    /// The events this session had made, for the hour's limit: one desk per server process, so per session.
+    let made = MadeEvents()
+
+    /// An agent fooled by a mail could fill the agenda (audit of 19/11): three events an hour per session at most.
+    static let eventsPerHour = 3
 
     public init(database: AppDatabase, root: URL, projects: ProjectDesk?, mailScope: @autoclosure @escaping @Sendable () -> MailDesk.Scope = .tout,
                 now: @escaping @Sendable () -> Date = Date.init, timeZone: TimeZone = .current) {
@@ -261,6 +266,10 @@ public struct AgendaDesk: Sendable {
             guard let projects else { throw ToolError("Les projets ne sont pas lisibles ici.") }
             filed = try projects.resolve(project)
         }
+        guard made.count(since: now().addingTimeInterval(-3_600)) < Self.eventsPerHour else {
+            throw ToolError("Trois rendez-vous créés en moins d'une heure par cette session : Polhub n'en crée pas d'autre pour l'instant. "
+                            + "Rien n'a été créé. Si Paul en veut d'autres, il les crée lui-même, ou redemande dans une heure.")
+        }
         let request = AgentEventRequest(title: name, start: begin, end: finish, minutes: minutes, meet: meet, account: chosen, notes: description,
                                         projectID: filed?.id, createdAt: now(), location: place)
         try files.request(request)
@@ -282,6 +291,7 @@ public struct AgendaDesk: Sendable {
             throw ToolError("Polhub a pris la demande mais n'a pas encore répondu : regarde `agenda` dans un instant avant de redemander, pour ne pas créer le rendez-vous deux fois.")
         }
         if let error = result.error { throw ToolError("Polhub n'a pas confirmé le rendez-vous : \(error).") }
+        made.add(now())
         let made = result.start ?? begin, over = result.end ?? finish ?? begin
         var answer = "Rendez-vous « \(result.title ?? name) » créé dans l'agenda \(result.account ?? chosen ?? "?") : \(dayName(made, year: true, weekday: true)), "
             + (clock.isDate(made, inSameDayAs: over) ? "\(time(made))–\(time(over))" : "\(time(made)) → \(dayName(over, weekday: true)) \(time(over))")
@@ -344,4 +354,13 @@ public struct AgendaDesk: Sendable {
     func shortDay(_ date: Date) -> String { formatter("dd/MM/yyyy").string(from: date) }
 
     func time(_ date: Date) -> String { formatter("HH:mm", locale: "en_US_POSIX").string(from: date) }
+}
+
+/// When this session's events were made (audit of 19/11): the hour's limit counts them.
+final class MadeEvents: @unchecked Sendable {
+    private let lock = NSLock()
+    private var dates: [Date] = []
+
+    func add(_ date: Date) { lock.withLock { dates.append(date) } }
+    func count(since date: Date) -> Int { lock.withLock { dates.filter { $0 > date }.count } }
 }
