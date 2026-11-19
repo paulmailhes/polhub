@@ -150,7 +150,7 @@ réponse ont le même bord. Un nouveau mail aussi : son titre au bord de sa cart
   « Pas un spam », le principal de l'écran), envoi programmé (l'horloge grise, ou le rouge du retard et « Envoyer
   maintenant »).
 
-Pour chaque message, il montre ce qui a été écrit (Paul, 19/11 : « incompréhensible, il y en a dans tous les sens ») :
+Pour chaque message, le fil montre ce qui a été écrit (Paul, 19/11 : « incompréhensible, il y en a dans tous les sens ») :
 
 - **l'historique cité** se replie derrière une pastille « Historique ▾ », de l'endroit où il commence jusqu'à la
   fin : la classe de Gmail ou d'Apple Mail, le bloc « De / Envoyé (ou Date) / À / Objet » d'Outlook sous son filet

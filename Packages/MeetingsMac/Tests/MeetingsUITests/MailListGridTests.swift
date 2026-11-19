@@ -39,7 +39,7 @@ import Testing
         #expect(!MailGrid.showsStripes(accounts: ["moi@exemple.fr"], hidden: []))
         #expect(MailGrid.showsStripes(accounts: ["moi@exemple.fr", "perso@exemple.org"], hidden: []))
         #expect(!MailGrid.showsStripes(accounts: ["moi@exemple.fr", "perso@exemple.org"], hidden: ["perso@exemple.org"]))
-        #expect(MailGrid.showsStripes(accounts: ["moi@exemple.fr", "perso@exemple.org", "paul@atelier.exemple"], hidden: ["perso@exemple.org"]))
+        #expect(MailGrid.showsStripes(accounts: ["moi@exemple.fr", "perso@exemple.org", "atelier@atelier.exemple"], hidden: ["perso@exemple.org"]))
     }
 
     /// The bar is there in every folder; its box ticks only what can be ticked, and « Non lus » shows only where it filters.
