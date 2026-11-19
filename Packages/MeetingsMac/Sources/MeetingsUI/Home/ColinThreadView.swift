@@ -193,7 +193,8 @@ struct ColinThreadView: View {
                     case .change(let line):
                         // A rule's change says why; an agent's, who made it.
                         ChangeCard(line: line, outcome: thread.outcomes[line.id], calendar: calendar,
-                                   byline: line.who == .colin ? nil : ChangeText.byline(line, now: Date(), calendar: calendar)) { thread.undo(line) }
+                                   byline: line.who == .colin ? nil : ChangeText.byline(line, now: Date(), calendar: calendar),
+                                   open: { router.openProject(line.projectID) }) { thread.undo(line) }
                             .padding(.top, ThreadMetrics.inTurn)
                             .id(item.id)
                     }

@@ -204,6 +204,22 @@ import Testing
         #expect(try call(other, "projet", ["projet": "Cabinet Martin", "statut": "priorité 1"]).text.hasPrefix(ColinTool.lockMark))
     }
 
+    /// 19/11: a project is created only on a context where nothing of a third party was read: a mail could otherwise
+    /// name it, and every agent reads the projects' names.
+    @Test func colinCreatesAProjectOnlyBeforeReadingAThirdParty() throws {
+        let world = try world()
+        defer { try? FileManager.default.removeItem(at: world.fixture.root) }
+        let writes = WriteCounter()
+        let server = try server(world, writes: writes)
+        #expect(try call(server, "projets").error == false)
+        #expect(try call(server, "nouveau_projet", ["nom": "Vlog 2"]).error == false)
+        #expect(try call(server, "mail", ["quel": "fil-devis-04"]).error == false)
+        let refused = try call(server, "nouveau_projet", ["nom": "Vlog 3"])
+        #expect(refused.error && refused.text.hasPrefix(ColinTool.lockMark), "\(refused.text)")
+        #expect(writes.count == 1)
+        #expect(try ProjectStore(world.fixture.database).projects().map(\.name).contains("Vlog 3") == false)
+    }
+
     @Test func colinWritesAnyProjectBeforeReadingAnything() throws {
         let world = try world()
         defer { try? FileManager.default.removeItem(at: world.fixture.root) }

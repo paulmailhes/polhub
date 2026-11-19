@@ -30,13 +30,33 @@ import Testing
         return try answer(server, line)
     }
 
-    @Test func colinIsOfferedHisFifteenTools() throws {
+    @Test func colinIsOfferedHisSixteenTools() throws {
         let fixture = try MailDeskFixture()
         defer { try? FileManager.default.removeItem(at: fixture.root) }
         let names = try tools(server(fixture)).compactMap { $0["name"] as? String }
-        #expect(names == ColinTool.allCases.map(\.rawValue) && names.count == 15)
+        #expect(names == ColinTool.allCases.map(\.rawValue) && names.count == 16)
         let writing = try tools(server(fixture)).filter { ($0["annotations"] as? [String: Any])?["readOnlyHint"] as? Bool == false }
-        #expect(writing.compactMap { $0["name"] as? String } == ["brouillon", "projet", "action", "fait", "journal"])
+        #expect(writing.compactMap { $0["name"] as? String } == ["brouillon", "projet", "action", "fait", "journal", "nouveau_projet"])
+    }
+
+    /// 19/11: Colin creates a project when Paul asks — its name, column, client and deadline; never a code folder.
+    @Test func colinCreatesAProjectWithItsFieldsOnly() throws {
+        let fixture = try MailDeskFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let declared = try tools(server(fixture))
+        let tool = try #require(declared.first { $0["name"] as? String == "nouveau_projet" })
+        let schema = try #require(tool["inputSchema"] as? [String: Any])
+        #expect(Set(try #require(schema["properties"] as? [String: Any]).keys) == ["nom", "statut", "client", "echeance"])
+        #expect(schema["required"] as? [String] == ["nom"])
+        let writes = WriteCounter()
+        let server = try server(fixture, writes: writes)
+        #expect(try call(server, "nouveau_projet", ["nom": "Vlog 2", "dossier": "/tmp/piege"])["isError"] as? Bool == true)
+        #expect(writes.count == 0)
+        let made = try call(server, "nouveau_projet", ["nom": "Vlog 2", "client": "Studio Nord", "echeance": "2026-12-04"])
+        #expect(made["isError"] as? Bool != true)
+        #expect(writes.count == 1)
+        let project = try #require(try ProjectStore(fixture.database).projects().first { $0.name == "Vlog 2" })
+        #expect(project.client == "Studio Nord" && project.codeFolder == nil)
     }
 
     /// Step 3 (18/11): of a project, Colin changes the status, the deadline and the task; he adds, rewords or checks

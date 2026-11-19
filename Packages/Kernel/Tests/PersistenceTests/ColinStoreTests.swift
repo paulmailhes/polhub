@@ -176,10 +176,12 @@ import Testing
         observation.cancel()
     }
 
-    /// Eleven to read and write drafts (step 2), four to change the kanban when asked (step 3).
-    @Test func colinsToolsAreFifteenAndNamedAsClaudeCodeNamesThem() {
-        #expect(ColinTool.allowed.count == 15)
+    /// Eleven to read and write drafts (step 2), four to change the kanban when asked (step 3), one to create a project
+    /// when asked (19/11).
+    @Test func colinsToolsAreSixteenAndNamedAsClaudeCodeNamesThem() {
+        #expect(ColinTool.allowed.count == 16)
         #expect(ColinTool.allCases.filter(\.changesAProject) == [.projet, .action, .fait, .journal])
+        #expect(ColinTool.allCases.filter(\.createsAProject) == [.nouveau_projet])
         #expect(ColinTool.allowed.first == "mcp__polhub__projets")
         #expect(ColinTool.brouillon.allowedName == "mcp__polhub__brouillon")
         #expect(ColinTool.lockMark == "Verrou de Colin")

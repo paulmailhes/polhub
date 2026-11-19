@@ -287,6 +287,19 @@ struct HomeScreenTests {
         calling.send()
         try await waitUntil { calling.status == .waitingCall }
         try await LiveWindow.capture(colinPage(calling), to: output.appending(path: "accueil-colin-call.png"), size: NSSize(width: 928, height: 760))
+        // 19/11: a project Colin created when asked, put forward with « Ouvrir le projet » and « Annuler ».
+        let colinWrites = ProjectStore(database).signed(.colin)
+        let vlog = try colinWrites.addProject(name: "Vlog 2", status: .priorite1, at: Date())
+        var given = vlog
+        given.client = "Studio Nord"
+        given.dueDate = Date().addingTimeInterval(14 * 86_400)
+        try colinWrites.saveChanges(from: vlog, to: given, at: Date())
+        let made = try colinThreadOn(database)
+        try await waitUntil { made.changes.contains { ChangeText.isCreation($0) } }
+        for dark in [false, true] {
+            try await LiveWindow.capture(colinPage(made), to: output.appending(path: "accueil-colin-projet-cree\(dark ? "-sombre" : "").png"),
+                                         size: NSSize(width: 928, height: 760), dark: dark)
+        }
         if live {
             let windowed = MainWindowView(library: library, projects: ProjectLibrary(store: projects, meetings: meetingStore), agenda: agenda, mails: mails, colin: colin,
                                           thread: try colinThread(on: true, busy: false, hanging: false), router: router, paths: AppPaths(root: root, logs: root)) { EmptyView() }

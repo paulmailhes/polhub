@@ -21,6 +21,8 @@ public enum ChangeText {
     public static func fields(_ line: ProjectChangeLine, calendar: Calendar) -> [ChangeField] {
         line.rows.compactMap { row in
             switch row.field {
+            // A new project's card says « Nouveau projet » and its name above: here, its column.
+            case .created: ChangeField(label: "Statut", before: nil, after: row.detail)
             case .status: ChangeField(label: "Statut", before: row.before, after: row.after)
             case .dueDate: ChangeField(label: "Échéance", before: row.before.flatMap { day($0, calendar) }, after: row.after.flatMap { day($0, calendar) })
             case .todo: ChangeField(label: "Tâche", before: text(row.before), after: text(row.after))
@@ -35,9 +37,27 @@ public enum ChangeText {
         }
     }
 
+    /// A project created (19/11): its card puts it forward, with « Ouvrir le projet ».
+    public static func isCreation(_ line: ProjectChangeLine) -> Bool {
+        line.rows.contains { $0.field == .created }
+    }
+
     public static func sentence(_ line: ProjectChangeLine, calendar: Calendar) -> String {
         var parts: [String] = []
         let rows = line.rows
+        if let created = rows.first(where: { $0.field == .created }) {
+            // Its column, then what was given with it, in the order it was written.
+            var said = [created.detail ?? ""]
+            for row in rows where row.field != .created {
+                switch row.field {
+                case .dueDate: if let after = row.after.flatMap({ day($0, calendar) }) { said.append("échéance \(after)") }
+                case .client: if let after = text(row.after) { said.append("client « \(after) »") }
+                case .todo: if let after = text(row.after) { said.append("tâche « \(after) »") }
+                default: continue
+                }
+            }
+            return "Nouveau projet « \(line.projectName) » : " + said.filter { !$0.isEmpty }.joined(separator: ", ") + "."
+        }
         for field in ProjectChangeField.allCases {
             let of = rows.filter { $0.field == field }
             guard let first = of.first else { continue }
@@ -71,6 +91,8 @@ public enum ChangeText {
                 parts.append(of.count == 1 ? "action « \(first.before ?? "") » retirée" : "\(of.count) actions retirées")
             case .journalAdded:
                 parts.append(of.count == 1 ? "journal « \(first.after ?? "") »" : "\(of.count) entrées au journal")
+            case .created:
+                continue
             }
         }
         return "« \(line.projectName) » : " + parts.joined(separator: ", ") + "."

@@ -236,30 +236,57 @@ struct ChangeCard: View {
     var calendar: Calendar = CalendarView.calendar
     /// Who made it and when, for a change that is not Colin's own in his answer.
     var byline: String?
+    /// « Ouvrir le projet », on a project created (19/11).
+    var open: (() -> Void)?
     let undo: () -> Void
 
     private var undone: Bool { outcome != nil || line.undoneAt != nil }
 
     var body: some View {
         ThreadCard {
+            if ChangeText.isCreation(line) { creation } else { header }
+            fieldLines
+        }
+    }
+
+    /// A project created, put forward (19/11): « Nouveau projet », its name in large, « Ouvrir le projet » and « Annuler ».
+    private var creation: some View {
+        HStack(alignment: .center, spacing: Space.m) {
+            Image(systemName: "folder.badge.plus").font(.system(size: 18, weight: .medium)).foregroundStyle(.primary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: said ?? "Nouveau projet").font(.meta).foregroundStyle(.secondary).lineLimit(1)
+                Text(verbatim: line.projectName).font(.rowTitle.weight(.semibold)).lineLimit(2)
+            }
+            .opacity(undone ? 0.5 : 1)
+            Spacer(minLength: Space.s)
+            if !undone {
+                if let open { Button("Ouvrir le projet", action: open).buttonStyle(.subtle) }
+                Button("Annuler", action: undo).buttonStyle(.subtle)
+            }
+        }
+    }
+
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+            Image(systemName: "checklist").font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+            Text(verbatim: line.projectName).font(.meta.weight(.semibold))
+            if let said { Text(verbatim: said).font(.meta).foregroundStyle(.secondary).lineLimit(1) }
+            Spacer(minLength: Space.s)
+            if !undone { Button("Annuler", action: undo).buttonStyle(.subtle) }
+        }
+    }
+
+    private var fieldLines: some View {
+        ForEach(Array(ChangeText.fields(line, calendar: calendar).enumerated()), id: \.offset) { _, field in
             HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-                Image(systemName: "checklist").font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
-                Text(verbatim: line.projectName).font(.meta.weight(.semibold))
-                if let said { Text(verbatim: said).font(.meta).foregroundStyle(.secondary).lineLimit(1) }
-                Spacer(minLength: Space.s)
-                if !undone { Button("Annuler", action: undo).buttonStyle(.subtle) }
-            }
-            ForEach(Array(ChangeText.fields(line, calendar: calendar).enumerated()), id: \.offset) { _, field in
-                HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-                    Text(verbatim: field.label).font(.meta).foregroundStyle(.secondary).frame(width: 64, alignment: .leading)
-                    if let before = field.before {
-                        Text(verbatim: before).font(.meta).foregroundStyle(.secondary).lineLimit(1)
-                        Image(systemName: "arrow.right").font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary)
-                    }
-                    Text(verbatim: field.after ?? "retiré").font(.meta.weight(.medium)).lineLimit(2)
+                Text(verbatim: field.label).font(.meta).foregroundStyle(.secondary).frame(width: 64, alignment: .leading)
+                if let before = field.before {
+                    Text(verbatim: before).font(.meta).foregroundStyle(.secondary).lineLimit(1)
+                    Image(systemName: "arrow.right").font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary)
                 }
-                .opacity(undone ? 0.5 : 1)
+                Text(verbatim: field.after ?? "retiré").font(.meta.weight(.medium)).lineLimit(2)
             }
+            .opacity(undone ? 0.5 : 1)
         }
     }
 
@@ -365,7 +392,7 @@ struct ColinAnswerView: View {
                 }
             }
             ForEach(changes) { line in
-                ChangeCard(line: line, outcome: thread.outcomes[line.id], calendar: calendar) { thread.undo(line) }
+                ChangeCard(line: line, outcome: thread.outcomes[line.id], calendar: calendar, open: { router.openProject(line.projectID) }) { thread.undo(line) }
             }
             if !writing { foot }
         }

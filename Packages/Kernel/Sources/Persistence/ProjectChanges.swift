@@ -30,6 +30,8 @@ public enum ProjectChangeField: String, Codable, Sendable, CaseIterable {
     case status, dueDate, todo, client, notes
     case actionAdded, actionDone, actionText, actionRemoved
     case journalAdded
+    /// A project created by an agent, Colin among them (19/11): its name after, its column in the detail.
+    case created
 }
 
 /// One change, written by the base's own triggers.
@@ -226,6 +228,18 @@ enum ProjectChangeSchema {
             """)
         return all
     }
+}
+
+extension ProjectChangeSchema {
+    /// A project an agent creates (base v21, 19/11): one change, undone by putting it in the trash. Paul's own are not
+    /// journaled.
+    static let created = """
+        CREATE TRIGGER project_change_created AFTER INSERT ON project
+        WHEN NEW.deletedAt IS NULL AND \(who) <> 'paul'
+        BEGIN
+            INSERT INTO project_change (\(columns)) VALUES (NEW.id, 'created', NULL, NULL, NEW.name, NEW.status, \(signed));
+        END
+        """
 }
 
 /// What a rule changes in a project (step 3 of Colin, 18/11): only what is given; `source` is the event it answers
@@ -502,6 +516,10 @@ public struct ProjectChanges: Sendable {
             return db.changesCount > 0
         case .journalAdded:
             try db.execute(sql: "DELETE FROM project_journal WHERE id = ?", arguments: [row.subject])
+            return true
+        case .created:
+            // In the trash, where Paul can still find it.
+            try db.execute(sql: "UPDATE project SET deletedAt = ?, updatedAt = ? WHERE id = ? AND deletedAt IS NULL", arguments: [date, date, project])
             return true
         }
     }

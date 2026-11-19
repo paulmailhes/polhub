@@ -250,7 +250,8 @@ compte.
 - **Les cartes de ce que Colin a fait** (`ThreadCard` : `Surface.fill`, un trait, rayon 12) : un message à copier
   (« Copier », puis « Copié »), un brouillon (« Brouillon prêt pour Claire », « Relire »), un changement de projet
   (`ChangeCard` : le projet, pourquoi ou qui, une ligne par champ « avant → après », « Annuler » ; annulé, la carte
-  pâlit). Les changements faits dans une réponse vont avec elle ; ceux des règles et des agents sont des cartes à leur
+  pâlit). Un projet créé par Colin (19/11) est mis en avant : « Nouveau projet », son nom en grand, « Ouvrir le
+  projet » et « Annuler » (qui le met à la corbeille). Les changements faits dans une réponse vont avec elle ; ceux des règles et des agents sont des cartes à leur
   heure. Une chose à retenir : une ligne grise avec un signet et « Garder ».
 - **Le pied d'une réponse** : « a travaillé 9 s », « Copier » ; sous une réponse arrêtée ou ratée, « Arrêté : … » et
   « Réessayer ». Les mots restent sur la dernière réponse, au survol sur les autres. **Un lien écrit par Colin n'est

@@ -72,6 +72,22 @@ import Testing
         ])
     }
 
+    /// 19/11: a project Colin created reads as one: its column, client and deadline, never « before ».
+    @Test func aCreatedProjectSaysItsFields() {
+        let created = line([row(.created, nil, "Cabinet Martin", detail: "priorité 1"), row(.dueDate, nil, "2026-12-03 23:00:00.000"),
+                            row(.client, nil, "Studio Nord")])
+        #expect(ChangeText.isCreation(created))
+        #expect(!ChangeText.isCreation(line([row(.todo, nil, "Relire")])))
+        #expect(ChangeText.sentence(created, calendar: paris) == "Nouveau projet « Cabinet Martin » : priorité 1, échéance 04/12, client « Studio Nord ».")
+        #expect(ChangeText.fields(created, calendar: paris) == [
+            ChangeField(label: "Statut", before: nil, after: "priorité 1"),
+            ChangeField(label: "Échéance", before: nil, after: "04/12"),
+            ChangeField(label: "Client", before: nil, after: "Studio Nord"),
+        ])
+        #expect(ChangeText.sentence(line([row(.created, nil, "Cabinet Martin", detail: "priorité 2")]), calendar: paris)
+                == "Nouveau projet « Cabinet Martin » : priorité 2.")
+    }
+
     @Test func whatAnUndoDid() {
         #expect(ChangeText.undone(.undone) == "Annulé.")
         #expect(ChangeText.undone(.partly(kept: 1)) == "Annulé, sauf ce qui a changé depuis.")

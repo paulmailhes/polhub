@@ -3,6 +3,16 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.38.0 — 19 novembre 2026
+
+**Colin crée un projet quand tu le lui demandes.**
+
+- **« Crée-moi un projet… »** : Colin le crée avec son nom, son statut, son client et son échéance. Le projet arrive
+  dans le fil en carte mise en avant, « Nouveau projet », avec « Ouvrir le projet » et « Annuler » (qui le met à la
+  corbeille). Colin répond en une phrase.
+- **Par prudence**, Colin ne crée pas de projet juste après avoir lu le mail d'un tiers : il le dit, et ta question
+  suivante repart à neuf.
+
 ## 0.37.1 — 19 novembre 2026
 
 **Des corrections d'affichage, petite et grande fenêtre.**

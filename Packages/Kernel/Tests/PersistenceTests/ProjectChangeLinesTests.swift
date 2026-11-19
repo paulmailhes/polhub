@@ -148,6 +148,30 @@ import Testing
         #expect(try store.journal(projectID: martin.id).isEmpty)
     }
 
+    /// A project Colin created when Paul asked (19/11): one line with its client and deadline, and « Annuler » puts it in
+    /// the trash. One Paul creates himself leaves no line.
+    @Test func aCreatedProjectIsOneLineAndUndoTrashesIt() throws {
+        let (database, store, _, _) = try world()
+        let colin = store.signed(.colin)
+        let added = try colin.addProject(name: "Vlog 2", status: .priorite1, at: now)
+        var filled = added
+        filled.client = "Studio Nord"
+        filled.dueDate = now.addingTimeInterval(7 * 86_400)
+        try colin.saveChanges(from: added, to: filled, at: now)
+        _ = try store.addProject(name: "Mon projet", status: .priorite1, at: now)
+        let changes = ProjectChanges(database)
+        let lines = try changes.lines(since: .distantPast, authors: [.colin, .agent, .paul])
+        let line = try #require(lines.first { $0.projectID == added.id })
+        #expect(line.who == .colin)
+        #expect(line.rows.map(\.field) == [.created, .dueDate, .client])
+        #expect(line.rows.first?.after == "Vlog 2" && line.rows.first?.detail == ProjectStatus.priorite1.rawValue)
+        let mine = lines.filter { $0.projectName == "Mon projet" }.flatMap(\.rows).map(\.field)
+        #expect(!mine.contains(.created))
+        #expect(try changes.undo(line, at: now.addingTimeInterval(60)) == .undone)
+        #expect(try store.projects().map(\.name).contains("Vlog 2") == false)
+        #expect(try store.project(id: added.id)?.deletedAt != nil)
+    }
+
     /// What Paul changed after the agent stays: nothing of it is undone.
     @Test func undoAfterAChangeOfPaulsKeepsIt() throws {
         let (database, store, martin, _) = try world()

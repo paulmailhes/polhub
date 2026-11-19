@@ -621,6 +621,10 @@ public final class AppDatabase: Sendable {
             try db.execute(sql: "DROP TRIGGER IF EXISTS project_change_todo")
             for sql in ProjectChangeSchema.typing { try db.execute(sql: sql) }
         }
+        // 19/11: a project an agent creates — Colin when Paul asks — is journaled, and « Annuler » puts it in the trash.
+        migrator.registerMigration("v21", foreignKeyChecks: .immediate) { db in
+            try db.execute(sql: ProjectChangeSchema.created)
+        }
         return migrator
     }
 }
