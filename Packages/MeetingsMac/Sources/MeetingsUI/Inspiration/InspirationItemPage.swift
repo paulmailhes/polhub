@@ -33,11 +33,18 @@ struct InspirationItemPage: View {
         }
         .toolbar {
             ToolbarItem(placement: .navigation) {
-                Button { router.inspirationItem = nil } label: { Label(item.kind.title, systemImage: "chevron.left") }
-                    .help("Revenir à \(item.kind.title)")
+                // Back where the item was opened from, without a step of its own (lot 4, 19/11).
+                Button { close() } label: { Label(item.kind.title, systemImage: "chevron.left") }
+                    .help(router.returnHelp)
             }
         }
-        .windowTitle(item.title, subtitle: item.kind.title)
+        .onExitCommand(perform: close)
+        // The sidebar's word and the page; never the item's title, written large below (lot 4, 19/11).
+        .windowTitle("Inspiration", subtitle: item.kind.title)
+    }
+
+    private func close() {
+        if !router.close() { router.inspirationItem = nil }
     }
 
     // MARK: - Header
@@ -63,7 +70,7 @@ struct InspirationItemPage: View {
                     Divider()
                 }
                 Button("Supprimer", role: .destructive) {
-                    router.inspirationItem = nil
+                    close()
                     library.moveToTrash(item)
                 }
             }

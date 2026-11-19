@@ -45,8 +45,31 @@ ils prennent Liquid Glass tout seuls. Aucun fond personnalisé sur une barre.
 - **La barre latérale** est une `List` native (sa sélection et son verre sont ceux du système, jamais de verre
   ni de fond ajouté sur une rangée) : de grandes rangées (`sidebarRowSize` `.large`), le symbole de chaque
   section dans sa couleur (`listItemTint`), un nombre à droite quand il sert (mails non lus, rendez-vous qui
-  restent aujourd'hui), un point rouge sur Réunions pendant un enregistrement. Réglages est en bas, dans une
-  liste à lui, dessiné et sélectionné comme les autres rangées.
+  restent aujourd'hui), un point rouge sur Réunions pendant un enregistrement. Elle ne liste que des lieux
+  (« Mails court », lot 4, 19/11) : Accueil, Projets, Réunions, Calendrier, Mails (Boîte de réception, Brouillons,
+  Envoyés, puis « Plus »), Inspiration ; Contacts et Réglages en bas, à part, dessinés et sélectionnés comme les autres
+  rangées. Treize rangées au plus, « Plus » replié ; 224 points de large. La cloche des notifications est en haut, dans
+  la barre d'outils, près du bouton de la barre latérale.
+
+## La navigation
+
+Le lot 4 (19/11) a posé ces règles ; le code navigue par les méthodes du routeur (`WindowRouter`).
+
+- **Fermer, c'est revenir** (`WindowRouter.close()`) : ✕, Échap, le clic à côté d'un panneau flottant et le ‹ d'une page
+  ramènent d'où l'objet a été ouvert, une autre section comprise (un projet ouvert depuis l'Accueil revient à l'Accueil,
+  « Réglages des mails… » à Mails), sans ajouter de pas à l'historique : dix fils lus ne font plus vingt pas, et
+  « Suivant » rouvre l'objet. Ouvert d'emblée (la fenêtre s'est ouverte dessus), il se ferme sur place. L'aide du ‹ dit
+  où il mène : « Revenir à l'Accueil (Échap) ».
+- **✕ en haut à droite**, partout où un panneau ou un objet ouvert en a un (fil, nouveau mail, projet).
+- **Le titre de la fenêtre** est le mot de la barre latérale ; le sous-titre dit où l'on est dedans (dossier, semaine,
+  famille, « Websites · 12 sites »), jamais le nom d'un objet déjà écrit en grand dans la page.
+- **Les touches de la fenêtre**, les mêmes que dans Coup d'œil : ⌘1 à ⌘7 suivent la barre latérale de haut en bas
+  (calculés depuis sa liste, `SidebarItem.numbered`), ⌘, ouvre Réglages, ⌘N fait le « + » de la page (un nouveau mail là
+  où la page n'en a pas), ⌘F pose le curseur dans sa recherche. ⌘[ ⌘], les boutons de la souris et le balayage
+  parcourent l'historique ; ⌘← ⌘→ aussi, sauf dans un texte qu'on écrit, l'éditeur d'un mail compris. Polhub n'a pas de
+  barre des menus à lui : son moniteur de touches les lit (`NavigationInput`, `WindowKeys`).
+- **Un nom mène à son objet** : le projet d'un fil, d'une réunion ou d'un rendez-vous (« Ouvrir le projet » en tête de
+  son menu), la date d'une réunion vers son rendez-vous, les prochains rendez-vous d'un projet.
 
 ## Les mesures
 
@@ -88,12 +111,14 @@ Elle copie Gmail, l'outil que Paul connaît le mieux (Paul, 15/11 : « calque-to
   s'enregistre ;
 - **le survol ne déplace rien** : une ombre sous la ligne, et les gestes par-dessus la date, sur le fond de la
   ligne ; aucun élément n'apparaît ni ne disparaît dans la mise en page ;
-- **deux onglets**, Personnes et Notifications (les lettres d'information y sont), sous la barre des gestes,
-  chacun sa couleur, souligné quand il est ouvert ; **les dossiers et les boîtes** dans la barre latérale, sous
-  « Mails », avec **« Nouveau mail »** en tête, comme le bouton de Gmail (⌘N dans Mails) ;
-- la barre latérale a **une largeur fixe** (252 points, la plus petite qui montre « Boîte de réception » avec un
-  nombre à deux chiffres, et « Tous les messages », en grandes rangées) : elle ne change plus d'une section à
-  l'autre.
+- **les dossiers** dans la barre latérale, sous « Mails » : Boîte de réception, Brouillons, Envoyés, puis « Plus »,
+  qui déplie Notifications, Abonnements, Programmés (seulement quand un mail y attend), Spam, Corbeille et Tous les
+  messages à la même profondeur, comme Gmail ; « Plus » reste déplié sur un de ses dossiers ouvert. **« Nouveau
+  mail »** est dans la barre d'outils (⌘N) ;
+- **les boîtes** sont un filtre de la liste : le menu « Boîtes » de sa barre, à côté de « Non lus », coche celles que
+  la liste montre ; son titre dit « Boîtes : 2 sur 3 » tant qu'une est masquée (lot 4, 19/11) ;
+- la barre latérale a **une largeur fixe** (224 points) : elle ne change plus d'une section à l'autre. Le nom d'un
+  dossier tient entier, à peine resserré s'il le faut (« Boîte de réception » et son nombre).
 
 **Un fil ouvert** montre, pour chaque message, ce qui a été écrit (Paul, 19/11 : « incompréhensible, il y en a dans
 tous les sens ») :
@@ -170,7 +195,7 @@ ne va jamais seule : toujours un mot ou un symbole avec elle.
 | `TextButton("Modifier") { }` | Un mot à cliquer dans une carte (« Modifier », « Changer », « Tout enregistrer… ») : sa capsule au survol, son texte aligné sur la carte |
 | `RowButton { ligne }` | Une ligne cliquable d'une carte (Accueil, page d'un projet, Contacts) : toute la largeur répond, le fond déborde sans décaler le texte |
 | `IconMenu("ellipsis", help: "Plus") { }` | Un menu derrière une icône ronde, dessiné comme `IconButton` |
-| `NotificationBell(inbox:perform:)` (module `MeetingsUI`) | La cloche des notifications : le nombre de nouvelles en pastille à l'encre ; un clic ouvre le panneau (popover en verre) : cartes calmes à la couleur de leur section, par jour, les rafales en pile, un point bleu tant qu'elles sont nouvelles, × au survol ou glissé pour en effacer une, « Tout effacer » |
+| `NotificationBell(inbox:perform:)` (module `MeetingsUI`) | La cloche des notifications, dans la barre d'outils près du bouton de la barre latérale, et au pied de Coup d'œil : le nombre de nouvelles en pastille à l'encre ; un clic ouvre le panneau (popover en verre) : cartes calmes à la couleur de leur section, par jour, les rafales en pile, un point bleu tant qu'elles sont nouvelles, × au survol ou glissé pour en effacer une, « Tout effacer » |
 | `ProjectLogo(projet, size:)` (module `ProjectsUI`) | Le logo d'un projet : l'icône du site du client sur une plaque blanche, sinon ses initiales sur sa couleur (le monogramme, aussi dans les tests et les captures) |
 
 Les personnes (module `MeetingsUI`, `PeopleViews.swift`), partout où Paul croise quelqu'un, jamais en passant par
@@ -404,8 +429,8 @@ Centre de contrôle. La logique vit à part, testée sans écran (`PanelModel`).
   qu'il s'affiche »). Les comptes rendus rangés sont gardés d'un lancement à l'autre (`AppModel.reportsPutAway`).
 - **Les tuiles** : l'icône de la section dans sa couleur et son nom (13 points), la valeur (15 points), une ligne de
   détail (13 points), un nombre en haut à droite pour Calendrier. Un plateau clair sur le verre du panneau
-  (`PanelSurface`), `.cardHover` au survol ; un clic ouvre la page puis la fenêtre (⌘1 à ⌘6 dans l'ordre de la barre
-  latérale).
+  (`PanelSurface`), `.cardHover` au survol ; un clic ouvre la page puis la fenêtre (⌘1 à ⌘7 dans l'ordre de la barre
+  latérale, les mêmes que dans la fenêtre).
 - **« À régler »** : une carte calme à la couleur d'attention, une ligne par cause, trois au plus, la plus risquée pour les
   enregistrements d'abord (alertes, compte Google à reconnecter, mise à jour en échec ou en attente de Paul) ; le
   détail de chaque cause sur deux lignes au plus. Une erreur de réseau n'y va jamais. Une version qui attend la fin
@@ -440,11 +465,12 @@ Les trois bases d'idées de Paul (dossier `MeetingsUI/Inspiration`, 16/11), repr
 puis nourries par la collecte et ses ajouts. La logique vit à part, testée sans écran (`InspirationBrowse`,
 `InspirationLibrary`).
 
-- **Dans la barre latérale** : « Inspiration » (ampoule, jaune), après Contacts, repliable comme Mails, avec ses trois
-  pages dessous : « Websites » (globe), « Branding » (palette), « Mock-ups » (cadre). Aucun raccourci ⌘ : ⌘1 à ⌘6 restent
-  ceux d'avant.
-- **Une page** : la barre d'outils (titre, nombre de fiches, ou « 4 sites sur 212 » quand un filtre agit ; « + » ;
-  recherche), puis une ligne de pastilles par famille de catégories, le nom de la famille à gauche, « Tout » en
+- **Dans la barre latérale** : « Inspiration » (ampoule, jaune), une seule rangée, après Mails (⌘6). Ses trois pages,
+  « Websites », « Branding », « Mock-ups », sont un contrôle segmenté au centre de sa barre d'outils, comme « Kanban |
+  Liste » dans Projets (lot 4, 19/11).
+- **Une page** : la barre d'outils (« Inspiration », puis la page et son nombre de fiches, « Websites · 12 sites », ou
+  « 4 sites sur 212 » quand un filtre agit ; les trois pages ; « + » ; recherche), puis une ligne de pastilles par
+  famille de catégories, le nom de la famille à gauche, « Tout » en
   premier : une seule valeur à la fois par famille, comme la barre de tags d'Obsidian. Une pastille ne propose que les
   valeurs qui mènent à des fiches, compte tenu de la recherche et des autres familles ; les plus fréquentes d'abord.
   Choisie, elle prend l'accent à 16 % (calme : chaque ligne en a une) ; une ligne trop longue défile et s'efface au

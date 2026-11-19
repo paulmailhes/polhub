@@ -111,7 +111,14 @@ struct MeetingDetailView: View {
         VStack(alignment: .leading, spacing: Space.m) {
             Text(row.title).font(.title.bold()).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
             FlowLayout(spacing: Space.s) {
-                Chip(dateText, systemImage: "calendar")
+                // The date leads to its event, when one carries the meeting (lot 4, 19/11).
+                if let event = agenda.flatMap({ Self.event(of: row.id, in: $0.shown) }) {
+                    Button { router.openEvent(event.id) } label: { Chip(dateText, systemImage: "calendar") }
+                        .buttonStyle(.hover(.capsule))
+                        .help("Ouvrir le rendez-vous")
+                } else {
+                    Chip(dateText, systemImage: "calendar")
+                }
                 // Being recorded: its own red; interrupted: to check (design system v2, 19/11).
                 if row.status.isUnfinished {
                     Chip("En cours", systemImage: "record.circle", tint: Tint.recording).symbolEffect(.pulse)
@@ -136,8 +143,18 @@ struct MeetingDetailView: View {
         }
     }
 
+    /// The event that carries the meeting, if the copy of the agendas has it.
+    static func event(of meetingID: UUID, in events: [CalendarEventRow]) -> CalendarEventRow? {
+        events.first { $0.meetingID == meetingID }
+    }
+
     private var projectMenu: some View {
         Menu {
+            // The project's name leads to the project, first in its menu (lot 4, 19/11).
+            if let project {
+                Button("Ouvrir le projet") { router.openProject(project.id) }
+                Divider()
+            }
             Button("Aucun") { file(nil) }
             Divider()
             ForEach(projects.filter { $0.status != .termine || $0.id == row.projectID }

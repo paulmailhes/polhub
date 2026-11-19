@@ -185,8 +185,9 @@ struct PanelBody: View {
     }
 }
 
-/// The keys of the panel without a button of their own: ⌘1 to ⌘6 for the pages, ⌘, for Réglages, ⌘N for a new mail,
-/// J to join. Esc closes the panel (the system's). No key ever stops a recording.
+/// The keys of the panel without a button of their own: ⌘1 to ⌘7 for the pages, in the sidebar's order, ⌘, for Réglages,
+/// ⌘N for a new mail: the same as in the window (lot 4, 19/11). J to join. Esc closes the panel (the system's). No key
+/// ever stops a recording.
 private struct PanelShortcuts: View {
     let context: CoupDoeilContext
     let join: (() -> Void)?

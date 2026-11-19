@@ -7,17 +7,17 @@ import SwiftUI
 import Testing
 @testable import MeetingsUI
 
-/// « Inspiration » in the window (16/11): its place in the sidebar, after Contacts, open on its three pages as Mails
-/// on its folders; its family in Réglages; the router's places, for what opens a page or an item from outside.
+/// « Inspiration » in the window (16/11): its place in the sidebar, after Mails, on one row (lot 4, 19/11: its three pages
+/// in its toolbar); its family in Réglages; the router's places, for what opens a page or an item from outside.
 @MainActor @Suite struct InspirationSidebarTests {
-    @Test func inspirationComesAfterContacts() {
+    /// Lot 4, 19/11: after Mails, Contacts gone down to Réglages; ⌘6 is Inspiration, ⌘7 Contacts.
+    @Test func inspirationComesAfterMails() {
         #expect(SidebarItem.visible(hasProjects: true, hasAgenda: true, hasMails: true, hasInspiration: true)
-                == [.home, .projects, .meetings, .calendar, .mails, .contacts, .inspiration])
-        #expect(SidebarItem.visible(hasProjects: true, hasAgenda: true) == [.home, .projects, .meetings, .calendar, .contacts])
+                == [.home, .projects, .meetings, .calendar, .mails, .inspiration])
+        #expect(SidebarItem.visible(hasProjects: true, hasAgenda: true) == [.home, .projects, .meetings, .calendar])
         #expect(SidebarItem.inspiration.title == "Inspiration")
         #expect(SidebarItem.inspiration.appIcon == .inspiration)
-        // ⌘1 to ⌘6 stay the pages they were.
-        #expect(PanelModel.pages == [.home, .projects, .meetings, .calendar, .mails, .contacts])
+        #expect(PanelModel.pages == [.home, .projects, .meetings, .calendar, .mails, .inspiration, .contacts])
     }
 
     /// Its own color, the same in the sidebar and in Réglages, and its own icon.
@@ -30,12 +30,11 @@ import Testing
         #expect(SidebarItem.inspiration.tint == Palette.yellow)
     }
 
-    /// The page shown is lit when « Inspiration » is open, « Inspiration » itself when closed.
-    @Test func theSidebarLightsThePageShown() {
-        #expect(SidebarRow.selected(section: .inspiration, folder: .inbox, mailsOpen: true, page: .branding, inspirationOpen: true) == .inspiration(.branding))
-        #expect(SidebarRow.selected(section: .inspiration, folder: .inbox, mailsOpen: true, page: .branding, inspirationOpen: false) == .section(.inspiration))
-        #expect(SidebarRow.selected(section: .mails, folder: .sent, mailsOpen: true, page: .branding, inspirationOpen: true) == .mail(.sent))
-        #expect(SidebarRow.selected(section: .settings, folder: nil, mailsOpen: true, page: .mockup) == nil)
+    /// « Inspiration » is lit whatever its page (lot 4, 19/11: the pages are in its toolbar).
+    @Test func theSidebarLightsInspiration() {
+        #expect(SidebarRow.selected(section: .inspiration, folder: .inbox, mailsOpen: true) == .section(.inspiration))
+        #expect(SidebarRow.selected(section: .mails, folder: .sent, mailsOpen: true) == .mail(.sent))
+        #expect(SidebarRow.selected(section: .settings, folder: nil, mailsOpen: true) == nil)
     }
 
     /// Réglages › Inspiration: a family of its own, after Réunions, with Paul's tools.
@@ -58,8 +57,8 @@ import Testing
         #expect(router.section == .settings && router.settingsPane == .inspiration)
     }
 
-    /// Réglages lines up with the rows above when « Inspiration » is the only group that opens.
-    @Test func reglagesLinesUpWithInspirationOpen() async throws {
+    /// Réglages lines up with the rows above, « Inspiration » on one row and no group that opens (lot 4, 19/11).
+    @Test func reglagesLinesUpWithInspiration() async throws {
         let world = try InspirationTestWorld(name: "alignement-inspiration")
         defer { world.clean() }
         let database = try AppDatabase.inMemory()
@@ -77,9 +76,9 @@ import Testing
         let starts = SidebarAlignmentTests.rowStarts(in: host)
         let work = try #require(starts.first?.first)
         #expect(starts.count == 1)
-        // The pages under it come after « Inspiration », in the list.
-        #expect((starts.first?.count ?? 0) >= 7)
-        let footer = SidebarFooterMetrics.listInset + SidebarFooterMetrics.rowPadding + SidebarFooterMetrics.outlineIndent
+        // Accueil, Réunions, Calendrier, Inspiration: one row each.
+        #expect(starts.first?.count == 4)
+        let footer = SidebarFooterMetrics.listInset + SidebarFooterMetrics.rowPadding
         #expect(footer - work == 4)
     }
 }

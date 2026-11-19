@@ -16,10 +16,10 @@ struct PanelTiles: View {
 
     var body: some View {
         HStack(spacing: MenuBarPanel.gap) {
-            PanelTile(item: .calendar, tile: calendar, shortcut: 4) {
+            PanelTile(item: .calendar, tile: calendar) {
                 context.open(hasAgenda ? .section(.calendar) : .settings(.accounts))
             }
-            PanelTile(item: .mails, tile: mails, shortcut: 5) {
+            PanelTile(item: .mails, tile: mails) {
                 context.open(hasMailboxes ? .mail(nil) : .settings(.accounts))
             }
         }
@@ -30,7 +30,6 @@ struct PanelTiles: View {
 struct PanelTile: View {
     let item: SidebarItem
     let tile: PanelModel.Tile
-    let shortcut: Int
     let action: () -> Void
 
     var body: some View {
@@ -70,7 +69,8 @@ struct PanelTile: View {
             .contentShape(shape)
         }
         .buttonStyle(PanelCardStyle(radius: Radius.card))
-        .help("Ouvrir \(item.title) (⌘\(shortcut))")
+        // Its key, from the sidebar's order (lot 4, 19/11): never a number written by hand.
+        .help("Ouvrir \(item.title)" + (item.shortcut.map { " (⌘\($0))" } ?? ""))
         .accessibilityLabel([item.title, tile.value, tile.detail].compactMap { $0 }.joined(separator: ", "))
     }
 }

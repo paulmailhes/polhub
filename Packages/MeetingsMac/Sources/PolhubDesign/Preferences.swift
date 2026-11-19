@@ -128,6 +128,8 @@ public struct Preferences: @unchecked Sendable {
         public static let mailUndoSeconds = "mails.delaiAnnulation"
         public static let mailAfterGesture = "mails.apresUnGeste"
         public static let mailSidebarOpen = "mails.barreOuverte"
+        /// « Plus » under Mails in the sidebar, unfolded by Paul (lot 4, 19/11); it unfolds by itself on a folder of its own.
+        public static let mailMoreOpen = "mails.plusOuvert"
         /// Réglages › Général (14/11): a mail or a project opens over its list, or in place of it.
         public static let floatingPages = "general.fenetreFlottante"
         /// Réglages › Général (15/11): « 8 min » beside the logo in the quarter of an hour before a Meet.

@@ -50,15 +50,23 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .toolbar {
                         ToolbarItem(placement: .navigation) {
-                            Button { router.settingsPane = nil } label: { Label("Réglages", systemImage: "chevron.left") }
-                                .help("Revenir aux réglages")
+                            // Back where the family was opened from: the families, or Mails for « Réglages des mails… »
+                            // (lot 4, 19/11).
+                            Button(action: close) { Label("Réglages", systemImage: "chevron.left") }
+                                .help(router.returnHelp)
                         }
                     }
-                    .windowTitle(pane.title, subtitle: "Réglages")
+                    .onExitCommand(perform: close)
+                    // The sidebar's word, then the family: where Paul is in it (lot 4, 19/11).
+                    .windowTitle("Réglages", subtitle: pane.title)
             } else {
                 families.windowTitle("Réglages")
             }
         }
+    }
+
+    private func close() {
+        if !router.close() { router.settingsPane = nil }
     }
 
     private var families: some View {

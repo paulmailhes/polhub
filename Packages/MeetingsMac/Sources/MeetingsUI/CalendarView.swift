@@ -465,6 +465,13 @@ struct EventPopover: View {
                     }
                 }
                 if let reason { Text(reason).font(.meta).foregroundStyle(.secondary) }
+                // The project leads to itself, as from a contact's page (lot 4, 19/11).
+                if let id = event.projectID, agenda.projects.contains(where: { $0.id == id }) {
+                    TextButton("Ouvrir le projet") {
+                        close()
+                        router.openProject(id)
+                    }
+                }
             }
 
             // Who is a contact, who is in the event's project, and a click to change it, here (15/11).

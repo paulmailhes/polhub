@@ -21,6 +21,15 @@ public final class ProjectLibrary: ObservableObject {
     public var openContact: ((UUID) -> Void)?
     /// Opens a mail thread, in Mails (step « Ranger »).
     public var openMail: ((String) -> Void)?
+    /// Opens an event, in Calendrier (lot 4, 19/11): a project's coming events lead there.
+    public var openEvent: ((String) -> Void)?
+    /// Closes the project's page where it was opened from (lot 4, 19/11: « Fermer, c'est revenir »); true when the window
+    /// did. Without it, or when it did not, the page just closes.
+    public var close: (() -> Bool)?
+    /// Where closing leads, for the help of the page's way back (« Revenir à l'Accueil (Échap) »).
+    public var returnHelp: (() -> String)?
+    /// ⌘N in Projets (lot 4, 19/11): the creation window opens, as with the « + ». A new value per request.
+    @Published public var newRequest: UUID?
     public let store: ProjectStore
     public let meetings: MeetingStore
     private var observations: [AnyDatabaseCancellable] = []
@@ -35,6 +44,12 @@ public final class ProjectLibrary: ObservableObject {
         // Filing a meeting changes « À surveiller » at once (review, minor 9).
         observations.append(store.observeLastMeetings { [weak self] last in self?.lastAppMeetings = last })
         observations.append(store.observeNextEvents { [weak self] next in self?.nextEvents = next })
+    }
+
+    /// ✕, Échap, a click beside, the ‹ of the page (lot 4, 19/11): back where the project was opened from, without a step
+    /// of its own.
+    public func closePage() {
+        if close?() != true { selected = nil }
     }
 
     /// « Supprimer le projet » (15/11): off the board and every list; its page closes.

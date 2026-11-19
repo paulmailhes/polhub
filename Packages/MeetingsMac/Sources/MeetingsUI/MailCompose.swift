@@ -377,12 +377,13 @@ struct NewMailPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // ✕ at the top right, as on every panel and object open (lot 4, 19/11).
             HStack(spacing: Space.m) {
-                PanelCloseButton { mails.closeComposer() }
                 Text(mails.drafts.first { $0.id == draftID }?.subject.isEmpty == false
                      ? mails.drafts.first { $0.id == draftID }!.subject : "Nouveau mail")
                     .font(.title.bold()).lineLimit(1)
                 Spacer()
+                PanelCloseButton { mails.closeComposer() }
             }
             .padding(.horizontal, Space.xl).padding(.vertical, Space.l)
             Divider()

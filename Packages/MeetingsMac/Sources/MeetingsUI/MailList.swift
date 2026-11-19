@@ -8,8 +8,8 @@ import ProjectsUI
 import SwiftUI
 
 /// The list, as Gmail's (Paul, 15/11: « il faut vraiment que tu calques ce qu'a fait Gmail »): a bar of
-/// gestures, the tabs in the inbox, then one line per thread, the mailboxes together. Folders and mailboxes are
-/// in the sidebar, under « Mails ».
+/// gestures, the tabs in the inbox, then one line per thread, the mailboxes together. The folders are in the sidebar,
+/// under « Mails »; the mailboxes in the bar's « Boîtes » (lot 4, 19/11).
 struct MailListView: View {
     @ObservedObject var mails: MailLibrary
     @ObservedObject var router: WindowRouter
@@ -217,7 +217,7 @@ struct MailSearchLine: View {
 }
 
 /// Above the list, as Gmail's: the box that ticks every thread, then the gestures on the threads ticked, or
-/// « Relever » and « Plus »; « Non lus » on the right.
+/// « Relever » and « Plus »; « Boîtes » and « Non lus » on the right.
 struct MailListBar: View {
     @ObservedObject var mails: MailLibrary
 
@@ -290,16 +290,50 @@ struct MailListBar: View {
                 }
             }
             Spacer(minLength: Space.m)
-            if mails.folder.aside == nil {
-                Toggle(isOn: $mails.unreadOnly) {
-                    Label("Non lus", systemImage: "line.3.horizontal.decrease")
+            HStack(spacing: Space.s) {
+                // The boxes, a filter of the list, beside « Non lus » (lot 4, 19/11): no longer in the sidebar, which
+                // lists places only.
+                if mails.accounts.count > 1 { boxes }
+                if mails.folder.aside == nil {
+                    Toggle(isOn: $mails.unreadOnly) {
+                        Label("Non lus", systemImage: "line.3.horizontal.decrease")
+                    }
+                    .toggleStyle(.button)
+                    .help(mails.unreadOnly ? "Afficher tous les mails" : "N'afficher que les non lus")
                 }
-                .toggleStyle(.button)
-                .help(mails.unreadOnly ? "Afficher tous les mails" : "N'afficher que les non lus")
-                .padding(.trailing, Space.l)
             }
+            .padding(.trailing, Space.l)
         }
         .frame(height: 48)
+    }
+
+    /// The mailboxes, ticked when the list shows them, as the calendars in Apple's Calendar: the same effect as the
+    /// sidebar's boxes had. The title says when one is hidden.
+    private var boxes: some View {
+        let accounts = mails.accounts.map(\.email)
+        let labels = accounts.map { AccountStyle.label(for: $0) }
+        return Menu {
+            ForEach(Array(accounts.enumerated()), id: \.element) { index, email in
+                let label = labels[index]
+                Toggle(labels.filter { $0 == label }.count > 1 ? "\(label) · \(email)" : label,
+                       isOn: Binding(get: { !mails.hidden.contains(email) }, set: { Self.show(email, $0, in: mails) }))
+            }
+        } label: {
+            Label(Self.boxesTitle(shown: accounts.filter { !mails.hidden.contains($0) }.count, total: accounts.count), systemImage: "tray.2")
+        }
+        .menuStyle(.button)
+        .fixedSize()
+        .help("Choisir les boîtes que la liste montre")
+    }
+
+    /// « Boîtes », or « Boîtes : 2 sur 3 » while one is hidden (lot 4, 19/11).
+    static func boxesTitle(shown: Int, total: Int) -> String {
+        shown == total ? "Boîtes" : "Boîtes : \(shown) sur \(total)"
+    }
+
+    /// A mailbox shown in the list, or hidden from it.
+    static func show(_ email: String, _ shown: Bool, in mails: MailLibrary) {
+        if shown { mails.hidden.remove(email) } else { mails.hidden.insert(email) }
     }
 }
 

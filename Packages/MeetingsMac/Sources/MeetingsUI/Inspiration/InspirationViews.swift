@@ -4,8 +4,9 @@ import PolhubDesign
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// « Inspiration » (16/11): the page chosen under it in the sidebar, or one of its items open over the page, with a
-/// way back, as a project's page; « Annuler » and the collection's answers at the bottom.
+/// « Inspiration » (16/11): the page chosen in its toolbar (lot 4, 19/11: no longer three rows of the sidebar), or one of
+/// its items open over the page, with a way back, as a project's page; « Annuler » and the collection's answers at the
+/// bottom.
 struct InspirationSectionView: View {
     @ObservedObject var library: InspirationLibrary
     @ObservedObject var router: WindowRouter
@@ -39,8 +40,19 @@ struct InspirationPageView: View {
     var body: some View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .windowTitle(kind.title, subtitle: InspirationBrowse.subtitle(kind, shown: library.shown(kind).count, total: library.items(kind).count))
+            // The sidebar's word; the page and its count below (lot 4, 19/11).
+            .windowTitle("Inspiration", subtitle: Self.subtitle(kind, shown: library.shown(kind).count, total: library.items(kind).count))
             .toolbar {
+                // Its three pages, as « Kanban | Liste » in Projets (lot 4, 19/11): a choice of view, not three places.
+                ToolbarItem(placement: .principal) {
+                    Picker("Page", selection: Binding(get: { router.inspirationPage }, set: { router.openInspiration($0) })) {
+                        ForEach(InspirationKind.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
+                    .help("Websites, Branding, Mock-ups")
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button(action: add) { Label(kind.addTitle, systemImage: "plus") }
                         .help(kind.addTitle)
@@ -59,6 +71,12 @@ struct InspirationPageView: View {
                     InspirationSuggestionRow(token: token).searchCompletion(token)
                 }
             }
+            // ⌘N, as the « + » (lot 4, 19/11): once the page is on screen, then cleared.
+            .task(id: router.addRequest) {
+                guard router.addRequest != nil else { return }
+                router.addRequest = nil
+                add()
+            }
             .sheet(isPresented: $addingSite) {
                 InspirationAddSiteSheet(library: library) { id in router.openInspiration(.website, item: id) }
             }
@@ -75,6 +93,12 @@ struct InspirationPageView: View {
                     }
                 }
             }
+    }
+
+    /// « Websites · 12 sites », « Websites · 4 sites sur 212 »: where Paul is, then what the page shows.
+    static func subtitle(_ kind: InspirationKind, shown: Int, total: Int) -> String {
+        let count = InspirationBrowse.subtitle(kind, shown: shown, total: total)
+        return count.isEmpty ? kind.title : "\(kind.title) · \(count)"
     }
 
     @ViewBuilder
