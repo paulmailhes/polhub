@@ -3,6 +3,22 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.39.2 — 19 novembre 2026
+
+**Sécurité : les portes que l'audit a trouvées sont fermées. Presque rien ne change à l'écran.**
+
+- **Google** : le fichier de la clé ne dit plus où partent les jetons ; les adresses de Google sont écrites dans l'app.
+- **« Vérifié par Gmail »** ne se falsifie plus : seul compte le verdict DMARC de Gmail, pour le domaine de l'expéditeur.
+- **Les pièces jointes d'un agent** : jamais une clé, un secret ou une base de données, où qu'ils soient. Un fichier
+  Keynote passe.
+- **Colin** ne reprend plus d'un contexte à l'autre une réponse tirée d'un mail ou d'une réunion : il relit la source.
+- **Quitter** pendant un enregistrement, ou juste avant le départ d'un mail, demande confirmation.
+- **Un lien trompeur** dans un mail le dit à côté du lien : « ⚠︎ mène à … ».
+- **Mises à jour** : la notarisation d'Apple est exigée, et l'app copiée est revérifiée avant d'être lancée.
+- **Réseau local** : une image de mail n'atteint plus le Mac lui-même, le NAS ni le routeur.
+- **Agents** : trois rendez-vous par heure au plus ; une app n'est jamais un « dossier de code ».
+- **Journaux** : la détection ne garde plus les codes Meet, les titres ni les adresses.
+
 ## 0.39.1 — 19 novembre 2026
 
 **Polhub se fait oublier quand il ne fait rien.**
