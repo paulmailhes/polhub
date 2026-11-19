@@ -340,7 +340,10 @@ struct MailEmptyState: Equatable {
             return MailEmptyState(title: "Aucun mail trouvé", systemImage: "magnifyingglass", detail: hidden?.detail, action: hidden?.action)
         }
         if folder.aside != nil, readingAside { return MailEmptyState(title: "Lecture de Gmail…", systemImage: folder.icon, detail: nil, action: nil) }
-        if folder.aside == nil, reading { return MailEmptyState(title: "Lecture de tes boîtes…", systemImage: folder.icon, detail: nil, action: nil) }
+        // A first reading fills the folders of threads; Polhub's drafts and the programmed mails do not wait for it.
+        if folder.aside == nil, reading, folder != .drafts, folder != .scheduled {
+            return MailEmptyState(title: "Lecture de tes boîtes…", systemImage: folder.icon, detail: nil, action: nil)
+        }
         if unreadOnly, MailListBar.filtersUnread(folder: folder, searching: false) {
             return MailEmptyState(title: "Tout est lu", systemImage: "envelope.open", detail: nil, action: .showRead)
         }
