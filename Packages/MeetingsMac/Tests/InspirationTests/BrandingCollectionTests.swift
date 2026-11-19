@@ -221,6 +221,29 @@ import Testing
         #expect(world.pauses.count == 0)
     }
 
+    /// The line drops while a new post's images come down (the Wi-Fi goes, the Mac falls asleep): the post is not
+    /// kept for good with two images out of five; once the line is back, the next pass brings it whole (audit of 19/11).
+    @Test func imagesCutByADroppedLineComeAtTheNextPass() async throws {
+        let world = try CollectWorld()
+        defer { world.remove() }
+        _ = try setUp(world)
+        // The café post's first two images come, then nothing comes until the line is back.
+        let line = DroppingLine(world.http, imagesBeforeDrop: 2)
+        let collector = world.collector(http: line)
+        // Two passes as the app runs them (`InspirationAutomation.work`): the collection, then the images still missing.
+        let cut = await collector.collectBranding(now: now)
+        _ = await collector.completeImages(now: now)
+        #expect(cut.statuses.last?.text(now: now) == "Pas de connexion à Internet : réessai au prochain tour")
+        line.reconnect()
+        let later = now.addingTimeInterval(6 * 3600)
+        _ = await collector.collectBranding(now: later)
+        _ = await collector.completeImages(now: later)
+        let cafe = try #require(try world.store.item(kind: .branding, key: CollectFixtures.cafeUrn))
+        #expect(cafe.images == (1...5).map { InspirationImageName.branding(urn: CollectFixtures.cafeUrn, index: $0) })
+        // No half-written file left beside.
+        #expect(!world.imageFiles(.branding).contains { $0.hasPrefix(".") })
+    }
+
     /// Two collections never overlap: the second asked while the first runs does nothing.
     @Test func twoRunsNeverOverlap() async throws {
         let world = try CollectWorld()

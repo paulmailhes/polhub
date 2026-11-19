@@ -113,6 +113,29 @@ import Testing
         #expect(world.imageFiles(.website) == [site.images[0]])
     }
 
+    /// The line drops as the site's image comes down: the site of the day is not kept grey for good; once the line
+    /// is back, the next pass brings it with its image (audit of 19/11).
+    @Test func anImageCutByADroppedLineComesAtTheNextPass() async throws {
+        let world = try CollectWorld()
+        defer { world.remove() }
+        served(world)
+        // The pages come, then the line drops at the first image.
+        let line = DroppingLine(world.http, imagesBeforeDrop: 0)
+        let runLog = CollectWorld.runLog()
+        let collector = world.collector(http: line, runLog: runLog)
+        // Two passes as the app runs them (`InspirationAutomation.work`): the collection, then the images still missing.
+        let cut = await collector.collectWebsites(now: now)
+        _ = await collector.completeImages(now: now)
+        // Said offline, and not counted as a run: the next check tries again.
+        #expect(cut.wasOffline && runLog.lastRun(.websites) == nil)
+        line.reconnect()
+        let later = now.addingTimeInterval(300)
+        _ = await collector.collectWebsites(now: later)
+        _ = await collector.completeImages(now: later)
+        let site = try #require(try world.store.item(kind: .website, key: "https://lumiere.exemple.fr"))
+        #expect(site.images == [InspirationImageName.website(key: "https://lumiere.exemple.fr")])
+    }
+
     /// The site does not answer: the item stays, named after its host, with Awwwards' thumbnail.
     @Test func aSiteThatDoesNotAnswerIsStillKept() async throws {
         let world = try CollectWorld()
@@ -191,6 +214,23 @@ import Testing
             try await world.collector().addSite(url: URL(string: "https://hors-ligne.exemple.fr")!, now: now)
         }
         #expect(try world.store.items(kind: .website).isEmpty)
+    }
+
+    /// Paul adds a site as the line drops at its image: said offline rather than kept without it; once the line is
+    /// back, the same address brings it whole (audit of 19/11).
+    @Test func aSiteAddedAsTheLineDropsIsSaidOffline() async throws {
+        let world = try CollectWorld()
+        defer { world.remove() }
+        served(world)
+        let line = DroppingLine(world.http, imagesBeforeDrop: 0)
+        let collector = world.collector(http: line)
+        await #expect(throws: InspirationAddError.offline) {
+            try await collector.addSite(url: URL(string: CollectFixtures.lumiere)!, now: now)
+        }
+        #expect(try world.store.items(kind: .website).isEmpty)
+        line.reconnect()
+        let site = try await collector.addSite(url: URL(string: CollectFixtures.lumiere)!, now: now)
+        #expect(site.images == [InspirationImageName.website(key: "https://lumiere.exemple.fr")])
     }
 
     static func time(_ date: Date) -> String {
