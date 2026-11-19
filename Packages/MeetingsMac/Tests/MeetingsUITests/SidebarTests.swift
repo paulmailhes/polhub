@@ -84,10 +84,11 @@ import Testing
         #expect(condition())
     }
 
-    /// 18/11: Réglages › Colin, right after Mails and only with the mails: what Colin signals comes from them.
+    /// 18/11: Réglages › Colin, only with the mails: what Colin signals comes from them. First since lot 7 (19/11): the
+    /// families follow the sidebar, and Colin's is the Accueil's.
     @Test func reglagesHasAColinFamilyWithTheMails() {
         let families = SettingsPane.families(hasAgenda: true, hasProjects: true, hasMails: true)
-        #expect(families[1] == [.accounts, .calendar, .mails, .colin, .projects, .meetings])
+        #expect(families[0] == [.colin, .projects, .meetings, .calendar, .mails])
         #expect(SettingsPane.colin.title == "Colin")
         #expect(SettingsPane.colin.subtitle == "Ce que Colin signale, et la barre")
         #expect(SettingsPane.colin.icon == "sparkles")
@@ -98,11 +99,12 @@ import Testing
         }
     }
 
-    /// 14/11: Réglages opens on its families, as Apple's; each family is entered.
+    /// 14/11: Réglages opens on its families, as Apple's; each family is entered. Lot 7 (19/11): in the sidebar's order,
+    /// then the whole app's; Diagnostic and Journal are lines of Général.
     @Test func reglagesListsItsFamilies() {
         let families = SettingsPane.families(hasAgenda: true, hasProjects: true)
-        #expect(families.map { $0.map(\.title) } == [["Général", "Notifications"], ["Comptes Google", "Calendrier", "Projets", "Réunions"], ["Mises à jour", "Diagnostic", "Journal"]])
-        #expect(SettingsPane.families(hasAgenda: false, hasProjects: false).map { $0.map(\.title) } == [["Général", "Notifications"], ["Réunions"], ["Mises à jour", "Diagnostic", "Journal"]])
+        #expect(families.map { $0.map(\.title) } == [["Projets", "Réunions", "Calendrier"], ["Comptes Google", "Notifications", "Mises à jour", "Général"]])
+        #expect(SettingsPane.families(hasAgenda: false, hasProjects: false).map { $0.map(\.title) } == [["Réunions"], ["Notifications", "Mises à jour", "Général"]])
     }
 
     @Test func openingTheDiagnosticEntersItsFamily() {
@@ -148,7 +150,7 @@ import Testing
         defaults.set("1, 30,x,10,10", forKey: Preferences.Key.reminderMinutes)
         #expect(settings.reminderMinutes == [30, 10, 1])
         #expect(Preferences.minutesText([1, 15]) == "15,1")
-        #expect(SettingsPane.families(hasAgenda: true, hasProjects: true).first?.first == .general)
+        #expect(SettingsPane.families(hasAgenda: true, hasProjects: true).last?.last == .general)
         #expect(SettingsPane.families(hasAgenda: true, hasProjects: true).flatMap { $0 }.contains(.notifications))
     }
 

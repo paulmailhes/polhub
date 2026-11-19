@@ -144,7 +144,8 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .projects: Palette.blue
         case .meetings: Palette.violet
         case .inspiration: Palette.yellow
-        case .updates: Palette.gray
+        // Beside Général since lot 7 (19/11): no longer its grey, a family is found by its color.
+        case .updates: Palette.brown
         case .diagnostic: Palette.green
         case .journal: Palette.brown
         }
@@ -152,7 +153,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
 
     var subtitle: String {
         switch self {
-        case .general: "Ouverture à la session, barre des menus"
+        case .general: "Ouverture à la session, barre des menus, diagnostic, journal"
         case .notifications: "Rappels de rendez-vous, nouveaux rendez-vous, comptes rendus"
         case .accounts: "Comptes, couleurs, accès à l'agenda et aux mails"
         case .calendar: "Nouveaux rendez-vous, affichage"
@@ -167,13 +168,37 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         }
     }
 
-    /// The whole app first, then Paul's tools, then the app's own pages. Colin comes with the mails: what he signals
-    /// is read in them.
+    /// The sidebar's sections, in its order from the top (lot 7, 19/11), then the whole app's: Comptes Google,
+    /// Notifications, Mises à jour, Général. Colin's family is the Accueil's, and comes with the mails: what he signals is
+    /// read in them. Diagnostic and Journal are lines of Général, no families.
     static func families(hasAgenda: Bool, hasProjects: Bool, hasMails: Bool = false, hasInspiration: Bool = false) -> [[SettingsPane]] {
-        [[.general, .notifications],
-         [hasAgenda ? .accounts : nil, hasAgenda ? .calendar : nil, hasMails ? .mails : nil, hasMails ? .colin : nil,
-          hasProjects ? .projects : nil, .meetings, hasInspiration ? .inspiration : nil].compactMap { $0 },
-         [.updates, .diagnostic, .journal]]
+        let work = SidebarItem.visible(hasProjects: hasProjects, hasAgenda: hasAgenda, hasMails: hasMails, hasInspiration: hasInspiration)
+            .compactMap { section in allCases.first { $0.section == section } }
+            .filter { $0 != .colin || hasMails }
+        return [work, [hasAgenda ? .accounts : nil, .notifications, .updates, .general].compactMap { $0 }]
+    }
+
+    /// The section of the sidebar a family is about (lot 7, 19/11): Colin's is the Accueil, where he lives.
+    var section: SidebarItem? {
+        switch self {
+        case .colin: .home
+        case .projects: .projects
+        case .meetings: .meetings
+        case .calendar: .calendar
+        case .mails: .mails
+        case .inspiration: .inspiration
+        case .general, .notifications, .accounts, .updates, .diagnostic, .journal: nil
+        }
+    }
+
+    /// The pages a family opens from a line of its own (lot 7, 19/11): Général, the Diagnostic and the Journal.
+    var lines: [SettingsPane] {
+        self == .general ? [.diagnostic, .journal] : []
+    }
+
+    /// The family whose line opens this page; nil for a family.
+    var parent: SettingsPane? {
+        SettingsPane.allCases.first { $0.lines.contains(self) }
     }
 }
 

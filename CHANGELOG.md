@@ -3,6 +3,26 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.44.0 — 20 novembre 2026
+
+**Réglages : les familles dans l'ordre de la barre latérale, une ligne d'aide par réglage.**
+
+- **L'ordre de la barre latérale** : Colin (celui de l'Accueil), Projets, Réunions, Calendrier, Mails, Inspiration, puis
+  Comptes Google, Notifications, Mises à jour et Général. Diagnostic et Journal ne sont plus des familles : deux lignes
+  en bas de Général, et leur flèche de retour ramène à Général.
+- **Une ligne d'aide sous chaque réglage**, dans sa carte ; le détail (ce qui quitte le Mac, les règles exactes)
+  s'ouvre d'un clic sur « ⓘ ». Plus de paragraphes sous les cartes.
+- **Une seule largeur** pour toutes les pages, Diagnostic et Journal compris, et plus de bande grise coupée sous la
+  barre d'outils.
+- **Les rappels** se choisissent dans un menu, « Rappels   10 et 1 min avant », plusieurs à la fois.
+  « Déconnecter… » un compte Google passe dans le menu « … » du compte.
+- **Plus d'« onglet Personnes »** : « Nouveau mail dans la Boîte de réception ». Le tri des mails s'explique
+  derrière « ⓘ », à côté de « Ce que Polhub a retenu ».
+- **Ce qui quitte le Mac, dit là où on le choisit** : dans Mails, « Les mails de tes projets » est une préférence,
+  pas une barrière ; dans Colin, ce qu'il lit pour te répondre (mails, transcriptions, agenda) part chez Anthropic.
+- **La relance dans Diagnostic** passe par le même interrupteur que Général : elle attend la fin d'une réunion et
+  demande avant de fermer Polhub.
+
 ## 0.43.0 — 20 novembre 2026
 
 **Les mails : une seule grille pour tous les dossiers, un fil sur une seule colonne, un seul bouton plein.**

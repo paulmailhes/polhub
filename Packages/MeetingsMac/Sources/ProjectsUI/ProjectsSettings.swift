@@ -1,6 +1,12 @@
 import PolhubDesign
 import SwiftUI
 
+/// The words of Réglages › Projets (lot 7, 19/11): one line under the logos' switch, the detail behind « ⓘ ».
+enum ProjectsSettingsText {
+    static let logosHelp = "Polhub demande son icône au site de chaque client ; coupé, les initiales."
+    static let logosDetail = "Directement depuis le Mac, sans passer par un autre service : le site voit l'adresse IP du Mac, comme lors d'une visite. Une image déposée sur le logo d'un projet reste toujours."
+}
+
 /// Réglages › Projets: the size of the cards, the logos of the clients' sites (15/11).
 public struct ProjectsSettingsPane: View {
     @AppStorage(Preferences.Key.cardSize) private var cardSize = CardSize.medium.rawValue
@@ -19,20 +25,17 @@ public struct ProjectsSettingsPane: View {
                 .pickerStyle(.segmented)
             }
             Section {
-                Toggle("Logos des sites des clients", isOn: $logosOnline)
-                    // Off: the sites still waiting are not asked (correctifs, 15/11).
-                    .onChange(of: logosOnline) { _, on in if !on { logos?.cancelPending() } }
+                SettingRow("Logos des sites des clients", help: ProjectsSettingsText.logosHelp, detail: ProjectsSettingsText.logosDetail) {
+                    Toggle("Logos des sites des clients", isOn: $logosOnline)
+                        // Off: the sites still waiting are not asked (correctifs, 15/11).
+                        .onChange(of: logosOnline) { _, on in if !on { logos?.cancelPending() } }
+                }
                 if let logos {
                     Button("Rafraîchir les logos") { logos.refreshAll() }
                         .disabled(!logosOnline)
                 }
-            } footer: {
-                Text("Polhub demande son icône au site de chaque client, directement depuis le Mac, sans passer par un autre service : le site voit l'adresse IP du Mac, comme lors d'une visite. Coupé, les projets gardent leurs initiales. Une image déposée sur le logo d'un projet reste toujours.")
-                    .font(.meta)
-                    .foregroundStyle(.secondary)
             }
         }
-        .formStyle(.grouped)
-        .frame(maxWidth: 640)
+        .settingsForm()
     }
 }

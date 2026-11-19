@@ -1,13 +1,29 @@
 import PolhubDesign
 import SwiftUI
 
-/// The words of Réglages › Colin (18/11).
+/// The words of Réglages › Colin (18/11). Lot 7 (19/11): one line of help under each setting, the long texts behind « ⓘ ».
 enum ColinSettingsText {
-    /// What leaves the Mac when Colin is on.
+    /// Under the switch (security audit of 19/11, M8): what Colin reads to answer leaves the Mac.
+    static let help = "Pour te répondre, Colin envoie à Anthropic ce qu'il lit : mails, transcriptions, agenda."
+
+    /// What leaves the Mac when Colin is on, in full: the switch's « ⓘ ».
     static let footer = "Colin allumé, ce que tu lui écris, « Ce que Colin sait », vos derniers échanges, les lignes de l'Accueil et ce qu'il lit pour te répondre partent chez Anthropic par ton Claude Code. Jamais l'audio ni les pièces jointes. Il n'envoie rien : un brouillon t'attend toujours. Il change le kanban quand tu le lui demandes, et chaque changement s'annule depuis l'Accueil."
 
-    /// « Colin tient le kanban seul » (step 3, 18/11): its two rules, made on the Mac, with no model.
+    static let kanbanHelp = "Après un mail envoyé ou un rendez-vous pris dans un projet ; chaque changement s'annule."
+
+    /// « Colin tient le kanban seul » (step 3, 18/11): its two rules, made on the Mac, with no model; its « ⓘ ».
     static let kanban = "Colin en marche, après un mail que tu envoies dans un fil de projet : priorité 1 et « En attente retour de … ». Un rendez-vous pris dans un projet devient l'échéance si elle est vide ou passée. Jamais un projet en pause ou terminé, ni ce que tu as changé toi-même depuis 24 h. Chaque changement s'affiche dans le fil de Colin, avec « Annuler »."
+
+    static let knowledgeHelp = "Ce qu'il relit au début de chaque échange ; il ne le change jamais lui-même."
+    static let knowledgeDetail = "Ta façon d'écrire, ton lien de rendez-vous, ce qu'il doit savoir de tes clients. « Garder », dans le fil, y ajoute une ligne."
+
+    static let replyHelp = "Une personne t'a écrit et tu ne lui as rien écrit depuis."
+    static let replyDetail = "Dans aucun fil ni aucune boîte : signalé après le délai choisi, et jusqu'à 14 jours."
+    static let silentHelp = "Ton dernier mail d'un projet reste sans réponse ni rendez-vous."
+    static let silentDetail = "Un client est muet quand ton dernier mail d'un projet reste sans réponse, dans aucun fil, sans rendez-vous depuis ni à venir."
+
+    /// Every help of the page, for its test.
+    static let helps = [help, kanbanHelp, knowledgeHelp, replyHelp, silentHelp]
 
     /// The read-only line: what Colin did this week, and what the API would have charged for it.
     static func week(count: Int, costUSD: Double) -> String {
@@ -32,49 +48,50 @@ struct ColinSettingsPane: View {
         Form {
             if let thread {
                 Section {
-                    ColinSwitch(thread: thread)
+                    SettingRow("Colin", help: ColinSettingsText.help, detail: ColinSettingsText.footer) {
+                        ColinSwitch(thread: thread)
+                    }
                     if let probe { ColinAccountRow(control: probe) }
                     Text(week).font(.meta).foregroundStyle(.secondary)
-                } footer: {
-                    Text(ColinSettingsText.footer).font(.meta)
                 }
                 Section {
-                    Toggle("Colin tient le kanban seul", isOn: $kanban)
-                } footer: {
-                    Text(ColinSettingsText.kanban).font(.meta)
+                    SettingRow("Colin tient le kanban seul", help: ColinSettingsText.kanbanHelp, detail: ColinSettingsText.kanban) {
+                        Toggle("Colin tient le kanban seul", isOn: $kanban)
+                    }
                 }
                 Section {
-                    // Kept a second after the last keystroke, and at once when Paul leaves the page.
-                    TextEditor(text: $knowledge)
-                        .font(.rowBody)
-                        .frame(minHeight: 160)
-                        .onChange(of: knowledge) { _, text in if text != thread.knowledge { thread.editKnowledge(text) } }
-                        .onDisappear { thread.flushKnowledge() }
+                    VStack(alignment: .leading, spacing: Space.s) {
+                        // Kept a second after the last keystroke, and at once when Paul leaves the page.
+                        TextEditor(text: $knowledge)
+                            .font(.rowBody)
+                            .frame(minHeight: 160)
+                            .onChange(of: knowledge) { _, text in if text != thread.knowledge { thread.editKnowledge(text) } }
+                            .onDisappear { thread.flushKnowledge() }
+                        // In the card, under what it explains (lot 7, 19/11).
+                        SettingHelp(ColinSettingsText.knowledgeHelp, detail: ColinSettingsText.knowledgeDetail)
+                    }
                 } header: {
                     Text("Ce que Colin sait")
-                } footer: {
-                    Text("Ce que Colin relit au début de chaque échange : ta façon d'écrire, ton lien de rendez-vous, ce qu'il doit savoir de tes clients. Il ne le change jamais lui-même : « Garder », dans le fil, y ajoute une ligne.")
-                        .font(.meta)
                 }
             }
             Section {
-                Picker("Signaler un mail sans réponse après",
-                       selection: shown($replyDays, among: Preferences.Default.colinReplyChoices, or: Preferences.Default.colinReplyDays)) {
-                    ForEach(Preferences.Default.colinReplyChoices, id: \.self) { Text("\($0) jours").tag($0) }
+                SettingRow("Signaler un mail sans réponse après", help: ColinSettingsText.replyHelp, detail: ColinSettingsText.replyDetail) {
+                    Picker("Signaler un mail sans réponse après",
+                           selection: shown($replyDays, among: Preferences.Default.colinReplyChoices, or: Preferences.Default.colinReplyDays)) {
+                        ForEach(Preferences.Default.colinReplyChoices, id: \.self) { Text("\($0) jours").tag($0) }
+                    }
                 }
-                Picker("Signaler un client muet après",
-                       selection: shown($silentDays, among: Preferences.Default.colinSilentChoices, or: Preferences.Default.colinSilentDays)) {
-                    ForEach(Preferences.Default.colinSilentChoices, id: \.self) { Text("\($0) jours").tag($0) }
+                SettingRow("Signaler un client muet après", help: ColinSettingsText.silentHelp, detail: ColinSettingsText.silentDetail) {
+                    Picker("Signaler un client muet après",
+                           selection: shown($silentDays, among: Preferences.Default.colinSilentChoices, or: Preferences.Default.colinSilentDays)) {
+                        ForEach(Preferences.Default.colinSilentChoices, id: \.self) { Text("\($0) jours").tag($0) }
+                    }
                 }
             } header: {
                 Text("À valider")
-            } footer: {
-                Text("Un mail attend ta réponse quand une personne t'a écrit et que tu ne lui as rien écrit depuis, dans aucun fil : après le délai choisi, et jusqu'à 14 jours. Un client est muet quand ton dernier mail d'un projet reste sans réponse, dans aucun fil, sans rendez-vous depuis ni à venir.")
-                    .font(.meta)
             }
         }
-        .formStyle(.grouped)
-        .frame(maxWidth: 640)
+        .settingsForm()
         .onAppear {
             guard let thread else { return }
             knowledge = thread.knowledge
