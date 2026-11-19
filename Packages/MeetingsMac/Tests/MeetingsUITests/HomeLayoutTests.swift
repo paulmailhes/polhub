@@ -164,6 +164,18 @@ import Testing
         #expect(late.map(\.range) == [0..<14] && late.first?.opacity == 1)
     }
 
+    /// 19/11: once the last words have faded in, nothing is left to animate. The list of arrivals was emptied only when
+    /// the text changed: after the last word, the timeline ran on at the screen's rate for as long as the answer showed.
+    @Test func theFadeEndsAfterTheLastWords() {
+        let start = Date(timeIntervalSince1970: 1_000)
+        let arrivals = [FreshText.Arrival(offset: 5, at: start), FreshText.Arrival(offset: 9, at: start.addingTimeInterval(0.1))]
+        #expect(FreshText.fading(arrivals, now: start.addingTimeInterval(0.15)) == arrivals)
+        #expect(FreshText.fading(arrivals, now: start.addingTimeInterval(0.25)) == [arrivals[1]])
+        #expect(FreshText.fading(arrivals, now: start.addingTimeInterval(0.31)).isEmpty)
+        // The view waits this long after the last arrival before it empties its list.
+        #expect(FreshText.settles > FreshText.fade)
+    }
+
     /// « Copier » under an answer copies what Paul reads: no fences, no stars, no line to keep.
     @Test func copyTakesTheTextAsRead() {
         let answer = "Voilà, **court** et à ton ton.\n```message\nSalut Marc !\n```\n```retenir\nMarc préfère WhatsApp.\n```"

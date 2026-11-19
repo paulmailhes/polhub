@@ -3,6 +3,15 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.39.1 — 19 novembre 2026
+
+**Polhub se fait oublier quand il ne fait rien.**
+
+- **L'icône de la barre des menus** n'est plus redessinée que quand elle change. Elle l'était deux fois par seconde,
+  sur chaque écran : c'était les trois quarts du travail de Polhub au repos (mesuré : 7 à 9 % d'un cœur).
+- **La détection des Meet** ne relit plus chaque seconde l'état audio de toutes les apps du Mac, seulement celui de Dia.
+- **Sur l'Accueil**, l'animation du texte de Colin s'arrête une fois sa réponse écrite.
+
 ## 0.39.0 — 19 novembre 2026
 
 **Des fils de mails lisibles : l'historique et les signatures se replient.**

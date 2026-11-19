@@ -77,8 +77,9 @@ public actor DiaWatcher {
             }
             diaWasRunning = running
 
-            if running, let processes = try? monitor.snapshot() {
-                let audio = DiaAudio.from(processes, diaAppPath: diaAppPath)
+            // Only what Dia does, not every client's devices (19/11).
+            if running, let activity = try? monitor.activity(ofAppAt: diaAppPath) {
+                let audio = DiaAudio(holdsMic: activity.input, playing: activity.output)
                 if audio != lastAudio {
                     if lastAudio?.holdsMic == true, !audio.holdsMic { micReleasedAt = now }
                     lastAudio = audio

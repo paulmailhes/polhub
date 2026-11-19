@@ -58,6 +58,32 @@ public struct AudioProcessMonitor: Sendable {
         }
     }
 
+    /// Whether an app records or plays right now.
+    public struct Activity: Equatable, Sendable {
+        public var input: Bool
+        public var output: Bool
+
+        public init(input: Bool, output: Bool) {
+            self.input = input
+            self.output = output
+        }
+    }
+
+    /// What one app does with sound, read lightly (19/11): each client's pid, its path (no Core Audio call), and the two
+    /// flags of that app's own processes only. `snapshot()` reads nine properties per client, the device lists
+    /// included: asked every second by the watcher, it kept `coreaudiod` busy all day (measured in a profile).
+    public func activity(ofAppAt appPath: String) throws -> Activity {
+        let objects = try HAL.array(HAL.system, kAudioHardwarePropertyProcessObjectList, of: AudioObjectID.self)
+        var activity = Activity(input: false, output: false)
+        for object in objects {
+            guard let pid = try? HAL.value(object, kAudioProcessPropertyPID, as: pid_t.self), pid > 0,
+                  let path = Self.executablePath(of: pid), AppOwnership.outermostAppPath(forExecutablePath: path) == appPath else { continue }
+            activity.input = activity.input || Self.flag(object, kAudioProcessPropertyIsRunningInput)
+            activity.output = activity.output || Self.flag(object, kAudioProcessPropertyIsRunningOutput)
+        }
+        return activity
+    }
+
     private static func flag(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector) -> Bool {
         ((try? HAL.value(object, selector, as: UInt32.self)) ?? 0) != 0
     }

@@ -1,5 +1,6 @@
 import Foundation
 import MeetingDetection
+import Observation
 import Persistence
 import Pipeline
 import Testing
@@ -106,6 +107,47 @@ import Testing
         model.status = .idle
         model.tick(now: now.addingTimeInterval(3_600))
         #expect(!model.isPaused && model.shownStatus == .idle)
+    }
+
+    /// 19/11, measured: read from the clock, the menu bar's label was redrawn twice a second, and macOS redrew the icon
+    /// on every screen each time (three quarters of the app's work at rest). The label shown is stored and replaced
+    /// only when it changes: a tick that changes nothing wakes no view.
+    @Test func theShownLabelChangesOnlyWhenWhatItShowsDoes() {
+        let model = AppModel()
+        model.detectionOn = true
+        model.updateNextMeet([event("Revue de maquettes", in: 7.5)], now: now)
+        model.tick(now: now)
+        #expect(model.shownMenuBarLabel(meetMinutes: true) == MenuBarLabel(icon: .columns(.filled, badge: false), text: "8 min"))
+        #expect(model.shownMenuBarLabel(meetMinutes: false) == MenuBarLabel(icon: .columns(.filled, badge: false), text: nil))
+        func wakes(_ change: () -> Void) -> Bool {
+            let woken = Woken()
+            withObservationTracking {
+                _ = model.shownMenuBarLabel(meetMinutes: true)
+            } onChange: {
+                woken.set()
+            }
+            change()
+            return woken.value
+        }
+        // Half a second later, the same « 8 min »: nothing to redraw.
+        #expect(!wakes { model.tick(now: now.addingTimeInterval(0.5)) })
+        #expect(!wakes { model.tick(now: now.addingTimeInterval(20)) })
+        // The minute turns: redrawn once.
+        #expect(wakes { model.tick(now: now.addingTimeInterval(40)) })
+        #expect(model.shownMenuBarLabel(meetMinutes: true).text == "7 min")
+        // A recording: its clock turns every second, never twice in one.
+        model.status = .recording(title: "Point", since: now.addingTimeInterval(60))
+        #expect(wakes { model.tick(now: now.addingTimeInterval(61)) })
+        #expect(model.shownMenuBarLabel(meetMinutes: true) == MenuBarLabel(icon: .recording, text: "0:01"))
+        #expect(!wakes { model.tick(now: now.addingTimeInterval(61.5)) })
+        #expect(wakes { model.tick(now: now.addingTimeInterval(62)) })
+    }
+
+    final class Woken: @unchecked Sendable {
+        private let lock = NSLock()
+        private var woken = false
+        var value: Bool { lock.withLock { woken } }
+        func set() { lock.withLock { woken = true } }
     }
 
     private func event(_ title: String, in minutes: Double, meet: Bool = true, allDay: Bool = false, declined: Bool = false) -> CalendarEventRow {

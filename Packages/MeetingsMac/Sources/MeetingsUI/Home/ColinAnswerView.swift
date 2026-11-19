@@ -57,6 +57,13 @@ struct DaySeparator: View {
 /// review, 18/11).
 enum FreshText {
     static let fade: TimeInterval = 0.2
+    /// How long after the last arrival the view empties its list, which stops its timeline.
+    static let settles: TimeInterval = 0.25
+
+    /// The arrivals still fading in.
+    static func fading(_ arrivals: [Arrival], now: Date) -> [Arrival] {
+        arrivals.filter { now.timeIntervalSince($0.at) < fade }
+    }
 
     struct Arrival: Equatable {
         var offset: Int
@@ -124,12 +131,20 @@ struct AnswerText: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .onChange(of: text) { before, now in
             let date = Date()
-            arrivals.removeAll { date.timeIntervalSince($0.at) >= FreshText.fade }
+            arrivals = FreshText.fading(arrivals, now: date)
             guard writing, !reduceMotion, now.hasPrefix(before), now.count > before.count else {
                 arrivals = []
                 return
             }
             arrivals.append(FreshText.Arrival(offset: before.count, at: date))
+        }
+        // The last words have faded in: the list empties and the timeline stops (19/11: it was emptied only when the
+        // text changed, so the animation ran on at the screen's rate for as long as the answer showed).
+        .task(id: arrivals.last?.at) {
+            guard !arrivals.isEmpty else { return }
+            try? await Task.sleep(for: .seconds(FreshText.settles))
+            guard !Task.isCancelled else { return }
+            arrivals = FreshText.fading(arrivals, now: Date())
         }
     }
 

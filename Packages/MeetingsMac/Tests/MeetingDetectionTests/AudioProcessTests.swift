@@ -20,4 +20,15 @@ import Testing
         let procs = try AudioProcessMonitor().snapshot()
         #expect(procs.allSatisfy { $0.pid > 0 })
     }
+
+    /// 19/11: the watcher asks only what one app does with sound, every second, without the device lists.
+    @Test func activityOfOneAppReadsLightly() throws {
+        let monitor = AudioProcessMonitor()
+        let absent = try monitor.activity(ofAppAt: "/Applications/Une app qui n'existe pas.app")
+        #expect(absent == AudioProcessMonitor.Activity(input: false, output: false))
+        // Every app Core Audio knows can be asked, whatever it does.
+        for path in Set(try monitor.snapshot().compactMap(\.owningAppPath)) {
+            _ = try monitor.activity(ofAppAt: path)
+        }
+    }
 }
