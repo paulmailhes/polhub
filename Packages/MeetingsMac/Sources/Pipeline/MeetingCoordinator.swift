@@ -1,3 +1,4 @@
+import CryptoKit
 import Domain
 import Foundation
 import MeetingDetection
@@ -472,7 +473,32 @@ public final class MeetingCoordinator {
 
     private func record(_ kind: String, _ what: String, at time: Double) {
         guard let log else { return }
-        Task { try? await log.write(kind: kind, LogLine(at: time, what: what)) }
+        let line = LogLine(at: time, what: Self.journalText(what))
+        Task { try? await log.write(kind: kind, line) }
+    }
+
+    /// What the detection journal keeps of a line (audit of 19/11): no rest of a link (`?authuser=…`), no title, no
+    /// address, and each Meet code as a short mark, always the same for one code (`meet-1a2b3c`): a day's lines still
+    /// follow one meeting, and say nothing of who it was with.
+    nonisolated static func journalText(_ text: String) -> String {
+        var result = text
+        func replace(_ pattern: String, _ transform: (String, [String]) -> String) {
+            guard let expression = try? NSRegularExpression(pattern: pattern) else { return }
+            for match in expression.matches(in: result, range: NSRange(result.startIndex..., in: result)).reversed() {
+                guard let whole = Range(match.range, in: result) else { continue }
+                let groups = (1..<max(1, match.numberOfRanges)).map { index in
+                    Range(match.range(at: index), in: result).map { String(result[$0]) } ?? ""
+                }
+                result.replaceSubrange(whole, with: transform(String(result[whole]), groups))
+            }
+        }
+        replace(#"(https?://[^"?\s)]*)\?[^"\s)]*"#) { _, groups in groups[0] }
+        replace(#"(\b(?:tab)?[tT]itle: (?:Optional\()?)"(?:[^"\\]|\\.)*""#) { _, groups in groups[0] + "\"…\"" }
+        replace(#"[A-Za-z0-9._%+-]+(?:@|%40)[A-Za-z0-9.-]+\.[A-Za-z]{2,}"#) { _, _ in "‹adresse›" }
+        replace(#"\b[a-z]{3}-[a-z]{4}-[a-z]{3}\b"#) { code, _ in
+            "meet-" + SHA256.hash(data: Data(code.utf8)).prefix(3).map { String(format: "%02x", $0) }.joined()
+        }
+        return result
     }
 
     /// A detector time (continuous seconds) as a date.

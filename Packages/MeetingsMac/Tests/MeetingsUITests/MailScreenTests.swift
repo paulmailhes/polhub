@@ -121,9 +121,30 @@ final class CountingServer: @unchecked Sendable {
         // The known spy pixels (simplify-trackers) stay blocked, images allowed or not; the list compiles.
         #expect(await MailContentRules.list(images: true) != nil && MailTrackers.filters.count > 250)
         try await render(hostile, images: true)
-        let asked = Set(server.paths)
-        #expect(asked.contains("/pixel.gif") && !asked.contains { $0.hasPrefix("/track/open") })
-        #expect(asked.isSubset(of: ["/pixel.gif", "/fond.gif", "/css-fond.gif"]))
+        // Images allowed, the local network still gets nothing (audit of 19/11): this server is the Mac itself.
+        #expect(server.paths == [])
+    }
+
+    /// Remote images are allowed by their own rule; the local network never (audit of 19/11): the Mac itself, the
+    /// NAS, the router, a name without a dot, a number written whole. WebKit reads each rule as a pattern without « | ».
+    @Test func remoteImagesAreAllowedAndTheLocalNetworkNever() throws {
+        let rules = try #require(try JSONSerialization.jsonObject(with: Data(MailHTML.contentRules(images: true).utf8)) as? [[String: Any]])
+        let filters = rules.map { rule in
+            (((rule["trigger"] as? [String: Any])?["url-filter"] as? String) ?? "", ((rule["action"] as? [String: Any])?["type"] as? String) ?? "")
+        }
+        let allowed = try #require(filters.firstIndex { $0.0 == "^https?://" && $0.1 == "ignore-previous-rules" })
+        let blocks = filters[(allowed + 1)...].filter { $0.1 == "block" }.compactMap { try? NSRegularExpression(pattern: $0.0, options: .caseInsensitive) }
+        func blocked(_ url: String) -> Bool { blocks.contains { $0.firstMatch(in: url, range: NSRange(url.startIndex..., in: url)) != nil } }
+        for local in ["http://127.0.0.1:8080/a.png", "http://localhost/a.png", "http://LOCALHOST:3000/a.png", "http://192.168.1.10/a.png",
+                      "http://10.0.0.2/a.png", "http://172.16.4.1/a.png", "http://172.31.0.1/a.png", "http://169.254.1.1/a.png",
+                      "http://100.101.102.103/a.png", "http://nas/a.png", "http://3232235777/a.png", "http://nas.local/a.png",
+                      "http://box.lan/a.png", "http://[::1]/a.png", "http://0.0.0.0/a.png", "http://moi@192.168.1.1/a.png",
+                      "https://nas.exemple.ts.net/a.png", "http://routeur.home.arpa/a.png"] {
+            #expect(blocked(local), "\(local)")
+        }
+        for remote in ["https://images.exemple.fr/a.png", "http://172.40.1.1/a.png", "https://cdn.exemple.com:443/a.png", "https://100.exemple.fr/a.png"] {
+            #expect(!blocked(remote), "\(remote)")
+        }
     }
 
     /// 14/11, Paul in dark mode: a light newsletter takes the app's background, its texts go light, its dark

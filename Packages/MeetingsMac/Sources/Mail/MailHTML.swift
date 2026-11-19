@@ -66,6 +66,18 @@ public enum MailHTML {
                    options: [.regularExpression, .caseInsensitive]) != nil
     }
 
+    /// The addresses of the local network, as WebKit's rules read them (one pattern each, no « | »): the Mac itself, the
+    /// private and shared ranges (Tailscale's 100.64/10 among them), a name without a dot (`http://nas/`, or an address
+    /// written as one number), `.local` and its kin, an IPv6 address, an address that carries a user.
+    static let localNetwork = [
+        "^https?://localhost[:/]", "^https?://localhost$", "^https?://127\\.", "^https?://0", "^https?://10\\.", "^https?://192\\.168\\.",
+        "^https?://169\\.254\\.", "^https?://172\\.1[6-9]\\.", "^https?://172\\.2[0-9]\\.", "^https?://172\\.3[01]\\.",
+        "^https?://100\\.6[4-9]\\.", "^https?://100\\.[7-9][0-9]\\.", "^https?://100\\.1[01][0-9]\\.", "^https?://100\\.12[0-7]\\.",
+        "^https?://\\[", "^https?://[^/]*@", "^https?://[^/:.]+[:/]", "^https?://[^/:.]+$",
+        "^https?://[^/:]+\\.local[:/.]", "^https?://[^/:]+\\.local$", "^https?://[^/:]+\\.lan[:/.]", "^https?://[^/:]+\\.lan$",
+        "^https?://[^/:]+\\.home\\.arpa[:/.]", "^https?://[^/:]+\\.internal[:/.]", "^https?://[^/:]+\\.ts\\.net[:/.]",
+    ]
+
     /// The second lock, WebKit's own content rules: every remote load is blocked, but the images when allowed.
     public static func contentRules(images: Bool) -> String {
         var rules: [[String: Any]] = [["trigger": ["url-filter": "^https?://"], "action": ["type": "block"]]]
@@ -73,6 +85,8 @@ public enum MailHTML {
             rules.append(["trigger": ["url-filter": "^https?://", "resource-type": ["image"]], "action": ["type": "ignore-previous-rules"]])
             // The known spy pixels stay blocked, images allowed or not (simplify-trackers).
             rules += MailTrackers.filters.map { ["trigger": ["url-filter": $0], "action": ["type": "block"]] }
+            // So does the local network (audit of 19/11): an image of a mail never reaches the Mac itself, the NAS or the router.
+            rules += localNetwork.map { ["trigger": ["url-filter": $0], "action": ["type": "block"]] }
         }
         let data = (try? JSONSerialization.data(withJSONObject: rules, options: [.withoutEscapingSlashes])) ?? Data("[]".utf8)
         return String(decoding: data, as: UTF8.self)
