@@ -3,6 +3,23 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.42.0 — 20 novembre 2026
+
+**L'Accueil : ta journée est la page, Colin a son panneau à droite.**
+
+- **Ta journée en page** : la date en grand titre, puis une seule ligne, « Depuis hier 19:40 · 1 mail de client, 2
+  projets ont bougé  Voir › ». Dessous, « Aujourd'hui », « À valider » et « À faire », dans une colonne de lecture.
+- **Colin a son panneau**, à droite, sur toute la hauteur, sur un fond à lui. Son en-tête dit enfin où il en est :
+  prêt, répond…, attend ton call, en panne, à l'arrêt. Plus jamais « en marche » pendant un call ou une panne.
+- **Des lignes calmes** : plus aucun bouton au repos. « Relire », « Ouvrir », « Ranger », « Reporter » et « Livré »
+  apparaissent quand la souris passe sur la ligne, sans rien déplacer, et au clic droit.
+- **« Rejoindre »** est le seul bouton plein de l'écran, dix minutes avant le rendez-vous.
+- **Le fil de Colin** : chaque carte dit ce qu'elle est (« Projet modifié », « Nouveau projet », « Brouillon »,
+  « Message à copier ») et se détache du panneau ; « Copier » n'est plus là deux fois ; « Annuler » devient un mot
+  discret ; plus de trou sous une carte.
+- **Fenêtre étroite** : la journée prend toute la page ; la barre de Colin flotte en bas et dit où il en est, ou le
+  début de sa dernière réponse. Un clic ouvre son fil par-dessus, Échap le referme.
+
 ## 0.41.0 — 19 novembre 2026
 
 **Une barre latérale courte, et « fermer » ramène d'où l'on vient.**

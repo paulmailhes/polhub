@@ -10,10 +10,12 @@ import SwiftUI
 /// The width of the thread's reading column, at most.
 enum ThreadMetrics {
     static let column: CGFloat = 680
-    /// Room always left beside Paul's bubble: it never takes the whole column.
-    static let bubbleGap: CGFloat = 140
+    /// Room always left beside Paul's bubble: it never takes the whole column. 64 points in a panel of 420 (lot 5, 19/11).
+    static let bubbleGap: CGFloat = 64
     static let turn: CGFloat = Space.xl
     static let inTurn: CGFloat = 10
+    /// The fade at the top of the thread, under the line of the panel's head (lot 5, 19/11).
+    static let fade: CGFloat = Space.l
 }
 
 // MARK: - Paul
@@ -188,7 +190,7 @@ struct StepRow: View {
             } label: {
                 HStack(spacing: Space.s) {
                     Image(systemName: ColinStepText.symbol(group.tool))
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.tag.weight(.medium))
                         .symbolEffect(.pulse, isActive: group.running)
                         // A failure: the icon of attention, its sentence grey (design system v2, 19/11).
                         .foregroundStyle(group.failed ? Tint.attention : Color.secondary)
@@ -199,7 +201,7 @@ struct StepRow: View {
                         .lineLimit(1)
                     if !group.running, details.count > 1 {
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 9, weight: .semibold))
+                            .font(.caption2.weight(.semibold))
                             .foregroundStyle(.tertiary)
                             .rotationEffect(.degrees(open ? 90 : 0))
                     }
@@ -223,7 +225,7 @@ struct StepRow: View {
 struct ThinkingRow: View {
     var body: some View {
         HStack(spacing: Space.s) {
-            Image(systemName: "sparkle").font(.system(size: 12, weight: .medium)).symbolEffect(.pulse, isActive: true)
+            Image(systemName: "sparkle").font(.tag.weight(.medium)).symbolEffect(.pulse, isActive: true)
                 .foregroundStyle(.secondary).frame(width: 16)
             Text("Réfléchit…").font(.meta).foregroundStyle(.secondary)
         }
@@ -232,7 +234,32 @@ struct ThinkingRow: View {
 
 // MARK: - Cards
 
-/// The frame of a card in the thread: a thin line, no glass.
+/// What a card of Colin's thread is (lot 5, 19/11), said at its head: one grammar for all — what it is, then the thing
+/// in 15 points semi-bold.
+enum ResultCard: Equatable {
+    case message, draft, change, creation
+
+    var label: String {
+        switch self {
+        case .message: "Message à copier"
+        case .draft: "Brouillon"
+        case .change: "Projet modifié"
+        case .creation: "Nouveau projet"
+        }
+    }
+
+    static func of(_ line: ProjectChangeLine) -> ResultCard {
+        ChangeText.isCreation(line) ? .creation : .change
+    }
+
+    /// Whom a draft is for: « Pour Claire ».
+    static func draftFor(_ to: [MailAddress]) -> String {
+        "Pour \(to.first.map { ReviewRules.short($0.display) } ?? "toi")"
+    }
+}
+
+/// The frame of a card in the thread: a thin line, no glass. On the window's own ground, so that it stands out of Colin's
+/// grey panel (lot 5, 19/11).
 private struct ThreadCard<Content: View>: View {
     @ViewBuilder let content: Content
 
@@ -240,12 +267,27 @@ private struct ThreadCard<Content: View>: View {
         VStack(alignment: .leading, spacing: Space.s) { content }
             .padding(Space.m)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Surface.fill, in: RoundedRectangle(cornerRadius: Radius.inner, style: .continuous))
+            .background(Color(nsColor: .windowBackgroundColor), in: RoundedRectangle(cornerRadius: Radius.inner, style: .continuous))
             .overlay { RoundedRectangle(cornerRadius: Radius.inner, style: .continuous).strokeBorder(Surface.stroke) }
     }
 }
 
-/// What a change did to a project: its name, why or by whom, a line by field before → after, and « Annuler ».
+/// The head of a card (lot 5, 19/11): what it is, in a grey label of 12 points; its action on the right, a small outline.
+private struct CardHead<Action: View>: View {
+    let card: ResultCard
+    @ViewBuilder var action: Action
+
+    var body: some View {
+        HStack(alignment: .center, spacing: Space.s) {
+            Text(card.label).font(.tag.weight(.semibold)).foregroundStyle(.secondary)
+            Spacer(minLength: Space.s)
+            action.controlSize(.small)
+        }
+    }
+}
+
+/// What a change did to a project: « Projet modifié » or « Nouveau projet », its name, why or by whom, a line by field
+/// before → after, then « Annuler », a grey word (lot 5, 19/11).
 struct ChangeCard: View {
     let line: ProjectChangeLine
     let outcome: UndoOutcome?
@@ -259,36 +301,24 @@ struct ChangeCard: View {
     private var undone: Bool { outcome != nil || line.undoneAt != nil }
 
     var body: some View {
+        let card = ResultCard.of(line)
         ThreadCard {
-            if ChangeText.isCreation(line) { creation } else { header }
-            fieldLines
-        }
-    }
-
-    /// A project created, put forward (19/11): « Nouveau projet », its name in large, « Ouvrir le projet » and « Annuler ».
-    private var creation: some View {
-        HStack(alignment: .center, spacing: Space.m) {
-            Image(systemName: "folder.badge.plus").font(.system(size: 18, weight: .medium)).foregroundStyle(.primary)
+            CardHead(card: card) {
+                if card == .creation, !undone, let open { Button("Ouvrir le projet", action: open).buttonStyle(.secondary) }
+            }
             VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: said ?? "Nouveau projet").font(.meta).foregroundStyle(.secondary).lineLimit(1)
                 Text(verbatim: line.projectName).font(.rowTitle.weight(.semibold)).lineLimit(2)
+                if let why = byline ?? ChangeText.note(line) {
+                    Text(verbatim: why).font(.meta).foregroundStyle(.secondary).lineLimit(2)
+                }
             }
             .opacity(undone ? 0.5 : 1)
-            Spacer(minLength: Space.s)
-            if !undone {
-                if let open { Button("Ouvrir le projet", action: open).buttonStyle(.subtle) }
-                Button("Annuler", action: undo).buttonStyle(.subtle)
+            fieldLines
+            if let done {
+                Text(verbatim: done).font(.meta).foregroundStyle(.secondary)
+            } else {
+                TextButton("Annuler", quiet: true, action: undo)
             }
-        }
-    }
-
-    private var header: some View {
-        HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-            Image(systemName: "checklist").font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
-            Text(verbatim: line.projectName).font(.meta.weight(.semibold))
-            if let said { Text(verbatim: said).font(.meta).foregroundStyle(.secondary).lineLimit(1) }
-            Spacer(minLength: Space.s)
-            if !undone { Button("Annuler", action: undo).buttonStyle(.subtle) }
         }
     }
 
@@ -298,7 +328,7 @@ struct ChangeCard: View {
                 Text(verbatim: field.label).font(.meta).foregroundStyle(.secondary).frame(width: 64, alignment: .leading)
                 if let before = field.before {
                     Text(verbatim: before).font(.meta).foregroundStyle(.secondary).lineLimit(1)
-                    Image(systemName: "arrow.right").font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary)
+                    Image(systemName: "arrow.right").font(.caption2.weight(.semibold)).foregroundStyle(.tertiary)
                 }
                 Text(verbatim: field.after ?? "retiré").font(.meta.weight(.medium)).lineLimit(2)
             }
@@ -306,49 +336,49 @@ struct ChangeCard: View {
         }
     }
 
-    /// Once undone, what « Annuler » did; else who made it, or why.
-    private var said: String? {
+    /// What « Annuler » did, once done.
+    private var done: String? {
         if let outcome { return ChangeText.undone(outcome) }
         if line.undoneAt != nil { return ChangeText.undone(.undone) }
-        return byline ?? ChangeText.note(line)
+        return nil
     }
 }
 
-/// A draft the answer prepared, still a draft: « Relire » opens it over the Accueil.
+/// A draft the answer prepared, still a draft: « Brouillon », whom it is for and its subject; « Relire » opens it over the
+/// Accueil.
 struct DraftCard: View {
     let draft: MailDraftRow
     let open: () -> Void
 
     var body: some View {
         ThreadCard {
-            HStack(spacing: Space.s) {
-                Image(systemName: "square.and.pencil").font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
-                Text(verbatim: "Brouillon prêt pour \(draft.to.first.map { ReviewRules.short($0.display) } ?? "toi")").font(.meta.weight(.semibold))
-                Spacer(minLength: Space.s)
-                Button("Relire", action: open).buttonStyle(.subtle)
+            CardHead(card: .draft) { Button("Relire", action: open).buttonStyle(.secondary) }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: ResultCard.draftFor(draft.to)).font(.rowTitle.weight(.semibold)).lineLimit(1)
+                if !draft.subject.isEmpty { Text(verbatim: draft.subject).font(.meta).foregroundStyle(.secondary).lineLimit(1) }
             }
         }
     }
 }
 
-/// A message to copy (a WhatsApp, an SMS): its text, and « Copier », which says it copied.
+/// A message to copy (a WhatsApp, an SMS): « Message à copier » and « Copier » at its head, which says it copied, then
+/// its text (lot 5, 19/11: « Copier » no longer takes a line of its own at the bottom).
 struct CopyCard: View {
     let text: String
     @State private var copied = false
 
     var body: some View {
         ThreadCard {
-            Text(text).font(.rowTitle).lineSpacing(3).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
-            HStack {
-                Spacer()
+            CardHead(card: .message) {
                 Button(copied ? "Copié" : "Copier") {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(text, forType: .string)
                     copied = true
                     Task { try? await Task.sleep(for: .seconds(1.5)); copied = false }
                 }
-                .buttonStyle(.subtle)
+                .buttonStyle(.secondary)
             }
+            Text(text).font(.rowTitle).lineSpacing(3).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -361,10 +391,10 @@ struct KeepLine: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-            Image(systemName: "bookmark").font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary).frame(width: 16)
+            Image(systemName: "bookmark").font(.tag.weight(.medium)).foregroundStyle(.secondary).frame(width: 16)
             Text(line).font(.meta).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: Space.s)
-            if !known { Button("Garder", action: keep).buttonStyle(.subtle) }
+            if !known { Button("Garder", action: keep).buttonStyle(.secondary).controlSize(.small) }
         }
     }
 }
@@ -372,7 +402,8 @@ struct KeepLine: View {
 // MARK: - An answer
 
 /// One answer of Colin's, from its first word to its foot: the text with his actions in their places, the cards of
-/// what he changed and prepared, how it ended, and its foot (how long he worked, « Copier », « Réessayer »).
+/// what he changed and prepared, how it ended, and its foot (« Copier », « Réessayer »); how long he worked under the
+/// pointer.
 struct ColinAnswerView: View {
     let message: ColinMessageRow
     @ObservedObject var thread: ColinThread
@@ -389,6 +420,7 @@ struct ColinAnswerView: View {
     private var steps: [ColinStep] { writing ? thread.liveSteps : message.steps }
 
     var body: some View {
+        let foot = ColinThreadText.foot(of: message, colinOn: thread.isOn)
         VStack(alignment: .leading, spacing: ThreadMetrics.inTurn) {
             if writing, thread.visible.isEmpty, thread.liveSteps.isEmpty { ThinkingRow() }
             ForEach(Array(ColinThreadText.pieces(text, groups: ColinStepText.groups(steps)).enumerated()), id: \.offset) { index, piece in
@@ -410,9 +442,12 @@ struct ColinAnswerView: View {
             ForEach(changes) { line in
                 ChangeCard(line: line, outcome: thread.outcomes[line.id], calendar: calendar, open: { router.openProject(line.projectID) }) { thread.undo(line) }
             }
-            if !writing { foot }
+            // An empty foot takes no room (lot 5, 19/11: it left about 40 points under a card).
+            if !writing, !foot.isEmpty { self.foot(foot) }
         }
         .onHover { hovering = $0 }
+        // How long he worked: under the pointer, never in the way (lot 5, 19/11).
+        .help(message.durationMs.map(ColinThreadText.worked) ?? "")
     }
 
     @ViewBuilder
@@ -424,24 +459,28 @@ struct ColinAnswerView: View {
         }
     }
 
-    /// How it ended, and what can be done with it.
-    private var foot: some View {
-        let (_, note) = ColinThreadText.note(of: message)
-        let stopped = message.state == .interrupted || message.state == .failed
+    /// How it ended, always; « Copier » — unless its card copies — and « Réessayer » on the last answer, under the pointer
+    /// on the others, in a room kept for them: nothing moves.
+    private func foot(_ foot: ColinThreadText.Foot) -> some View {
+        let shown = isLast || hovering
         return HStack(spacing: Space.m) {
-            if let note { Text(note).font(.meta).foregroundStyle(.secondary) }
-            if let duration = message.durationMs, !stopped { Text(ColinThreadText.worked(duration)).font(.meta).foregroundStyle(.tertiary) }
-            if isLast || hovering {
+            if let note = foot.note { Text(note).font(.meta).foregroundStyle(.secondary) }
+            if foot.copy {
                 TextButton(copied ? "Copié" : "Copier", quiet: true) {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(ColinThreadText.plain(ColinThreadText.note(of: message).said), forType: .string)
                     copied = true
                     Task { try? await Task.sleep(for: .seconds(1.5)); copied = false }
                 }
-                if stopped, thread.isOn { TextButton("Réessayer", quiet: true) { thread.retry(message) } }
+                .opacity(shown ? 1 : 0)
+                .allowsHitTesting(shown)
+            }
+            if foot.retry {
+                TextButton("Réessayer", quiet: true) { thread.retry(message) }
+                    .opacity(shown ? 1 : 0)
+                    .allowsHitTesting(shown)
             }
         }
-        .frame(minHeight: 18)
     }
 }
 
@@ -451,7 +490,7 @@ struct JumpToEnd: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: "arrow.down").font(.system(size: 13, weight: .semibold)).frame(width: 30, height: 30)
+            Image(systemName: "arrow.down").font(.meta.weight(.semibold)).frame(width: 30, height: 30)
         }
         .buttonStyle(.plain)
         .glassEffect(.regular.interactive(), in: .circle)

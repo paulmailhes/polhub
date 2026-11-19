@@ -3,12 +3,27 @@ import Persistence
 import PolhubDesign
 import SwiftUI
 
+/// The gestures of a line of « À faire » (lot 5, 19/11), the same under the pointer and at the right click.
+enum TodoText {
+    /// « Reporter » and « Livré » come under the pointer on every dated line — a late one too —, in the place of its
+    /// « quand »; an unfolded line shows them under its actions.
+    static func hoverActions(dated: Bool, unfolded: Bool) -> Bool {
+        dated && !unfolded
+    }
+
+    /// The right click: « Ouvrir le projet », then « Reporter » and « Livré » on a dated line.
+    static func menu(dated: Bool) -> [String] {
+        dated ? ["Ouvrir le projet", "Reporter", "Livré"] : ["Ouvrir le projet"]
+    }
+}
+
 /// « À faire » (0.36.0, in a card 0.37.0): the projects where it is Paul's turn and those whose deadline is close,
 /// grouped by day, the late first. A line: the project and its client, when in words — the late in red (`Tint.late`,
 /// design system v2, 19/11) —, the task of the moment under it. A click unfolds it on what is to do (the task, every
 /// action left, « Ouvrir le projet »).
-/// « Reporter » and « Livré »: always on a late line or an unfolded one, at the hover on the other dated ones; « Livré »
-/// proposes the project's next call as the new deadline; « Annuler » for a few seconds at the head of the card.
+/// « Reporter » and « Livré » (lot 5, 19/11): under the pointer on every dated line, in the place of its « quand », kept
+/// for them at rest so that nothing moves; at the right click; under the actions of an unfolded line. « Livré » proposes
+/// the project's next call as the new deadline; « Annuler » for a few seconds at the head of the card.
 struct TodoCard: View {
     @ObservedObject var todo: TodoLibrary
     @ObservedObject var agenda: AgendaLibrary
@@ -21,18 +36,20 @@ struct TodoCard: View {
     /// The line whose « Choisir une date… » is open, and the day picked.
     @State private var picking: UUID?
     @State private var picked = Date()
+    /// The width of « Reporter » and « Livré », measured: the place kept for them at the end of a dated line.
+    @State private var actionsWidth: CGFloat = 120
 
-    init(todo: TodoLibrary, agenda: AgendaLibrary, router: WindowRouter, limit: Int = 6, opened: UUID? = nil) {
+    /// `opened`, `hovered`: a line unfolded, a line under the pointer, for the captures.
+    init(todo: TodoLibrary, agenda: AgendaLibrary, router: WindowRouter, limit: Int = 6, opened: UUID? = nil, hovered: UUID? = nil) {
         self.todo = todo
         self.agenda = agenda
         self.router = router
         self.limit = limit
         _open = State(initialValue: opened)
+        _hovered = State(initialValue: hovered)
     }
 
     private var calendar: Calendar { CalendarView.calendar }
-    /// The room the two buttons take at the end of a late line.
-    private static let actionsWidth: CGFloat = 150
     /// The actions shown in an unfolded line, before « + N autres ».
     private static let actionsShown = 8
 
@@ -79,49 +96,65 @@ struct TodoCard: View {
     private func row(_ line: TodoRules.Line, now: Date, unfolded: Bool) -> some View {
         let late = line.group == .late
         let dated = line.due != nil
-        let hoverActions = dated && !late && !unfolded && hovered == line.id
+        let place = TodoText.hoverActions(dated: dated, unfolded: unfolded)
+        let shown = place && hovered == line.id
         let when = TodoRules.when(line, now: now, calendar: calendar)
         return VStack(alignment: .leading, spacing: Space.s) {
             RowButton(action: { open = unfolded ? nil : line.id }) {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(alignment: .firstTextBaseline, spacing: Space.s) {
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 9, weight: .semibold))
+                            .font(.caption2.weight(.semibold))
                             .foregroundStyle(.tertiary)
                             .rotationEffect(.degrees(unfolded ? 90 : 0))
                         Text("\(Text(line.name).foregroundStyle(.primary).fontWeight(.medium))\(Text(line.client.map { " · \($0)" } ?? "").foregroundStyle(.secondary))")
                             .font(.rowTitle)
                             .lineLimit(1)
                         Spacer(minLength: Space.s)
-                        if let when {
-                            Text(when)
+                        if when != nil || place {
+                            Text(when ?? "")
                                 .font(.meta.monospacedDigit())
                                 .fontWeight(late ? .semibold : .regular)
                                 // « depuis 6 j »: late, in red (design system v2, 19/11).
                                 .foregroundStyle(late ? AnyShapeStyle(Tint.late) : AnyShapeStyle(.secondary))
                                 .lineLimit(1)
-                                // At the hover, the buttons take its place.
-                                .opacity(hoverActions ? 0 : 1)
+                                // Under the pointer, the buttons take its place, kept for them at rest (lot 5, 19/11).
+                                .opacity(shown ? 0 : 1)
+                                .frame(minWidth: place ? actionsWidth : 0, alignment: .trailing)
                         }
                     }
-                    if !unfolded, line.detail != nil || late {
-                        HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-                            Text(line.detail ?? " ").font(.meta).foregroundStyle(.secondary).lineLimit(1)
-                            Spacer(minLength: 0)
-                            if late { Color.clear.frame(width: Self.actionsWidth, height: 1) }
-                        }
-                        .padding(.leading, 17)
+                    if !unfolded, let detail = line.detail {
+                        // The whole task: no room is kept for buttons under it any more (lot 5, 19/11).
+                        Text(detail).font(.meta).foregroundStyle(.secondary).lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.leading, 17)
                     }
                 }
             }
-            .overlay(alignment: late ? .bottomTrailing : .topTrailing) {
-                if dated, !unfolded {
+            .overlay(alignment: .topTrailing) {
+                if place {
                     actions(line)
-                        .opacity(late || hoverActions ? 1 : 0)
-                        .allowsHitTesting(late || hoverActions)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { actionsWidth = $0 }
+                        // On the first line, where the « quand » is.
+                        .padding(.top, Space.xs / 2)
+                        .opacity(shown ? 1 : 0)
+                        .allowsHitTesting(shown)
+                        .animation(Motion.quick, value: shown)
                 }
             }
             .onHover { inside in hovered = inside ? line.id : (hovered == line.id ? nil : hovered) }
+            .contextMenu {
+                // The same gestures at the right click (lot 5, 19/11): `TodoText.menu`.
+                Button("Ouvrir le projet") { router.openProject(line.id) }
+                if dated {
+                    Menu("Reporter") { postponeItems(line) }
+                    if TodoRules.nextCall(line.id, events: agenda.shown, now: Date()) != nil {
+                        Menu("Livré") { deliverItems(line) }
+                    } else {
+                        Button("Livré") { todo.deliver(line) }
+                    }
+                }
+            }
             .help(unfolded ? "Replier" : "Voir ce qu'il y a à faire")
             if unfolded { details(line) }
         }
@@ -174,45 +207,55 @@ struct TodoCard: View {
         .transition(.opacity)
     }
 
-    /// « Reporter » (its choices, then « Choisir une date… ») and « Livré » (with the next call, a menu).
+    /// « Reporter » (its choices, then « Choisir une date… ») and « Livré » (with the next call, a menu): one outline,
+    /// small, as every button of a line (lot 5, 19/11).
     private func actions(_ line: TodoRules.Line) -> some View {
         HStack(spacing: Space.xs) {
-            Menu {
-                let choices = TodoRules.postpone(due: line.due, now: Date(), calendar: calendar)
-                ForEach(choices, id: \.date) { choice in
-                    Button(choice.label) { todo.postpone(line, to: choice) }
-                }
-                if !choices.isEmpty { Divider() }
-                Button("Choisir une date…") {
-                    picked = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: max(Date(), line.due ?? Date()))) ?? Date()
-                    picking = line.id
-                }
-            } label: {
-                Text("Reporter")
-            }
-            .menuStyle(.button)
-            .buttonStyle(.subtle)
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .help("Reporter l'échéance de \(line.name)")
-            if let next = TodoRules.nextCall(line.id, events: agenda.shown, now: Date()) {
-                Menu {
-                    Button(TodoRules.deliveredNext(next, now: Date(), calendar: calendar)) { todo.deliver(line, next: next) }
-                    Button("Livré, sans échéance") { todo.deliver(line) }
-                } label: {
-                    Text("Livré")
-                }
+            Menu { postponeItems(line) } label: { Text("Reporter") }
                 .menuStyle(.button)
-                .buttonStyle(.subtle)
+                .buttonStyle(.secondary)
                 .menuIndicator(.hidden)
                 .fixedSize()
-                .help("Noter la livraison au journal, puis le prochain call ou aucune échéance")
+                .help("Reporter l'échéance de \(line.name)")
+            if TodoRules.nextCall(line.id, events: agenda.shown, now: Date()) != nil {
+                Menu { deliverItems(line) } label: { Text("Livré") }
+                    .menuStyle(.button)
+                    .buttonStyle(.secondary)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .help("Noter la livraison au journal, puis le prochain call ou aucune échéance")
             } else {
                 Button("Livré") { todo.deliver(line) }
-                    .buttonStyle(.subtle)
+                    .buttonStyle(.secondary)
                     .fixedSize()
                     .help("Effacer l'échéance de \(line.name) et le noter au journal")
             }
+        }
+        .controlSize(.small)
+    }
+
+    /// « Demain », « Lundi », « Dans une semaine », then « Choisir une date… ».
+    @ViewBuilder
+    private func postponeItems(_ line: TodoRules.Line) -> some View {
+        let choices = TodoRules.postpone(due: line.due, now: Date(), calendar: calendar)
+        ForEach(choices, id: \.date) { choice in
+            Button(choice.label) { todo.postpone(line, to: choice) }
+        }
+        if !choices.isEmpty { Divider() }
+        Button("Choisir une date…") {
+            picked = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: max(Date(), line.due ?? Date()))) ?? Date()
+            picking = line.id
+        }
+    }
+
+    /// « Livré »: with the project's next call, the call as the new deadline or none; else at once, no deadline left.
+    @ViewBuilder
+    private func deliverItems(_ line: TodoRules.Line) -> some View {
+        if let next = TodoRules.nextCall(line.id, events: agenda.shown, now: Date()) {
+            Button(TodoRules.deliveredNext(next, now: Date(), calendar: calendar)) { todo.deliver(line, next: next) }
+            Button("Livré, sans échéance") { todo.deliver(line) }
+        } else {
+            Button("Livré") { todo.deliver(line) }
         }
     }
 }

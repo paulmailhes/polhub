@@ -8,6 +8,21 @@ enum TodayText {
     static func next(when: String, hour: String, project: String?) -> String {
         ([when] + (when.contains(hour) ? [] : [hour]) + [project].compactMap { $0 }).joined(separator: " · ")
     }
+
+    /// How « Rejoindre » is drawn (lot 5, 19/11).
+    enum JoinStyle: Equatable {
+        /// An outline: the meeting is later today.
+        case secondary
+        /// The Accueil's one full button: ten minutes before, and while it lasts.
+        case primary
+    }
+
+    /// « Rejoindre » outlined, then full ten minutes before; far off (tomorrow's first, from the evening), none before its
+    /// last ten minutes.
+    static func join(minutesLeft: Double, sameDay: Bool) -> JoinStyle? {
+        if minutesLeft <= 10 { return .primary }
+        return sameDay ? .secondary : nil
+    }
 }
 
 /// « Aujourd'hui » (the Accueil's pass, 18/11): the next meeting large — its countdown in the color of attention from a
@@ -56,12 +71,13 @@ struct TodayCard: View {
 
     /// The next meeting, large.
     private func nextRow(_ event: CalendarEventRow, now: Date) -> some View {
-        let joinable = event.meetCode != nil && !event.allDay
         let left = minutes(to: event, now: now)
         let soon = left <= 15
         let when = HomeModel.when(event, now: now)
         let rest = TodayText.next(when: when, hour: event.startAt.formatted(date: .omitted, time: .shortened), project: projectName(event.projectID))
             .dropFirst(when.count)
+        // Far off (tomorrow's first, from the evening): no « Rejoindre » before its last ten minutes.
+        let join = event.meetCode != nil && !event.allDay ? TodayText.join(minutesLeft: left, sameDay: calendar.isDate(event.startAt, inSameDayAs: now)) : nil
         return RowButton(action: { router.openEvent(event.id) }) {
             HStack(alignment: .center, spacing: Space.m) {
                 VStack(alignment: .leading, spacing: 3) {
@@ -76,25 +92,27 @@ struct TodayCard: View {
                     .lineLimit(1)
                 }
                 Spacer(minLength: 0)
-                if joinable, left <= 10 || calendar.isDate(event.startAt, inSameDayAs: now) { Color.clear.frame(width: 108, height: 1) }
+                if join != nil { Color.clear.frame(width: 108, height: 1) }
             }
             .padding(.vertical, Space.xs)
         }
         .overlay(alignment: .trailing) {
-            // Far off (tomorrow's first, from the evening): no « Rejoindre » before its last ten minutes.
-            if joinable, left <= 10 || calendar.isDate(event.startAt, inSameDayAs: now) {
-                if left <= 10 {
-                    // The Accueil's one principal button, ten minutes before: full and matte, at the accent; no glass
-                    // in the content (design system v2, 19/11).
-                    Button { agenda.join(event) } label: { Label("Rejoindre", systemImage: "video.fill") }
-                        .buttonStyle(.primary)
-                        .controlSize(.small)
-                        .help("Ouvre le Meet dans Dia avec le compte \(event.account)")
-                } else {
-                    Button { agenda.join(event) } label: { Label("Rejoindre", systemImage: "video") }
-                        .buttonStyle(.subtle)
-                        .help("Ouvre le Meet dans Dia avec le compte \(event.account)")
-                }
+            switch join {
+            case .primary:
+                // The Accueil's one full button, ten minutes before: small, matte, at the accent; no glass in the content
+                // (design system v2, 19/11).
+                Button { agenda.join(event) } label: { Label("Rejoindre", systemImage: "video.fill") }
+                    .buttonStyle(.primary)
+                    .controlSize(.small)
+                    .help("Ouvre le Meet dans Dia avec le compte \(event.account)")
+            case .secondary:
+                // Before: an outline, as small (lot 5, 19/11: one outline for the whole Accueil).
+                Button { agenda.join(event) } label: { Label("Rejoindre", systemImage: "video") }
+                    .buttonStyle(.secondary)
+                    .controlSize(.small)
+                    .help("Ouvre le Meet dans Dia avec le compte \(event.account)")
+            case nil:
+                EmptyView()
             }
         }
     }
