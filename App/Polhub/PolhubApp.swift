@@ -20,7 +20,7 @@ struct PolhubApp: App {
         MenuBarExtra {
             // Polhub's own accent, ink, whatever the Mac's (design system v2, 19/11).
             MenuBarPanel(context: delegate.coupDoeil)
-                .tint(Tint.accent)
+                .tint(Tint.control.color)
         } label: {
             MenuBarIcon(model: delegate.model)
         }

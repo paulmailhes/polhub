@@ -345,7 +345,7 @@ private struct ColinOffCard: View {
             Text("Colin est à l'arrêt").font(.rowBody).foregroundStyle(.secondary)
             Spacer(minLength: Space.s)
             // A calm card, no glass: « Rejoindre » is the Accueil's one principal button (design system v2, 19/11).
-            Button("Allumer Colin", action: turnOn).buttonStyle(.secondary)
+            Button("Allumer Colin", action: turnOn).buttonStyle(.secondary).controlSize(.small)
         }
         .padding(.horizontal, Space.l)
         .padding(.vertical, Space.m)

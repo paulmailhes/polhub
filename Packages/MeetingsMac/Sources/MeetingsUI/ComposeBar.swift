@@ -113,7 +113,7 @@ struct ComposeBar: View {
         return GlassEffectContainer(spacing: 2) {
             HStack(spacing: 2) {
                 Button(action: sendNow) { Label("Envoyer", systemImage: "paperplane.fill") }
-                    .buttonStyle(.glassProminent)
+                    .buttonStyle(.primary)
                     .keyboardShortcut(isActive && planned == nil ? KeyboardShortcut(.return, modifiers: .command) : nil)
                     .disabled(blocked)
                     .help(problem ?? (planned != nil ? "Programmé : annule l'envoi programmé pour le modifier ou l'envoyer"

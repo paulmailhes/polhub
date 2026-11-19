@@ -57,7 +57,7 @@ public struct MenuBarPanel: View {
         .fixedSize(horizontal: false, vertical: true)
         .environment(\.projectLogos, context.projectLogos)
         // Polhub's accent, ink, whatever the Mac's (design system v2, 19/11): the panel's glass buttons take it.
-        .tint(Tint.accent)
+        .tint(Tint.control.color)
     }
 
     /// The panel's height cap: 640 points, or the screen's height less 40 when it is smaller.

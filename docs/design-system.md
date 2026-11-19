@@ -138,8 +138,9 @@ ne va jamais seule : toujours un mot ou un symbole avec elle.
 | `Tint.done` | fait, livré, accepté, en marche | `#17712F` | `#4CD964` |
 | `Tint.agent` | préparé par un agent ou par Colin | `#6340C8` | `#B79CFF` |
 
-- **L'accent est posé à la racine** de chaque fenêtre et de chaque panneau (`.tint(Tint.accent)`) : les commandes
-  du système le prennent.
+- **La teinte des commandes du système** est posée à la racine de chaque fenêtre et de chaque panneau
+  (`.tint(Tint.control.color)`) : l'encre en clair, le graphite en sombre. Mesuré le 19/11 : avec l'encre presque blanche
+  en sombre, le système écrivait en noir sur son verre, et la piste d'un interrupteur rejoignait son bouton.
 - **Un lien dans un texte** se reconnaît à son soulignement, pas à sa couleur.
 - **Une erreur** se dit par l'icône d'attention dans sa couleur et une phrase dans la couleur du texte
   (`ErrorLine`) ; jamais une phrase colorée.
@@ -169,7 +170,7 @@ ne va jamais seule : toujours un mot ou un symbole avec elle.
 | `TextButton("Modifier") { }` | Un mot à cliquer dans une carte (« Modifier », « Changer », « Tout enregistrer… ») : sa capsule au survol, son texte aligné sur la carte |
 | `RowButton { ligne }` | Une ligne cliquable d'une carte (Accueil, page d'un projet, Contacts) : toute la largeur répond, le fond déborde sans décaler le texte |
 | `IconMenu("ellipsis", help: "Plus") { }` | Un menu derrière une icône ronde, dessiné comme `IconButton` |
-| `NotificationBell(inbox:perform:)` (module `MeetingsUI`) | La cloche des notifications : le nombre de nouvelles en pastille rouge ; un clic ouvre le panneau (popover en verre) : cartes calmes à la couleur de leur section, par jour, les rafales en pile, un point bleu tant qu'elles sont nouvelles, × au survol ou glissé pour en effacer une, « Tout effacer » |
+| `NotificationBell(inbox:perform:)` (module `MeetingsUI`) | La cloche des notifications : le nombre de nouvelles en pastille à l'encre ; un clic ouvre le panneau (popover en verre) : cartes calmes à la couleur de leur section, par jour, les rafales en pile, un point bleu tant qu'elles sont nouvelles, × au survol ou glissé pour en effacer une, « Tout effacer » |
 | `ProjectLogo(projet, size:)` (module `ProjectsUI`) | Le logo d'un projet : l'icône du site du client sur une plaque blanche, sinon ses initiales sur sa couleur (le monogramme, aussi dans les tests et les captures) |
 
 Les personnes (module `MeetingsUI`, `PeopleViews.swift`), partout où Paul croise quelqu'un, jamais en passant par
@@ -193,9 +194,17 @@ Quatre rôles, et rien d'autre ne dessine un bouton dans le contenu :
 | Discret | `IconButton`, `TextButton(_:quiet:)` | Un geste qui est là sans appeler : gris (`quiet`), ou à l'encre ; un fond au survol |
 | Ligne | `RowButton`, `.buttonStyle(.row)`, `LineButtonStyle(ground:)` | Une ligne entière qui est un bouton |
 
-- Dans la barre d'outils, les popovers, les barres flottantes et les panneaux en verre : les styles du système en
-  verre (`.glass`, `.glassProminent`), sans teinte posée à la main ; ils prennent l'encre de la racine. Seul
-  « Arrêter » prend `.tint(Tint.recording)`.
+- **Dans la barre d'outils**, les styles du système (« Nouveau mail » en `.glassProminent`, à la teinte des
+  commandes). **Partout ailleurs**, panneaux en verre et popovers compris, les rôles de Polhub : un bouton en verre
+  teinté ressemble au principal, et un bouton en verre paraît éteint dans une fenêtre qui n'est pas devant (mesuré le
+  19/11).
+- **Un rond en verre qui flotte** au-dessus d'une page (✕ d'un panneau, « … » d'un projet) reste neutre :
+  `.tint(nil)` (mesuré : il redevient du verre neutre sous une racine teintée).
+- **« Arrêter »** un enregistrement : `.primary(.recording)`, un rouge plein (`Tint.recordingFill`) au libellé blanc.
+- **Un choix parmi quelques-uns** (les minutes d'un rappel) : `.buttonStyle(.choice(choisi))`, le choisi cerné
+  d'encre ; un choix est un état, jamais un bouton principal.
+- `.primary`, `.secondary` et `.choice` suivent `.controlSize`, aux hauteurs du système (mesurées le 19/11) : 20, 24
+  et 28 points en petit, normal et grand ; une page garde sa mise en page quand ses boutons changent de rôle.
 - Une teinte de compte ou de projet ne va jamais sur un bouton : « Rejoindre » est à l'encre, la couleur du compte
   reste dans son rond.
 - Dans une capsule de verre (le lecteur, les gestes d'un fil ouvert), des `IconButton` : pas de verre sur le verre.
@@ -265,7 +274,7 @@ compte.
   par-dessus le fil), puis la conversation. Pas
   de grand titre : la fenêtre s'appelle « Accueil ». Deux colonnes à partir de 800 points de contenu.
 - **Les cartes de ta journée** (`HomeCard`, 0.37.0 ; Paul : « tout est trop tassé, on peut rien lire ») : la carte du
-  système (`Surface.fill`, un trait, rayon 16 ; 22 pour « Aujourd'hui », la carte mise en avant), 20 points de marge
+  système (`Surface.fill`, un trait, rayon 16, « Aujourd'hui » compris), 20 points de marge
   intérieure, 16 entre deux cartes ; jamais de verre sous le texte. Le titre en 17 points semi-gras
   (`HomeSectionHeader`), son nombre dans une pastille (`Surface.raised`). Un groupe en petites capitales grises de 11
   points (`HomeGroupLabel`, « EN RETARD »). Un trait fin entre deux lignes (`homeRow`), six points d'air de part et
@@ -304,8 +313,8 @@ compte.
   « Réessayer ». Les mots restent sur la dernière réponse, au survol sur les autres. **Un lien écrit par Colin n'est
   jamais cliquable** (`ColinAnswer.inline`) : son adresse s'écrit en clair.
 - **La barre** (`ColinComposer`) flotte sur le fil, qui passe sous son verre (`safeAreaBar`) : une capsule de 44 points
-  (rayon 22 quand elle grandit, jusqu'à huit lignes), le texte en 15 points centré sur une ligne, à son pied un rond
-  de 28 points pour envoyer (pas de bouton pour dicter : la dictée de Polhub viendra, sur Whisper), plein d'orange quand il y a du texte, ■ gris pendant une
+  (rayon 16 quand elle grandit, jusqu'à huit lignes), le texte en 15 points centré sur une ligne, à son pied un rond
+  de 28 points pour envoyer (pas de bouton pour dicter : la dictée de Polhub viendra, sur Whisper), plein d'encre quand il y a du texte, ■ gris pendant une
   réponse. Entrée envoie, Maj+Entrée va à la ligne, Échap arrête ; un mot en cours de dictée n'est jamais envoyé. Ce
   qui la retient (« Colin attend la fin de ton call. », un réveil du Mac, une panne) se dit au-dessus du champ, dans le
   verre. Au-dessus de la barre, tant que Paul n'a rien demandé aujourd'hui, trois suggestions tirées de sa journée ; un
@@ -321,21 +330,21 @@ compte.
 - **« Voir »** ouvre une feuille (`ChangesSheet`) titrée de la phrase du point : les fils des clients (« Ouvrir »), puis
   ce qui a bougé sans Paul, en cartes signées (« Un agent, aujourd'hui 16:27 ») avec « Annuler », et « Fermer ».
 - **« Aujourd'hui »** (`TodayCard`) avant « À valider » : le prochain rendez-vous en grand (`.title3` semi-gras ; « dans
-  40 min · 14:00 · Studio Nord » dessous, l'attente en orange à un quart d'heure), « Rejoindre » en `.subtle` puis en
-  `.glassProminent` dix minutes avant ; les autres sur une ligne (l'heure dans une colonne de 44 points, le titre, le
+  40 min · 14:00 · Studio Nord » dessous, l'attente à la couleur d'attention à un quart d'heure), « Rejoindre » en `.subtle` puis en
+  `.primary` (petit) dix minutes avant ; les autres sur une ligne (l'heure dans une colonne de 44 points, le titre, le
   projet, l'icône pour rejoindre). S'il ne reste rien, le rendez-vous suivant avec son jour (« Demain 10:00 »).
   **Le soir** (0.36.0), à partir de l'heure réglée (Réglages › Calendrier, 19 h) et une fois fini le dernier rendez-vous
   du jour, le titre devient « Demain · jeudi 19 novembre » et la liste celle du lendemain ; « Rejoindre » n'y apparaît
   que dix minutes avant. Le titre change toujours avec le contenu.
 - **« À valider »** (`ReviewCard`) : une ligne par chose. Le visage de la personne (`PersonAvatar`, aux couleurs du
   projet) ou, pour une réunion à ranger, son symbole ; la phrase avec le nom en semi-gras ; le projet et l'âge dessous,
-  l'âge en orange en retard ; l'action en `.subtle` toujours au même bord (« Relire », « Ouvrir », « Ranger ») ; le
+  l'âge en rouge (`Tint.late`) en retard ; l'action en `.subtle` toujours au même bord (« Relire », « Ouvrir », « Ranger ») ; le
   menu « … » au survol. Un clic sur la ligne fait la même chose que son action, sauf pour une réunion : il l'ouvre, et
   « Ranger » propose les projets. Cinq lignes, puis « Voir les N autres ». Vide : « Rien à valider. ».
 - **« À faire »** (`TodoCard`, règles `TodoRules`, 0.36.0) : les projets en priorité 2 et ceux dont l'échéance est
   passée ou à sept jours, groupés « En retard », « Aujourd'hui », « Demain », « Cette semaine », « Ensuite » (le titre
   d'un groupe en `.meta` gris, aucun s'il n'y en a qu'un). Une ligne : le projet en `.rowTitle` et « · client » en gris,
-  le quand à droite (« depuis 6 j » en orange semi-gras, « vendredi », « lundi 30 », « call demain 9:30 »), la tâche du
+  le quand à droite (« depuis 6 j » en rouge de retard semi-gras, « vendredi », « lundi 30 », « call demain 9:30 »), la tâche du
   moment dessous (sinon la première action). Un chevron devant le projet : un clic déplie la ligne sur place (une à la
   fois) — « Tâche · … », les actions ouvertes du projet en puces (huit, puis « + N autres »), « Ouvrir le projet » en mot
   gris, « Reporter » et « Livré ». L'échéance est la prochaine étape datée : un rendez-vous du projet ce
@@ -349,7 +358,7 @@ compte.
 - **« Comptes Claude »** (`ClaudeAccountsCard`, 0.36.0) : seulement si Vigie est là et répond au jeton de lecture
   qu'il réserve à Polhub ; sinon rien, ni titre ni erreur. Une ligne par compte connecté : le nom (80 points), une
   barre de six points (`Surface.fill`, le plein en gris) du quota le plus serré (la semaine, ou celle d'un modèle si
-  elle est plus haute), le pourcentage ; dessous « tient · lun. 20 h », ou « plein jeu. 14 h » en orange, et la
+  elle est plus haute), le pourcentage ; dessous « tient · lun. 20 h », ou « plein jeu. 14 h » à la couleur d'attention, et la
   session de cinq heures au-delà de 75 %. Sans relevé récent : la barre vide, « pas de relevé récent ».
 - **Une ligne par personne, une ligne par projet** (`ReviewRules`) : « attend ta réponse » se lit sur l'échange avec
   la personne dans tous les fils et toutes les boîtes (`Exchanges`), « ne répond plus » sur le projet entier. Lues
@@ -373,7 +382,7 @@ Centre de contrôle. La logique vit à part, testée sans écran (`PanelModel`).
 - **Rien n'est dit deux fois** (« Tuiles allégées », Paul, 16/11) : une tuile Réunions redisait la vedette, une tuile
   Projets donnait un nombre sur lequel on n'agit pas, « Arrêter » était à la fois dans la vedette et en bouton rond.
   Avant d'ajouter une chose au panneau, vérifier qu'aucune autre ne la dit déjà.
-- **Mesures** : 360 points de large, marges de 14, écarts de 10 ; tuiles de 161 × 80 (rayon 16), vedette de rayon 22 et
+- **Mesures** : 360 points de large, marges de 14, écarts de 10 ; tuiles de 161 × 80 (rayon 16), vedette de rayon 16 et
   de 90 à 130 points de haut, jamais écrasée sous son contenu (une exception : « Réunion détectée » avec un lien Meet, les cinq lignes de la maquette,
   environ 146 points pendant ses 10 secondes) ; hauteur selon le contenu, au plus 640 points (ou l'écran moins 40).
   Le panneau prend toujours sa hauteur entière (`fixedSize`) : souple, il laissait la fenêtre de la barre des menus
@@ -382,11 +391,11 @@ Centre de contrôle. La logique vit à part, testée sans écran (`PanelModel`).
   qui tiennent, puis son seul en-tête avec « Voir les N nouveaux » ; si même cela ne tient plus, elle part et la tuile
   Mails garde le nombre.
 - **La vedette** montre la première situation vraie, dans cet ordre : réunion détectée (le même décompte que le HUD),
-  enregistrement (rouge, l'horloge), fin présumée (orange), rendez-vous dans 15 min ou Meet commencé sans
-  enregistrement (couleur du compte), détection suspendue (gris), compte rendu en préparation ou prêt depuis moins de
-  2 h (violet), sinon la journée (« Libre jusqu'à 16:30 », « Plus rien aujourd'hui »). Une carte calme teintée à 10 %
+  enregistrement (rouge d'enregistrement, l'horloge), fin présumée (attention), rendez-vous dans 15 min (neutre, « dans
+  8 min » à la couleur d'attention) ou Meet commencé sans enregistrement (attention), détection suspendue (neutre),
+  compte rendu en préparation ou prêt depuis moins de 2 h (neutre), sinon la journée (« Libre jusqu'à 16:30 », « Plus rien aujourd'hui »). Une carte calme teintée à 10 %
   (16 % en sombre), titre en 17 points, horloge en 22 points à chiffres fixes ; une action principale en
-  `.glassProminent` (↩), au plus une secondaire en `.glass`, de taille normale. Elle change en fondu (`Motion.gentle`).
+  `.primary` (↩), au plus une secondaire en `.secondary`, de taille normale ; « Arrêter » en `.primary(.recording)`. Elle change en fondu (`Motion.gentle`).
   « Réunion détectée » suit la maquette : le décompte, le titre, « S'enregistre seule dans 7 s », les deux réponses,
   puis « Jamais pour ce lien » dessous, seulement pour un lien Meet. Un Meet enregistré puis fini dans son créneau n'est
   jamais « pas enregistrée » : son compte rendu en préparation prend la place.
@@ -397,7 +406,7 @@ Centre de contrôle. La logique vit à part, testée sans écran (`PanelModel`).
   détail (13 points), un nombre en haut à droite pour Calendrier. Un plateau clair sur le verre du panneau
   (`PanelSurface`), `.cardHover` au survol ; un clic ouvre la page puis la fenêtre (⌘1 à ⌘6 dans l'ordre de la barre
   latérale).
-- **« À régler »** : une carte orange calme, une ligne par cause, trois au plus, la plus risquée pour les
+- **« À régler »** : une carte calme à la couleur d'attention, une ligne par cause, trois au plus, la plus risquée pour les
   enregistrements d'abord (alertes, compte Google à reconnecter, mise à jour en échec ou en attente de Paul) ; le
   détail de chaque cause sur deux lignes au plus. Une erreur de réseau n'y va jamais. Une version qui attend la fin
   d'une réunion est une ligne grise du pied.
@@ -406,7 +415,7 @@ Centre de contrôle. La logique vit à part, testée sans écran (`PanelModel`).
   compte tous ceux qu'elle ne montre pas. Au survol, « Marquer comme lu » se pose sur l'heure, sur la ligne de
   l'expéditeur, sans rien décaler ni couvrir l'objet. Cachée pendant une réunion.
 - **Les boutons ronds** : 44 points de verre, leur nom en 12 points dessous, pleins de leur couleur quand ils sont
-  allumés (Reprendre orange, comme le Reprendre de la vedette). Enregistrer ne sert qu'au repos : une réunion détectée
+  allumés (Reprendre à l'encre, comme le Reprendre de la vedette). Enregistrer ne sert qu'au repos : une réunion détectée
   ou enregistrée se règle dans la vedette, et Arrêter n'est que là, au clic, jamais au clavier.
 - **Le verre** ne sert qu'aux boutons ; tuiles, vedette et cartes sont calmes, jamais de verre sous du texte.
 - **Le temps** : le panneau ne lit jamais `AppModel.now` ; il suit une horloge de 30 s calée sur les demi-minutes
@@ -420,7 +429,7 @@ Centre de contrôle. La logique vit à part, testée sans écran (`PanelModel`).
 - **En haut à droite de l'écran de la barre des menus**, sous la barre ou l'encoche, comme les notifications de
   macOS, au-dessus de toutes les apps et sur tous les bureaux (`MeetingCardPresenter`, le panneau du HUD).
 - **Une carte en verre par rendez-vous** (trois au plus, le plus proche d'abord) : un rond à la couleur du compte, le
-  titre, « Dans 2 min · Google Meet » à la seconde, « Rejoindre » plein à la couleur du compte (le panneau ne prend
+  titre, « Dans 2 min · Google Meet » à la seconde, « Rejoindre » plein à l'encre (la couleur du compte reste dans son rond) (le panneau ne prend
   jamais la main : un bouton proéminent y deviendrait gris), la croix.
 - **Elle reste** jusqu'à « Rejoindre » ou la croix, dix minutes après le début au plus ; jamais pour la réunion que
   Polhub enregistre déjà. Réglages › Notifications : activée, 2 min avant (1, 2 ou 5).

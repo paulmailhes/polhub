@@ -8,12 +8,19 @@ import SwiftUI
 // No glass in the content (measured on 19/11: in a window that is not in front, a glass button looks disabled); the
 // glass stays for the toolbar, the popovers and the floating bars.
 
-/// The principal action of a screen: full and matte, at the accent; its label is the accent's opposite.
+/// The principal action of a screen: full and matte, at the accent; its label is the accent's opposite. « Arrêter »
+/// a recording takes the recording's red, its label white.
 public struct PrimaryButtonStyle: ButtonStyle {
-    public init() {}
+    public enum Tone: Sendable { case accent, recording }
+
+    let tone: Tone
+
+    public init(_ tone: Tone = .accent) {
+        self.tone = tone
+    }
 
     public func makeBody(configuration: Configuration) -> some View {
-        RoleButtonBody(configuration: configuration, primary: true)
+        RoleButtonBody(configuration: configuration, primary: true, recording: tone == .recording)
     }
 }
 
@@ -26,9 +33,25 @@ public struct SecondaryButtonStyle: ButtonStyle {
     }
 }
 
+/// A choice among a few (the minutes of a reminder): the one chosen has the accent's outline and a light fill, the
+/// others are secondary. A choice is a state, not an action: it is never drawn as the principal button.
+public struct ChoiceButtonStyle: ButtonStyle {
+    let chosen: Bool
+
+    public init(chosen: Bool) {
+        self.chosen = chosen
+    }
+
+    public func makeBody(configuration: Configuration) -> some View {
+        RoleButtonBody(configuration: configuration, primary: false, chosen: chosen)
+    }
+}
+
 private struct RoleButtonBody: View {
     let configuration: ButtonStyleConfiguration
     let primary: Bool
+    var recording = false
+    var chosen = false
     @State private var hovering = false
     @Environment(\.isEnabled) private var enabled
     @Environment(\.controlSize) private var size
@@ -37,13 +60,15 @@ private struct RoleButtonBody: View {
         let metrics = RoleButton.metrics(size)
         let shape = RoundedRectangle(cornerRadius: RoleButton.radius, style: .continuous)
         configuration.label
-            .font(.system(size: metrics.text, weight: primary ? .semibold : .medium))
-            .foregroundStyle(primary ? Tint.onAccent.color : Color.primary)
+            .font(.system(size: metrics.text, weight: primary || chosen ? .semibold : .medium))
+            .foregroundStyle(primary ? (recording ? Color.white : Tint.onAccent.color) : Color.primary)
             .padding(.horizontal, metrics.padding)
             .frame(minHeight: metrics.height)
             .background {
                 if primary {
-                    shape.fill(Tint.accent.opacity(configuration.isPressed ? 0.72 : hovering ? 0.86 : 1))
+                    shape.fill((recording ? Tint.recordingFill.color : Tint.accent).opacity(configuration.isPressed ? 0.72 : hovering ? 0.86 : 1))
+                } else if chosen {
+                    shape.fill(Surface.selected).overlay { shape.strokeBorder(Tint.accent, lineWidth: 1.5) }
                 } else {
                     shape.fill(configuration.isPressed ? Surface.raised : hovering ? Surface.fill : Color.clear)
                         .overlay { shape.strokeBorder(Color.primary.opacity(0.18)) }
@@ -56,11 +81,12 @@ private struct RoleButtonBody: View {
     }
 }
 
-/// The measures of the principal and secondary buttons: 28 points high by default, as the system's own; the
-/// `.controlSize` around them says smaller or larger, as for the system's buttons.
+/// The measures of the principal and secondary buttons: the system's own heights, size by size (measured on 19/11:
+/// 20, 24 and 28 points for small, regular and large), so that a screen keeps its layout when its buttons change role;
+/// the `.controlSize` around them says which.
 public enum RoleButton {
-    public static let height: CGFloat = 28
-    public static let padding: CGFloat = 12
+    public static let height: CGFloat = 24
+    public static let padding: CGFloat = 11
     public static let radius: CGFloat = 8
 
     public struct Metrics: Equatable, Sendable {
@@ -71,10 +97,10 @@ public enum RoleButton {
 
     public static func metrics(_ size: ControlSize) -> Metrics {
         switch size {
-        case .mini: Metrics(height: 18, padding: 6, text: 11)
-        case .small: Metrics(height: 22, padding: 9, text: 12)
-        case .large: Metrics(height: 34, padding: 16, text: 14)
-        case .extraLarge: Metrics(height: 40, padding: 18, text: 15)
+        case .mini: Metrics(height: 16, padding: 6, text: 11)
+        case .small: Metrics(height: 20, padding: 8, text: 12)
+        case .large: Metrics(height: 28, padding: 14, text: 14)
+        case .extraLarge: Metrics(height: 34, padding: 16, text: 15)
         default: Metrics(height: height, padding: padding, text: 13)
         }
     }
@@ -82,6 +108,11 @@ public enum RoleButton {
 
 extension ButtonStyle where Self == PrimaryButtonStyle {
     public static var primary: PrimaryButtonStyle { PrimaryButtonStyle() }
+    public static func primary(_ tone: PrimaryButtonStyle.Tone) -> PrimaryButtonStyle { PrimaryButtonStyle(tone) }
+}
+
+extension ButtonStyle where Self == ChoiceButtonStyle {
+    public static func choice(_ chosen: Bool) -> ChoiceButtonStyle { ChoiceButtonStyle(chosen: chosen) }
 }
 
 extension ButtonStyle where Self == SecondaryButtonStyle {

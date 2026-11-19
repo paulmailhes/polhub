@@ -59,6 +59,13 @@ public enum Tint {
     public static let ink = Pair("#1D1D1F", "#F5F5F7")
     /// The label of what is drawn at the accent: its opposite.
     public static let onAccent = Pair("#FFFFFF", "#1D1D1F")
+    /// The tint posed at the root of every window and panel, for the system's own controls (switches, boxes, the
+    /// toolbar's prominent button): ink in light, graphite in dark. Measured on 19/11: with the near-white ink in dark,
+    /// the system writes black on its glass buttons and a switch's track meets its thumb.
+    public static let control = Pair("#1D1D1F", "#8E8E93")
+    /// The fill of « Arrêter », which carries a white label in light and in dark (6.5:1 and 5.4:1); the text value of
+    /// `recording` is lighter in dark, to be read on the window, and too light under white.
+    public static let recordingFill = Pair("#C00013", "#D70015")
 
     public static var accent: Color { Role.accent.color }
     public static var late: Color { Role.late.color }

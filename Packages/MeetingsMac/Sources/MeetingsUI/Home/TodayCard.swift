@@ -88,6 +88,7 @@ struct TodayCard: View {
                     // in the content (design system v2, 19/11).
                     Button { agenda.join(event) } label: { Label("Rejoindre", systemImage: "video.fill") }
                         .buttonStyle(.primary)
+                        .controlSize(.small)
                         .help("Ouvre le Meet dans Dia avec le compte \(event.account)")
                 } else {
                     Button { agenda.join(event) } label: { Label("Rejoindre", systemImage: "video") }

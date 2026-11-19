@@ -3,6 +3,20 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.40.0 — 19 novembre 2026
+
+**Polhub a sa propre couleur, l'encre, et chaque couleur ne dit plus qu'une chose.**
+
+- **L'encre** (presque noir en clair, presque blanc en sombre) remplace l'orange du Mac : le bouton principal, la
+  sélection, les liens. L'orange ne voulait plus rien dire à force de tout dire.
+- **Une couleur, un sens** : rouge pour ce qui est en retard, orangé pour ce qui est à vérifier, rouge vif pour un
+  enregistrement, vert pour ce qui est fait, violet pour ce qu'un agent ou Colin a préparé. Toutes se lisent, en clair
+  comme en sombre.
+- **Les boutons** : un seul bouton plein par écran, l'action principale ; les autres à contour fin ou discrets. Plus
+  de bouton en verre dans les pages, qui paraissait éteint quand Polhub n'était pas au premier plan.
+- **Les erreurs** se disent par une icône et une phrase lisible, plus par une phrase en orange.
+- **Les angles** : trois arrondis seulement, partout les mêmes.
+
 ## 0.39.2 — 19 novembre 2026
 
 **Sécurité : les portes que l'audit a trouvées sont fermées. Presque rien ne change à l'écran.**

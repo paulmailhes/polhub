@@ -228,14 +228,12 @@ struct NotificationsSettingsPane: View {
                         HStack(spacing: Space.xs) {
                             ForEach(Preferences.Default.reminderChoices, id: \.self) { minute in
                                 let on = Preferences.minutes(minutesText).contains(minute)
-                                // The minutes chosen at the accent, the others outlined (design system v2, 19/11).
-                                if on {
-                                    Button("\(minute) min") { toggle(minute) }.buttonStyle(.primary)
-                                } else {
-                                    Button("\(minute) min") { toggle(minute) }.buttonStyle(.secondary)
-                                }
+                                // A choice is a state, not an action: the chosen ones outlined at the accent
+                                // (design system v2, 19/11).
+                                Button("\(minute) min") { toggle(minute) }.buttonStyle(.choice(on))
                             }
                         }
+                        .controlSize(.small)
                     }
                     Toggle("Seulement les rendez-vous avec une visio", isOn: $meetOnly)
                 }

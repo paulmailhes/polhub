@@ -252,7 +252,7 @@ private struct HUDView: View {
         .frame(width: HUDPanelController.panelSize.width, height: HUDPanelController.panelSize.height)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         // The HUD's root: Polhub's accent, ink, whatever the Mac's (design system v2, 19/11).
-        .tint(Tint.accent)
+        .tint(Tint.control.color)
     }
 
     @ViewBuilder private var icon: some View {

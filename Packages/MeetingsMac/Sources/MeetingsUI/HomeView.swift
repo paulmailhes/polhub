@@ -325,6 +325,7 @@ private struct DayStrip: View {
                                     // (design system v2, 19/11).
                                     Button { agenda.join(next) } label: { Label("Rejoindre", systemImage: "video.fill") }
                                         .buttonStyle(.primary)
+                                        .controlSize(.small)
                                 } else {
                                     Button { agenda.join(next) } label: { Label("Rejoindre", systemImage: "video") }.buttonStyle(.subtle)
                                 }

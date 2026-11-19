@@ -89,12 +89,10 @@ public struct MenuBarLabel: Equatable, Sendable {
 
     /// `Tint.recording` for AppKit: its light or dark value as the menu bar is. Made off the main actor, as `Tint`'s own
     /// colors are: the dynamic color's closure assumes no thread.
+    /// A sign, not a text: the system's red, which reads on a light and a dark bar. The image is drawn once, so a
+    /// dynamic color was resolved once (measured on 19/11: salmon on a light bar).
     static func recordingRed() -> NSColor {
-        let recording = Tint.Role.recording.text
-        return NSColor(name: nil) { appearance in
-            let rgb = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? recording.dark : recording.light
-            return NSColor(srgbRed: rgb.red, green: rgb.green, blue: rgb.blue, alpha: 1)
-        }
+        .systemRed
     }
 
     /// Drawn once, as the others: the menu bar asks for its label twice a second, and a new image each time would be a

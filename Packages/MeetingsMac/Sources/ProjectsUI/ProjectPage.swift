@@ -182,6 +182,8 @@ struct ProjectPage: View {
         .menuStyle(.button)
         .buttonStyle(.glass)
         .buttonBorderShape(.circle)
+        // Neutral glass, whatever the tint around (measured on 19/11: a tinted glass button looks like a principal one).
+        .tint(nil)
         .menuIndicator(.hidden)
         .fixedSize()
         .help("Statut, dossier, supprimer le projet")

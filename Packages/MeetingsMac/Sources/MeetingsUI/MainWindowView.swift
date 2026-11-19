@@ -592,7 +592,7 @@ public struct MainWindowView<Diagnostic: View>: View {
         .frame(minWidth: Self.minimumWidth, minHeight: 520)
         // Polhub's own accent, ink, whatever the Mac's (design system v2, 19/11): the app sets it on the window's root
         // too; here, a window made by a test or a capture shows it as well.
-        .tint(Tint.accent)
+        .tint(Tint.control.color)
     }
 
     private func openAskedProject(_ projects: ProjectLibrary) {

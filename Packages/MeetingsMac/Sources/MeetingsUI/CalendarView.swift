@@ -401,7 +401,7 @@ struct EventPopover: View {
                 }
                 Spacer(minLength: 0)
                 if EventCopies.canEdit(event), let edit {
-                    Button("Modifier", action: edit).buttonStyle(.glass).controlSize(.small)
+                    Button("Modifier", action: edit).buttonStyle(.secondary).controlSize(.small)
                 }
             }
             .fixedSize(horizontal: false, vertical: true)
@@ -419,7 +419,7 @@ struct EventPopover: View {
                 }
                 // Glass in a popover, at the app's accent whatever the account: the account's color stays in its
                 // stripe (design system v2, 19/11).
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.primary)
                 .controlSize(.large)
                 .keyboardShortcut(.defaultAction)
                 .help("Ouvre le Meet dans Dia avec le compte \(event.account)")
@@ -431,7 +431,7 @@ struct EventPopover: View {
                 } label: {
                     Label("Ouvrir la réunion enregistrée", systemImage: "waveform").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.glass)
+                .buttonStyle(.secondary)
             }
             if let location = event.location, !location.isEmpty, !location.hasPrefix("http") {
                 Label(location, systemImage: "mappin.and.ellipse").font(.callout).foregroundStyle(.secondary)

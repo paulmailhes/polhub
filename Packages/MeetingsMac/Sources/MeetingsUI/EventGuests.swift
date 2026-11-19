@@ -49,7 +49,7 @@ struct EventGuests: View {
                     } label: {
                         Label("Lier les invités à « \(project.name) »", systemImage: "person.2.badge.plus")
                     }
-                    .buttonStyle(.glass)
+                    .buttonStyle(.secondary)
                     .controlSize(.small)
                     .help(newcomers.map(GuestRow.person(agenda)).map(\.display).joined(separator: ", "))
                     .padding(.top, Space.xs)

@@ -4,7 +4,7 @@ import PolhubDesign
 import SwiftUI
 
 /// The hero of « Coup d'œil » (15/11): a large calm card that says what matters now and offers one main action
-/// (`.glassProminent`, ↩, in the panel's ink), sometimes a second (`.glass`). It is tinted only while a meeting records
+/// (`.primary`, ↩, Polhub's ink), sometimes a second (`.secondary`). It is tinted only while a meeting records
 /// (`Tint.recording`) or when something asks for a look (`Tint.attention`), neutral otherwise (design system v2, 19/11:
 /// one color, one meaning). It changes with a fade. The countdown and the recording's clock tick in their own
 /// timeline; the rest follows the panel's, every 30 s.
@@ -69,14 +69,14 @@ struct PanelHero: View {
             }
             HStack(spacing: Space.s) {
                 Button { actions.user(.decline) } label: { Text("Pas cette fois").frame(maxWidth: .infinity) }
-                    .buttonStyle(.glass)
+                    .buttonStyle(.secondary)
                     .keyboardShortcut(.delete, modifiers: [])
                     .help("Ne pas enregistrer cette réunion (⌫)")
                 Button { actions.user(.accept) } label: {
                     Label("Enregistrer", systemImage: "record.circle").frame(maxWidth: .infinity)
                 }
                 // The panel's ink, as every main action but Arrêter (design system v2, 19/11).
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.primary)
                 .keyboardShortcut(.defaultAction)
                 .help("Enregistrer maintenant (↩)")
             }
@@ -106,12 +106,11 @@ struct PanelHero: View {
             if let detail { HeroDetail(detail) }
             HeroButtons {
                 if let meetingID {
-                    Button("Voir la réunion") { context.open(.meeting(meetingID)) }.buttonStyle(.glass)
+                    Button("Voir la réunion") { context.open(.meeting(meetingID)) }.buttonStyle(.secondary)
                 }
             } primary: {
                 Button { actions.user(.stop) } label: { Label("Arrêter", systemImage: "stop.fill") }
-                    .buttonStyle(.glassProminent)
-                    .tint(Tint.recording)
+                    .buttonStyle(.primary(.recording))
                     .help("Arrêter l'enregistrement")
             }
         }
@@ -128,12 +127,11 @@ struct PanelHero: View {
                 if canForget {
                     PanelLink("Jamais pour ce lien", help: "Ne plus jamais enregistrer ce lien Meet") { actions.user(.neverForThisLink) }
                 } else if let meetingID {
-                    Button("Voir la réunion") { context.open(.meeting(meetingID)) }.buttonStyle(.glass)
+                    Button("Voir la réunion") { context.open(.meeting(meetingID)) }.buttonStyle(.secondary)
                 }
             } primary: {
                 Button { actions.user(.stop) } label: { Label("Arrêter maintenant", systemImage: "stop.fill") }
-                    .buttonStyle(.glassProminent)
-                    .tint(Tint.recording)
+                    .buttonStyle(.primary(.recording))
                     .help("Arrêter l'enregistrement")
             }
         }
@@ -168,21 +166,21 @@ struct PanelHero: View {
             HeroButtons {
                 if upcoming.started {
                     Button { actions.user(.recordNow) } label: { Label("Enregistrer", systemImage: "record.circle") }
-                        .buttonStyle(.glass)
+                        .buttonStyle(.secondary)
                         .disabled(context.app.status != .idle)
                         .help("Enregistrer le son du Mac maintenant")
                 } else if event.meetCode != nil {
-                    Button("Détails") { context.open(.event(event.id)) }.buttonStyle(.glass)
+                    Button("Détails") { context.open(.event(event.id)) }.buttonStyle(.secondary)
                 }
             } primary: {
                 if event.meetCode != nil {
                     Button { agenda?.join(event) } label: { Label("Rejoindre", systemImage: "video.fill") }
-                        .buttonStyle(.glassProminent)
+                        .buttonStyle(.primary)
                         .keyboardShortcut(.defaultAction)
                         .help("Ouvrir le Meet dans Dia avec le compte \(event.account) (↩ ou J)")
                 } else {
                     Button("Détails") { context.open(.event(event.id)) }
-                        .buttonStyle(.glass)
+                        .buttonStyle(.secondary)
                         .keyboardShortcut(.defaultAction)
                         .help("Ouvrir le rendez-vous (↩)")
                 }
@@ -200,7 +198,7 @@ struct PanelHero: View {
                 // The panel's ink, as every main action but Arrêter, and as the lit round Reprendre under it: one
                 // action, one color (design system v2, 19/11).
                 Button { actions.resumeDetection() } label: { Label("Reprendre", systemImage: "play.fill") }
-                    .buttonStyle(.glassProminent)
+                    .buttonStyle(.primary)
                     .controlSize(HeroMetrics.buttons)
                     .keyboardShortcut(.defaultAction)
                     .help("Reprendre la détection (↩)")
@@ -280,7 +278,7 @@ struct PanelHero: View {
             } else {
                 HeroButtons {
                     if case .transcriptionFailed = report.stage, library?.queue != nil {
-                        Button("Ouvrir la réunion") { context.open(.meeting(report.meetingID)) }.buttonStyle(.glass)
+                        Button("Ouvrir la réunion") { context.open(.meeting(report.meetingID)) }.buttonStyle(.secondary)
                     }
                 } primary: {
                     reportAction(report)
@@ -306,23 +304,23 @@ struct PanelHero: View {
         switch report.stage {
         case .ready:
             Button("Lire le compte rendu", action: open)
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.primary)
                 .keyboardShortcut(.defaultAction).help("Ouvrir la réunion sur son compte rendu (↩)")
         case .transcriptReady:
             Button("Lire la transcription", action: open)
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.primary)
                 .keyboardShortcut(.defaultAction).help("Ouvrir la réunion (↩)")
         case .transcriptionFailed:
             if let queue = library?.queue {
                 Button { Task { await queue.retry(meetingID: report.meetingID) } } label: { Label("Réessayer", systemImage: "arrow.clockwise") }
-                    .buttonStyle(.glassProminent)
+                    .buttonStyle(.primary)
                     .keyboardShortcut(.defaultAction).help("Relancer la transcription (↩)")
             } else {
-                Button("Ouvrir la réunion", action: open).buttonStyle(.glass).keyboardShortcut(.defaultAction)
+                Button("Ouvrir la réunion", action: open).buttonStyle(.secondary).keyboardShortcut(.defaultAction)
             }
         default:
             Button("Ouvrir la réunion", action: open)
-                .buttonStyle(.glass)
+                .buttonStyle(.secondary)
                 .keyboardShortcut(.defaultAction).help("Ouvrir la réunion (↩)")
         }
     }

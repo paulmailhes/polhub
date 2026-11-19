@@ -750,7 +750,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             }
             // Every logo of a project reads it there; without it, initials (15/11). Polhub's own accent, ink, whatever
             // the Mac's (design system v2, 19/11).
-            let host = NSHostingController(rootView: view.environment(\.projectLogos, projectLogos).tint(Tint.accent))
+            let host = NSHostingController(rootView: view.environment(\.projectLogos, projectLogos).tint(Tint.control.color))
             // Each page's title and toolbar go to the window (14/11).
             host.sceneBridgingOptions = [.title, .toolbars]
             let window = NSWindow(contentViewController: host)
@@ -918,7 +918,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     func showProbeWindow() {
         if probeWindow == nil {
             // Polhub's own accent, ink, as in the main window (design system v2, 19/11).
-            let window = NSWindow(contentViewController: NSHostingController(rootView: ProbeWindow(runner: runner).tint(Tint.accent)))
+            let window = NSWindow(contentViewController: NSHostingController(rootView: ProbeWindow(runner: runner).tint(Tint.control.color)))
             window.title = "Sondes — Polhub"
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             window.isReleasedWhenClosed = false

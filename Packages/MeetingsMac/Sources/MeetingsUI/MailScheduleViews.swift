@@ -109,7 +109,7 @@ struct ScheduleMenu: View {
         }
         .menuStyle(.button)
         .menuIndicator(.hidden)
-        .buttonStyle(.glassProminent)
+        .buttonStyle(.primary)
         .fixedSize()
         .help("Programmer l'envoi")
     }
@@ -151,10 +151,10 @@ struct SchedulePicker: View {
             HStack(spacing: Space.m) {
                 Spacer(minLength: 0)
                 Button("Annuler") { done(nil) }
-                    .buttonStyle(.glass)
+                    .buttonStyle(.secondary)
                     .keyboardShortcut(.cancelAction)
                 Button("Programmer l'envoi") { done(max(date, earliest)) }
-                    .buttonStyle(.glassProminent)
+                    .buttonStyle(.primary)
                     .keyboardShortcut(.defaultAction)
             }
             .controlSize(.large)

@@ -94,7 +94,8 @@ public enum MailSurface {
             let ground = NSColor.windowBackgroundColor.usingColorSpace(.sRGB) ?? .white
             let ink = appearance.isDark ? Tint.ink.dark : Tint.ink.light
             let accent = NSColor(srgbRed: ink.red, green: ink.green, blue: ink.blue, alpha: 1)
-            color = ground.blended(withFraction: appearance.isDark ? 0.14 : 0.09, of: accent) ?? ground
+            // Measured on 19/11: at 9 % in light, a ticked line was 6 levels off a read one, and passed for one.
+            color = ground.blended(withFraction: appearance.isDark ? 0.2 : 0.17, of: accent) ?? ground
         }
         return color
     })
@@ -404,6 +405,8 @@ public struct PanelCloseButton: View {
         Button(action: action) { Image(systemName: "xmark").font(.body.weight(.semibold)).frame(width: 28, height: 28) }
             .buttonStyle(.glass)
             .buttonBorderShape(.circle)
+            // Neutral glass, whatever the tint around (measured on 19/11: a tinted glass button looks like a principal one).
+            .tint(nil)
             .help("Fermer (Échap)")
             .keyboardShortcut(.cancelAction)
     }

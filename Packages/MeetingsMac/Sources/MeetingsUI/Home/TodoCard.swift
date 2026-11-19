@@ -134,7 +134,7 @@ struct TodoCard: View {
                     todo.postpone(line, to: picked)
                     picking = nil
                 }
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.primary)
             }
             .padding(Space.m)
         }

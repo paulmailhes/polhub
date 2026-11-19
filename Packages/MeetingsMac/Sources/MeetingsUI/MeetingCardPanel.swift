@@ -111,7 +111,7 @@ struct MeetingCardStack: View {
         }
         .frame(width: MeetingCardMetrics.width, alignment: .top)
         // The card's root: Polhub's accent, ink, whatever the Mac's (design system v2, 19/11).
-        .tint(Tint.accent)
+        .tint(Tint.control.color)
     }
 }
 
