@@ -338,6 +338,15 @@ extension View {
     public func windowTitle(_ title: String, subtitle: String = "") -> some View {
         background(WindowTitle(title: title, subtitle: subtitle).frame(width: 0, height: 0))
     }
+
+    /// A scrolling area that starts under the toolbar instead of passing beneath it (19/11). A scroll view that
+    /// touches the top of the window gets a blurred backdrop there, as wide as itself: narrower than the page (the
+    /// Accueil's cards, Réunions' list), it drew a box over the content that looked like a control. Measured on
+    /// macOS 27: neither `scrollEdgeEffectStyle`, `scrollEdgeEffectHidden` nor `toolbarBackgroundVisibility`
+    /// removes it; one point of distance does.
+    public func belowToolbar() -> some View {
+        padding(.top, 1)
+    }
 }
 
 /// A page opened over its list, which stays in sight behind (Paul, 14/11: « on rentre beaucoup »). A click

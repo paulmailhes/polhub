@@ -165,7 +165,11 @@ struct CalendarView: View {
                 ScrollView {
                     HStack(alignment: .top, spacing: 0) {
                         hourLabels
-                        ForEach(days, id: \.self) { day in dayColumn(day) }
+                        HStack(alignment: .top, spacing: 0) {
+                            ForEach(days, id: \.self) { day in dayColumn(day) }
+                        }
+                        // Under the events: the hours and the days, one pixel each (19/11).
+                        .background { WeekGridLines(days: days.count, hourHeight: Self.hourHeight) }
                     }
                     .padding(.top, 8)
                 }
@@ -250,12 +254,9 @@ struct CalendarView: View {
         let weekend = Self.calendar.isDateInWeekend(day)
         return GeometryReader { geometry in
             ZStack(alignment: .topLeading) {
-                VStack(spacing: 0) {
-                    ForEach(0..<24, id: \.self) { _ in
-                        Rectangle().fill(Color.secondary.opacity(0.13)).frame(height: 0.5).frame(maxHeight: Self.hourHeight, alignment: .top)
-                    }
-                }
-                .contentShape(Rectangle())
+                // The lines are drawn once for the week (`WeekGridLines`); here, only where a double click lands.
+                Color.clear
+                    .contentShape(Rectangle())
                 // A double click on the grid: a new event at that half hour.
                 .onTapGesture(count: 2, coordinateSpace: .local) { point in
                     let halfHours = max(0, min(47, Int(point.y / (Self.hourHeight / 2))))
@@ -282,7 +283,6 @@ struct CalendarView: View {
         .frame(height: Self.hourHeight * 24)
         .frame(maxWidth: .infinity)
         .background(weekend ? Color.secondary.opacity(0.04) : .clear)
-        .overlay(alignment: .leading) { Rectangle().fill(Color.secondary.opacity(0.13)).frame(width: 0.5) }
     }
 
     private func offset(_ date: Date, from start: Date) -> CGFloat {
@@ -476,5 +476,40 @@ struct EventPopover: View {
         case .titre?: "D'après le titre."
         case nil: event.projectID == nil ? "Pas de projet trouvé : choisis-le, les invités suivront." : nil
         }
+    }
+}
+
+/// Where a line one device pixel wide is drawn so that it covers exactly one pixel (19/11): half a point, or a line
+/// between two pixels, is spread over both and fades away on a screen that is not Retina.
+enum PixelGrid {
+    /// The middle of the pixel that holds `x`, at the screen's scale.
+    static func line(at x: CGFloat, scale: CGFloat) -> CGFloat {
+        (floor(x * scale) + 0.5) / scale
+    }
+}
+
+/// The week's grid, drawn once (19/11): a line at each hour, one between the days, the system's separator color, one
+/// device pixel wide and set on a pixel, so it stays as visible at any width of the window.
+struct WeekGridLines: View {
+    let days: Int
+    let hourHeight: CGFloat
+    @Environment(\.displayScale) private var scale
+
+    var body: some View {
+        Canvas { context, size in
+            var path = Path()
+            for hour in 0..<24 {
+                let y = PixelGrid.line(at: CGFloat(hour) * hourHeight, scale: scale)
+                path.move(to: CGPoint(x: 0, y: y))
+                path.addLine(to: CGPoint(x: size.width, y: y))
+            }
+            for day in 0..<max(days, 1) {
+                let x = PixelGrid.line(at: size.width * CGFloat(day) / CGFloat(max(days, 1)), scale: scale)
+                path.move(to: CGPoint(x: x, y: 0))
+                path.addLine(to: CGPoint(x: x, y: size.height))
+            }
+            context.stroke(path, with: .color(Color(nsColor: .separatorColor)), lineWidth: 1 / scale)
+        }
+        .allowsHitTesting(false)
     }
 }

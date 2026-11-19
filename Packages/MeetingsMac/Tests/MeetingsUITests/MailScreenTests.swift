@@ -316,10 +316,10 @@ struct MailScreenTests {
                          at: Date())
         }
         let hub = NotificationHub(agenda: agenda, client: SilentNotifications(), inbox: inbox)
-        func capture(_ name: String, dark: Bool = false, wait: Duration = .milliseconds(1_500)) async throws {
+        func capture(_ name: String, dark: Bool = false, width: CGFloat = 1_180, wait: Duration = .milliseconds(1_500)) async throws {
             try await LiveWindow.capture(MainWindowView(library: library, projects: projects, agenda: agenda, mails: shownMails, notifications: hub,
                                                         router: router, paths: AppPaths(root: root, logs: root)) { EmptyView() },
-                                         to: output.appending(path: "\(name).png"), size: NSSize(width: 1_180, height: 780), dark: dark, wait: wait)
+                                         to: output.appending(path: "\(name).png"), size: NSSize(width: width, height: 780), dark: dark, wait: wait)
         }
         UserDefaults.standard.set(true, forKey: Preferences.Key.floatingPages)
         try await capture("mails-personnes")
@@ -335,6 +335,11 @@ struct MailScreenTests {
         router.mailSelection = MailThreadRow.key(account: "moi@exemple.fr", threadID: "a")
         try await capture("mails-fil-flottant")
         try await capture("mails-fil-flottant-sombre", dark: true)
+        // 19/11: a narrow window: « 1 sur 6 », the arrows and the gestures go above the subject, never squeezed.
+        try await capture("mails-fil-etroit", width: MainWindowView<EmptyView>.minimumWidth)
+        UserDefaults.standard.set(false, forKey: Preferences.Key.floatingPages)
+        try await capture("mails-fil-page-etroit", width: MainWindowView<EmptyView>.minimumWidth)
+        UserDefaults.standard.set(true, forKey: Preferences.Key.floatingPages)
         mails.tab = .notifications
         router.mailSelection = MailThreadRow.key(account: "moi@exemple.fr", threadID: "b")
         try await capture("mails-lettre-sombre", dark: true)

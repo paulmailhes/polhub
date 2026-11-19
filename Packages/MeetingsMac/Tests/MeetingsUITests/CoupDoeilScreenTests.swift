@@ -350,7 +350,9 @@ enum PanelWindow {
         guard ProcessInfo.processInfo.environment["POLHUB_LIVE"] != nil else { return }
         window.setFrameTopLeftPoint(NSPoint(x: 40, y: (NSScreen.main?.visibleFrame.maxY ?? 900) - 20))
         // Never key nor active: a key typed meanwhile must not reach the panel (J would open the made-up Meet in Dia).
-        window.orderFrontRegardless()
+        // Under every window, never over Paul's work (19/11): its own image is what is taken.
+        window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) - 1)
+        window.orderBack(nil)
         try await Task.sleep(for: .milliseconds(1_400))
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")

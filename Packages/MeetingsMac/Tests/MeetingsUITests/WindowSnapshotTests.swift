@@ -257,6 +257,13 @@ struct WindowSnapshotTests {
                                                         paths: AppPaths(root: root, logs: root)) { EmptyView() },
                                          to: output.appending(path: "\(name).png"))
         }
+        // 19/11: the week on a wide screen, in light and dark: its lines stay as visible as in a small window.
+        router.section = .calendar
+        for dark in [false, true] {
+            try await LiveWindow.capture(MainWindowView(library: library, projects: projects, agenda: agenda, router: router,
+                                                        paths: AppPaths(root: root, logs: root)) { EmptyView() },
+                                         to: output.appending(path: "calendrier-large\(dark ? "-sombre" : "").png"), size: NSSize(width: 1_437, height: 860), dark: dark)
+        }
         // 18/11: at the window's smallest width, the lists of the Accueil come above Colin's column (the Accueil with
         // its mails and its lines is in `HomeScreenTests`).
         router.section = .home
@@ -418,8 +425,12 @@ enum LiveWindow {
         defer { window.close() }
         if live {
             _ = NSApplication.shared
+            // Under every window of every app, just over the wallpaper, never brought forward (Paul, 19/11: the
+            // captures popped over his work). The window server keeps the window's own image, which is what is taken.
+            // Off every screen nothing is drawn: neither `screencapture -l` nor ScreenCaptureKit can take it (measured).
+            window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) - 1)
             window.setFrameTopLeftPoint(NSPoint(x: 40, y: (NSScreen.main?.visibleFrame.maxY ?? 900) - 20))
-            window.orderFrontRegardless()
+            window.orderBack(nil)
             try await Task.sleep(for: wait)
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")

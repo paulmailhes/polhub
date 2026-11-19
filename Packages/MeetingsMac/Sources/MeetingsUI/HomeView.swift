@@ -151,6 +151,7 @@ struct HomeView: View {
                     .padding(.top, PageMetrics.top)
                     .padding(.bottom, PageMetrics.bottom)
             }
+            .belowToolbar()
             .frame(width: thread == nil ? nil : HomeLayout.listsWidth)
             .frame(maxWidth: thread == nil ? .infinity : nil)
         }

@@ -26,6 +26,14 @@ Référence : [Adopting Liquid Glass](https://developer.apple.com/documentation/
   (`.primaryAction`), recherche par `.searchable(placement: .toolbar)`.
 - Les icônes de la barre d'outils ont toujours un libellé (`Label`) pour l'accessibilité.
 - Les gestes rares vont dans un menu « … » (`ellipsis`), pas en boutons dans la page.
+- **Rien ne défile sous la barre d'outils quand la zone est plus étroite que la page** (19/11) : une zone qui défile
+  et touche le haut de la fenêtre reçoit un fond flou à sa propre largeur, qui dessinait une boîte au-dessus des
+  cartes de l'Accueil et de la liste de Réunions. `.belowToolbar()` la fait commencer sous la barre. Une page entière
+  (`Page`) peut passer dessous : son fond couvre toute la largeur.
+- **Une barre de boutons ne s'écrase jamais** : elle garde sa taille (`fixedSize`) et passe au-dessus du titre quand
+  la place manque (`ViewThatFits`), comme celle d'un mail ouvert.
+- **Un trait de grille fait un pixel**, posé sur un pixel (`PixelGrid`) et de la couleur de séparation du système :
+  un demi-point s'effaçait sur un écran qui n'est pas Retina, d'autant plus que la fenêtre s'élargissait.
 - **La barre latérale** est une `List` native (sa sélection et son verre sont ceux du système, jamais de verre
   ni de fond ajouté sur une rangée) : de grandes rangées (`sidebarRowSize` `.large`), le symbole de chaque
   section dans sa couleur (`listItemTint`), un nombre à droite quand il sert (mails non lus, rendez-vous qui
@@ -425,5 +433,6 @@ POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter HomeScreenTests
 Les fenêtres de test ne deviennent jamais actives (aucune touche ne doit les atteindre) : les boutons
 `.glassProminent` y restent gris au lieu de prendre leur couleur.
 
-La fenêtre s'affiche un instant, puis le système la capture (il faut l'autorisation d'enregistrement de
-l'écran pour le terminal).
+La fenêtre se pose sous toutes les autres, juste au-dessus du fond d'écran, sans jamais passer devant le travail en
+cours (19/11), puis le système prend son image seule (il faut l'autorisation d'enregistrement de l'écran pour le
+terminal). Hors de tout écran, rien ne se dessine : elle reste donc sur un écran, en dessous.

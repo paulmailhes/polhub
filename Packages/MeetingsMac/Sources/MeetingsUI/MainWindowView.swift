@@ -559,6 +559,8 @@ public struct MainWindowView<Diagnostic: View>: View {
                         }
                     }
                     .frame(width: Self.meetingListWidth)
+                    // Neither column passes under the toolbar: each would draw its own box there (19/11).
+                    .belowToolbar()
                     Divider()
                     Group {
                         if let id = router.selection, let row = library.row(id) {
@@ -574,6 +576,7 @@ public struct MainWindowView<Diagnostic: View>: View {
                         }
                     }
                     .frame(minWidth: Self.meetingPageMinimumWidth, maxWidth: .infinity, maxHeight: .infinity)
+                    .belowToolbar()
                 }
                 .windowTitle("Réunions", subtitle: router.selection.flatMap { library.row($0)?.title } ?? "")
                 .searchable(text: $router.query, placement: .toolbar, prompt: "Chercher dans les transcriptions")

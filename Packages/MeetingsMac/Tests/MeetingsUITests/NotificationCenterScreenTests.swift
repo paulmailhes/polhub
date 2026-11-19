@@ -129,18 +129,15 @@ enum PopoverCapture {
         window.isReleasedWhenClosed = false
         window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         defer { window.close() }
-        // Above the other test windows, which open at the top left.
-        window.level = .floating
+        // Under every window, never over Paul's work (19/11): the window's own image is taken, not the screen.
+        window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) - 1)
         let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1_440, height: 900)
         window.setFrameTopLeftPoint(NSPoint(x: max(screen.minX + 40, screen.maxX - size.width - 40), y: screen.maxY - 20))
-        window.orderFrontRegardless()
-        window.makeKey()
+        window.orderBack(nil)
         try await Task.sleep(for: .milliseconds(2_200))
-        let frame = window.frame
-        let top = (NSScreen.screens.first?.frame.height ?? frame.maxY) - frame.maxY
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-        process.arguments = ["-x", "-R", "\(Int(frame.minX)),\(Int(top)),\(Int(frame.width)),\(Int(frame.height))", file.path]
+        process.arguments = ["-l", "\(window.windowNumber)", "-o", "-x", file.path]
         try process.run()
         process.waitUntilExit()
     }

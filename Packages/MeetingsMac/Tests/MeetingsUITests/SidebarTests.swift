@@ -176,4 +176,18 @@ import Testing
         #expect(slots.map(\.column) == [0, 1, 0, 0])
         #expect(slots.map(\.columns) == [2, 2, 1, 2])
     }
+
+    /// The week's lines (19/11): one device pixel wide, on a pixel, whatever the window's width. Half a point between
+    /// two pixels faded away on a screen that is not Retina, the more as the window widened.
+    @Test func gridLinesSitOnAPixel() {
+        #expect(PixelGrid.line(at: 137.14, scale: 1) == 137.5)
+        #expect(PixelGrid.line(at: 137.14, scale: 2) == 137.25)
+        #expect(PixelGrid.line(at: 48, scale: 1) == 48.5)
+        #expect(PixelGrid.line(at: 0, scale: 2) == 0.25)
+        // A seventh of a width that does not divide: every line still falls on a pixel's middle.
+        for day in 1..<7 {
+            let x = PixelGrid.line(at: 1_017 * CGFloat(day) / 7, scale: 1)
+            #expect(x - x.rounded(.down) == 0.5)
+        }
+    }
 }

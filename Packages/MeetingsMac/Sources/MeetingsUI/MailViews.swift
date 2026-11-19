@@ -591,60 +591,87 @@ struct MailThreadView: View {
         .onChange(of: mails.inbox) { _, _ in thread = (try? mails.store.thread(key)) ?? thread }
     }
 
+    /// The least room the subject keeps beside the buttons; with less, the buttons go above it (19/11: in a narrow
+    /// window, « 1 sur 2 500 », the arrows and the gestures were squeezed together).
+    static let subjectMinimumWidth: CGFloat = 260
+
     private var header: some View {
-        HStack(alignment: .center, spacing: Space.m) {
-            if let close { PanelCloseButton(action: close) }
-            VStack(alignment: .leading, spacing: 4) {
-                Text(thread?.subject ?? model.messages.first?.subject ?? "")
-                    .font(.title.bold()).lineLimit(2).textSelection(.enabled)
-                if let thread {
-                    HStack(spacing: 6) {
-                        ColorDot(mails.color(for: thread.account), size: 8)
-                        Text(AccountStyle.label(for: thread.account))
-                        Text("·")
-                        Text(model.messages.count > 1 ? "\(model.messages.count) messages" : "1 message")
-                        Text("·")
-                        if let aside {
-                            // Put aside: where it is, never a case to change.
-                            Label(aside.folder.title, systemImage: aside.folder.icon)
-                        } else {
-                            MailFilingChip(thread: thread, mails: mails, always: true)
-                        }
-                    }
-                    .font(.rowBody).foregroundStyle(.secondary)
-                    // Its people, and who of them is in its project (15/11); none taken from the trash or the spam.
-                    if aside == nil {
-                        ThreadPeopleRow(thread: thread, messages: model.messages, mails: mails, router: router)
-                            .padding(.top, Space.xs)
-                    }
-                }
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: Space.m) {
+                if let close { PanelCloseButton(action: close) }
+                subjectBlock
+                    .frame(minWidth: Self.subjectMinimumWidth, idealWidth: Self.subjectMinimumWidth, maxWidth: .infinity, alignment: .leading)
+                controls
             }
-            Spacer(minLength: Space.m)
-            HStack(spacing: Space.xs) {
-                if browses {
-                    if let position = mails.position(of: key) { Text(position).font(.meta).foregroundStyle(.secondary).monospacedDigit() }
-                    IconButton("chevron.up", help: "Fil précédent (↑)") { go(-1) }
-                        .disabled(mails.neighbor(of: key, offset: -1) == nil)
-                        // While a reply is written, the arrows stay in it (15/11).
-                        .keyboardShortcut(writing == true ? nil : KeyboardShortcut(.upArrow, modifiers: []))
-                    IconButton("chevron.down", help: "Fil suivant (↓)") { go(1) }
-                        .disabled(mails.neighbor(of: key, offset: 1) == nil)
-                        .keyboardShortcut(writing == true ? nil : KeyboardShortcut(.downArrow, modifiers: []))
-                    Divider().frame(height: 18)
+            VStack(alignment: .leading, spacing: Space.m) {
+                HStack(spacing: Space.m) {
+                    if let close { PanelCloseButton(action: close) }
+                    Spacer(minLength: 0)
+                    controls
                 }
-                if let aside {
-                    IconButton(aside.gesture.icon, help: aside.gesture.title()) { gesture(aside.gesture) }
-                    IconMenu("ellipsis", help: "Plus") {
-                        if let thread { Button("Ouvrir dans Gmail") { NSWorkspace.shared.open(mails.gmailURL(thread, in: aside)) } }
-                    }
-                } else {
-                    gestures
-                }
+                subjectBlock
             }
-            .padding(.horizontal, Space.s).padding(.vertical, Space.xs)
-            .glassEffect(.regular, in: Capsule())
         }
         .padding(.horizontal, Space.xl).padding(.vertical, Space.l)
+    }
+
+    /// The subject, the account, the count, the case and the people.
+    private var subjectBlock: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(thread?.subject ?? model.messages.first?.subject ?? "")
+                .font(.title.bold()).lineLimit(2).textSelection(.enabled)
+            if let thread {
+                HStack(spacing: 6) {
+                    ColorDot(mails.color(for: thread.account), size: 8)
+                    Text(AccountStyle.label(for: thread.account))
+                    Text("·")
+                    Text(model.messages.count > 1 ? "\(model.messages.count) messages" : "1 message")
+                    Text("·")
+                    if let aside {
+                        // Put aside: where it is, never a case to change.
+                        Label(aside.folder.title, systemImage: aside.folder.icon)
+                    } else {
+                        MailFilingChip(thread: thread, mails: mails, always: true)
+                    }
+                }
+                .font(.rowBody).foregroundStyle(.secondary)
+                // Its people, and who of them is in its project (15/11); none taken from the trash or the spam.
+                if aside == nil {
+                    ThreadPeopleRow(thread: thread, messages: model.messages, mails: mails, router: router)
+                        .padding(.top, Space.xs)
+                }
+            }
+        }
+    }
+
+    /// « 1 sur 2 500 », the arrows and the gestures, in their capsule: never squeezed.
+    private var controls: some View {
+        HStack(spacing: Space.xs) {
+            if browses {
+                if let position = mails.position(of: key) {
+                    Text(position).font(.meta).foregroundStyle(.secondary).monospacedDigit().lineLimit(1).fixedSize()
+                }
+                IconButton("chevron.up", help: "Fil précédent (↑)") { go(-1) }
+                    .disabled(mails.neighbor(of: key, offset: -1) == nil)
+                    // While a reply is written, the arrows stay in it (15/11).
+                    .keyboardShortcut(writing == true ? nil : KeyboardShortcut(.upArrow, modifiers: []))
+                IconButton("chevron.down", help: "Fil suivant (↓)") { go(1) }
+                    .disabled(mails.neighbor(of: key, offset: 1) == nil)
+                    .keyboardShortcut(writing == true ? nil : KeyboardShortcut(.downArrow, modifiers: []))
+                Divider().frame(height: 18)
+            }
+            if let aside {
+                IconButton(aside.gesture.icon, help: aside.gesture.title()) { gesture(aside.gesture) }
+                IconMenu("ellipsis", help: "Plus") {
+                    if let thread { Button("Ouvrir dans Gmail") { NSWorkspace.shared.open(mails.gmailURL(thread, in: aside)) } }
+                }
+            } else {
+                gestures
+            }
+        }
+        .padding(.horizontal, Space.s).padding(.vertical, Space.xs)
+        .glassEffect(.regular, in: Capsule())
+        .fixedSize()
     }
 
     /// The gestures of a thread in the inbox, the sent or every thread.

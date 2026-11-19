@@ -3,6 +3,16 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.37.1 — 19 novembre 2026
+
+**Des corrections d'affichage, petite et grande fenêtre.**
+
+- **Plus de bande au-dessus des cartes** de l'Accueil, ni au-dessus de la liste de Réunions : la barre du haut est la
+  même sur toute la largeur.
+- **Un mail ouvert dans une fenêtre étroite** : « 1 sur 2 500 », les flèches, « Archiver » et « Supprimer » passent
+  au-dessus du sujet au lieu de s'écraser.
+- **Les traits du calendrier** restent nets à toutes les largeurs, aussi sur un écran qui n'est pas Retina.
+
 ## 0.37.0 — 19 novembre 2026
 
 **L'Accueil respire : ta journée en cartes, et « À faire » qui se déplie.**
