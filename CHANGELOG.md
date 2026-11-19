@@ -3,6 +3,18 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.39.0 — 19 novembre 2026
+
+**Des fils de mails lisibles : l'historique et les signatures se replient.**
+
+- **L'historique cité** de chaque réponse se replie derrière « Historique ▾ », y compris celui d'Outlook (le bloc
+  « De / Envoyé / À / Objet ») et celui recopié à plat au milieu d'un paragraphe. Un clic le déplie.
+- **Les signatures** se replient derrière « Signature ▾ » : coordonnées, logos, mentions légales. La formule et le
+  prénom restent.
+- **Les en-têtes** « De / Date / À / Cc / Objet » d'un message cité ou transféré sont petits et pâles.
+- Un transfert reste lisible, et un message qui ne serait plus que vide ne se replie pas.
+- Correction : la dernière ligne de certains mails Outlook n'est plus coupée.
+
 ## 0.38.1 — 19 novembre 2026
 
 **Un projet qui change de colonne se met en haut.**

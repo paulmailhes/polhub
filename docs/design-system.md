@@ -87,6 +87,21 @@ Elle copie Gmail, l'outil que Paul connaît le mieux (Paul, 15/11 : « calque-to
   nombre à deux chiffres, et « Tous les messages », en grandes rangées) : elle ne change plus d'une section à
   l'autre.
 
+**Un fil ouvert** montre, pour chaque message, ce qui a été écrit (Paul, 19/11 : « incompréhensible, il y en a dans
+tous les sens ») :
+
+- **l'historique cité** se replie derrière une pastille « Historique ▾ », de l'endroit où il commence jusqu'à la
+  fin : la classe de Gmail ou d'Apple Mail, le bloc « De / Envoyé (ou Date) / À / Objet » d'Outlook sous son filet
+  gris, une ligne « Le … à 17:28, … a écrit : » ou « On … wrote: », ou un historique recopié à plat au milieu d'un
+  paragraphe. Le premier message du fil garde le sien ;
+- **la signature** se replie derrière « Signature ▾ » dans chaque message : celle que le mail marque, sinon ce qui
+  suit « -- », sinon le bloc après la formule et le prénom quand il porte un téléphone, une adresse, un site ou des
+  mentions légales. La formule et le prénom restent ;
+- **les en-têtes** d'un message cité ou transféré sont petits et pâles ; un transfert reste lisible ;
+- **rien ne se replie** quand il ne resterait rien d'écrit (un transfert sans mot, une citation seule) ;
+- un mail en texte brut est découpé de même (`MailPlainText`), le script de la page (`MailHTML.readerScript`)
+  fait le reste ; le HTML du mail n'est jamais réécrit, et les agents le lisent en entier.
+
 **Le texte d'un brouillon** s'écrit mis en forme, comme dans Gmail (Paul, 17/11) : `RichTextEditor`, une vue web à
 sa page, qui ne charge rien ni ne suit aucun lien. Il grandit avec son texte (180 points au moins) et ne défile
 jamais lui-même : la molette fait défiler la page autour, qui garde la ligne tapée en vue. Il prend la police et les
