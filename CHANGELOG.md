@@ -3,7 +3,7 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
-## 0.42.0 — 20 novembre 2026
+## 0.42.0 — 19 novembre 2026
 
 **L'Accueil : ta journée est la page, Colin a son panneau à droite.**
 
