@@ -8,6 +8,18 @@ import WebKit
 /// behind a small button each, and the headers of a quoted or forwarded mail are made light. The app's own script does
 /// it in a web view that never comes on screen. Every name, address and number is invented; the shapes are real ones.
 @MainActor @Suite struct MailFoldTests {
+    /// A link whose text shows another site says so on the page, beside the link, not only in its tooltip (audit of
+    /// 19/11); a link that goes where it says shows nothing more.
+    @Test func aMisleadingLinkSaysWhereItGoes() async throws {
+        let page = try await Page(#"<p>Votre espace : <a id="piege" href="https://piege.exemple/connexion">https://banque.exemple/espace</a></p>"#
+                                  + #"<p><a id="juste" href="https://www.banque.exemple/aide">banque.exemple/aide</a></p>"#)
+        let warnings = try await page.run("return Array.prototype.map.call(document.querySelectorAll('[data-polhub-ui=\"warning\"]'), function (w) { return w.textContent; })")
+            as? [String] ?? []
+        #expect(warnings.count == 1 && warnings.first?.contains("piege.exemple") == true)
+        #expect(try await page.text.contains("piege.exemple"))
+        #expect(try await page.run("var w = document.querySelector('[data-polhub-ui=\"warning\"]'); return !!w && w.previousElementSibling === document.getElementById('piege')") as? Bool == true)
+    }
+
     /// A page as a message is shown, its script run, and a way to ask it what shows.
     @MainActor final class Page {
         let view: WKWebView

@@ -45,6 +45,10 @@ public enum MailHTML {
     /// measured height, which cut the last line (19/11).
     static let foldStyle = "body{display:flow-root}.polhub-folded{display:none !important}.polhub-light,.polhub-light *{font-size:12px !important;line-height:1.45 !important}"
         + ".polhub-light{opacity:.5}"
+        // A misleading link's warning: the orange of « à vérifier », readable on light and on dark.
+        + ".polhub-warn{display:inline-block;margin-left:4px;padding:0 6px;border-radius:6px;font:12px/1.6 -apple-system,sans-serif !important;"
+        + "font-weight:600 !important;color:#9A4A00 !important;background:rgba(255,149,0,.14) !important;text-decoration:none !important}"
+        + "body[data-dark=\"1\"] .polhub-warn{color:#FFB35C !important;background:rgba(255,159,10,.18) !important}"
 
     public static func escape(_ text: String) -> String {
         text.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;")
@@ -173,6 +177,13 @@ public enum MailHTML {
             if (host && host !== 'x.invalid' && host !== seen && !host.endsWith('.' + seen)) {
               title = 'Attention : ce lien affiche « ' + seen + ' » mais mène à ' + host;
               link.setAttribute('data-polhub-warning', '1');
+              // Said on the page too, beside the link (audit of 19/11): a tooltip is seen only by who hovers.
+              var warn = document.createElement('span');
+              warn.setAttribute('data-polhub-ui', 'warning');
+              warn.setAttribute('data-polhub-keep', '1');
+              warn.className = 'polhub-warn';
+              warn.textContent = '⚠︎ mène à ' + host;
+              link.insertAdjacentElement('afterend', warn);
             }
           } catch (e) {}
         }

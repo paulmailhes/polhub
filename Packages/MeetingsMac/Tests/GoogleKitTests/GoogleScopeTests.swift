@@ -22,8 +22,7 @@ import Testing
         var all: [String] { lock.withLock { values } }
     }
 
-    static let config = GoogleClientConfig(clientID: "id", clientSecret: "secret", authURI: URL(string: "https://accounts.exemple.fr/auth")!,
-                                           tokenURI: URL(string: "https://accounts.exemple.fr/token")!)
+    static let config = GoogleClientConfig(clientID: "id", clientSecret: "secret")
 
     @Test func theScopesAskedComeInAFixedOrder() {
         #expect(GoogleOAuth.scopeText([.gmailModify, .calendarEvents]) == "openid email \(Self.calendar) \(Self.mail)")
@@ -79,7 +78,8 @@ import Testing
         let vault = MemoryVault(), grants = Grants()
         try vault.save(refreshToken: "r", for: "moi@exemple.fr")
         let session = GoogleSession(config: { Self.config }, vault: vault, fetch: { request in
-            if request.url?.host() == "accounts.exemple.fr" {
+            // The token's refresh, at Google's own address (nothing leaves: the fetch is the test's).
+            if request.url == GoogleClientConfig.tokenEndpoint {
                 return (Data(#"{"access_token":"jeton","expires_in":3600,"scope":"openid \#(Self.mail)"}"#.utf8), 200)
             }
             #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer jeton")

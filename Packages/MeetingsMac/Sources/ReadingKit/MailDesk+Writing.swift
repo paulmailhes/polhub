@@ -13,8 +13,10 @@ extension MailDesk {
 
     /// A file of the Mac an agent may join, checked whole before anything is copied (Paul, 16/11: « joindre un
     /// fichier à un brouillon »). Never what Paul keeps out of sight: a hidden file or folder (`.ssh`, `.gnupg`, `.env`),
-    /// his Library (but iCloud Drive and his cloud drives), a keychain; neither directly nor through a link. A regular
-    /// file, readable, not a folder; 10 files and 25 Mo in all at most (Gmail's limit).
+    /// his Library (but iCloud Drive and his cloud drives), a keychain, a key, a secret or a base wherever it lies;
+    /// neither directly nor through a link. A regular file, readable, not a folder; 10 files and 25 Mo in all at most
+    /// (Gmail's limit). The Library written another way (`~/library`, `/System/Volumes/Data/Users/…`) is still the
+    /// Library: Foundation's resolution of the links gives the disk's own path (measured on 19/11).
     func joinable(_ paths: [String]) throws -> [(url: URL, name: String, size: Int)] {
         guard !paths.isEmpty else { return [] }
         guard paths.count <= Self.maximumFiles else {
@@ -58,7 +60,8 @@ extension MailDesk {
                 throw ToolError("« \(shown) » est un fichier caché, ou dans un dossier caché (« \(hidden) ») : Polhub ne le joint pas.")
             }
             if isInLibrary(url) { throw ToolError("« \(shown) » est dans la Bibliothèque de Paul (~/Library) : Polhub ne le joint pas.") }
-            if url.pathComponents.contains("Keychains") || ["keychain", "keychain-db"].contains(url.pathExtension.lowercased()) {
+            if url.pathComponents.contains(where: { $0.caseInsensitiveCompare("Keychains") == .orderedSame })
+                || ["keychain", "keychain-db"].contains(url.pathExtension.lowercased()) {
                 throw ToolError("« \(shown) » est un trousseau de clés : Polhub ne le joint pas.")
             }
         }
@@ -70,7 +73,25 @@ extension MailDesk {
             throw ToolError("« \(shown) » ne peut pas être lu.")
         }
         guard FileManager.default.isReadableFile(atPath: file.url.path(percentEncoded: false)) else { throw ToolError("« \(shown) » ne peut pas être lu.") }
+        if [given, resolved].contains(where: Self.holdsASecret) {
+            throw ToolError("« \(shown) » ressemble à une clé, un secret ou une base de données : Polhub ne le joint pas. "
+                            + "Si Paul le veut, il le joint lui-même depuis le brouillon.")
+        }
         return (file.url, given.lastPathComponent, file.size)
+    }
+
+    /// The extensions of keys, secrets and bases (audit of 19/11). `.key` is also Keynote's: there its content decides.
+    static let secretExtensions: Set<String> = ["pem", "p12", "pfx", "ppk", "kdbx", "env", "sqlite", "sqlite3", "sqlite-wal", "sqlite-shm", "db"]
+    /// What a key or a secret holds in its first bytes, wherever it lies and whatever its name (`id_rsa`, `credentials.json`).
+    static let secretMarks = ["PRIVATE KEY-----", "\"client_secret\"", "\"private_key\"", "\"refresh_token\""]
+
+    /// A key, a secret or a base, by its extension or by its first 64 Ko. Never shown to anyone: only looked for.
+    static func holdsASecret(_ url: URL) -> Bool {
+        if secretExtensions.contains(url.pathExtension.lowercased()) { return true }
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
+        defer { try? handle.close() }
+        let head = String(decoding: (try? handle.read(upToCount: 65_536)) ?? Data(), as: UTF8.self)
+        return secretMarks.contains { head.contains($0) }
     }
 
     /// The first hidden part of a path (« .ssh », « .env »), else `nil`. One exception: a Claude Code worktree,

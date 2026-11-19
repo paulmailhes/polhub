@@ -38,18 +38,56 @@ public enum MailParser {
                                               attachmentID: part.body?.attachmentId, contentID: contentID, inline: shown))
             if shown, let bytes = part.body?.bytes { inline[partID] = bytes }
         }
-        let authentication = payload?.header("Authentication-Results")?.lowercased() ?? ""
         let date = message.internalDate.flatMap(Double.init).map { Date(timeIntervalSince1970: $0 / 1_000) } ?? Date(timeIntervalSince1970: 0)
         let subject = decodedWords(payload?.header("Subject") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let sender = addresses(payload?.header("From")).first
         let row = MailMessageRow(
             account: account, messageID: message.id, threadID: message.threadId ?? message.id, date: date,
-            sender: addresses(payload?.header("From")).first, to: addresses(payload?.header("To")), cc: addresses(payload?.header("Cc")),
+            sender: sender, to: addresses(payload?.header("To")), cc: addresses(payload?.header("Cc")),
             subject: subject.isEmpty ? "(sans objet)" : subject, snippet: entities(message.snippet ?? ""), labels: message.labelIds ?? [],
-            rfcMessageID: payload?.header("Message-ID"), authenticated: authentication.contains("dmarc=pass"),
+            rfcMessageID: payload?.header("Message-ID"),
+            authenticated: authenticated(payload?.header("Authentication-Results"), from: sender?.email),
             listUnsubscribe: payload?.header("List-Unsubscribe"), listUnsubscribePost: payload?.header("List-Unsubscribe-Post"),
             hasBody: body != nil, bodyIsHTML: html != nil && body != nil, attachments: attachments
         )
         return ParsedMail(row: row, body: body, inline: inline)
+    }
+
+    /// « Vérifié par Gmail » (audit of 19/11): Gmail's own header (`mx.google.com`) says `dmarc=pass` for the domain the
+    /// From shows. Read as RFC 8601 writes it: clauses split by « ; », but never inside quotes or a comment, where Gmail
+    /// copies what the sender chose (his envelope address can read `dmarc=pass@…`).
+    public static func authenticated(_ results: String?, from sender: String?) -> Bool {
+        guard let results, let domain = sender?.split(separator: "@").last.map({ $0.lowercased() }), !domain.isEmpty else { return false }
+        let clauses = clauses(of: results)
+        guard clauses.first?.lowercased() == "mx.google.com" else { return false }
+        return clauses.dropFirst().contains { clause in
+            let words = clause.lowercased().split(whereSeparator: \.isWhitespace)
+            return words.first == "dmarc=pass" && words.contains { $0 == "header.from=\(domain)" }
+        }
+    }
+
+    /// The clauses of an Authentication-Results header, comments dropped, quoted text kept whole.
+    static func clauses(of header: String) -> [String] {
+        var clauses: [String] = [], current = "", depth = 0, quoted = false, escaped = false
+        for character in header {
+            if escaped { escaped = false; if depth == 0 { current.append(character) }; continue }
+            if character == "\\" { escaped = true; if depth == 0 { current.append(character) }; continue }
+            if quoted {
+                if character == "\"" { quoted = false }
+                current.append(character)
+                continue
+            }
+            switch character {
+            case "(": depth += 1
+            case ")" where depth > 0: depth -= 1
+            case _ where depth > 0: continue
+            case "\"": quoted = true; current.append(character)
+            case ";": clauses.append(current); current = ""
+            default: current.append(character)
+            }
+        }
+        clauses.append(current)
+        return clauses.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
     }
 
     /// The text of a part. Gmail hands the bytes over in UTF-8 even when the mail declares another set (measured

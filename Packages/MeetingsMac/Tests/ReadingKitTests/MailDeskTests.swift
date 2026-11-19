@@ -344,6 +344,62 @@ struct MailDeskFixture {
         #expect(((try? FileManager.default.contentsOfDirectory(atPath: staging.path(percentEncoded: false))) ?? []).isEmpty)
     }
 
+    /// The Library and Polhub's data written another way are still them (audit of 19/11): another case, or the Data
+    /// volume's own path (`/System/Volumes/Data/…`). A key, a secret or a base never leaves, wherever it lies; a
+    /// Keynote file, though named `.key`, is a document.
+    @Test func theLibraryWrittenAnotherWayAndTheSecretsAreRefused() throws {
+        let fixture = try MailDeskFixture()
+        let home = try MailDeskFixture.home()
+        defer { try? FileManager.default.removeItem(at: fixture.root); try? FileManager.default.removeItem(at: home) }
+        let desk = fixture.desk(home: home)
+        func refused(_ path: String, _ reason: String, sourceLocation: SourceLocation = #_sourceLocation) {
+            do {
+                _ = try desk.draft(replyTo: nil, all: false, to: ["nina@exemple.net"], cc: [], subject: "Devis", text: "Bonjour", account: nil, joining: [path])
+                Issue.record("accepté : \(path)", sourceLocation: sourceLocation)
+            } catch {
+                #expect(error is ToolError && "\(error)".contains(reason), "\(error)", sourceLocation: sourceLocation)
+            }
+        }
+        // The path as the disk knows it (`/private/var/…`): Foundation's own resolution drops `/private`.
+        func diskPath(_ url: URL) -> String {
+            guard let resolved = realpath(url.path(percentEncoded: false), nil) else { return url.path(percentEncoded: false) }
+            defer { free(resolved) }
+            return String(cString: resolved)
+        }
+        let real = diskPath(home)
+        refused(real + "/library/Mail/boite.txt", "Bibliothèque")
+        refused(home.path(percentEncoded: false) + "LIBRARY/Mail/boite.txt", "Bibliothèque")
+        refused("/System/Volumes/Data" + real + "/Library/Mail/boite.txt", "Bibliothèque")
+        refused("/System/Volumes/Data" + real + "/Library/Keychains/login.keychain-db", "trousseau")
+        try FileManager.default.createDirectory(at: home.appending(path: ".claude/worktrees/wf-2"), withIntermediateDirectories: true)
+        try Data("%PDF-1.4".utf8).write(to: home.appending(path: ".claude/worktrees/wf-2/devis.pdf"))
+        refused("/System/Volumes/Data" + real + "/.claude/worktrees/wf-2/devis.pdf", "« .claude »")
+        let kept = fixture.root.appending(path: "Mails/\(fixture.account)/m1-2")
+        try FileManager.default.createDirectory(at: kept, withIntermediateDirectories: true)
+        try Data("%PDF-1.4".utf8).write(to: kept.appending(path: "devis.pdf"))
+        let keptReal = diskPath(kept)
+        refused("/System/Volumes/Data" + keptReal + "/devis.pdf", "gardé par Polhub")
+        refused(keptReal.uppercased() + "/DEVIS.PDF", "gardé par Polhub")
+        // Keys, secrets and bases, wherever they lie.
+        func write(_ relative: String, _ text: String) throws { try Data(text.utf8).write(to: home.appending(path: relative)) }
+        try write("Documents/serveur.pem", "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n")
+        try write("Documents/deploiement.key", "-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----\n")
+        try write("Documents/id_cle", "-----BEGIN OPENSSH PRIVATE KEY-----\nb3Bl\n-----END OPENSSH PRIVATE KEY-----\n")
+        try write("Documents/release.env", "JETON=exemple\n")
+        try write("Documents/copie.sqlite", "SQLite format 3\u{0}")
+        try write("Documents/client.json", #"{"installed":{"client_id":"exemple","client_secret":"exemple"}}"#)
+        try write("Documents/Présentation.key", "PK\u{3}\u{4}keynote")
+        try FileManager.default.createDirectory(at: home.appending(path: "Documents/keychains"), withIntermediateDirectories: true)
+        try write("Documents/keychains/copie.txt", "trousseau")
+        for name in ["serveur.pem", "deploiement.key", "id_cle", "release.env", "copie.sqlite", "client.json"] {
+            refused(home.appending(path: "Documents/\(name)").path(percentEncoded: false), "secret")
+        }
+        refused(home.appending(path: "Documents/keychains/copie.txt").path(percentEncoded: false), "trousseau")
+        let keynote = try desk.draft(replyTo: nil, all: false, to: ["nina@exemple.net"], cc: [], subject: "Présentation", text: "La voici.", account: nil,
+                                     joining: [home.appending(path: "Documents/Présentation.key").path(percentEncoded: false)])
+        #expect(keynote.contains("« Présentation.key »"))
+    }
+
     /// Paul, 17/11: « il me le recrée à chaque fois ». An agent changes or deletes the draft it prepared, never Paul's own.
     @Test func anAgentChangesOrDeletesItsDraftNeverPaulsOwn() throws {
         let fixture = try MailDeskFixture()

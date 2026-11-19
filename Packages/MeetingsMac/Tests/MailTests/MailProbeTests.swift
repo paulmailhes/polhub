@@ -21,7 +21,7 @@ import Testing
         return #"""
         {"id":"\#(id)","threadId":"t\#(id)","labelIds":["INBOX"],"payload":{"mimeType":"multipart/mixed","headers":[
           {"name":"From","value":"Camille <\#(secretAddress)>"},{"name":"Subject","value":"\#(secretSubject)"},
-          {"name":"Authentication-Results","value":"mx.google.com; dkim=pass; dmarc=pass (p=NONE)"},
+          {"name":"Authentication-Results","value":"mx.google.com; dkim=pass header.i=@exemple.fr; dmarc=pass (p=NONE) header.from=exemple.fr"},
           {"name":"List-Unsubscribe","value":"<https://exemple.fr/stop>"},{"name":"List-Unsubscribe-Post","value":"List-Unsubscribe=One-Click"}],
           "parts":[{"mimeType":"multipart/alternative","parts":[
             {"mimeType":"text/plain","filename":"","headers":[{"name":"Content-Type","value":"text/plain; charset=\"UTF-8\""}],"body":{"size":10,"data":"\#(base64URL(secretBody))"}},

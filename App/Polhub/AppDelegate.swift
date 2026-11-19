@@ -868,6 +868,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         false
     }
 
+    /// ⌘Q, « Quitter Polhub », a logout: during a recording, or with a mail about to leave, Paul is asked first (audit
+    /// of 19/11). An update quits by itself, only when all is quiet, and never comes here.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let question = QuitGuard.question(status: model.status, sending: mails?.isSending ?? false) else { return .terminateNow }
+        let alert = NSAlert()
+        alert.messageText = question.title
+        alert.informativeText = question.detail
+        alert.addButton(withTitle: question.stay)
+        alert.addButton(withTitle: question.quit)
+        NSApp.activate()
+        return alert.runModal() == .alertSecondButtonReturn ? .terminateNow : .terminateCancel
+    }
+
     /// A double-click on the app while it is already running: show the window.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         showMainWindow()

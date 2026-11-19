@@ -276,7 +276,8 @@ public struct MailProbe: Sendable {
             }
             if let authentication = payload.header(authenticationHeader) {
                 sample.withAuthenticationHeader += 1
-                if authentication.lowercased().contains("dmarc=pass") { sample.dmarcPass += 1 }
+                // As the app reads it (audit of 19/11): Gmail's own verdict, for the From's domain.
+                if MailParser.authenticated(authentication, from: MailParser.addresses(payload.header("From")).first?.email) { sample.dmarcPass += 1 }
             }
             if payload.header("List-Unsubscribe") != nil {
                 sample.withListUnsubscribe += 1

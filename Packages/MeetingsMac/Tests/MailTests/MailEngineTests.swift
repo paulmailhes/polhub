@@ -121,6 +121,12 @@ final class FakeGmail: @unchecked Sendable {
 
     static func json(_ strings: [String]) -> String { "[" + strings.map { "\"\($0)\"" }.joined(separator: ",") + "]" }
 
+    /// Gmail's own verdict on a sender, as it writes it: DMARC passed for the domain of the From.
+    static func verdict(for from: String) -> String {
+        let domain = from.split(separator: "@").last.map { String($0).trimmingCharacters(in: CharacterSet(charactersIn: "<> ")) } ?? ""
+        return "mx.google.com; dkim=pass header.i=@\(domain); dmarc=pass (p=NONE sp=NONE dis=NONE) header.from=\(domain)"
+    }
+
     private func message(_ id: String, full: Bool, metadataHeaders: [String]? = nil) -> String? {
         guard let mail = mails[id] else { return nil }
         let date = Int((1_794_562_920 + mail.minutes * 60) * 1_000)
@@ -128,7 +134,7 @@ final class FakeGmail: @unchecked Sendable {
         if !full, let names = metadataHeaders {
             // `format=metadata` with the headers asked for, and those only.
             var all = [("From", mail.from), ("To", mail.to), ("Subject", mail.subject), ("Message-ID", "<\(id)@exemple.fr>"),
-                       ("Authentication-Results", "mx.google.com; dmarc=pass")]
+                       ("Authentication-Results", Self.verdict(for: mail.from))]
             if let replyTo = mail.replyTo { all.append(("Reply-To", replyTo)) }
             if let references = mail.references { all.append(("References", references)) }
             let headers = all.filter { header in names.contains { $0.caseInsensitiveCompare(header.0) == .orderedSame } }
@@ -143,7 +149,7 @@ final class FakeGmail: @unchecked Sendable {
         }
         if full {
             let html = Data((mail.body ?? "<p>Corps de \(id)</p>").utf8).base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
-            text += #","payload":{"mimeType":"text/html","filename":"","headers":[{"name":"From","value":"\#(mail.from)"},{"name":"To","value":"\#(mail.to)"},{"name":"Subject","value":"\#(mail.subject)"},{"name":"Authentication-Results","value":"mx.google.com; dmarc=pass"},{"name":"Content-Type","value":"text/html; charset=utf-8"}],"body":{"size":20,"data":"\#(html)"}}"#
+            text += #","payload":{"mimeType":"text/html","filename":"","headers":[{"name":"From","value":"\#(mail.from)"},{"name":"To","value":"\#(mail.to)"},{"name":"Subject","value":"\#(mail.subject)"},{"name":"Authentication-Results","value":"\#(Self.verdict(for: mail.from))"},{"name":"Content-Type","value":"text/html; charset=utf-8"}],"body":{"size":20,"data":"\#(html)"}}"#
         }
         return text + "}"
     }

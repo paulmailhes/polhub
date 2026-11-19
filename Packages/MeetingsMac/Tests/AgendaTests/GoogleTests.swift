@@ -7,15 +7,28 @@ import Testing
 
 /// The Google connection (desktop app, PKCE, local return address) and the reading of calendars (13/11).
 @Suite struct GoogleOAuthTests {
-    let config = GoogleClientConfig(clientID: "client-exemple.apps.googleusercontent.com", clientSecret: "secret-exemple",
-                                    authURI: URL(string: "https://accounts.google.com/o/oauth2/auth")!,
-                                    tokenURI: URL(string: "https://oauth2.googleapis.com/token")!)
+    let config = GoogleClientConfig(clientID: "client-exemple.apps.googleusercontent.com", clientSecret: "secret-exemple")
 
     @Test func theKeyFileIsRead() throws {
         let json = #"{"installed":{"client_id":"a.apps.googleusercontent.com","client_secret":"s","auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token","redirect_uris":["http://localhost"]}}"#
         let parsed = try GoogleClientConfig.parse(Data(json.utf8))
         #expect(parsed.clientID == "a.apps.googleusercontent.com" && parsed.tokenURI.host() == "oauth2.googleapis.com")
         #expect(throws: (any Error).self) { try GoogleClientConfig.parse(Data(#"{"web":{}}"#.utf8)) }
+    }
+
+    /// The key file gives the client's identifier and secret, never where the tokens go (audit of 19/11): a program
+    /// that rewrites it sends no refresh token to a server of its own, and opens no consent page of its own.
+    @Test func theKeyFileNeverSaysWhereTheTokensGo() throws {
+        let json = #"{"installed":{"client_id":"a.apps.googleusercontent.com","client_secret":"s","auth_uri":"https://piege.exemple/auth","token_uri":"https://piege.exemple/token"}}"#
+        let parsed = try GoogleClientConfig.parse(Data(json.utf8))
+        #expect(GoogleOAuth.refreshRequest(config: parsed, refreshToken: "r1").url?.absoluteString == "https://oauth2.googleapis.com/token")
+        let exchange = GoogleOAuth.exchangeRequest(config: parsed, code: "c", verifier: "v", redirect: URL(string: "http://127.0.0.1:1")!)
+        #expect(exchange.url?.absoluteString == "https://oauth2.googleapis.com/token")
+        let consent = GoogleOAuth.authorizationURL(config: parsed, redirect: URL(string: "http://127.0.0.1:1")!, challenge: "c", state: "s")
+        #expect(consent.host() == "accounts.google.com" && consent.path() == "/o/oauth2/auth")
+        // A file without them is still a key.
+        let bare = #"{"installed":{"client_id":"a.apps.googleusercontent.com","client_secret":"s"}}"#
+        #expect(try GoogleClientConfig.parse(Data(bare.utf8)).clientSecret == "s")
     }
 
     @Test func pkceFollowsTheRFC() {

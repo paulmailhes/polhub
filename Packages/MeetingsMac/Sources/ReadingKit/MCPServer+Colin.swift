@@ -161,6 +161,7 @@ extension MCPServer {
             guard let desk else { return [.wide] }
             return [.project(try desk.resolve(projectName).id)]
         }
+        guard tool.readsAThirdParty else { return [] }
         switch tool {
         case .projets, .actions, .contacts, .brouillon, .projet, .action, .fait, .journal, .nouveau_projet:
             return []

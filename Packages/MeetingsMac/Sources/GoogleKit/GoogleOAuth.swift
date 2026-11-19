@@ -46,29 +46,31 @@ public enum GoogleError: Error, Equatable, CustomStringConvertible {
     }
 }
 
-/// The key of the « Polhub » Google project, a desktop app: never in the repository, never shown.
+/// The key of the « Polhub » Google project, a desktop app: never in the repository, never shown. The file gives the
+/// client's identifier and secret only; where the browser and the tokens go is written here (audit of 19/11): a
+/// program that rewrites the file cannot send a refresh token to its own server, nor open a consent page of its own.
 public struct GoogleClientConfig: Sendable {
     public let clientID: String
     public let clientSecret: String
-    public let authURI: URL
-    public let tokenURI: URL
+    public var authURI: URL { Self.authorizationEndpoint }
+    public var tokenURI: URL { Self.tokenEndpoint }
+
+    /// Google's own addresses, as its console writes them in the key file.
+    public static let authorizationEndpoint = URL(string: "https://accounts.google.com/o/oauth2/auth")!
+    public static let tokenEndpoint = URL(string: "https://oauth2.googleapis.com/token")!
 
     public static var file: URL { URL.applicationSupportDirectory.appending(path: "Polhub/google-client.json") }
 
-    public init(clientID: String, clientSecret: String, authURI: URL, tokenURI: URL) {
+    public init(clientID: String, clientSecret: String) {
         self.clientID = clientID
         self.clientSecret = clientSecret
-        self.authURI = authURI
-        self.tokenURI = tokenURI
     }
 
     public static func parse(_ data: Data) throws -> GoogleClientConfig {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let installed = root["installed"] as? [String: Any],
-              let id = installed["client_id"] as? String, let secret = installed["client_secret"] as? String,
-              let auth = (installed["auth_uri"] as? String).flatMap(URL.init(string:)),
-              let token = (installed["token_uri"] as? String).flatMap(URL.init(string:))
+              let id = installed["client_id"] as? String, let secret = installed["client_secret"] as? String
         else { throw GoogleError.badKey }
-        return GoogleClientConfig(clientID: id, clientSecret: secret, authURI: auth, tokenURI: token)
+        return GoogleClientConfig(clientID: id, clientSecret: secret)
     }
 
     public static func load() throws -> GoogleClientConfig {

@@ -16,6 +16,10 @@ public enum ColinTool: String, CaseIterable, Sendable {
     /// and every agent reads the projects' names).
     public var createsAProject: Bool { self == .nouveau_projet }
 
+    /// What it reads may come from a third party: a mail, a meeting, the agenda, a search, a project's texts. Paul's own
+    /// data (the projects, their actions, the contacts) and the writes are not (Colin's lock, 18/11).
+    public var readsAThirdParty: Bool { ![.projets, .actions, .contacts, .brouillon, .projet, .action, .fait, .journal, .nouveau_projet].contains(self) }
+
     /// The arguments a change of a project may carry: never the notes, the client, the contacts, nor an action removed.
     public var projectFields: Set<String> {
         switch self {
