@@ -36,7 +36,7 @@ enum SchedulePresets {
 }
 
 extension MailText {
-    private static func format(_ date: Date, _ pattern: String, calendar: Calendar) -> String {
+    static func format(_ date: Date, _ pattern: String, calendar: Calendar) -> String {
         let formatter = DateFormatter()
         formatter.locale = locale
         formatter.calendar = calendar
@@ -173,44 +173,26 @@ struct ScheduledBanner: View {
 
     var body: some View {
         let held = entry.state == .held
-        // Only the icon carries a color, on a neutral band (design system v2, 19/11): grey while the mail waits for its
-        // time (it is told, not called); the late's red once it waits for Paul, as « En retard » in the bar and the list.
-        let tint = held ? Tint.late : Color.secondary
-        VStack(alignment: .leading, spacing: Space.m) {
-            HStack(alignment: .center, spacing: Space.m) {
-                Image(systemName: held ? "exclamationmark.circle.fill" : "clock.fill")
-                    .font(.system(size: 18))
-                    .foregroundStyle(tint)
-                    .frame(width: 22)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(held ? "Pas encore parti : programmé pour \(MailText.scheduled(entry.sendAt))" : "Programmé pour \(MailText.scheduled(entry.sendAt))")
-                        .font(.rowBody.weight(.semibold))
-                    Text(held ? "\(MailLibrary.lateReason(entry).prefix(1).uppercased() + MailLibrary.lateReason(entry).dropFirst()) : il attend ton accord."
-                         : entry.state == .leaving ? "Envoi en cours…" : "Il ne se modifie plus. Changé dans Gmail ou sur ton téléphone, il ne partira pas.")
-                        .font(.meta).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                if entry.state == .leaving {
-                    ProgressView().controlSize(.small)
-                } else if !held {
-                    cancel
-                }
-            }
-            if held {
-                HStack(spacing: Space.m) {
-                    // The screen's principal action, in the content: full and matte (design system v2, 19/11).
-                    Button("Envoyer maintenant") { mails.sendScheduledNow(draftID) }
-                        .buttonStyle(.primary)
-                        .disabled(mails.sending != nil)
-                        .help("Il part dans quelques secondes, que tu peux encore annuler")
-                    cancel
-                }
-                .padding(.leading, 22 + Space.m)
+        // The mails' one band (lot 6, 19/11): only the icon carries a color — grey while the mail waits for its time (it
+        // is told, not called), the late's red once it waits for Paul, as « En retard » in the bar and the list.
+        Banner(held ? .late : .information,
+               held ? "Pas encore parti : programmé pour \(MailText.scheduled(entry.sendAt))" : "Programmé pour \(MailText.scheduled(entry.sendAt))",
+               detail: held ? "\(MailLibrary.lateReason(entry).prefix(1).uppercased() + MailLibrary.lateReason(entry).dropFirst()) : il attend ton accord."
+                   : entry.state == .leaving ? "Envoi en cours…" : "Il ne se modifie plus. Changé dans Gmail ou sur ton téléphone, il ne partira pas.",
+               systemImage: held ? "exclamationmark.circle.fill" : "clock.fill") {
+            if entry.state == .leaving {
+                ProgressView().controlSize(.small)
+            } else if held {
+                // The screen's principal action, in the content: full and matte (design system v2, 19/11).
+                Button("Envoyer maintenant") { mails.sendScheduledNow(draftID) }
+                    .buttonStyle(.primary)
+                    .disabled(mails.sending != nil)
+                    .help("Il part dans quelques secondes, que tu peux encore annuler")
+                cancel
+            } else {
+                cancel
             }
         }
-        .padding(Space.m)
-        .background(Surface.raised, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
     }
 
     private var cancel: some View {
@@ -220,26 +202,29 @@ struct ScheduledBanner: View {
     }
 }
 
-/// « Programmés »: the mails that wait for their time, the next first, on the drafts' lines, with their hour in
-/// place of the date. A click opens one; the pointer shows « Annuler l'envoi programmé » over the hour.
+/// « Programmés »: the mails that wait for their time, the next first, on the drafts' lines and the list's grid (lot 6,
+/// 19/11), with their hour in place of the date. A click opens one; the pointer shows « Annuler l'envoi programmé » in
+/// the hour's place.
 struct MailScheduledListView: View {
     @ObservedObject var mails: MailLibrary
     @ObservedObject var router: WindowRouter
+    @AppStorage(Preferences.Key.mailDensity) private var density = MailDensity.defaut.rawValue
 
     var body: some View {
         let waiting = mails.scheduledDrafts
+        let density = MailDensity(rawValue: density) ?? .defaut
+        let stripes = MailGrid.showsStripes(accounts: mails.accounts.map(\.email), hidden: mails.hidden)
         VStack(spacing: 0) {
             MailSearchLine(text: "Ton Mac doit être allumé et Polhub ouvert à l'heure prévue ; sinon le mail part à ton retour, ou attend ton accord après 12 h de retard.",
                            searching: false, icon: "clock")
             if waiting.isEmpty {
-                ContentUnavailableView("Aucun envoi programmé", systemImage: "clock",
-                                       description: Text("Un mail programmé attend ici son heure, puis part tout seul."))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                MailEmptyView(state: mails.emptyState, mails: mails)
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(waiting, id: \.draft.id) { item in
-                            MailScheduledLine(draft: item.draft, entry: item.entry, color: mails.color(for: item.draft.account),
+                            MailScheduledLine(draft: item.draft, entry: item.entry, color: stripes ? mails.color(for: item.draft.account) : nil,
+                                              density: density,
                                               open: { mails.open(item.draft, router: router) },
                                               cancel: { mails.unschedule(item.draft.id) },
                                               // While another mail is in its delay, « Envoyer maintenant » waits (as the banner's).
@@ -253,12 +238,14 @@ struct MailScheduledListView: View {
 }
 
 /// A programmed mail on one line, as a draft's: « Programmé » (« En retard » in red when it waits for Paul) and
-/// to whom, the subject and the start of the text, then when it leaves. On hover, its gestures cover the hour,
-/// on the line's own ground: nothing moves.
+/// to whom, the subject and the start of the text, then when it leaves. Under the pointer, its gestures take the hour's
+/// place in the end column, on the line's own ground: nothing moves, nothing covers the subject (lot 6, 19/11).
 struct MailScheduledLine: View {
     let draft: MailDraftRow
     let entry: ScheduledSend
-    let color: Color
+    /// The mailbox's stripe, when the list shows several.
+    let color: Color?
+    var density = MailDensity.defaut
     let open: () -> Void
     let cancel: () -> Void
     var sendNow: (() -> Void)?
@@ -267,42 +254,39 @@ struct MailScheduledLine: View {
     var body: some View {
         let held = entry.state == .held
         let people = draft.to.map { $0.name ?? $0.email }
-        HStack(spacing: 0) {
-            Capsule().fill(color).frame(width: 3, height: 22).padding(.leading, Space.m).help(draft.account)
+        let gestures = hovering && entry.state != .leaving
+        MailGridLine(stripe: color, stripeHelp: draft.account) {
             // Late: the late's red, on the icon, the word and the hour (design system v2, 19/11).
             Image(systemName: held ? "exclamationmark.circle" : "clock")
-                .font(.system(size: 15))
+                .font(.rowTitle)
                 .foregroundStyle(held ? Tint.late : Color.secondary)
-                .frame(width: 44)
+        } senders: {
             (Text(held ? "En retard" : "Programmé").foregroundStyle(held ? Tint.late : Color.secondary)
                 + Text(people.isEmpty ? "" : " · \(people.joined(separator: ", "))"))
                 .font(.rowTitle)
                 .lineLimit(1)
-                .frame(width: MailRow.sendersWidth, alignment: .leading)
-                .padding(.trailing, Space.l)
+        } subject: {
             (Text(draft.subject.isEmpty ? "(sans objet)" : draft.subject).font(.rowTitle)
                 + Text(draft.body.isEmpty ? "" : " — \(draft.body.replacingOccurrences(of: "\n", with: " "))").font(.rowBody).foregroundStyle(.secondary))
                 .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        } end: {
             Text(MailText.scheduledShort(entry.sendAt))
                 .font(.meta.weight(.medium)).foregroundStyle(held ? Tint.late : Color.primary).monospacedDigit().lineLimit(1)
-                .frame(minWidth: 58, alignment: .trailing)
                 .help("Part \(MailText.scheduled(entry.sendAt))")
-        }
-        .overlay(alignment: .trailing) {
-            if hovering, entry.state != .leaving {
-                HStack(spacing: 2) {
-                    if let sendNow { IconButton("paperplane", help: "Envoyer maintenant", action: sendNow) }
-                    IconButton("xmark.circle", help: "Annuler l'envoi programmé", action: cancel)
+                .opacity(gestures ? 0 : 1)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .overlay(alignment: .trailing) {
+                    if gestures {
+                        HStack(spacing: MailGrid.gestureSpacing) {
+                            if let sendNow { IconButton("paperplane", help: "Envoyer maintenant", action: sendNow) }
+                            IconButton("xmark.circle", help: "Annuler l'envoi programmé", action: cancel)
+                        }
+                    }
                 }
-                .padding(.leading, Space.xxl)
-                .background(LinearGradient(stops: [.init(color: MailSurface.unread.opacity(0), location: 0), .init(color: MailSurface.unread, location: 0.3)],
-                                           startPoint: .leading, endPoint: .trailing))
-            }
         }
         .foregroundStyle(.primary)
-        .padding(.vertical, Space.m)
-        .padding(.trailing, Space.l)
+        .padding(.vertical, density.padding)
+        .padding(.trailing, MailGrid.trailing)
         .background {
             Rectangle().fill(MailSurface.unread)
                 .shadow(color: .black.opacity(hovering ? 0.2 : 0), radius: hovering ? 3 : 0, y: hovering ? 1 : 0)

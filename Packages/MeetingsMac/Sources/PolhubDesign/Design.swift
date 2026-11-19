@@ -81,11 +81,14 @@ public enum Surface {
 /// The mails' list, as Gmail's (Paul, 15/11: « quand le mail n'est pas ouvert il est bien blanc, ouvert un peu
 /// plus bleu-gris »): an unread thread on the brightest ground, a read one a step down.
 public enum MailSurface {
+    /// The grey of a read thread, as a white: a soft step from the window, white in light and #1E1E1E in dark (lot 6, 19/11:
+    /// at 0.955 and 0.158, the read lines made grey bands that weighed more than the unread ones).
+    public static let readWhite: (light: CGFloat, dark: CGFloat) = (0.972, 0.145)
     /// The window's own ground, as on every page (Paul, 15/11: « la même couleur que dans tout le reste »).
     public static let unread = Color(nsColor: .windowBackgroundColor)
-    /// A step down, as the app's cards (`Surface.fill` over the window), but opaque: the gestures cover the line.
+    /// A soft step down (Paul, 15/11: « ouvert un peu plus bleu-gris »), opaque: the line's own ground under its shadow.
     public static let read = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.isDark ? NSColor(white: 0.158, alpha: 1) : NSColor(white: 0.955, alpha: 1)
+        NSColor(white: appearance.isDark ? readWhite.dark : readWhite.light, alpha: 1)
     })
     /// A thread ticked: the selection's accent (ink), as everywhere in the app; opaque, the gestures cover the line.
     public static let ticked = Color(nsColor: NSColor(name: nil) { appearance in

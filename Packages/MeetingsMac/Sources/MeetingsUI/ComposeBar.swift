@@ -80,22 +80,27 @@ struct ComposeBar: View {
 
     var body: some View {
         if let draft = mails.drafts.first(where: { $0.id == draftID }) {
-            let leaving = mails.sending?.draftID == draftID
+            let sending = mails.sending.map { (draftID: $0.draftID, leaving: $0.leaving) }
+            let leaving = sending?.draftID == draftID
             // Programmed, it is locked until Paul calls the send off (wave B).
             let planned = mails.scheduled[draftID]
             HStack(spacing: Space.s) {
-                send(draft, planned: planned)
-                IconButton("paperclip", help: "Joindre des fichiers (ou les glisser sur le mail)", action: attach)
-                    .disabled(planned != nil)
-                Divider().frame(height: 18)
-                formatting
-                    .disabled(planned != nil)
+                Group {
+                    send(draft, planned: planned)
+                    IconButton("paperclip", help: "Joindre des fichiers (ou les glisser sur le mail)", action: attach)
+                        .disabled(planned != nil)
+                    Divider().frame(height: 18)
+                    formatting
+                        .disabled(planned != nil)
+                }
+                .disabled(leaving)
                 Spacer(minLength: Space.m)
-                ComposeStatus(draft: draft, leaving: leaving, planned: planned)
+                // « Envoyé · Annuler » here, in the bar of the mail leaving (lot 6, 19/11): its « Annuler » stays in reach
+                // while the rest of the bar waits, and the draft is right there, nothing to say at the bottom of the page.
+                ComposeStatus(draft: draft, sending: sending, planned: planned) { mails.cancelSend(quietly: true) }
                 IconButton("trash", help: "Supprimer le brouillon") { confirmingDiscard = true }
-                    .disabled(planned?.state == .leaving)
+                    .disabled(planned?.state == .leaving || leaving)
             }
-            .disabled(leaving)
             .confirmationDialog("Supprimer ce brouillon ?", isPresented: $confirmingDiscard) {
                 Button("Supprimer", role: .destructive) { mails.discard(draftID) }
             } message: {
@@ -190,27 +195,68 @@ struct ComposeBar: View {
     }
 }
 
-/// Where the draft is: programmed, leaving, waiting for Paul's choice, refused, kept in Gmail or on the Mac.
+/// Where the draft is: sent and still called back, programmed, waiting for Paul's choice, refused, kept in Gmail or on
+/// the Mac.
 struct ComposeStatus: View {
     let draft: MailDraftRow
-    let leaving: Bool
+    /// The mail leaving, any: this draft's, or another's.
+    let sending: (draftID: String, leaving: Bool)?
     let planned: ScheduledSend?
+    /// « Annuler » while this draft's delay runs.
+    var callBack: () -> Void = {}
+
+    enum Kind: Equatable {
+        /// « Envoyé · Annuler » while the delay runs, as Gmail's « Message envoyé · Annuler »; « Envoyé » once on its way.
+        case sent(undoable: Bool)
+        case planned(at: Date)
+        case late
+        case waitingChoice
+        case failed(String)
+        case keptInGmail
+        case keptOnMac
+    }
+
+    /// The draft leaving says so first, a programmed one sent now included (lot 6, 19/11).
+    static func kind(draft: MailDraftRow, sending: (draftID: String, leaving: Bool)?, planned: ScheduledSend?) -> Kind {
+        if let sending, sending.draftID == draft.id { return .sent(undoable: !sending.leaving) }
+        if let planned { return planned.state == .held ? .late : .planned(at: planned.sendAt) }
+        if draft.conflict != nil { return .waitingChoice }
+        if let error = draft.lastError { return .failed(error) }
+        if draft.gmailDraftID != nil, !draft.needsPush { return .keptInGmail }
+        return .keptOnMac
+    }
 
     var body: some View {
         Group {
-            if let planned {
+            switch Self.kind(draft: draft, sending: sending, planned: planned) {
+            case .sent(let undoable):
+                HStack(spacing: Space.xs) {
+                    Text("Envoyé")
+                    if undoable {
+                        Text("·")
+                        // The app's accent, ink, a fill under the pointer, as the « Annuler » of the bar at the bottom.
+                        Button(action: callBack) {
+                            Text("Annuler").fontWeight(.semibold).padding(.horizontal, Space.s).padding(.vertical, 2)
+                        }
+                        .buttonStyle(.hover(.capsule))
+                        .foregroundStyle(Tint.accent)
+                        .padding(.horizontal, -Space.s)
+                        .keyboardShortcut("z", modifiers: .command)
+                        .help("Il n'est pas encore parti : « Annuler » le garde en brouillon (⌘Z)")
+                    }
+                }
+            case .planned(let at):
+                Label("Programmé · \(MailText.scheduledShort(at))", systemImage: "clock")
+            case .late:
                 // Late: the late's red, as in « Programmés »; a failure is said by `ErrorLine` (design system v2, 19/11).
-                Label(planned.state == .held ? "En retard" : "Programmé · \(MailText.scheduledShort(planned.sendAt))", systemImage: "clock")
-                    .foregroundStyle(planned.state == .held ? Tint.late : Color.secondary)
-            } else if leaving {
-                Text("Envoi en cours…")
-            } else if draft.conflict != nil {
+                Label("En retard", systemImage: "clock").foregroundStyle(Tint.late)
+            case .waitingChoice:
                 Text("En attente de ton choix")
-            } else if let error = draft.lastError {
+            case .failed(let error):
                 ErrorLine(error).help(error)
-            } else if draft.gmailDraftID != nil, !draft.needsPush {
+            case .keptInGmail:
                 Text("Enregistré dans Gmail")
-            } else {
+            case .keptOnMac:
                 Text("Enregistré sur le Mac")
             }
         }

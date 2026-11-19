@@ -120,7 +120,8 @@ extension ButtonStyle where Self == SecondaryButtonStyle {
 }
 
 /// A band of information (design system v2): only its icon carries the color of what it says; the text stays the
-/// text's own, its actions on the right.
+/// text's own, its actions on the right, or under the text when the band is too narrow for both (lot 6, 19/11: the
+/// mails' six bands, one drawing). `systemImage` says what it is about (the trash, a spam, an image) in the tone's color.
 public struct Banner<Actions: View>: View {
     public enum Tone: Sendable {
         case information, attention, late, done, agent
@@ -149,33 +150,57 @@ public struct Banner<Actions: View>: View {
     let tone: Tone
     let title: String
     let detail: String?
+    let systemImage: String?
     let actions: Actions
 
-    public init(_ tone: Tone, _ title: String, detail: String? = nil, @ViewBuilder actions: () -> Actions = { EmptyView() }) {
+    public init(_ tone: Tone, _ title: String, detail: String? = nil, systemImage: String? = nil,
+                @ViewBuilder actions: () -> Actions = { EmptyView() }) {
         self.tone = tone
         self.title = title
         self.detail = detail
+        self.systemImage = systemImage
         self.actions = actions()
     }
 
+    /// The least room the text keeps beside the actions; with less, they go under it, never squeezed (lot 6, 19/11).
+    public static var textMinimumWidth: CGFloat { 220 }
+
     public var body: some View {
-        HStack(alignment: .center, spacing: Space.m) {
-            Image(systemName: tone.icon)
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(tone.color)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 13, weight: .semibold))
-                if let detail { Text(detail).font(.system(size: 13)).foregroundStyle(.secondary) }
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: Space.m) {
+                icon
+                text.frame(minWidth: Self.textMinimumWidth, idealWidth: Self.textMinimumWidth, maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: Space.s) { actions }.fixedSize()
             }
-            Spacer(minLength: Space.m)
-            actions
+            HStack(alignment: .firstTextBaseline, spacing: Space.m) {
+                icon
+                VStack(alignment: .leading, spacing: Space.m) {
+                    text
+                    HStack(spacing: Space.s) { actions }.fixedSize()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .padding(.horizontal, Space.l)
         .padding(.vertical, Space.m)
         .background {
-            RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Surface.fill)
-                .overlay { RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Surface.stroke) }
+            RoundedRectangle(cornerRadius: Radius.inner, style: .continuous).fill(Surface.fill)
+                .overlay { RoundedRectangle(cornerRadius: Radius.inner, style: .continuous).strokeBorder(Surface.stroke) }
         }
+    }
+
+    private var icon: some View {
+        Image(systemName: systemImage ?? tone.icon)
+            .font(.rowTitle.weight(.medium))
+            .foregroundStyle(tone.color)
+    }
+
+    private var text: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(.meta.weight(.semibold))
+            if let detail { Text(detail).font(.meta).foregroundStyle(.secondary) }
+        }
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 

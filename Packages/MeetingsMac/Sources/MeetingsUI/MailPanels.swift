@@ -22,6 +22,14 @@ struct MailPanels: ViewModifier {
     /// The height of a bar of the page at its bottom: the bar of a sending stays above it.
     var lift: CGFloat = 0
 
+    /// The mail leaving is a reply under the thread open: its own bar says « Envoyé · Annuler » (lot 6, 19/11), and the
+    /// bar at the bottom of the page does not say it a second time, over the reply. A new mail closes as it leaves: the
+    /// bar at the bottom says it.
+    static func sendingInBar(_ sendingDraft: String?, drafts: [MailDraftRow], thread: String?) -> Bool {
+        guard let sendingDraft, let thread else { return false }
+        return drafts.contains { $0.id == sendingDraft && $0.threadKey == thread }
+    }
+
     /// ✕, Échap, a click beside: back where the thread was opened from, without a step of its own (lot 4, 19/11).
     private func close() {
         if !router.close() { thread = nil }
@@ -49,7 +57,11 @@ struct MailPanels: ViewModifier {
             .animation(Motion.standard, value: thread)
             .animation(Motion.standard, value: mails.composing)
             // Above the bar of a draft fixed at the bottom, never over it (review of 17/11).
-            .overlay(alignment: .bottom) { MailUndoBar(mails: mails, draftNews: draftNews).padding(.bottom, composeBarShown ? 80 : lift) }
+            .overlay(alignment: .bottom) {
+                MailUndoBar(mails: mails, draftNews: draftNews,
+                            sendingInBar: Self.sendingInBar(mails.sending?.draftID, drafts: mails.drafts, thread: thread))
+                    .padding(.bottom, composeBarShown ? 80 : lift)
+            }
             // One Quick Look for the list's chips and the open thread's files (15/11): two would fight over the
             // window's single preview panel.
             .quickLookPreview($mails.preview)
