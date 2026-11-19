@@ -131,9 +131,12 @@ extension MCPServer {
             guard guardian?.mayWrite(to: nil) ?? true else { throw ToolError(ColinGuard.creationRefusal) }
             if let blocks = try projectCreationOrInspiration(name, arguments) { return blocks }
         }
+        // What a draft's answer shows of a thread (its subject, which the sender chose) counts as read once written.
+        var shown: ColinScope?
         if tool == .brouillon {
             let target = try mails.map { try colinTarget(arguments, mails: $0) } ?? nil
             guard guardian?.mayWrite(to: target) ?? true else { throw ToolError(ColinGuard.refusal) }
+            if arguments["quel"] != nil || arguments["identifiant"] != nil { shown = target ?? .wide }
         }
         if tool?.changesAProject == true {
             // The project named, found before anything: what was read must be of it alone.
@@ -150,6 +153,8 @@ extension MCPServer {
             throw error
         }
         if !writes { guardian?.read((try? colinScopes(name, arguments)) ?? [.wide]) }
+        // A reply, or a change of a draft, written on a fresh context (audit of 19/11): its thread now counts as read.
+        if let shown { guardian?.read([shown]) }
         return [["type": "text", "text": text]]
     }
 
@@ -242,13 +247,14 @@ extension MailDesk {
         return found.count == 1 ? found.first.map(ColinScope.project) : nil
     }
 
-    /// What a list of the drafts puts before Colin: each draft's thread, or the project of its people.
+    /// What a list of the drafts puts before Colin: each draft's thread, or the project of its people; a new mail to
+    /// people of no single project is wide (audit of 19/11: an agent wrote it, after reading who knows what).
     func draftScopes(rules: MailFilingRules) throws -> [ColinScope] {
         let waiting = try store.agentDrafts().filter { $0.replaces == nil }.map { ($0.threadKey, $0.to + $0.cc) }
         let kept = try store.drafts().filter { $0.origin == .agent }.map { ($0.threadKey, $0.to + $0.cc) }
-        return try (kept + waiting).compactMap { threadKey, people in
+        return try (kept + waiting).map { threadKey, people in
             if let threadKey { return try colinScope(ofKey: threadKey, rules: rules) }
-            return colinScope(of: people, rules: rules)
+            return colinScope(of: people, rules: rules) ?? .wide
         }
     }
 }

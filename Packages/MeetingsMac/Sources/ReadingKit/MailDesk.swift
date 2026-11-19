@@ -282,7 +282,7 @@ public struct MailDesk: Sendable {
             let thread = try find(which, rules: rules)
             row = MailAgentDraftRow(mode: all ? .replyAll : .reply, account: thread.account, threadKey: thread.id, subject: thread.subject, body: body,
                                     createdAt: now(), format: format)
-            answer = "Réponse\(all ? " à tous" : "") déposée dans Polhub sous le fil « \(thread.subject) » (boîte \(thread.account)), marquée « préparé par un agent ». "
+            answer = "Réponse\(all ? " à tous" : "") déposée dans Polhub sous le fil « \(Self.line(thread.subject)) » (boîte \(thread.account)), marquée « préparé par un agent ». "
             answer += "Polhub calcule lui-même ses destinataires, comme Gmail. "
             if !to.isEmpty || !cc.isEmpty { answer += "Les adresses données (« a », « cc ») sont ignorées pour une réponse. " }
         } else {
