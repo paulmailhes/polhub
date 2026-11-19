@@ -408,7 +408,8 @@ private struct SuggestionChips: View {
     }
 }
 
-/// Colin off: a calm card in the bar's place. In a narrow window (lot 5, 19/11), its sentence opens the thread over the day.
+/// Colin off: the bar becomes « Colin est à l'arrêt » and « Allumer Colin », in the same glass (lot 5, 19/11). In a narrow
+/// window, its sentence opens the thread over the day.
 private struct ColinOffCard: View {
     var open: (() -> Void)?
     let turnOn: () -> Void
@@ -429,13 +430,12 @@ private struct ColinOffCard: View {
                 said
             }
             Spacer(minLength: Space.s)
-            // A calm card, no glass: « Rejoindre » is the Accueil's one principal button (design system v2, 19/11).
+            // An outline, no glass on the glass: « Rejoindre » is the Accueil's one principal button (design system v2, 19/11).
             Button("Allumer Colin", action: turnOn).buttonStyle(.secondary).controlSize(.small)
         }
         .padding(.horizontal, Space.l)
         .padding(.vertical, Space.m)
-        .background(Color(nsColor: .windowBackgroundColor), in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Surface.stroke) }
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
     }
 
     private var said: some View {

@@ -250,7 +250,9 @@ struct WindowSnapshotTests {
         let agenda = AgendaLibrary(database: database)
         let router = WindowRouter()
         try await Task.sleep(for: .milliseconds(400))
-        for (section, name) in [(SidebarItem.home, "accueil"), (.calendar, "calendrier"), (.contacts, "contacts")] {
+        // Lot 5 (19/11): the Accueil without the mails has its own names, so that it never takes the place of the captures of
+        // `HomeScreenTests` (« accueil.png », « accueil-etroit.png »).
+        for (section, name) in [(SidebarItem.home, "accueil-sans-mails"), (.calendar, "calendrier"), (.contacts, "contacts")] {
             router.section = section
             if section == .contacts { router.contactSelection = camille.id }
             try await LiveWindow.capture(MainWindowView(library: library, projects: projects, agenda: agenda, router: router,
@@ -264,12 +266,12 @@ struct WindowSnapshotTests {
                                                         paths: AppPaths(root: root, logs: root)) { EmptyView() },
                                          to: output.appending(path: "calendrier-large\(dark ? "-sombre" : "").png"), size: NSSize(width: 1_437, height: 860), dark: dark)
         }
-        // 18/11: at the window's smallest width, the lists of the Accueil come above Colin's column (the Accueil with
-        // its mails and its lines is in `HomeScreenTests`).
+        // At the window's smallest width, the day alone (lot 5, 19/11; the Accueil with its mails and Colin is in
+        // `HomeScreenTests`).
         router.section = .home
         try await LiveWindow.capture(MainWindowView(library: library, projects: projects, agenda: agenda, router: router,
                                                     paths: AppPaths(root: root, logs: root)) { EmptyView() },
-                                     to: output.appending(path: "accueil-etroit.png"), size: NSSize(width: MainWindowView<EmptyView>.minimumWidth, height: 780))
+                                     to: output.appending(path: "accueil-sans-mails-etroit.png"), size: NSSize(width: MainWindowView<EmptyView>.minimumWidth, height: 780))
         // 14/11: Réglages › Comptes Google, one mailbox authorized, two still to authorize.
         try calendar.setGrantedScopes(email: "moi@exemple.fr", scopes: "openid https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.modify")
         try await Task.sleep(for: .milliseconds(300))

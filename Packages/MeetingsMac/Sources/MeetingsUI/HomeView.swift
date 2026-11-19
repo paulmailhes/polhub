@@ -265,8 +265,6 @@ private struct ColinConversation: View {
         }
         // Opened on the last exchanges; a short thread stays at the top.
         .scrollPosition($position)
-        // Colin off, his calm card is opaque: no edge under it, which drew a line across the panel (lot 5, 19/11).
-        .scrollEdgeEffectHidden(thread.status == .off, for: .bottom)
         .defaultScrollAnchor(.bottom, for: .initialOffset)
         .scrollIndicators(.automatic)
         .onScrollGeometryChange(for: Bool.self) { geometry in

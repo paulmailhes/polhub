@@ -298,11 +298,12 @@ struct HomeScreenTests {
         try await LiveWindow.capture(colinPage(running), to: output.appending(path: "accueil-colin-reponse.png"), size: NSSize(width: 928, height: 760))
         running.turnOff()
         try await waitUntil { running.status == .off }
-        // « Allumer Colin », in the dark too (lot 5, 19/11).
+        // « Allumer Colin », in the dark too, and in a narrow window, where its sentence opens the thread (lot 5, 19/11).
         for dark in [false, true] {
             try await LiveWindow.capture(colinPage(running), to: output.appending(path: "accueil-colin-arret\(dark ? "-sombre" : "").png"),
                                          size: NSSize(width: 928, height: 760), dark: dark)
         }
+        try await LiveWindow.capture(colinPage(running), to: output.appending(path: "accueil-colin-arret-etroit.png"), size: NSSize(width: narrow, height: 900))
         let calling = try colinThread(on: true, busy: true, hanging: false)
         calling.draft = "Prépare la relance d'Anne"
         calling.send()
