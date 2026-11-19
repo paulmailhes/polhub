@@ -3,6 +3,26 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.40.1 — 19 novembre 2026
+
+**Dix-neuf défauts de logique corrigés**, trouvés par l'audit puis confirmés un par un, chacun avec son test.
+
+- **Mails** : un mail en plusieurs morceaux de texte s'affiche en entier ; une invitation Outlook est reconnue comme
+  un mail d'agenda ; tes gestes (archiver, lire, envoyer) ne font plus la queue derrière la synchronisation ; un
+  retour après quelques jours ne bloque plus tout le rattrapage.
+- **Ranger** : ranger un fil à la main ne déplace plus tous les fils de son expéditeur ; « Tous les mails de cet
+  expéditeur » dit quand il en montre une partie.
+- **L'Accueil** : « Pas besoin » sur une personne revient sur son nouveau message, pas sur l'ancien fil ; une réponse
+  commencée puis laissée ne cache plus « attend ta réponse » indéfiniment ; un enregistrement mis à la corbeille
+  n'est plus « à ranger ».
+- **Agenda et réunions** : un rendez-vous qui en chevauche un autre ne lui prend plus son enregistrement ; « Aucun »
+  tient ; corriger le projet d'un rendez-vous corrige celui de ses invités ; un projet à la corbeille ne reçoit plus
+  rien ; un invité de deux projets se range d'après le titre ; une adresse tapée sans ↩ est bien invitée ; un
+  rendez-vous créé par un agent est annoncé par la cloche.
+- **Calendrier** : au-delà de 60 jours, il dit que sa copie s'arrête là.
+- **Contacts** : une adresse déjà prise par un autre contact est refusée, en le disant.
+- **Inspiration** : une image qui a échoué une fois est retentée.
+
 ## 0.40.0 — 19 novembre 2026
 
 **Polhub a sa propre couleur, l'encre, et chaque couleur ne dit plus qu'une chose.**

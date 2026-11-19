@@ -488,7 +488,8 @@ struct ContactPage: View {
                 addressRefused = nil
             }))
             if let addressRefused {
-                Text(addressRefused).font(.meta).foregroundStyle(.orange).frame(maxWidth: .infinity, alignment: .trailing)
+                // A problem in one line: the icon of attention, the sentence in the text's color (design system v2, 19/11).
+                ErrorLine(addressRefused).font(.meta).frame(maxWidth: .infinity, alignment: .trailing)
             }
             field("Téléphone", text: optional(\.phone))
         }
