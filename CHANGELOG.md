@@ -3,6 +3,25 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.43.0 — 20 novembre 2026
+
+**Les mails : une seule grille pour tous les dossiers, un fil sur une seule colonne, un seul bouton plein.**
+
+- **La liste** : la barre des gestes est là dans chaque dossier, à la même hauteur ; Brouillons, Programmés et
+  Abonnements suivent les mêmes colonnes que la Boîte de réception. La date a sa colonne au bout de la ligne : au
+  survol, les gestes prennent sa place, sans rien cacher de l'objet. Le filet de couleur d'une boîte n'apparaît que
+  si la liste en montre plusieurs. Un mail lu est un cran plus bas, plus doux.
+- **Une liste vide dit quoi faire** : ce qui arrive dans le dossier, « ⌘N pour écrire », ou « Tout est lu » avec
+  « Afficher tous les mails », ou « 1 boîte est masquée » avec « Afficher toutes les boîtes ».
+- **Le fil** : l'objet, les messages et la réponse commencent au même bord. « Répondre » est le bouton plein ; dès
+  qu'une réponse est ouverte, c'est son « Envoyer ». La date d'un message est courte : « Aujourd'hui 17:55 »,
+  « Hier 9:12 », « 14 nov. ».
+- **Les bandeaux** (préparé par un agent, conflit avec Gmail, images masquées, corbeille ou spam, envoi programmé) ont
+  tous le même dessin : seule leur icône est en couleur, leurs boutons ne s'écrasent plus.
+- **« Envoyé · Annuler »** s'affiche dans la barre de la réponse qui part, plus par-dessus son texte.
+- **Les adresses** : « Cc » et « Cci » en gris ; une adresse invalide porte un triangle, une adresse jamais écrite un
+  « ? », pas seulement une couleur.
+
 ## 0.42.0 — 19 novembre 2026
 
 **L'Accueil : ta journée est la page, Colin a son panneau à droite.**

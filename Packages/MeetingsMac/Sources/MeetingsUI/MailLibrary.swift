@@ -96,11 +96,11 @@ public enum MailAside: String, Hashable, Sendable, CaseIterable {
     var gesture: MailGestureKind { self == .trash ? .untrash : .notSpam }
     /// « dans la corbeille »: a search's count, an empty folder.
     var place: String { self == .trash ? "dans la corbeille" : "dans le spam" }
-    /// What an open thread says, in its banner.
-    var banner: String {
+    /// What an open thread says, in its banner: where it is, then what it means (lot 6, 19/11).
+    var banner: (title: String, detail: String) {
         switch self {
-        case .trash: "Ce fil est dans la corbeille. Gmail le supprime au bout de 30 jours."
-        case .spam: "Ce fil est dans le spam. Ses images ne s'affichent jamais."
+        case .trash: ("Ce fil est dans la corbeille.", "Gmail le supprime au bout de 30 jours.")
+        case .spam: ("Ce fil est dans le spam.", "Ses images ne s'affichent jamais.")
         }
     }
     /// The line above the list.
@@ -1361,8 +1361,9 @@ public final class MailLibrary: ObservableObject {
     }
 
     /// « Annuler » while the mail waits: it stays a draft, and Gmail gets its last version. Too late once it
-    /// is on its way.
-    public func cancelSend() {
+    /// is on its way. `quietly`: called back from the draft's own bar (« Envoyé · Annuler », lot 6, 19/11), which shows
+    /// it open again: no word at the bottom of the page.
+    public func cancelSend(quietly: Bool = false) {
         guard let sending else { return }
         guard !sending.leaving else {
             message = "Trop tard : le mail est déjà en route."
@@ -1373,10 +1374,10 @@ public final class MailLibrary: ObservableObject {
         self.sending = nil
         // « Envoyer maintenant » called back: still programmed, as it was.
         guard scheduled[sending.draftID] == nil else {
-            message = "Envoi annulé : le mail attend toujours dans Programmés."
+            if !quietly { message = "Envoi annulé : le mail attend toujours dans Programmés." }
             return
         }
-        message = "Envoi annulé : le mail t'attend dans Brouillons."
+        if !quietly { message = "Envoi annulé : le mail t'attend dans Brouillons." }
         if (try? store.draft(sending.draftID))?.threadKey == nil { composing = sending.draftID }
         schedulePush(sending.draftID, after: .zero)
     }

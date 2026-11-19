@@ -287,6 +287,23 @@ final class SilentGmail: @unchecked Sendable {
         #expect(again.sending?.draftID == other.id && again.message == "Un autre mail part en ce moment : réessaie dans quelques secondes.")
         again.cancelSend()
     }
+
+    /// Lot 6 (19/11): « Annuler » in the draft's own bar (« Envoyé · Annuler ») calls the mail back without a word at
+    /// the bottom of the page: the draft is right there, open again. From the bar at the bottom, the word stays.
+    @Test func callingBackFromTheDraftsBarSaysNothing() async throws {
+        let (mails, store, root) = try await library()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let row = try draft(store)
+        try await waitUntil { mails.drafts.contains { $0.id == row.id } }
+        mails.send(row.id)
+        #expect(mails.sending?.draftID == row.id)
+        mails.cancelSend(quietly: true)
+        #expect(mails.sending == nil && mails.message == nil)
+        mails.send(row.id)
+        #expect(mails.sending?.draftID == row.id)
+        mails.cancelSend()
+        #expect(mails.sending == nil && mails.message == "Envoi annulé : le mail t'attend dans Brouillons.")
+    }
 }
 
 /// The notification of a programmed mail opens its folder when it has no thread.

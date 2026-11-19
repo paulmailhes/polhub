@@ -25,7 +25,8 @@ struct MailSectionView: View {
                 } description: {
                     Text("Autorise les mails d'un compte Google pour les lire ici.")
                 } actions: {
-                    Button("Ouvrir Réglages › Comptes Google") { router.openSettings(.accounts) }
+                    // The one thing to do here: the page's principal button (lot 6, 19/11).
+                    Button("Ouvrir Réglages › Comptes Google") { router.openSettings(.accounts) }.buttonStyle(.primary)
                 }
                 .windowTitle("Mails")
             } else if !floating, let key = router.mailSelection {
@@ -47,10 +48,16 @@ struct MailUndoBar: View {
     @ObservedObject var mails: MailLibrary
     /// Whether it says that a draft an agent prepared waits: not over the Accueil, whose line says it already.
     var draftNews = true
+    /// The mail leaving says « Envoyé · Annuler » in its own bar, on screen: not here a second time (lot 6, 19/11).
+    var sendingInBar = false
+
+    private var sending: (draftID: String, subject: String, at: Date, leaving: Bool)? {
+        sendingInBar ? nil : mails.sending
+    }
 
     var body: some View {
         Group {
-            if let sending = mails.sending {
+            if let sending {
                 TimelineView(.periodic(from: .now, by: 0.5)) { context in
                     let left = max(0, Int(sending.at.timeIntervalSince(context.date).rounded(.up)))
                     HStack(spacing: Space.m) {
@@ -78,7 +85,7 @@ struct MailUndoBar: View {
         .padding(.horizontal, Space.xl).padding(.vertical, Space.m)
         .glassEffect(.regular, in: Capsule())
         .padding(.bottom, Space.l)
-        .opacity(mails.undoable == nil && mails.barMessage(draftNews: draftNews) == nil && mails.sending == nil ? 0 : 1)
+        .opacity(mails.undoable == nil && mails.barMessage(draftNews: draftNews) == nil && sending == nil ? 0 : 1)
         .animation(.snappy, value: mails.undoable?.text)
     }
 
@@ -104,7 +111,20 @@ enum MailText {
         return date.formatted(.dateTime.day(.twoDigits).month(.twoDigits).year(.twoDigits).locale(locale))
     }
 
-    /// « 14 nov. 2026 à 14:02 (il y a 2 heures) ».
+    /// When a message of an open thread was written, in short (lot 6, 19/11): « Aujourd'hui 17:55 », « Hier 9:12 »,
+    /// « 14 nov. », « 3 déc. 2025 ». The whole date is in its help (`longDate`).
+    static func shortDate(_ date: Date, now: Date = Date(), calendar: Calendar = .current) -> String {
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: date), to: calendar.startOfDay(for: now)).day ?? 0
+        switch days {
+        case 0: return "Aujourd'hui \(clock(date, calendar: calendar))"
+        case 1: return "Hier \(clock(date, calendar: calendar))"
+        default:
+            let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: now)
+            return format(date, sameYear ? "d MMM" : "d MMM y", calendar: calendar)
+        }
+    }
+
+    /// « 14 nov. 2026 à 14:02 (il y a 2 heures) »: the help of a message's date.
     static func longDate(_ date: Date, now: Date = Date()) -> String {
         let full = date.formatted(.dateTime.day().month(.abbreviated).year().hour().minute().locale(locale))
         guard now.timeIntervalSince(date) < 7 * 86_400 else { return full }
@@ -446,6 +466,12 @@ struct MailThreadView: View {
         _model = StateObject(wrappedValue: MailThreadModel(key: key, library: mails))
     }
 
+    /// « Répondre » is the screen's principal button; once a reply is open under the thread, its « Envoyer » is, and
+    /// « Répondre » steps down to secondary: one principal at a time (lot 6, 19/11).
+    static func replyIsPrincipal(openReplies: Int) -> Bool {
+        openReplies == 0
+    }
+
     /// Back where the thread was opened from, without a step of its own (lot 4, 19/11: « Fermer, c'est revenir »).
     private func back() {
         if let close { close() } else if !router.close() { select(nil) }
@@ -458,6 +484,19 @@ struct MailThreadView: View {
         guard let thread, let message = message ?? last else { return }
         Task {
             if let id = await mails.startReply(mode, to: message, in: thread) { replying = id }
+        }
+    }
+
+    /// « Répondre »: the principal button until a reply is open below (lot 6, 19/11).
+    @ViewBuilder
+    private func replyButton(principal: Bool) -> some View {
+        let button = Button { reply(.reply) } label: { Label("Répondre", systemImage: "arrowshape.turn.up.left") }
+            .keyboardShortcut("r", modifiers: .command)
+            .help("Répondre (⌘R)")
+        if principal {
+            button.buttonStyle(.primary)
+        } else {
+            button.buttonStyle(.secondary)
         }
     }
 
@@ -541,26 +580,23 @@ struct MailThreadView: View {
                     }
                     if thread != nil, last != nil, aside == nil {
                         HStack(spacing: Space.s) {
-                            Button { reply(.reply) } label: { Label("Répondre", systemImage: "arrowshape.turn.up.left") }
-                                .keyboardShortcut("r", modifiers: .command)
-                                .help("Répondre (⌘R)")
+                            replyButton(principal: Self.replyIsPrincipal(openReplies: drafts.count))
                             Button { reply(.replyAll) } label: { Label("Répondre à tous", systemImage: "arrowshape.turn.up.left.2") }
                                 .keyboardShortcut("r", modifiers: [.command, .shift])
                                 .help("Répondre à tous (⇧⌘R)")
+                                .buttonStyle(.secondary)
                             Button { reply(.forward) } label: { Label("Transférer", systemImage: "arrowshape.turn.up.right") }
                                 .help("Transférer")
+                                .buttonStyle(.secondary)
                         }
-                        // No glass in the content (design system v2, 19/11): three secondary buttons; « Répondre » as
-                        // the principal comes with lot 6.
-                        .buttonStyle(.secondary)
+                        // No glass in the content (design system v2, 19/11). Large, as « Envoyer » in the bar of a reply:
+                        // the thread's own actions (lot 6, 19/11).
                         .controlSize(.large)
                         .padding(.top, Space.xl)
                     }
                 }
-                .padding(.horizontal, PageMetrics.horizontal)
                 .padding(.bottom, PageMetrics.bottom + 40)
-                .frame(maxWidth: PageMetrics.readingWidth, alignment: .leading)
-                .frame(maxWidth: .infinity)
+                .readingColumn()
             }
             // The bar of the reply being written stays at the bottom of the page, wherever the thread is scrolled (17/11).
             .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -619,7 +655,10 @@ struct MailThreadView: View {
                 subjectBlock
             }
         }
-        .padding(.horizontal, Space.xl).padding(.vertical, Space.l)
+        .padding(.vertical, Space.l)
+        // On the reading column, as the messages and the reply: the subject, the avatars and the buttons share one edge
+        // (lot 6, 19/11).
+        .readingColumn()
     }
 
     /// The subject, the account, the count, the case and the people.
@@ -710,29 +749,22 @@ struct MailThreadView: View {
     }
 }
 
-/// At the top of a thread put aside (wave B, 15/11): where it is, what Gmail does with it, and the way back. On the
-/// page's ground, never glass: the principal button is the page's action. Only its icon carries a color (design
-/// system v2, 19/11).
+/// At the top of a thread put aside (wave B, 15/11): where it is, what Gmail does with it, and the way back. The mails'
+/// one band (lot 6, 19/11): only its icon carries a color — « to check » for a spam, grey for the trash —, its button is
+/// the page's principal action.
 struct MailAsideBanner: View {
     let aside: MailAside
     let bringBack: () -> Void
 
     var body: some View {
-        HStack(spacing: Space.m) {
-            Image(systemName: aside == .spam ? "exclamationmark.octagon.fill" : "trash.fill")
-                .font(.system(size: 18))
-                // « To check » is the attention's color (design system v2, 19/11): a spam is; the trash is only grey.
-                .foregroundStyle(aside == .spam ? Tint.attention : Color.secondary)
-            Text(aside.banner).font(.rowBody).fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: Space.m)
+        Banner(aside == .spam ? .attention : .information, aside.banner.title, detail: aside.banner.detail,
+               systemImage: aside == .spam ? "exclamationmark.octagon.fill" : "trash.fill") {
             Button(action: bringBack) {
                 Label(aside.gesture.title(), systemImage: aside.gesture.icon)
             }
             .buttonStyle(.primary)
             .help(aside == .spam ? "Remettre ce fil en boîte de réception : Gmail apprend que ce n'est pas un spam" : "Remettre ce fil en boîte de réception")
         }
-        .padding(.horizontal, Space.l).padding(.vertical, Space.m)
-        .background(Surface.fill, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
     }
 }
 
@@ -810,7 +842,7 @@ struct MailMessageView: View {
                     HStack(spacing: 3) {
                         let people = (message.to + message.cc).map { mine.contains($0.email) ? "moi" : ($0.name ?? $0.email) }
                         Text(people.isEmpty ? "détails" : "à \(people.joined(separator: ", "))").lineLimit(1)
-                        Image(systemName: details ? "chevron.up" : "chevron.down").font(.system(size: 10, weight: .semibold))
+                        Image(systemName: details ? "chevron.up" : "chevron.down").font(.caption2.weight(.semibold))
                     }
                     .padding(.horizontal, Space.s).padding(.vertical, 2)
                 }
@@ -822,7 +854,9 @@ struct MailMessageView: View {
             .contentShape(Rectangle())
             .onTapGesture { model.toggle(message) }
             Spacer(minLength: Space.m)
-            Text(MailText.longDate(message.date)).font(.meta).foregroundStyle(.secondary)
+            // In short, on one line; the whole date and how long ago in its help (lot 6, 19/11).
+            Text(MailText.shortDate(message.date)).font(.meta).foregroundStyle(.secondary).lineLimit(1).fixedSize()
+                .help(MailText.longDate(message.date))
             HStack(spacing: 2) {
                 if aside == nil {
                     IconButton("arrowshape.turn.up.left", help: "Répondre à ce message") { reply(.reply) }
@@ -894,22 +928,19 @@ struct MailMessageView: View {
             // A mail listed by its headers (the trash, the spam) learns what its body is when it is read.
             let isHTML = model.html[message.id] ?? message.bodyIsHTML
             VStack(alignment: .leading, spacing: Space.m) {
-                // The thread's banner says a spam's images never show: nothing here offers them.
+                // The thread's banner says a spam's images never show: nothing here offers them. The mails' one band (lot 6,
+                // 19/11): « Afficher » secondary, « Toujours pour cet expéditeur » a grey word beside it.
                 if !images, !isSpam, isHTML, MailHTML.hasRemoteImages(body) {
-                    HStack(spacing: Space.s) {
-                        Image(systemName: "photo").foregroundStyle(.secondary)
-                        Text("Images masquées : leur expéditeur verrait que tu as ouvert le mail.").font(.meta).foregroundStyle(.secondary)
-                        Spacer()
-                        Button("Afficher") { model.allowed.insert(message.id) }
+                    Banner(.information, "Images masquées", detail: "Leur expéditeur verrait que tu as ouvert le mail.", systemImage: "photo") {
                         if message.authenticated, let email = message.sender?.email {
-                            Button("Toujours pour cet expéditeur") {
+                            TextButton("Toujours pour cet expéditeur", quiet: true) {
                                 model.allowed.insert(message.id)
                                 mails.alwaysShowImages(from: email)
                             }
+                            .padding(.trailing, Space.s)
                         }
+                        Button("Afficher") { model.allowed.insert(message.id) }.buttonStyle(.secondary)
                     }
-                    .padding(.horizontal, Space.m).padding(.vertical, Space.s)
-                    .background(Surface.fill, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
                 }
                 MailBodyView(document: MailHTML.document(body: body, isHTML: isHTML, images: images, collapseQuote: collapseQuote,
                                                          dark: scheme == .dark && !onLight),
@@ -1010,25 +1041,22 @@ struct MailOriginalSheet: View {
     }
 }
 
-/// « Abonnements » (14/11): the senders Paul could leave, the busiest first; leave one, or archive all it sent.
+/// « Abonnements » (14/11): the senders Paul could leave, the busiest first; leave one, or archive all it sent. On the
+/// list's grid (lot 6, 19/11): the sender's initial in the box's column, its name on the senders', what it sent on the
+/// subject's, its actions at the end.
 struct MailSubscriptionsView: View {
     @ObservedObject var mails: MailLibrary
+    @AppStorage(Preferences.Key.mailDensity) private var density = MailDensity.defaut.rawValue
 
     var body: some View {
         if mails.subscriptions.isEmpty {
-            ContentUnavailableView("Aucun abonnement", systemImage: "newspaper",
-                                   description: Text("Les expéditeurs dont tu peux te désabonner apparaissent ici, les plus bavards d'abord."))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            MailEmptyView(state: mails.emptyState, mails: mails)
         } else {
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    Text("Les 90 derniers jours, des plus bavards aux plus discrets.")
-                        .font(.rowBody).foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, Space.xl).padding(.top, Space.l).padding(.bottom, Space.m)
-                    ForEach(mails.subscriptions) { subscription in
-                        row(subscription)
-                        Divider().padding(.leading, Space.xl + 40 + Space.m)
+            VStack(spacing: 0) {
+                MailSearchLine(text: "Les 90 derniers jours, des plus bavards aux plus discrets.", searching: false, icon: "clock")
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(mails.subscriptions) { subscription in row(subscription) }
                     }
                 }
             }
@@ -1038,42 +1066,42 @@ struct MailSubscriptionsView: View {
     private func row(_ subscription: MailSubscription) -> some View {
         let method = mails.unsubscribeMethod(subscription)
         let left = mails.unsubscribed[subscription.sender.email]
-        return HStack(spacing: Space.m) {
-            Avatar(String(subscription.sender.display.prefix(1)).uppercased(), size: 40, tint: MailText.tint(for: subscription.sender.email))
-                .padding(.leading, Space.xl)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(subscription.sender.display).font(.rowTitle.weight(.medium)).lineLimit(1)
-                Text(subscription.sender.email).font(.meta).foregroundStyle(.secondary).lineLimit(1)
+        let density = MailDensity(rawValue: density) ?? .defaut
+        let unread = subscription.unread > 0 ? " · \(subscription.unread) non lu\(subscription.unread > 1 ? "s" : "")" : ""
+        return MailGridLine(stripe: nil, endWidth: nil) {
+            Avatar(String(subscription.sender.display.prefix(1)).uppercased(), size: MailGrid.lineHeight, tint: MailText.tint(for: subscription.sender.email))
+        } senders: {
+            Text(subscription.sender.display).font(.rowTitle.weight(.medium)).lineLimit(1)
+        } subject: {
+            Text("\(subscription.count) mail\(subscription.count > 1 ? "s" : "")\(unread) · dernier \(MailText.date(subscription.lastAt)) · \(subscription.sender.email)")
+                .font(.meta).foregroundStyle(.secondary).lineLimit(1)
+        } end: {
+            // No glass in the content: secondary buttons (design system v2, 19/11), small, in the line's height.
+            HStack(spacing: Space.s) {
+                if !subscription.inboxThreads.isEmpty {
+                    Button("Tout archiver (\(subscription.inboxThreads.count))") { mails.archiveAll(subscription) }
+                        .buttonStyle(.secondary)
+                        .help("Archiver ses mails encore en boîte de réception")
+                }
+                if let left {
+                    Label("Désabonné le \(left.formatted(.dateTime.day().month(.abbreviated).locale(MailText.locale)))", systemImage: "checkmark.circle")
+                        .font(.meta).foregroundStyle(.secondary)
+                } else if let method {
+                    Button("Se désabonner") { mails.askUnsubscribe(sender: subscription.sender, method: method) }
+                        .buttonStyle(.secondary)
+                        .help({
+                            switch method {
+                            case .oneClick: "En un clic, auprès de \(method.domain)"
+                            case .mail: "Par un mail que tu enverras toi-même"
+                            case .page: "Sur la page de \(method.domain)"
+                            }
+                        }())
+                }
             }
-            .frame(width: 300, alignment: .leading)
-            VStack(alignment: .leading, spacing: 4) {
-                Text("\(subscription.count) mail\(subscription.count > 1 ? "s" : "")" + (subscription.unread > 0 ? " · \(subscription.unread) non lu\(subscription.unread > 1 ? "s" : "")" : ""))
-                    .font(.rowBody)
-                Text("Dernier : \(MailText.date(subscription.lastAt))").font(.meta).foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            // No glass in the content: secondary buttons (design system v2, 19/11).
-            if !subscription.inboxThreads.isEmpty {
-                Button("Tout archiver (\(subscription.inboxThreads.count))") { mails.archiveAll(subscription) }
-                    .buttonStyle(.secondary)
-                    .help("Archiver ses mails encore en boîte de réception")
-            }
-            if let left {
-                Label("Désabonné le \(left.formatted(.dateTime.day().month(.abbreviated).locale(MailText.locale)))", systemImage: "checkmark.circle")
-                    .font(.meta).foregroundStyle(.secondary)
-            } else if let method {
-                Button("Se désabonner") { mails.askUnsubscribe(sender: subscription.sender, method: method) }
-                    .buttonStyle(.secondary)
-                    .help({
-                        switch method {
-                        case .oneClick: "En un clic, auprès de \(method.domain)"
-                        case .mail: "Par un mail que tu enverras toi-même"
-                        case .page: "Sur la page de \(method.domain)"
-                        }
-                    }())
-            }
+            .controlSize(.small)
         }
-        .padding(.trailing, Space.xl)
-        .padding(.vertical, Space.l)
+        .padding(.vertical, density.padding)
+        .padding(.trailing, MailGrid.trailing)
+        .overlay(alignment: .bottom) { MailLine() }
     }
 }

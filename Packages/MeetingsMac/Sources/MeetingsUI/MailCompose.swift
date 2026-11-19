@@ -7,6 +7,32 @@ import PolhubDesign
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// What a recipient's chip says of its address (lot 6, 19/11): a contact or someone Paul wrote to, plain; a stranger,
+/// « ? »; an invalid address, the triangle. The two to check share the attention's color: their symbol tells them apart,
+/// a color never says a meaning alone.
+enum RecipientMark: Equatable {
+    case known, stranger, invalid
+
+    var symbol: String? {
+        switch self {
+        case .known: nil
+        case .stranger: "questionmark.circle"
+        case .invalid: "exclamationmark.triangle.fill"
+        }
+    }
+
+    static func of(valid: Bool, known: Bool) -> RecipientMark {
+        !valid ? .invalid : (known ? .known : .stranger)
+    }
+}
+
+extension ComposeView {
+    /// The banner over a draft an agent prepared (lot 6, 19/11): what to do, then the rule of the addresses by their
+    /// mark — the chip's color alone never says it.
+    static let agentNotice = (title: "Préparé par un agent : relis-le avant d'envoyer.",
+                              detail: "Une adresse marquée d'un ? n'est ni un contact ni une personne à qui tu as écrit.")
+}
+
 /// « À », « Cc », « Cci »: the people as chips, a field to type more, the people that match below it (15/11:
 /// ranked, ↑ ↓ to move, ↩ or ⇥ to take, Échap to close, as Gmail).
 struct RecipientField: View {
@@ -59,10 +85,12 @@ struct RecipientField: View {
                     ForEach(addresses, id: \.email) { address in
                         let valid = MIMEBuilder.isValid(address.email)
                         let known = isKnown(address.email)
+                        let mark = RecipientMark.of(valid: valid, known: known)
                         HStack(spacing: 3) {
-                            if !known, valid { Image(systemName: "questionmark.circle").font(.meta) }
+                            // « ? » for a stranger, the triangle for an invalid address (lot 6, 19/11).
+                            if let symbol = mark.symbol { Image(systemName: symbol).font(.meta) }
                             // A stranger's name never hides its address: « camille@client.exemple » could be anyone's.
-                            Text(known ? (address.name ?? address.email) : [address.name, address.email].compactMap { $0 }.joined(separator: " · "))
+                            Text(mark == .known ? (address.name ?? address.email) : [address.name, address.email].compactMap { $0 }.joined(separator: " · "))
                                 .lineLimit(1)
                             Button { addresses.removeAll { $0.email == address.email } } label: {
                                 Image(systemName: "xmark").font(.caption2.bold()).frame(width: 16, height: 16)
@@ -72,12 +100,12 @@ struct RecipientField: View {
                             .accessibilityLabel("Retirer \(address.email)")
                         }
                         .padding(.leading, Space.s + 2).padding(.trailing, 4).padding(.vertical, 2)
-                        // Invalid, or never written to: the one color of « to check » (design system v2, 19/11); the
-                        // « ? » tells the stranger.
-                        .background(!valid ? Tint.attention.opacity(0.18) : (known ? Surface.raised : Tint.attention.opacity(0.16)), in: Capsule())
-                        .foregroundStyle(!valid ? Tint.attention : (known ? Color.primary : Tint.attention))
-                        .help(!valid ? "« \(address.email) » n'est pas une adresse valide"
-                              : (known ? address.email : "\(address.email) : tu n'as jamais écrit à cette adresse, vérifie-la"))
+                        // Invalid, or never written to: the one color of « to check » (design system v2, 19/11); its
+                        // symbol says which (lot 6, 19/11).
+                        .background(mark == .known ? Surface.raised : Tint.attention.opacity(mark == .invalid ? 0.18 : 0.16), in: Capsule())
+                        .foregroundStyle(mark == .known ? Color.primary : Tint.attention)
+                        .help(mark == .invalid ? "« \(address.email) » n'est pas une adresse valide"
+                              : (mark == .known ? address.email : "\(address.email) : tu n'as jamais écrit à cette adresse, vérifie-la"))
                     }
                     TextField("", text: $text)
                         .textFieldStyle(.plain)
@@ -159,16 +187,8 @@ struct ComposeView: View {
                 Divider()
                 if let conflict = draft.conflict { conflictBanner(conflict) }
                 if draft.origin == .agent {
-                    // Only the icon says « an agent », in its color; the band is neutral (design system v2, 19/11).
-                    Label {
-                        Text("Préparé par un agent : relis-le avant d'envoyer. Une adresse en orange n'est ni un contact ni une personne à qui tu as écrit.")
-                    } icon: {
-                        Image(systemName: "sparkles").foregroundStyle(Tint.agent)
-                    }
-                    .font(.meta)
-                    .padding(Space.m)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Surface.raised, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
+                    // The mails' one band (lot 6, 19/11): only the icon says « an agent », in its color.
+                    Banner(.agent, Self.agentNotice.title, detail: Self.agentNotice.detail)
                 }
                 // The text, written with formatting as in Gmail (17/11); an agent's formatted draft opens as it leaves.
                 // Its buttons are in the bar fixed at the bottom of the page, in reach wherever the text is scrolled.
@@ -208,7 +228,8 @@ struct ComposeView: View {
             }
             .animation(Motion.standard, value: planned?.state)
             .padding(Space.xl)
-            .background(Surface.fill, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+            // The app's one card: its fill and its edge (lot 6, 19/11), on the reading column of the thread or the panel.
+            .cardSurface()
             .focusedValue(\.writingMail, true)
             .overlay {
                 // Where the files drop: the selection's ink (design system v2, 19/11).
@@ -271,9 +292,10 @@ struct ComposeView: View {
             RecipientField(label: "À", addresses: binding(\.to, default: []), text: $session.pendingTo, suggest: suggest, isKnown: mails.isKnown,
                            project: suggestedProject, trailing: AnyView(
                 HStack(spacing: Space.s) {
-                    // Small words that answer under the pointer and when pressed (correctifs, 15/11).
-                    if !showCc { TextButton("Cc") { showCc = true }.help("Ajouter des destinataires en copie") }
-                    if !showBcc { TextButton("Cci") { showBcc = true }.help("Ajouter des destinataires en copie cachée") }
+                    // Small words that answer under the pointer and when pressed (correctifs, 15/11); grey: there, not
+                    // calling (lot 6, 19/11).
+                    if !showCc { TextButton("Cc", quiet: true) { showCc = true }.help("Ajouter des destinataires en copie") }
+                    if !showBcc { TextButton("Cci", quiet: true) { showBcc = true }.help("Ajouter des destinataires en copie cachée") }
                 }
                 .font(.meta)
             ), onFocus: { recipientsFocused = $0 })
@@ -343,28 +365,23 @@ struct ComposeView: View {
         }
     }
 
-    /// Gmail's copy went its own way: Paul chooses which version lives on.
+    /// Gmail's copy went its own way: Paul chooses which version lives on. The mails' one band (lot 6, 19/11): the icon
+    /// of attention, the two ways out as secondary buttons (« Envoyer » waits for the choice).
+    @ViewBuilder
     private func conflictBanner(_ conflict: MailDraftRow.Conflict) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: Space.m) {
-            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Tint.attention)
-            switch conflict {
-            case .absent:
-                Text("Ce brouillon n'est plus dans Gmail : il a peut-être été envoyé ou supprimé ailleurs. Regarde dans Envoyés avant de le renvoyer.")
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
-                Button("Le garder") { mails.keepDraft(draftID) }
-                Button("Le supprimer") { mails.forgetDraft(draftID, gmailKept: false) }
-            case .modifie:
-                Text("Ce brouillon a été modifié dans Gmail, sur un autre appareil.").fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
-                Button("Garder celui-ci") { mails.keepDraft(draftID) }
-                Button("Prendre celui de Gmail") { mails.forgetDraft(draftID, gmailKept: true) }
+        switch conflict {
+        case .absent:
+            Banner(.attention, "Ce brouillon n'est plus dans Gmail.",
+                   detail: "Il a peut-être été envoyé ou supprimé ailleurs. Regarde dans Envoyés avant de le renvoyer.") {
+                Button("Le garder") { mails.keepDraft(draftID) }.buttonStyle(.secondary)
+                Button("Le supprimer") { mails.forgetDraft(draftID, gmailKept: false) }.buttonStyle(.secondary)
+            }
+        case .modifie:
+            Banner(.attention, "Ce brouillon a été modifié dans Gmail, sur un autre appareil.") {
+                Button("Garder celui-ci") { mails.keepDraft(draftID) }.buttonStyle(.secondary)
+                Button("Prendre celui de Gmail") { mails.forgetDraft(draftID, gmailKept: true) }.buttonStyle(.secondary)
             }
         }
-        .font(.meta)
-        .padding(Space.m)
-        // Only the icon carries the color; the band is neutral (design system v2, 19/11).
-        .background(Surface.raised, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
     }
 
 }
@@ -377,7 +394,8 @@ struct NewMailPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // ✕ at the top right, as on every panel and object open (lot 4, 19/11).
+            // ✕ at the top right, as on every panel and object open (lot 4, 19/11); the title on the reading column, the
+            // draft's edge under it, as in a thread (lot 6, 19/11: one edge).
             HStack(spacing: Space.m) {
                 Text(mails.drafts.first { $0.id == draftID }?.subject.isEmpty == false
                      ? mails.drafts.first { $0.id == draftID }!.subject : "Nouveau mail")
@@ -385,18 +403,19 @@ struct NewMailPanel: View {
                 Spacer()
                 PanelCloseButton { mails.closeComposer() }
             }
-            .padding(.horizontal, Space.xl).padding(.vertical, Space.l)
+            .readingColumn()
+            .padding(.vertical, Space.l)
             Divider()
             ScrollView {
                 ComposeView(draftID: draftID, mails: mails, session: session)
                     .id(mails.agentRevisions[draftID] ?? 0)
-                    .padding(Space.xl)
-                    .frame(maxWidth: PageMetrics.readingWidth)
-                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, Space.xl)
+                    .readingColumn()
             }
-            // The bar stays at the bottom of the panel, however long the mail (17/11).
+            // The bar stays at the bottom of the panel, however long the mail (17/11), its glass on the draft's edges.
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 FloatingBar { ComposeBar(draftID: draftID, mails: mails, session: session) }
+                    .padding(.horizontal, PageMetrics.horizontal - Space.xl)
                     .frame(maxWidth: PageMetrics.readingWidth)
                     .frame(maxWidth: .infinity)
             }
@@ -404,35 +423,49 @@ struct NewMailPanel: View {
     }
 }
 
-/// The drafts: Polhub's, then those Gmail holds from elsewhere, on the list's lines. A click takes one up.
+extension View {
+    /// The reading column of a mail (lot 6, 19/11): 860 points at most with its margins, in the middle; a thread's header,
+    /// its messages and its reply, a new mail's title and its draft, all start on its edge.
+    func readingColumn() -> some View {
+        padding(.horizontal, PageMetrics.horizontal)
+            .frame(maxWidth: PageMetrics.readingWidth, alignment: .leading)
+            .frame(maxWidth: .infinity)
+    }
+}
+
+/// The drafts: Polhub's, then those Gmail holds from elsewhere, on the list's lines and its grid (lot 6, 19/11). A click
+/// takes one up.
 struct MailDraftListView: View {
     @ObservedObject var mails: MailLibrary
     @ObservedObject var router: WindowRouter
+    @AppStorage(Preferences.Key.mailDensity) private var density = MailDensity.defaut.rawValue
 
     var body: some View {
         // A programmed mail is in « Programmés » only, as in Gmail (wave B).
         let mine = mails.drafts.filter { !mails.hidden.contains($0.account) && mails.scheduled[$0.id] == nil }
+        let density = MailDensity(rawValue: density) ?? .defaut
+        let stripes = MailGrid.showsStripes(accounts: mails.accounts.map(\.email), hidden: mails.hidden)
         if mine.isEmpty && mails.gmailDrafts.isEmpty {
-            ContentUnavailableView("Aucun brouillon", systemImage: "doc", description: Text("Un mail commencé et pas encore envoyé t'attend ici."))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            MailEmptyView(state: mails.emptyState, mails: mails)
         } else {
             ScrollView {
                 LazyVStack(spacing: 0) {
                     ForEach(mine) { draft in
-                        MailDraftLine(account: draft.account, color: mails.color(for: draft.account), people: draft.to.map { $0.name ?? $0.email },
+                        MailDraftLine(account: draft.account, color: stripes ? mails.color(for: draft.account) : nil, people: draft.to.map { $0.name ?? $0.email },
                                       subject: draft.subject, extract: draft.body, date: draft.updatedAt, error: draft.lastError,
-                                      agent: draft.origin == .agent) { mails.open(draft, router: router) }
+                                      agent: draft.origin == .agent, density: density) { mails.open(draft, router: router) }
                             .contextMenu { Button("Supprimer le brouillon", role: .destructive) { mails.discard(draft.id) } }
                     }
                     if !mails.gmailDrafts.isEmpty {
                         Text("Commencés dans Gmail")
                             .font(.meta.weight(.semibold)).foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.leading, MailRow.boxEnd).padding(.top, Space.l + 4).padding(.bottom, Space.s)
+                            .padding(.leading, MailGrid.boxEnd).padding(.top, Space.l + 4).padding(.bottom, Space.s)
                             .overlay(alignment: .bottom) { MailLine() }
                         ForEach(mails.gmailDrafts) { message in
-                            MailDraftLine(account: message.account, color: mails.color(for: message.account), people: message.to.map { $0.name ?? $0.email },
-                                          subject: message.subject, extract: message.snippet, date: message.date, error: nil) { mails.resume(message, router: router) }
+                            MailDraftLine(account: message.account, color: stripes ? mails.color(for: message.account) : nil,
+                                          people: message.to.map { $0.name ?? $0.email }, subject: message.subject, extract: message.snippet, date: message.date,
+                                          error: nil, density: density) { mails.resume(message, router: router) }
                                 .help("Reprendre ce brouillon dans Polhub")
                         }
                     }
@@ -442,17 +475,20 @@ struct MailDraftListView: View {
     }
 }
 
-/// A draft on one line, as Gmail's: « Brouillon » and to whom; the subject and the start of the text; the date at
-/// the end. Gmail writes « Brouillon » in red; here it is grey, red says « late » only (design system v2, 19/11).
+/// A draft on one line, as Gmail's, on the list's grid (lot 6, 19/11): « Brouillon » and to whom; the subject and the
+/// start of the text; the date in the end column. Gmail writes « Brouillon » in red; here it is grey, red says « late »
+/// only (design system v2, 19/11). No box: a draft is never ticked.
 struct MailDraftLine: View {
     let account: String
-    let color: Color
+    /// The mailbox's stripe, when the list shows several.
+    let color: Color?
     let people: [String]
     let subject: String
     let extract: String
     let date: Date
     let error: String?
     var agent = false
+    var density = MailDensity.defaut
     let open: () -> Void
 
     var body: some View {
@@ -462,28 +498,30 @@ struct MailDraftLine: View {
     }
 
     private var line: some View {
-        HStack(spacing: 0) {
-            Capsule().fill(color).frame(width: 3, height: 22).padding(.leading, Space.m).help(account)
-            Color.clear.frame(width: 44, height: 1)
+        MailGridLine(stripe: color, stripeHelp: account) {
+            Color.clear
+        } senders: {
             (Text("Brouillon").foregroundStyle(.secondary) + Text(people.isEmpty ? "" : " · \(people.joined(separator: ", "))"))
                 .font(.rowTitle)
                 .lineLimit(1)
-                .frame(width: MailRow.sendersWidth, alignment: .leading)
-                .padding(.trailing, Space.l)
-            (Text(subject.isEmpty ? "(sans objet)" : subject).font(.rowTitle)
-                + Text(extract.isEmpty ? "" : " — \(extract.replacingOccurrences(of: "\n", with: " "))").font(.rowBody).foregroundStyle(.secondary))
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            // Written by an agent: its own color; a failure: the attention's (design system v2, 19/11).
-            if agent {
-                Label("préparé par un agent", systemImage: "sparkles").font(.meta).foregroundStyle(Tint.agent).fixedSize().padding(.horizontal, Space.s)
+        } subject: {
+            HStack(spacing: Space.s) {
+                (Text(subject.isEmpty ? "(sans objet)" : subject).font(.rowTitle)
+                    + Text(extract.isEmpty ? "" : " — \(extract.replacingOccurrences(of: "\n", with: " "))").font(.rowBody).foregroundStyle(.secondary))
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                // Written by an agent: its own color; a failure: the attention's (design system v2, 19/11).
+                if agent {
+                    Label("préparé par un agent", systemImage: "sparkles").font(.meta).foregroundStyle(Tint.agent).fixedSize()
+                }
+                if error != nil { Image(systemName: "exclamationmark.triangle").font(.meta).foregroundStyle(Tint.attention).help(error ?? "") }
             }
-            if error != nil { Image(systemName: "exclamationmark.triangle").font(.meta).foregroundStyle(Tint.attention).help(error ?? "").padding(.horizontal, Space.s) }
-            Text(MailText.date(date)).font(.meta).foregroundStyle(.secondary).monospacedDigit().lineLimit(1).frame(minWidth: 58, alignment: .trailing)
+        } end: {
+            Text(MailText.date(date)).font(.meta).foregroundStyle(.secondary).monospacedDigit().lineLimit(1)
         }
         .foregroundStyle(.primary)
-        .padding(.vertical, Space.m)
-        .padding(.trailing, Space.l)
+        .padding(.vertical, density.padding)
+        .padding(.trailing, MailGrid.trailing)
         .overlay(alignment: .bottom) { MailLine() }
         .contentShape(Rectangle())
     }

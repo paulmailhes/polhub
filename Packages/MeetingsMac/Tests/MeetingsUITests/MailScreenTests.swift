@@ -351,6 +351,19 @@ struct MailScreenTests {
         UserDefaults.standard.set(true, forKey: Preferences.Key.floatingPages)
         try await capture("mails-personnes")
         try await capture("mails-personnes-sombre", dark: true)
+        // Lot 6 (19/11): a line under the pointer — its gestures in the end column, in the date's place — among lines at rest.
+        let mineAccounts = Set(agenda.accounts.map(\.email))
+        let inboxThreads = Array(mails.shown.prefix(4))
+        for dark in [false, true] {
+            try await LiveWindow.capture(VStack(spacing: 0) {
+                ForEach(Array(inboxThreads.enumerated()), id: \.element.id) { index, thread in
+                    MailRow(thread: thread, mails: mails, mine: mineAccounts, density: .defaut, stripes: true, hovering: index == 1) {}
+                }
+                Spacer(minLength: 0)
+            }
+            .background(MailSurface.unread), to: output.appending(path: "mails-survol\(dark ? "-sombre" : "").png"),
+            size: NSSize(width: 956, height: 300), dark: dark)
+        }
         // 15/11: two tabs; the newsletters are among the notifications.
         mails.tab = .notifications
         try await capture("mails-notifications")
@@ -387,6 +400,16 @@ struct MailScreenTests {
         mails.newMail()
         try await capture("mails-nouveau")
         mails.closeComposer()
+        // Lot 6 (19/11): a contact, a stranger (« ? ») and an invalid address (the triangle): never a color alone.
+        let addresses = MailDraftRow(account: "moi@exemple.fr", mode: .new, to: [camille, jules, MailAddress(name: "Nina", email: "nina.roche@")],
+                                     subject: "Revue du site", body: "Bonjour à tous,", signature: false, createdAt: Date())
+        try store.saveDraft(addresses)
+        try await Task.sleep(for: .milliseconds(300))
+        mails.composing = addresses.id
+        try await capture("mails-adresses")
+        try await capture("mails-adresses-sombre", dark: true)
+        mails.composing = nil
+        try store.deleteDraft(addresses.id)
         // Review of 14/11: a draft changed on the phone waits for Paul's choice; a stranger shows in full.
         let changed = MailDraftRow(account: "moi@exemple.fr", mode: .new, to: [MailAddress(name: "camille@exemple-studio.fr", email: "inconnu@pirate.exemple")],
                                    subject: "Devis", body: "Voici le devis.", createdAt: Date(), conflict: .modifie)
@@ -535,6 +558,19 @@ struct MailScreenTests {
         mails.unreadOnly = true
         try await capture("mails-non-lus")
         mails.unreadOnly = false
+        // Lot 6 (19/11): empty lists that say what to do — everything read, a folder emptied by hidden boxes —; one box
+        // shown, no stripe on the lines.
+        mails.hidden = ["moi@exemple.fr", "paul@atelier-nord.fr"]
+        mails.folder = .all
+        mails.unreadOnly = true
+        try await capture("mails-vide-tout-lu")
+        mails.unreadOnly = false
+        mails.folder = .sent
+        try await capture("mails-vide-boites")
+        mails.hidden = ["perso@gmail.com", "paul@atelier-nord.fr"]
+        mails.folder = .inbox
+        try await capture("mails-une-boite")
+        mails.hidden = []
         // The project's page shows its mails.
         UserDefaults.standard.set(false, forKey: Preferences.Key.floatingPages)
         router.section = .projects
@@ -545,6 +581,17 @@ struct MailScreenTests {
         try await capture("mails-lettre-page-sombre", dark: true)
         try await capture("mails-lettre-page")
         UserDefaults.standard.set(true, forKey: Preferences.Key.floatingPages)
+        // Lot 6 (19/11), last: the reply leaving says « Envoyé · Annuler » in its own bar, nothing over it; « Annuler » keeps
+        // it. Last, because the call back hands the draft to the made-up Gmail, which refuses it and marks it.
+        let leaving = try #require(mails.drafts.first { $0.threadKey == MailThreadRow.key(account: "moi@exemple.fr", threadID: "a") })
+        router.section = .mails
+        router.mailSelection = leaving.threadKey
+        mails.message = nil
+        try await Task.sleep(for: .milliseconds(300))
+        mails.send(leaving.id)
+        try await capture("mails-envoye-annuler", wait: .milliseconds(1_200))
+        mails.cancelSend(quietly: true)
+        router.mailSelection = nil
     }
 
     /// 16/11: a draft an agent formatted and joined a file to, as the app adopts it (its HTML made by Polhub from the

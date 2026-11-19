@@ -99,29 +99,58 @@ du calendrier (Paul, 15/11 : « tout est un peu petit… trop serré et illisibl
 
 ## La liste des mails
 
-Elle copie Gmail, l'outil que Paul connaît le mieux (Paul, 15/11 : « calque-toi le plus possible sur Gmail ») :
+Elle copie Gmail, l'outil que Paul connaît le mieux (Paul, 15/11 : « calque-toi le plus possible sur Gmail »), sur
+**une seule grille pour tous les dossiers** (lot 6, 19/11) :
 
-- **une ligne par fil** : la case à cocher, les expéditeurs (`.rowTitle`, colonne de 210 points), puis la
-  case du fil, l'objet (`.rowTitle`) et, plus petit et en gris, le début du mail (`.rowBody`) ; la date au bout ;
-- **non lu** : fond le plus clair (`MailSurface.unread`, blanc en clair) et gras ; **lu** : fond bleu-gris
-  (`MailSurface.read`) ; **coché** : bleu clair (`MailSurface.ticked`) ; le bleu des cases et de l'onglet
-  Personnes est celui de Gmail (`MailSurface.blue`), quelle que soit la couleur d'accent du Mac ;
-- **les pièces jointes** en pastilles sous la ligne, en densité « Par défaut » ; un clic sur une pastille
-  ouvre le fichier dans Coup d'œil (Quick Look) sans ouvrir le fil ; un type que Polhub n'ouvre jamais
+- **la barre des gestes est toujours là**, à la même hauteur (48 points) dans chaque dossier : la première ligne ne
+  saute plus d'un dossier à l'autre. À gauche, la case « tout » et son menu (grisés là où rien ne se coche :
+  Brouillons, Programmés, Abonnements), ↻ et « … » ; des fils cochés, leurs gestes et « 2 sélectionnés ». À droite,
+  « Boîtes » (s'il y en a plusieurs) et « Non lus », seulement là où il filtre : Boîte de réception, Notifications,
+  Envoyés, Tous les messages, jamais pendant une recherche ;
+- **la grille** (`MailGrid`, `MailGridLine`) : le filet de la boîte, la case (44 points), les expéditeurs (210), l'objet
+  et, plus petit et en gris, le début du mail, puis **une colonne de fin fixe** (134 points) : la date au repos, les
+  gestes au survol à sa place (archiver, supprimer, lu, ranger), sans dégradé ; rien ne couvre l'objet, rien ne bouge.
+  Les brouillons, les programmés et les abonnements ont les mêmes colonnes : à la place de la case, rien, l'horloge,
+  l'initiale de l'expéditeur. La ligne d'avis (une recherche, la corbeille, le spam, Programmés, Abonnements) a son
+  icône dans la colonne des cases et son texte sur celle des expéditeurs, comme les titres de jours ;
+- **le filet de la boîte**, à gauche, seulement quand la liste montre deux boîtes ou plus ; sa place reste gardée :
+  masquer une boîte ne déplace aucune ligne ;
+- **non lu** : le fond de la fenêtre (`MailSurface.unread`), le gras, la date en semi-gras ; **lu** : un cran plus bas,
+  doux (`MailSurface.read`, 97 % de blanc en clair, 14,5 % en sombre) ; **coché** : l'encre mêlée au fond
+  (`MailSurface.ticked`), la case à l'encre. Le survol garde l'ombre de Gmail (choix de Paul du 15/11) ;
+- après les noms, « Brouillon » et « Programmé » en gris (le rouge ne dit plus que le retard), « En retard » au rouge du
+  retard ;
+- **les pièces jointes** en pastilles sous la ligne, alignées sur l'objet, en densité « Par défaut » ; un clic sur une
+  pastille ouvre le fichier dans Coup d'œil (Quick Look) sans ouvrir le fil ; un type que Polhub n'ouvre jamais
   s'enregistre ;
-- **le survol ne déplace rien** : une ombre sous la ligne, et les gestes par-dessus la date, sur le fond de la
-  ligne ; aucun élément n'apparaît ni ne disparaît dans la mise en page ;
+- **une liste vide dit quoi faire** (`MailEmptyState`), jamais « Rien ici » : ce qui arrive dans le dossier et « ⌘N pour
+  écrire » ; « Tout est lu » et « Afficher tous les mails » quand « Non lus » a tout caché ; « 1 boîte est masquée » et
+  « Afficher toutes les boîtes » quand une boîte masquée l'a vidée ;
 - **les dossiers** dans la barre latérale, sous « Mails » : Boîte de réception, Brouillons, Envoyés, puis « Plus »,
   qui déplie Notifications, Abonnements, Programmés (seulement quand un mail y attend), Spam, Corbeille et Tous les
   messages à la même profondeur, comme Gmail ; « Plus » reste déplié sur un de ses dossiers ouvert. **« Nouveau
-  mail »** est dans la barre d'outils (⌘N) ;
+  mail »** est dans la barre d'outils (⌘N), plein tant que la liste est seule à l'écran ;
 - **les boîtes** sont un filtre de la liste : le menu « Boîtes » de sa barre, à côté de « Non lus », coche celles que
   la liste montre ; son titre dit « Boîtes : 2 sur 3 » tant qu'une est masquée (lot 4, 19/11) ;
 - la barre latérale a **une largeur fixe** (224 points) : elle ne change plus d'une section à l'autre. Le nom d'un
   dossier tient entier, à peine resserré s'il le faut (« Boîte de réception » et son nombre).
 
-**Un fil ouvert** montre, pour chaque message, ce qui a été écrit (Paul, 19/11 : « incompréhensible, il y en a dans
-tous les sens ») :
+**Un fil ouvert** tient sur **une seule colonne de lecture** (lot 6, 19/11 : `readingColumn()`, 860 points au plus,
+marges de 28) : l'objet, la méta, les personnes, la capsule des gestes et ✕, les messages, les boutons de réponse et la
+réponse ont le même bord. Un nouveau mail aussi : son titre au bord de sa carte.
+
+- **Un seul bouton principal** : « Répondre », plein, avec « Répondre à tous » et « Transférer » en secondaires, en grand
+  comme « Envoyer » ; dès qu'une réponse est ouverte sous le fil, « Répondre » passe en secondaire et son « Envoyer » est
+  le principal. Tant qu'un fil ou un brouillon est ouvert par-dessus la liste, « Nouveau mail » quitte le plein.
+- **La date d'un message est courte** (`MailText.shortDate`) : « Aujourd'hui 17:55 », « Hier 9:12 », « 14 nov. »,
+  « 3 déc. 2025 » ; la date entière et « il y a… » sont dans son aide.
+- **Les bandeaux sont tous des `Banner`**, seule l'icône porte la couleur : préparé par un agent (l'étincelle violette ;
+  la règle des adresses dit leur marque, jamais une couleur), conflit avec Gmail (attention, deux secondaires), images
+  masquées (« Afficher » secondaire, « Toujours pour cet expéditeur » en mot gris), corbeille ou spam (« Restaurer » ou
+  « Pas un spam », le principal de l'écran), envoi programmé (l'horloge grise, ou le rouge du retard et « Envoyer
+  maintenant »).
+
+Pour chaque message, le fil montre ce qui a été écrit (Paul, 19/11 : « incompréhensible, il y en a dans tous les sens ») :
 
 - **l'historique cité** se replie derrière une pastille « Historique ▾ », de l'endroit où il commence jusqu'à la
   fin : la classe de Gmail ou d'Apple Mail, le bloc « De / Envoyé (ou Date) / À / Objet » d'Outlook sous son filet
@@ -147,6 +176,14 @@ page du fil, quelle que soit la longueur du mail (Paul, 17/11) : « Envoyer » e
 mise en forme), où en est le brouillon, la corbeille. Le texte et sa barre partagent une `ComposeSession`. Dans un
 fil à plusieurs réponses, la barre fixe est celle de la réponse qui a eu le clavier en dernier (`ComposePinning`) ;
 les autres gardent la leur sous leur carte. Le bandeau du bas (`MailUndoBar`) monte au-dessus de la barre.
+
+- **« Envoyé · Annuler »** (lot 6, 19/11) : une réponse qui part le dit dans sa propre barre, à la place de
+  « Enregistré sur le Mac », tant qu'elle peut être rappelée (⌘Z) ; le bandeau du bas ne le redit pas par-dessus.
+  Rappelée d'ici, elle redevient un brouillon sous le fil, sans un mot en bas de page. Un nouveau mail se ferme en
+  partant : c'est le bandeau du bas qui dit « … part dans 8 s · Annuler ».
+- **Les destinataires** : « Cc » et « Cci » en mots gris ; une adresse à vérifier porte son symbole en plus de la couleur
+  d'attention : « ? » pour une adresse à qui Paul n'a jamais écrit, le triangle pour une adresse invalide
+  (`RecipientMark`). La réponse est la carte de l'app (fond et trait, rayon 16).
 
 ## Les couleurs
 
@@ -184,7 +221,7 @@ ne va jamais seule : toujours un mot ou un symbole avec elle.
 | `Page { }` | Une page qui défile, à la bonne largeur et aux bonnes marges |
 | `PageHeader("Titre", subtitle:)` | Le titre d'une page qui en a besoin (la page d'un projet) |
 | `Card { }` | Une surface de contenu ; `.cardSurface()` pour une vue existante |
-| `Banner(.attention, "Titre", detail:) { boutons }` | Un bandeau d'information : seule l'icône porte la couleur (`.information`, `.attention`, `.late`, `.done`, `.agent`) |
+| `Banner(.attention, "Titre", detail:, systemImage:) { boutons }` | Un bandeau d'information : seule l'icône porte la couleur (`.information`, `.attention`, `.late`, `.done`, `.agent`) ; `systemImage` dit de quoi il parle (la corbeille, un spam, une image) à la couleur du ton ; ses boutons passent sous le texte quand la place manque, jamais écrasés |
 | `ErrorLine("Phrase")` | Un problème en une ligne : l'icône d'attention dans sa couleur, la phrase dans celle du texte |
 | `SectionTitle("Titre", systemImage:, count:) { trailing }` | Le titre d'une carte ou d'une partie |
 | `Chip("Texte", systemImage:, tint:)` | Un statut, une date, une étiquette |
@@ -229,7 +266,10 @@ Quatre rôles, et rien d'autre ne dessine un bouton dans le contenu :
 - **Un choix parmi quelques-uns** (les minutes d'un rappel) : `.buttonStyle(.choice(choisi))`, le choisi cerné
   d'encre ; un choix est un état, jamais un bouton principal.
 - `.primary`, `.secondary` et `.choice` suivent `.controlSize`, aux hauteurs du système (mesurées le 19/11) : 20, 24
-  et 28 points en petit, normal et grand ; une page garde sa mise en page quand ses boutons changent de rôle.
+  et 28 points en petit, normal et grand ; une page garde sa mise en page quand ses boutons changent de rôle. Les
+  boutons de réponse d'un fil sont grands, comme « Envoyer » dans la barre du brouillon (lot 6, 19/11).
+- **Un principal qui cède** : quand un autre principal s'ouvre sur le même écran, le premier passe en secondaire
+  (« Répondre » devant l'« Envoyer » d'une réponse ouverte, « Nouveau mail » devant un fil ouvert), lot 6, 19/11.
 - Une teinte de compte ou de projet ne va jamais sur un bouton : « Rejoindre » est à l'encre, la couleur du compte
   reste dans son rond.
 - Dans une capsule de verre (le lecteur, les gestes d'un fil ouvert), des `IconButton` : pas de verre sur le verre.
