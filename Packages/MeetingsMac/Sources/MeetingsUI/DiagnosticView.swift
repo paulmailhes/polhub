@@ -129,6 +129,8 @@ public final class DiagnosticModel: ObservableObject {
         testing = []
     }
 
+    /// Switches the relaunch without Général's guards: the page no longer calls it (lot 7, 19/11), its line goes through
+    /// `StartupControl`. Left for the app, which still gives `setRelaunch`.
     public func toggleRelaunch(_ on: Bool) {
         relaunchMessage = setRelaunch(on)
         states[.relaunch] = relaunchEnabled() ? .ok : .missing
@@ -146,11 +148,15 @@ public final class DiagnosticModel: ObservableObject {
     }
 }
 
-/// The Diagnostic page: each permission, its state, and how to fix it.
+/// The Diagnostic page: each permission, its state, and how to fix it. A line of Réglages › Général since lot 7 (19/11):
+/// the grouped form and the one width of Réglages, no title of its own (the window says it).
 public struct DiagnosticView: View {
     @ObservedObject var model: DiagnosticModel
     let colin: ColinProbeControl?
     let openProbes: () -> Void
+    /// Général's switch of the relaunch, given by Réglages (lot 7, 19/11): the line of the relaunch goes through it, its
+    /// questions and its wait for the end of a meeting, never round them.
+    @Environment(\.startupControl) private var startup
 
     /// `colin`: the probe of Colin, shown under the checks when the app gives it.
     public init(model: DiagnosticModel, colin: ColinProbeControl? = nil, openProbes: @escaping () -> Void) {
@@ -160,66 +166,56 @@ public struct DiagnosticView: View {
     }
 
     public var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Diagnostic").font(.title2.bold())
+        Form {
+            Section {
                 // What is missing: a problem, said by `ErrorLine` (design system v2, 19/11).
                 if model.allGood {
                     Text("Tout est prêt : chaque Meet ouvert dans Dia s'enregistre tout seul.").foregroundStyle(.secondary)
                 } else {
                     ErrorLine("Il manque quelque chose pour que les réunions s'enregistrent toutes seules.")
                 }
-
-                ForEach(model.items) { item in
-                    row(item)
-                    Divider()
-                }
-
+            }
+            Section {
+                ForEach(model.items) { item in row(item) }
                 HStack {
                     Button("Tout revérifier") { Task { await model.testAll(prompt: false) } }
                     Spacer()
                     // A link that acts: a word at the app's accent, the discreet role (design system v2, 19/11).
                     TextButton("Sondes de mesure…", action: openProbes)
                 }
-
-                if let colin {
-                    Divider()
-                    ColinProbeSection(control: colin)
-                }
             }
-            .padding(24)
-            .frame(maxWidth: 720, alignment: .leading)
+            if let colin {
+                Section { ColinProbeSection(control: colin) }
+            }
         }
+        .settingsForm()
         .task { if model.states.isEmpty { await model.testAll(prompt: false) } }
     }
 
     @ViewBuilder private func row(_ item: ChecklistItem) -> some View {
         let state = model.states[item] ?? .unknown
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: Space.m) {
             stateIcon(state, testing: model.testing.contains(item))
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.title).font(.headline)
-                Text(item.explanation).font(.callout).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.title)
+                Text(item.explanation).font(.meta).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 if case .denied(let reason) = state {
                     // In the text's color: the icon on the left carries the attention (design system v2, 19/11).
-                    Text(reason).font(.callout).foregroundStyle(.primary)
+                    Text(reason).font(.meta).foregroundStyle(.primary)
                 }
-                if item == .relaunch, let message = model.relaunchMessage {
-                    Text(message).font(.callout).foregroundStyle(.secondary)
-                }
+                if item == .relaunch, let startup { RelaunchProblem(startup: startup) }
             }
             Spacer()
             if item == .relaunch {
-                Toggle("", isOn: Binding(get: { state == .ok }, set: { model.toggleRelaunch($0) }))
-                    .toggleStyle(.switch)
-                    .labelsHidden()
+                if let startup { RelaunchSwitch(startup: startup, model: model, title: item.title) }
             } else {
                 Button(state == .missing ? "Autoriser" : "Tester") {
                     Task { await model.test(item, prompt: state == .missing) }
                 }
                 .disabled(model.testing.contains(item))
                 if state != .ok, let url = item.settingsURL {
-                    Button("Ouvrir les réglages") { NSWorkspace.shared.open(url) }
+                    // macOS's settings, named as in Réglages › Notifications: Polhub has its own Réglages.
+                    Button("Ouvrir Réglages Système") { NSWorkspace.shared.open(url) }
                 }
             }
         }
@@ -238,5 +234,29 @@ public struct DiagnosticView: View {
             case .unknown: Image(systemName: "questionmark.circle").foregroundStyle(.secondary).font(.title3)
             }
         }
+    }
+}
+
+/// The Diagnostic's switch of the relaunch (lot 7, 19/11): Général's own, with its questions and its wait for the end of a
+/// meeting; the line's state is read again once it changed.
+private struct RelaunchSwitch: View {
+    @ObservedObject var startup: StartupControl
+    @ObservedObject var model: DiagnosticModel
+    let title: String
+
+    var body: some View {
+        StartupSwitch(startup: startup, title: title)
+            .toggleStyle(.switch)
+            .labelsHidden()
+            .onChange(of: startup.isOn) { _, _ in Task { await model.test(.relaunch, prompt: false) } }
+    }
+}
+
+/// What holds the relaunch back, as Général says it: a meeting under way, a refusal of macOS.
+private struct RelaunchProblem: View {
+    @ObservedObject var startup: StartupControl
+
+    var body: some View {
+        if let message = startup.message { ErrorLine(message).font(.meta) }
     }
 }

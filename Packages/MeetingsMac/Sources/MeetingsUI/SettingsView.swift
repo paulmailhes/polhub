@@ -6,7 +6,8 @@ import SwiftUI
 import Updates
 
 /// Réglages, as Apple's (Paul, 14/11): the families first; each is entered, with a way back. Every new feature
-/// puts its settings in its family (docs/design-system.md).
+/// puts its settings in its family (docs/design-system.md). Lot 7 (19/11): the families in the sidebar's order, one
+/// width (640) for every page, each under the toolbar.
 struct SettingsPage<Diagnostic: View, Journal: View>: View {
     @ObservedObject var router: WindowRouter
     let updates: UpdateService?
@@ -48,25 +49,25 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
             if let pane = router.settingsPane {
                 content(pane)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    // Under the toolbar, as every page (lot 7, 19/11): touching it, the form drew a box of its own width there.
+                    .belowToolbar()
                     .toolbar {
                         ToolbarItem(placement: .navigation) {
                             // Back where the family was opened from: the families, or Mails for « Réglages des mails… »
-                            // (lot 4, 19/11).
-                            Button(action: close) { Label("Réglages", systemImage: "chevron.left") }
+                            // (lot 4, 19/11); a line of Général, back on Général (lot 7, 19/11).
+                            Button { router.closeSettings() } label: { Label("Réglages", systemImage: "chevron.left") }
                                 .help(router.returnHelp)
                         }
                     }
-                    .onExitCommand(perform: close)
+                    .onExitCommand { router.closeSettings() }
                     // The sidebar's word, then the family: where Paul is in it (lot 4, 19/11).
                     .windowTitle("Réglages", subtitle: pane.title)
             } else {
                 families.windowTitle("Réglages")
             }
         }
-    }
-
-    private func close() {
-        if !router.close() { router.settingsPane = nil }
+        // The Diagnostic's relaunch goes through Général's switch, and its guards (lot 7, 19/11).
+        .environment(\.startupControl, startup)
     }
 
     private var families: some View {
@@ -81,16 +82,16 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
                 }
             }
         }
-        .formStyle(.grouped)
-        .frame(maxWidth: 640)
-        .frame(maxWidth: .infinity)
+        .settingsForm()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .belowToolbar()
     }
 
     @ViewBuilder
     private func content(_ pane: SettingsPane) -> some View {
         switch pane {
         case .general:
-            GeneralSettingsPane(startup: startup)
+            GeneralSettingsPane(startup: startup) { router.settingsPane = $0 }
         case .notifications:
             NotificationsSettingsPane(hub: notifications)
         case .accounts:
@@ -115,11 +116,29 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
                                        description: Text("La version de développement ne se met jamais à jour."))
             }
         case .diagnostic:
-            diagnostic
+            diagnostic.frame(maxWidth: SettingsMetrics.width)
         case .journal:
-            journal
+            journal.frame(maxWidth: SettingsMetrics.width)
         }
     }
+}
+
+extension WindowRouter {
+    /// The ‹ and Échap of a page of Réglages (lot 7, 19/11). A line of Général (the Diagnostic, the Journal) goes one step
+    /// back, where it was opened from: Général, or the page that asked for the Diagnostic; opened first thing (the first
+    /// launch), Général. A family goes back where it was opened from (`close()`), the families at the least.
+    func closeSettings() {
+        if let parent = settingsPane?.parent {
+            if canGoBack { goBack() } else { settingsPane = parent }
+            return
+        }
+        if !close() { settingsPane = nil }
+    }
+}
+
+extension EnvironmentValues {
+    /// The relaunch's control, for the Diagnostic's line (lot 7, 19/11): the same switch and the same guards as Général's.
+    @Entry var startupControl: StartupControl? = nil
 }
 
 /// A family of Réglages: its icon in a colored square, its name, what it holds.
@@ -129,7 +148,7 @@ struct SettingsRow: View {
     var body: some View {
         HStack(spacing: Space.m) {
             Image(systemName: pane.icon)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.meta.weight(.semibold))
                 .foregroundStyle(.white)
                 .frame(width: 26, height: 26)
                 .background(Color(hex: pane.tint), in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
@@ -145,9 +164,62 @@ struct SettingsRow: View {
     }
 }
 
-/// Réglages › Général.
+/// The words of Réglages' pages (lot 7, 19/11): a help of one line under each setting that needs one, the long detail
+/// behind « ⓘ ». Colin, Mails, Inspiration and Projets keep theirs beside their page.
+enum SettingsText {
+    // Général
+    static let startup = "Ouvrir Polhub à l'ouverture de session"
+    static let startupHelp = "Il se relance aussi tout seul s'il s'arrête."
+    static let startupDetail = "Polhub reste dans la barre des menus quand sa fenêtre est fermée : les réunions s'enregistrent et les notifications arrivent."
+    static let floating = "Ouvrir un mail ou un projet"
+    static let floatingHelp = "En fenêtre flottante, la liste reste visible derrière ; Échap la referme."
+    static let meetMinutes = "Minutes avant un Meet dans la barre des menus"
+    static let meetMinutesHelp = "« 8 min » à côté du logo, dans le quart d'heure avant un rendez-vous avec Meet."
+
+    // Notifications
+    static let reminders = "Rappels avant un rendez-vous"
+    static let remindersHelp = "Un clic sur un rappel rejoint le Meet avec le bon compte."
+    static let remindersDetail = "Le Meet s'ouvre dans Dia, où la réunion s'enregistre. Les rappels arrivent même si Polhub est fermé."
+    static let card = "Carte qui reste à l'écran avant une visio"
+    static let cardHelp = "En haut à droite, jusqu'à ce que tu rejoignes ou la fermes, dix minutes après le début au plus."
+    static let unrecorded = "Réunion de l'agenda commencée sans enregistrement"
+    static let unrecordedHelp = "Cinq minutes après le début d'un rendez-vous avec Meet, si rien n'enregistre."
+    static let mailNotices = "Nouveau mail dans la Boîte de réception"
+    static let mailNoticesHelp = "Jamais pour le dossier Notifications, ni pendant la première lecture d'une boîte."
+    static let draftReady = "Un brouillon est prêt"
+    static let draftReadyHelp = "Quand un agent a préparé un mail ; un clic ouvre l'Accueil, sur le brouillon à relire."
+
+    // Réunions
+    static let summaries = "Comptes rendus automatiques"
+    static let summariesHelp = "Écrits sur le Mac par le modèle d'Apple, après la transcription, jamais pendant une réunion."
+    static let language = "Langue des réunions"
+    static let languageHelp = "Pour les prochaines réunions ; « Retranscrire », dans une réunion, en change une seule."
+
+    // Mises à jour
+    static let autoInstall = "Installer automatiquement les mises à jour"
+    static let autoInstallHelp = "Jamais pendant une réunion ni une transcription : elle attend que tout soit au repos."
+
+    // Calendrier
+    static let eventMeetHelp = "Chaque nouveau rendez-vous reçoit un lien Meet."
+    static let dayStartHelp = "La semaine s'ouvre sur cette heure."
+    static let tomorrowHelp = "Une fois fini ton dernier rendez-vous du jour."
+
+    // Comptes Google
+    static let colorHelp = "La couleur d'un compte marque ses rendez-vous dans le Calendrier et l'Accueil."
+    static let mailGrantDetail = "« Autoriser les mails » ouvre la page de Google ; l'agenda du compte reste connecté quoi que tu répondes."
+
+    /// Every help of these pages, for their test: one line each, two on screen at most.
+    static let helps = [startupHelp, floatingHelp, meetMinutesHelp, remindersHelp, cardHelp, unrecordedHelp, mailNoticesHelp, draftReadyHelp,
+                        summariesHelp, languageHelp, autoInstallHelp, eventMeetHelp, dayStartHelp, tomorrowHelp, colorHelp]
+    static let details = [startupDetail, remindersDetail, mailGrantDetail]
+}
+
+/// Réglages › Général: the session, how a mail or a project opens, the menu bar; then the Diagnostic and the Journal,
+/// one line each (lot 7, 19/11: no families of their own any more).
 struct GeneralSettingsPane: View {
     let startup: StartupControl?
+    /// Opens a line of Général: the Diagnostic, the Journal.
+    var open: (SettingsPane) -> Void = { _ in }
     @AppStorage(Preferences.Key.floatingPages) private var floating = true
     @AppStorage(Preferences.Key.menuBarMeetMinutes) private var meetMinutes = true
 
@@ -159,41 +231,77 @@ struct GeneralSettingsPane: View {
                 } else {
                     Text("La version de développement ne s'ouvre pas à la session.").foregroundStyle(.secondary)
                 }
-            } footer: {
-                Text("Polhub reste dans la barre des menus quand sa fenêtre est fermée : les réunions s'enregistrent et les notifications arrivent. Il se relance aussi tout seul s'il s'arrête.")
-            }
-            Section {
-                Picker("Ouvrir un mail ou un projet", selection: $floating) {
-                    Text("En fenêtre flottante").tag(true)
-                    Text("En pleine page").tag(false)
+                SettingRow(SettingsText.floating, help: SettingsText.floatingHelp) {
+                    Picker(SettingsText.floating, selection: $floating) {
+                        Text("En fenêtre flottante").tag(true)
+                        Text("En pleine page").tag(false)
+                    }
                 }
-            } footer: {
-                Text("En fenêtre flottante, la liste reste visible derrière ; Échap ou un clic à côté la referme.")
+                SettingRow(SettingsText.meetMinutes, help: SettingsText.meetMinutesHelp) {
+                    Toggle(SettingsText.meetMinutes, isOn: $meetMinutes)
+                }
             }
             Section {
-                Toggle("Minutes avant un Meet dans la barre des menus", isOn: $meetMinutes)
-            } footer: {
-                Text("Dans le quart d'heure qui précède un rendez-vous avec un lien Meet, « 8 min » s'affiche à côté du logo.")
+                ForEach(SettingsPane.general.lines, id: \.self) { line in
+                    Button { open(line) } label: { SettingsRow(pane: line) }
+                        .buttonStyle(.row(radius: Radius.control, inset: Space.s))
+                }
             }
         }
-        .formStyle(.grouped)
-        .frame(maxWidth: 640)
+        .settingsForm()
     }
 }
 
+/// « Ouvrir Polhub à l'ouverture de session », in Général: its help, and what holds it back (`ErrorLine`) in its place.
 struct StartupToggle: View {
     @ObservedObject var startup: StartupControl
+
+    var body: some View {
+        SettingRow(SettingsText.startup, help: SettingsText.startupHelp, detail: SettingsText.startupDetail, problem: startup.message) {
+            StartupSwitch(startup: startup, title: SettingsText.startup)
+        }
+    }
+}
+
+/// What a switch of the relaunch gets (lot 7, 19/11): the same answer in Général and in the Diagnostic.
+enum StartupAnswer: Equatable {
+    /// A meeting is on: the switch waits for its end (`StartupControl.message` says so).
+    case wait
+    /// Turning it off stops Polhub: asked first.
+    case confirmOff
+    /// Turning it on hands this copy over to macOS, whose window closes: asked first.
+    case confirmOn
+    /// Done at once.
+    case done
+}
+
+extension StartupControl {
+    /// The one way to switch the relaunch (review of 14/11; lot 7, 19/11: the Diagnostic's switch went round it): it waits
+    /// for the end of a meeting, asks before stopping Polhub or handing it over, and turns it on at once otherwise.
+    func ask(_ on: Bool) -> StartupAnswer {
+        guard canChange() else { return .wait }
+        if !on { return .confirmOff }
+        if handsOver { return .confirmOn }
+        set(true)
+        return .done
+    }
+}
+
+/// The switch of the relaunch and its two questions: the same in Général and in the Diagnostic (lot 7, 19/11), so that
+/// neither goes round the guards.
+struct StartupSwitch: View {
+    @ObservedObject var startup: StartupControl
+    let title: String
     @State private var confirmingOff = false
     @State private var confirmingOn = false
 
     var body: some View {
         // The dialogs hang on the switch itself (review of 14/11: on an EmptyView in a Form they never showed).
-        Toggle("Ouvrir Polhub à l'ouverture de session", isOn: Binding(get: { startup.isOn }, set: { on in
-            guard startup.canChange() else { return }
-            if on {
-                if startup.handsOver { confirmingOn = true } else { startup.set(true) }
-            } else {
-                confirmingOff = true
+        Toggle(title, isOn: Binding(get: { startup.isOn }, set: { on in
+            switch startup.ask(on) {
+            case .confirmOff: confirmingOff = true
+            case .confirmOn: confirmingOn = true
+            case .wait, .done: break
             }
         }))
         .confirmationDialog("Ne plus ouvrir Polhub à l'ouverture de session ?", isPresented: $confirmingOff) {
@@ -206,12 +314,43 @@ struct StartupToggle: View {
         } message: {
             Text("macOS prend Polhub sous sa garde : cette fenêtre se ferme, rouvre-la par l'icône de la barre des menus.")
         }
-        // What holds the switch back: a problem, said by `ErrorLine` (design system v2, 19/11).
-        if let message = startup.message { ErrorLine(message).font(.meta) }
     }
 }
 
-/// Réglages › Notifications (Paul, 14/11): what Polhub announces, and when. Mails and other kinds will join here.
+/// The minutes of the reminders, in a menu (lot 7, 19/11): « Rappel : 10 min avant ▾ », several ticked at once, in
+/// place of a row of pills.
+enum ReminderMenu {
+    static var choices: [Int] { Preferences.Default.reminderChoices }
+
+    static func item(_ minute: Int) -> String { "\(minute) min avant" }
+
+    /// « Rappel : 10 min avant », « Rappels : 30, 10 et 1 min avant », « Rappel : aucun ».
+    static func title(_ minutes: [Int]) -> String {
+        "\(label(minutes)) : \(value(minutes))"
+    }
+
+    /// The row's word: « Rappel », « Rappels » for several.
+    static func label(_ minutes: [Int]) -> String {
+        Set(minutes).count > 1 ? "Rappels" : "Rappel"
+    }
+
+    /// The menu's word: « 10 min avant », « 30, 10 et 1 min avant », « aucun ».
+    static func value(_ minutes: [Int]) -> String {
+        let sorted = Array(Set(minutes)).sorted(by: >)
+        guard let last = sorted.last else { return "aucun" }
+        guard sorted.count > 1 else { return "\(last) min avant" }
+        return sorted.dropLast().map(String.init).joined(separator: ", ") + " et \(last) min avant"
+    }
+
+    /// The stored minutes with this one ticked, or no longer.
+    static func toggled(_ text: String, _ minute: Int) -> String {
+        var minutes = Set(Preferences.minutes(text))
+        if minutes.contains(minute) { minutes.remove(minute) } else { minutes.insert(minute) }
+        return Preferences.minutesText(Array(minutes))
+    }
+}
+
+/// Réglages › Notifications (Paul, 14/11): what Polhub announces, and when.
 struct NotificationsSettingsPane: View {
     let hub: NotificationHub?
     @AppStorage(Preferences.Key.reminders) private var reminders = true
@@ -230,22 +369,16 @@ struct NotificationsSettingsPane: View {
     var body: some View {
         Form {
             Section {
-                Toggle("Rappels avant un rendez-vous", isOn: $reminders)
+                SettingRow(SettingsText.reminders, help: SettingsText.remindersHelp, detail: SettingsText.remindersDetail) {
+                    Toggle(SettingsText.reminders, isOn: $reminders)
+                }
                 if reminders {
-                    LabeledContent("Quand") {
-                        HStack(spacing: Space.xs) {
-                            ForEach(Preferences.Default.reminderChoices, id: \.self) { minute in
-                                let on = Preferences.minutes(minutesText).contains(minute)
-                                // A choice is a state, not an action: the chosen ones outlined at the accent
-                                // (design system v2, 19/11).
-                                Button("\(minute) min") { toggle(minute) }.buttonStyle(.choice(on))
-                            }
-                        }
-                        .controlSize(.small)
-                    }
+                    reminderMenu
                     Toggle("Seulement les rendez-vous avec une visio", isOn: $meetOnly)
                 }
-                Toggle("Carte qui reste à l'écran avant une visio", isOn: $meetingCard)
+                SettingRow(SettingsText.card, help: SettingsText.cardHelp) {
+                    Toggle(SettingsText.card, isOn: $meetingCard)
+                }
                 if meetingCard {
                     Picker("Quand", selection: $meetingCardMinutes) {
                         ForEach(Preferences.Default.meetingCardChoices, id: \.self) { minute in
@@ -256,50 +389,60 @@ struct NotificationsSettingsPane: View {
                 }
             } header: {
                 Text("Calendrier")
-            } footer: {
-                Text("Un clic sur un rappel rejoint le Meet avec le bon compte, dans Dia, où la réunion s'enregistre. Les rappels arrivent même si Polhub est fermé. La carte, en haut à droite, reste jusqu'à ce que tu rejoignes ou la fermes, dix minutes après le début au plus.")
             }
             Section {
                 Toggle("Nouveau rendez-vous dans tes agendas", isOn: $newEvents)
-                Toggle("Réunion de l'agenda commencée sans enregistrement", isOn: $unrecorded)
-            } footer: {
-                Text("Cinq minutes après le début d'un rendez-vous avec Meet, si rien n'enregistre : de quoi ne rater aucune réunion.")
+                SettingRow(SettingsText.unrecorded, help: SettingsText.unrecordedHelp) {
+                    Toggle(SettingsText.unrecorded, isOn: $unrecorded)
+                }
             }
             Section("Réunions") {
                 Toggle("Compte rendu prêt", isOn: $summaryReady)
             }
             Section {
-                Toggle("Nouveau mail dans l'onglet Personnes", isOn: $mailNotices)
+                // The mails' folders, no tabs any more (lot 7, 19/11: « l'onglet Personnes » had gone).
+                SettingRow(SettingsText.mailNotices, help: SettingsText.mailNoticesHelp) {
+                    Toggle(SettingsText.mailNotices, isOn: $mailNotices)
+                }
                 if mailNotices { Toggle("Seulement les mails de tes projets", isOn: $mailNoticesProjects) }
             } header: {
                 Text("Mails")
-            } footer: {
-                Text("Jamais pour l'onglet Notifications (services, lettres d'information), ni pendant la première lecture d'une boîte. Un clic ouvre le fil.")
             }
             Section {
-                Toggle("Un brouillon est prêt", isOn: $draftReady)
+                SettingRow(SettingsText.draftReady, help: SettingsText.draftReadyHelp) {
+                    Toggle(SettingsText.draftReady, isOn: $draftReady)
+                }
             } header: {
                 Text("Colin")
-            } footer: {
-                Text("Quand un agent a préparé un mail. Un clic ouvre l'Accueil, où le brouillon t'attend en tête d'« À valider ».")
             }
             Section {
                 Toggle("Son", isOn: $sound)
                 if let hub { NotificationStatus(hub: hub) }
-            } footer: {
-                Text("Bientôt ici : les échéances des projets, le résumé du matin.")
             }
         }
-        .formStyle(.grouped)
-        .frame(maxWidth: 640)
+        .settingsForm()
         .onChange(of: [reminders, meetOnly, sound]) { _, _ in replan() }
         .onChange(of: minutesText) { _, _ in replan() }
     }
 
-    private func toggle(_ minute: Int) {
-        var minutes = Set(Preferences.minutes(minutesText))
-        if minutes.contains(minute) { minutes.remove(minute) } else { minutes.insert(minute) }
-        minutesText = Preferences.minutesText(Array(minutes))
+    /// « Rappels    10 et 1 min avant ▾ »: each minute ticked in the menu, several at once (lot 7, 19/11), the row read as
+    /// the pickers of the page.
+    private var reminderMenu: some View {
+        let minutes = Preferences.minutes(minutesText)
+        return LabeledContent {
+            Menu {
+                ForEach(ReminderMenu.choices, id: \.self) { minute in
+                    Toggle(ReminderMenu.item(minute), isOn: Binding(get: { minutes.contains(minute) },
+                                                                    set: { _ in minutesText = ReminderMenu.toggled(minutesText, minute) }))
+                }
+            } label: {
+                Text(ReminderMenu.value(minutes))
+            }
+            .fixedSize()
+            .accessibilityLabel(ReminderMenu.title(minutes))
+        } label: {
+            Text(ReminderMenu.label(minutes))
+        }
     }
 
     private func replan() {
@@ -335,27 +478,22 @@ struct MeetingsSettingsPane: View {
     var body: some View {
         Form {
             Section {
-                Toggle("Comptes rendus automatiques", isOn: $summaries)
-                // Why they cannot be written: a problem, said by `ErrorLine` (design system v2, 19/11).
-                if let unavailable = library.summaryUnavailable {
-                    ErrorLine(unavailable).font(.meta)
-                } else {
-                    Text("Écrits sur le Mac par le modèle d'Apple, après la transcription, jamais pendant une réunion.")
-                        .font(.meta).foregroundStyle(.secondary)
+                // Why they cannot be written: a problem, said by `ErrorLine` in place of the help (design system v2, 19/11).
+                SettingRow(SettingsText.summaries, help: SettingsText.summariesHelp, problem: library.summaryUnavailable) {
+                    Toggle(SettingsText.summaries, isOn: $summaries)
                 }
             }
             Section("Transcription") {
-                Picker("Langue des réunions", selection: $language) {
-                    Text("Français").tag("fr")
-                    Text("Anglais").tag("en")
-                    Text("Détectée par le moteur").tag("auto")
+                SettingRow(SettingsText.language, help: SettingsText.languageHelp) {
+                    Picker(SettingsText.language, selection: $language) {
+                        Text("Français").tag("fr")
+                        Text("Anglais").tag("en")
+                        Text("Détectée par le moteur").tag("auto")
+                    }
                 }
-                Text("Pour les prochaines réunions ; « Retranscrire », dans une réunion, en change une seule.")
-                    .font(.meta).foregroundStyle(.secondary)
             }
         }
-        .formStyle(.grouped)
-        .frame(maxWidth: 640)
+        .settingsForm()
     }
 }
 
@@ -370,9 +508,9 @@ struct UpdatesSettingsView: View {
                 LabeledContent("Dernière vérification", value: updates.lastCheck.map {
                     $0.formatted(date: .abbreviated, time: .shortened)
                 } ?? "pas encore")
-                Toggle("Installer automatiquement les mises à jour", isOn: $updates.autoInstall)
-                Text("Jamais pendant une réunion ni une transcription : elle attend que tout soit au repos.")
-                    .font(.meta).foregroundStyle(.secondary)
+                SettingRow(SettingsText.autoInstall, help: SettingsText.autoInstallHelp) {
+                    Toggle(SettingsText.autoInstall, isOn: $updates.autoInstall)
+                }
                 if let text = UpdateService.text(updates.state) {
                     // A failure: said by `ErrorLine` (design system v2, 19/11); the other states in grey.
                     if case .failed = updates.state {
@@ -401,8 +539,6 @@ struct UpdatesSettingsView: View {
                 }
             }
         }
-        .formStyle(.grouped)
-        .frame(maxWidth: 640)
+        .settingsForm()
     }
 }
-

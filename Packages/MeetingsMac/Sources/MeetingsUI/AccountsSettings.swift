@@ -17,14 +17,13 @@ struct AccountsSettingsPane: View {
                     .buttonStyle(.secondary)
                     .disabled(!agenda.hasGoogleKey)
                 if let message = agenda.message { Text(message).font(.meta).foregroundStyle(.secondary) }
+                // In the card, under what it explains (lot 7, 19/11): no paragraph under the card any more.
+                SettingHelp(SettingsText.colorHelp)
             } header: {
                 Text("Comptes")
-            } footer: {
-                Text("La couleur d'un compte marque ses rendez-vous dans le Calendrier et l'Accueil. « Autoriser les mails » ouvre la page de Google ; l'agenda du compte reste connecté quoi que tu répondes.")
             }
         }
-        .formStyle(.grouped)
-        .frame(maxWidth: 640)
+        .settingsForm()
         .confirmationDialog("Déconnecter \(leaving?.email ?? "") ?", isPresented: Binding(get: { leaving != nil }, set: { if !$0 { leaving = nil } })) {
             Button("Déconnecter", role: .destructive) {
                 if let email = leaving?.email { Task { await agenda.disconnect(email) } }
@@ -51,7 +50,11 @@ struct AccountSettingsRow: View {
                     Text(account.email).font(.meta).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button("Déconnecter…", role: .destructive, action: disconnect).buttonStyle(.secondary).controlSize(.small)
+                // A rare gesture that no « Annuler » brings back: in the menu « … » of its account, with its question
+                // (lot 7, 19/11), no longer the most visible button of each account.
+                IconMenu("ellipsis", help: "Plus") {
+                    Button("Déconnecter…", role: .destructive, action: disconnect)
+                }
             }
             HStack(spacing: Space.xs) {
                 ForEach(Array(AccountStyle.choices.enumerated()), id: \.element) { index, hex in
@@ -82,6 +85,8 @@ struct AccountSettingsRow: View {
                     Button("Autoriser les mails") { Task { await agenda.authorizeMail(account.email) } }
                         .controlSize(.small)
                         .disabled(!agenda.hasGoogleKey)
+                    // What Google's page does, beside the button that opens it (lot 7, 19/11).
+                    InfoBubble(SettingsText.mailGrantDetail)
                 }
             }
         }

@@ -28,25 +28,31 @@ struct CalendarSettingsPane: View {
                     Text("1 h").tag(60)
                     Text("1 h 30").tag(90)
                 }
-                Toggle("Visio Google Meet", isOn: $eventMeet)
+                // What a name does not say, said under it (lot 7, 19/11).
+                SettingRow("Visio Google Meet", help: SettingsText.eventMeetHelp) {
+                    Toggle("Visio Google Meet", isOn: $eventMeet)
+                }
             }
             Section("Affichage") {
                 Toggle("Afficher le week-end", isOn: $showWeekend)
-                Picker("La grille s'ouvre à", selection: $dayStartHour) {
-                    ForEach([6, 7, 8, 9, 10], id: \.self) { Text("\($0) h").tag($0) }
+                SettingRow("La grille s'ouvre à", help: SettingsText.dayStartHelp) {
+                    Picker("La grille s'ouvre à", selection: $dayStartHour) {
+                        ForEach([6, 7, 8, 9, 10], id: \.self) { Text("\($0) h").tag($0) }
+                    }
                 }
             }
             // 0.36.0: in the evening, the Accueil shows tomorrow's meetings, once today's last one is over.
             Section("Accueil") {
-                Picker("L'Accueil montre demain à partir de", selection: $homeTomorrowFrom) {
-                    ForEach(16...23, id: \.self) { Text("\($0) h").tag($0 * 60) }
+                SettingRow("L'Accueil montre demain à partir de", help: SettingsText.tomorrowHelp) {
+                    Picker("L'Accueil montre demain à partir de", selection: $homeTomorrowFrom) {
+                        ForEach(16...23, id: \.self) { Text("\($0) h").tag($0 * 60) }
+                    }
                 }
             }
             Section {
                 SyncStatus(agenda: agenda)
             }
         }
-        .formStyle(.grouped)
-        .frame(maxWidth: 640)
+        .settingsForm()
     }
 }

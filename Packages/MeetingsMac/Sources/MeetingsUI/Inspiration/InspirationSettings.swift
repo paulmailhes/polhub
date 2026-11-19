@@ -23,13 +23,12 @@ struct InspirationSettingsPane: View {
             sourcesSection
             collectionSection
             Section {
-                Toggle("Catégories par l'IA d'Apple", isOn: $aiCategories)
-            } footer: {
-                Text("Le modèle d'Apple, sur le Mac, range chaque nouvelle fiche dans tes catégories, d'après son texte. Il ne touche jamais une fiche dont tu as choisi les catégories.")
+                SettingRow("Catégories par l'IA d'Apple", help: InspirationSettingsText.aiHelp) {
+                    Toggle("Catégories par l'IA d'Apple", isOn: $aiCategories)
+                }
             }
         }
-        .formStyle(.grouped)
-        .frame(maxWidth: 640)
+        .settingsForm()
         .sheet(item: $editing) { draft in InspirationSourceSheet(library: library, source: draft.source) }
         .confirmationDialog("Ne plus suivre « \(removing?.name ?? "") » ?",
                             isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }), presenting: removing) { source in
@@ -55,10 +54,10 @@ struct InspirationSettingsPane: View {
             ForEach(library.sources) { source in sourceRow(source) }
             Button { editing = SourceDraft(source: nil) } label: { Label("Ajouter une page LinkedIn", systemImage: "plus") }
                 .buttonStyle(.hover)
+            // In the card, under the pages it explains (lot 7, 19/11).
+            SettingHelp(InspirationSettingsText.sourcesHelp)
         } header: {
             Text("Pages LinkedIn")
-        } footer: {
-            Text("Polhub lit la page publique de chaque studio, sans compte ni cookie : ses 10 derniers posts. La couleur marque ses publications dans Branding.")
         }
     }
 
@@ -90,7 +89,9 @@ struct InspirationSettingsPane: View {
 
     private var collectionSection: some View {
         Section {
-            Toggle("Collecte automatique", isOn: $autoCollect)
+            SettingRow("Collecte automatique", help: InspirationSettingsText.collectHelp, detail: InspirationSettingsText.collectDetail) {
+                Toggle("Collecte automatique", isOn: $autoCollect)
+            }
             let lines = library.status.filter { line in !library.sources.contains { $0.link == line.id } }
             if lines.isEmpty {
                 Text(InspirationSettingsText.noRunYet).font(.meta).foregroundStyle(.secondary)
@@ -117,8 +118,6 @@ struct InspirationSettingsPane: View {
             // other gestures' errors).
         } header: {
             Text("Collecte")
-        } footer: {
-            Text("Le site du jour d'Awwwards toutes les 2 heures de 8 h à 22 h, les pages LinkedIn à 9 h, 14 h et 20 h, et au réveil du Mac, quand Polhub est ouvert. Jamais dans la version de développement.")
         }
     }
 }
@@ -126,6 +125,15 @@ struct InspirationSettingsPane: View {
 /// The words of Réglages › Inspiration, pure.
 enum InspirationSettingsText {
     static let noRunYet = "Pas encore de collecte."
+
+    // One line of help under each setting, the long detail behind « ⓘ » (lot 7, 19/11).
+    static let sourcesHelp = "Leurs 10 derniers posts, lus sans compte ni cookie ; la couleur les marque dans Branding."
+    static let collectHelp = "Awwwards et tes pages LinkedIn, plusieurs fois par jour, quand Polhub est ouvert."
+    static let collectDetail = "Le site du jour d'Awwwards toutes les 2 heures de 8 h à 22 h, les pages LinkedIn à 9 h, 14 h et 20 h, et au réveil du Mac, quand Polhub est ouvert. Jamais dans la version de développement."
+    static let aiHelp = "Le modèle d'Apple, sur le Mac, range chaque nouvelle fiche ; jamais celles que tu as rangées."
+
+    /// Every help of the page, for its test.
+    static let helps = [sourcesHelp, collectHelp, aiHelp]
 
     /// « linkedin.com/company/studio-exemple · lue aujourd'hui à 14:02, 2 nouveaux posts », or what went wrong. A
     /// reading restored from the base says no count: it is not known.

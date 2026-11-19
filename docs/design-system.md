@@ -195,6 +195,8 @@ ne va jamais seule : toujours un mot ou un symbole avec elle.
 | `TextButton("Modifier") { }` | Un mot à cliquer dans une carte (« Modifier », « Changer », « Tout enregistrer… ») : sa capsule au survol, son texte aligné sur la carte |
 | `RowButton { ligne }` | Une ligne cliquable d'une carte (Accueil, page d'un projet, Contacts) : toute la largeur répond, le fond déborde sans décaler le texte |
 | `IconMenu("ellipsis", help: "Plus") { }` | Un menu derrière une icône ronde, dessiné comme `IconButton` |
+| `SettingRow("Titre", help:, detail:, problem:) { contrôle }` | Un réglage dans sa carte : le titre, l'aide d'une ligne dessous, « ⓘ » pour le détail, le contrôle à droite ; `.settingsForm()` pour la page |
+| `SettingHelp("Phrase", detail:)`, `InfoBubble("Détail")` | L'aide d'une ligne seule (sous une liste, un éditeur), et « ⓘ » avec sa bulle |
 | `NotificationBell(inbox:perform:)` (module `MeetingsUI`) | La cloche des notifications, dans la barre d'outils près du bouton de la barre latérale, et au pied de Coup d'œil : le nombre de nouvelles en pastille à l'encre ; un clic ouvre le panneau (popover en verre) : cartes calmes à la couleur de leur section, par jour, les rafales en pile, un point bleu tant qu'elles sont nouvelles, × au survol ou glissé pour en effacer une, « Tout effacer » |
 | `ProjectLogo(projet, size:)` (module `ProjectsUI`) | Le logo d'un projet : l'icône du site du client sur une plaque blanche, sinon ses initiales sur sa couleur (le monogramme, aussi dans les tests et les captures) |
 
@@ -226,8 +228,9 @@ Quatre rôles, et rien d'autre ne dessine un bouton dans le contenu :
 - **Un rond en verre qui flotte** au-dessus d'une page (✕ d'un panneau, « … » d'un projet) reste neutre :
   `.tint(nil)` (mesuré : il redevient du verre neutre sous une racine teintée).
 - **« Arrêter »** un enregistrement : `.primary(.recording)`, un rouge plein (`Tint.recordingFill`) au libellé blanc.
-- **Un choix parmi quelques-uns** (les minutes d'un rappel) : `.buttonStyle(.choice(choisi))`, le choisi cerné
-  d'encre ; un choix est un état, jamais un bouton principal.
+- **Un choix parmi quelques-uns** : `.buttonStyle(.choice(choisi))`, le choisi cerné d'encre ; un choix est un état,
+  jamais un bouton principal. Dans un formulaire, un menu ou un segmenté ; plusieurs choix à la fois (les minutes
+  d'un rappel), un menu à coches (lot 7, 19/11 : les cinq pastilles des rappels sont parties).
 - `.primary`, `.secondary` et `.choice` suivent `.controlSize`, aux hauteurs du système (mesurées le 19/11) : 20, 24
   et 28 points en petit, normal et grand ; une page garde sa mise en page quand ses boutons changent de rôle.
 - Une teinte de compte ou de projet ne va jamais sur un bouton : « Rejoindre » est à l'encre, la couleur du compte
@@ -507,7 +510,31 @@ puis nourries par la collecte et ses ajouts. La logique vit à part, testée san
 ## Les réglages
 
 - Chaque fonction range ses réglages dans **Réglages**, dans sa famille (Calendrier, Projets, Réunions…),
-  comme les réglages d'Apple : la liste des familles, puis une page par famille, avec un retour.
+  comme les réglages d'Apple : la liste des familles, puis une page par famille, avec un retour (Paul, 14/11 ; pas deux
+  colonnes, confirmé le 19/11).
+- **Les familles suivent la barre latérale** (lot 7, 19/11), calculées depuis sa liste (`SettingsPane.families`) :
+  Colin (la famille de l'Accueil, où il vit), Projets, Réunions, Calendrier, Mails, Inspiration ; puis ce qui vaut
+  pour toute l'app : Comptes Google, Notifications, Mises à jour, Général. Diagnostic et Journal ne sont pas des
+  familles : deux lignes en bas de Général (`SettingsPane.lines`). Leur ‹ revient d'un pas, là d'où ils ont été
+  ouverts : Général, ou la page qui a demandé le Diagnostic ; ouverts d'emblée (premier lancement), Général
+  (`WindowRouter.closeSettings()`).
+- **Une page** : le formulaire groupé du système, à une seule largeur, 640 points (`settingsForm()`,
+  `SettingsMetrics.width`), liste des familles comprise ; elle commence sous la barre d'outils (`belowToolbar()`).
+- **Un réglage** (`SettingRow`) : son titre, sa phrase d'aide juste dessous, dans sa carte (`SettingHelp`, `.meta`
+  gris), son contrôle à droite (un interrupteur reste un interrupteur). Une ligne, deux au plus
+  (`SettingHelp.longest`, 110 caractères) ; aucune quand le titre dit tout ; jamais un paragraphe sous une carte. Le
+  détail long (ce qui quitte le Mac, les règles exactes) est derrière « ⓘ », une bulle (`InfoBubble`). Ce qui empêche
+  le réglage de marcher prend la place de l'aide (`ErrorLine`).
+- **Plusieurs choix à la fois** : un menu à coches, dit comme les autres listes de la page (« Rappels   10 et 1 min
+  avant »).
+- **Un geste rare qui ne se rattrape pas** (« Déconnecter… » un compte Google) : dans le menu « … » de sa ligne, avec
+  sa question.
+- **Un réglage, une seule garde** : l'ouverture à la session et la relance passent partout par `StartupControl`
+  (`StartupSwitch`, dans Général et dans le Diagnostic) : elles attendent la fin d'une réunion et demandent avant de
+  fermer Polhub.
+- **Ce qui quitte le Mac se dit là où on le choisit** : ce que Colin lit pour répondre part chez Anthropic
+  (Réglages › Colin) ; « Les mails de tes projets », pour les agents, est une préférence, pas une barrière : une
+  session qui a un terminal peut la changer (Réglages › Mails ; audit de sécurité du 19/11, M6 et M8).
 - Une page n'a pas de bouton de réglage à elle ; au plus un raccourci vers sa famille dans Réglages.
 - Chaque réglage a sa clé et sa valeur par défaut dans `Preferences` (module `PolhubDesign`) ; les vues le lisent
   par `@AppStorage(Preferences.Key…)`.
@@ -523,6 +550,7 @@ POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter "WindowSnapshot
 POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter CoupDoeilScreenTests   # Coup d'œil et le logo
 POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter InspirationScreenTests  # Inspiration, données inventées
 POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter HomeScreenTests         # l'Accueil, données inventées
+POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter SettingsScreenTests     # Réglages, chaque page, clair et sombre
 ```
 
 Une suite à la fois : lancées ensemble, les captures ont laissé des corps de mails vides (19/11).

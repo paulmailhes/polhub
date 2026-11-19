@@ -37,10 +37,10 @@ import Testing
         #expect(SidebarRow.selected(section: .settings, folder: nil, mailsOpen: true) == nil)
     }
 
-    /// Réglages › Inspiration: a family of its own, after Réunions, with Paul's tools.
+    /// Réglages › Inspiration: a family of its own, after Mails, as in the sidebar (lot 7, 19/11).
     @Test func reglagesHasAnInspirationFamily() {
         let families = SettingsPane.families(hasAgenda: true, hasProjects: true, hasMails: true, hasInspiration: true)
-        #expect(families[1] == [.accounts, .calendar, .mails, .colin, .projects, .meetings, .inspiration])
+        #expect(families[0] == [.colin, .projects, .meetings, .calendar, .mails, .inspiration])
         #expect(SettingsPane.inspiration.title == "Inspiration")
         #expect(!SettingsPane.families(hasAgenda: true, hasProjects: true).flatMap { $0 }.contains(.inspiration))
     }
