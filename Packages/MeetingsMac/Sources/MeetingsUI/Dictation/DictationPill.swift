@@ -9,7 +9,10 @@ import SwiftUI
     static let width: CGFloat = 520
     private let panel: NSPanel
 
+    let service: DictationService
+
     init(service: DictationService) {
+        self.service = service
         panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: Self.width, height: 180), styleMask: [.nonactivatingPanel, .borderless],
                         backing: .buffered, defer: true)
         panel.isFloatingPanel = true
@@ -23,11 +26,13 @@ import SwiftUI
         panel.contentView = NSHostingView(rootView: DictationPillView(service: service))
     }
 
-    /// Centered at the bottom of the screen the pointer is on; the window grows upwards with the text.
+    /// Centered at the bottom of the screen the pointer is on, growing upwards with the text; or at its top, under the
+    /// menu bar and the notch, growing downwards (Réglages › Dictée › « Place »).
     func show() {
         let screen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) } ?? NSScreen.main
         if let frame = screen?.visibleFrame {
-            panel.setFrameOrigin(NSPoint(x: frame.midX - panel.frame.width / 2, y: frame.minY + 24))
+            let y = service.windowAtTop ? frame.maxY - panel.frame.height - 8 : frame.minY + 24
+            panel.setFrameOrigin(NSPoint(x: frame.midX - panel.frame.width / 2, y: y))
         }
         panel.orderFrontRegardless()
     }
@@ -64,7 +69,7 @@ struct DictationPillView: View {
         .frame(width: DictationPill.width)
         .glassEffect(.regular, in: .rect(cornerRadius: Radius.card))
         .animation(.easeOut(duration: 0.18), value: words)
-        .frame(width: DictationPill.width, height: 180, alignment: .bottom)
+        .frame(width: DictationPill.width, height: 180, alignment: service.windowAtTop ? .top : .bottom)
     }
 
     /// The words said so far, or what the window says once.

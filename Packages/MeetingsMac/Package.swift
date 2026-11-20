@@ -109,7 +109,7 @@ let package = Package(
             .product(name: "FluidAudio", package: "FluidAudio"),
         ]),
         .executableTarget(name: "HubCalcul", dependencies: ["Compute", "Transcription"]),
-        .executableTarget(name: "HubDictee", dependencies: ["Compute", "Transcription", "Dictation"]),
+        .executableTarget(name: "HubDictee", dependencies: ["Compute", "Transcription", "Dictation", "AudioCapture"]),
         // Claude Code reads the meetings through these, read-only.
         .target(name: "ReadingKit", dependencies: [
             "MailFormat",

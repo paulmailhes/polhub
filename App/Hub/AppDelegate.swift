@@ -304,8 +304,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         startAgenda(database: store.database)
         // The Dictée (20/11): its helper keeps Whisper loaded, the key is watched.
         if addOns.contains(.dictation) {
-            let library = DictationLibrary(database: store.database)
-            let service = DictationService(library: library, helper: Bundle.main.bundleURL.appending(path: "Contents/Helpers/hub-dictee"))
+            let library = DictationLibrary(database: store.database, sounds: paths.dictation)
+            // The music paused through `hub-media.dylib`; the Mac's sound left alone while hub records a meeting.
+            let service = DictationService(library: library, helper: Bundle.main.bundleURL.appending(path: "Contents/Helpers/hub-dictee"),
+                                           media: Bundle.main.bundleURL.appending(path: "Contents/Helpers/hub-media.dylib"),
+                                           inMeeting: { [weak self] in
+                                               switch self?.model.status {
+                                               case .prompting, .recording, .presumedEnded: true
+                                               default: false
+                                               }
+                                           })
             service.start()
             dictation = library
             dictationService = service

@@ -84,6 +84,13 @@ targets:
         copy:
           destination: wrapper
           subpath: Contents/Helpers
+      - target: HubMedia
+        embed: true
+        codeSign: true
+        link: false
+        copy:
+          destination: wrapper
+          subpath: Contents/Helpers
       - target: HubCLI
         embed: true
         codeSign: true
@@ -158,6 +165,13 @@ targets:
         copy:
           destination: wrapper
           subpath: Contents/Helpers
+      - target: HubMedia
+        embed: true
+        codeSign: true
+        link: false
+        copy:
+          destination: wrapper
+          subpath: Contents/Helpers
       - target: HubCLI
         embed: true
         codeSign: true
@@ -215,6 +229,8 @@ targets:
         product: Transcription
       - package: MeetingsMac
         product: Dictation
+      - package: MeetingsMac
+        product: AudioCapture
     settings:
       base:
         PRODUCT_NAME: hub-dictee
@@ -222,6 +238,24 @@ targets:
         CODE_SIGN_ENTITLEMENTS: App/Hub/HubDictee.entitlements
         MACOSX_DEPLOYMENT_TARGET: "27.0"
         SWIFT_VERSION: "6.0"
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "Developer ID Application"
+        DEVELOPMENT_TEAM: CQ43U6XX4Z
+        ENABLE_HARDENED_RUNTIME: YES
+        SKIP_INSTALL: YES
+  # hub-media (20/11): « what is playing », read and paused for the Dictée through /usr/bin/perl (`MediaBridge`).
+  HubMedia:
+    type: library.dynamic
+    platform: macOS
+    sources:
+      - path: App/HubMedia
+    settings:
+      base:
+        PRODUCT_NAME: hub-media
+        EXECUTABLE_PREFIX: ""
+        MACOSX_DEPLOYMENT_TARGET: "27.0"
+        CLANG_ENABLE_OBJC_ARC: YES
+        OTHER_LDFLAGS: "-framework Foundation"
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: "Developer ID Application"
         DEVELOPMENT_TEAM: CQ43U6XX4Z

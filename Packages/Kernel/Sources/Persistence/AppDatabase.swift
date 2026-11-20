@@ -629,6 +629,10 @@ public final class AppDatabase: Sendable {
         migrator.registerMigration("v22", foreignKeyChecks: .immediate) { db in
             try DictationSchema.create(db)
         }
+        // 20/11 in the evening: the Dictée writes files too, and keeps their name.
+        migrator.registerMigration("v23", foreignKeyChecks: .immediate) { db in
+            try DictationSchema.addFile(db)
+        }
         return migrator
     }
 }

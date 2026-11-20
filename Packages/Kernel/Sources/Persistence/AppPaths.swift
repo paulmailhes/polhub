@@ -30,6 +30,8 @@ public struct AppPaths: Sendable, Equatable {
     public var backups: URL { root.appending(path: "Sauvegardes", directoryHint: .isDirectory) }
     /// The projects' logos, and the sites they come from (15/11): outside the base.
     public var logos: URL { root.appending(path: "Logos", directoryHint: .isDirectory) }
+    /// The sound of each dictation (Réglages › Dictée › « Garder le son », 20/11): on this Mac only.
+    public var dictation: URL { root.appending(path: "Dictee", directoryHint: .isDirectory) }
     /// The notifications hub sent, as its own list shows them (15/11): a small file, outside the base.
     public var notifications: URL { root.appending(path: "Notifications.json") }
     /// « Inspiration » (16/11): the images of the sites, the branding and the mock-ups, outside the base (the

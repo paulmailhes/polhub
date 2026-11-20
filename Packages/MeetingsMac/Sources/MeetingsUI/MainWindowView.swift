@@ -770,7 +770,7 @@ public struct MainWindowView<Diagnostic: View>: View {
             case .inspiration:
                 if let inspiration { InspirationSectionView(library: inspiration, router: router) }
             case .dictation:
-                if let dictation { DictationPage(library: dictation) }
+                if let dictation { DictationPage(library: dictation, service: dictationService) }
             case .projects:
                 if let projects {
                     ProjectsView(library: projects)

@@ -3,6 +3,37 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.63.0 — 20 novembre 2026
+
+**Dictée : une page en cartes, et tous les réglages que tu as choisis.**
+
+- **La page Dictée**, deux onglets en cartes :
+  - **Historique** : tes dictées rangées par jour, à copier, à réécouter ou à retranscrire avec ta mémoire du moment ;
+    une recherche (⌘F) dans toutes tes dictées ;
+  - **Mémoire** : tes mots en pastilles, tes corrections, et les noms que hub connaît déjà.
+- **Transcrire un fichier** : glisse un son ou une vidéo sur l'historique, ou « Transcrire un fichier… » en haut.
+  Un vocal, un mémo, un MP4 ou un MOV : son texte rejoint l'historique.
+- **Le texte**, réglable dans Réglages › Dictée :
+  - **ponctuation dite** : « à la ligne », « nouveau paragraphe », « virgule », « point d'interrogation »…
+    deviennent des signes ;
+  - **nombres en chiffres** : « dix heures trente » donne « 10 h 30 », « vingt-cinq euros » donne « 25 € » ;
+  - **paragraphes** : une longue pause, quand tu changes de sujet, commence un paragraphe ;
+  - **sans point final** sur une phrase seule, comme dans un message ;
+  - **les « euh »**, retirés ou non ;
+  - **une espace après** le texte collé.
+- **La touche** : la dictée finit seule après un long silence, si tu oublies d'appuyer (10 s, réglable).
+- **Le son** :
+  - **les micros**, dans l'ordre que tu veux : le premier branché sert ;
+  - **des petits sons** au début et à la fin ;
+  - **le son du Mac coupé** pendant que tu dictes ;
+  - **la musique ou la vidéo en pause**, puis relancée.
+
+  Jamais de sourdine ni de pause pendant une réunion que hub enregistre.
+- **L'historique** :
+  - **le son** de chaque dictée est gardé sur ce Mac ;
+  - **l'historique s'efface seul** après 7, 30 ou 90 jours, si tu veux.
+- **La fenêtre** : en bas ou en haut de l'écran, au choix.
+
 ## 0.62.0 — 20 novembre 2026
 
 **Dictée : un appui pour commencer, un appui pour finir.**

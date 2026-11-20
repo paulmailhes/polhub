@@ -1,3 +1,5 @@
+import AudioCapture
+import AudioToolbox
 import AVFoundation
 import Compute
 import Dictation
@@ -7,6 +9,7 @@ import Transcription
 /// `hub-dictee`: the Dictée's ear (20/11). Launched by the app while the Dictée is installed, it keeps Whisper loaded,
 /// listens to the microphone on « commencer », says the words as they come, and the whole text on « finir ». One line of
 /// JSON per order on its input, per news on its output (`DictationWire`). It dies with the app that launched it.
+/// 20/11 in the evening: the microphone Paul chose, the sound kept, the paragraphs after the long pauses, the files.
 setenv("HF_HUB_OFFLINE", "1", 1)
 guard getppid() != 1 else { exit(0) }
 let parentWatch = DispatchSource.makeProcessSource(identifier: getppid(), eventMask: .exit, queue: .global())
@@ -35,8 +38,7 @@ actor Ear {
     let engine: WhisperEngine
     private var samples: [Float] = []
     private var listening = false
-    private var language: String?
-    private var prompt = ""
+    private var options = DictationListening(language: "fr", prompt: "")
     private var busy = false
     private var lastLevel = Date.distantPast
 
@@ -44,10 +46,9 @@ actor Ear {
         self.engine = engine
     }
 
-    func begin(language: String?, prompt: String) {
+    func begin(_ options: DictationListening) {
         samples = []
-        self.language = language
-        self.prompt = prompt
+        self.options = options
         listening = true
     }
 
@@ -66,7 +67,7 @@ actor Ear {
         guard listening, !busy, samples.count > 8_000 else { return }
         busy = true
         let heard = Array(samples.suffix(16_000 * 28))
-        let text = (try? await engine.dictate(heard, language: language, prompt: prompt, long: false)) ?? ""
+        let text = (try? await engine.dictate(heard, language: options.language, prompt: options.prompt, long: false)) ?? ""
         busy = false
         if listening, !text.isEmpty { emit(.partial(text)) }
     }
@@ -83,27 +84,43 @@ actor Ear {
             emit(.final(text: "", seconds: Double(heard.count) / 16_000))
             return
         }
+        if let path = options.keepSoundAt { keep(heard, at: path) }
         do {
-            let text = try await engine.dictate(heard, language: language, prompt: prompt, long: heard.count > 16_000 * 28)
-            emit(.final(text: text, seconds: Double(heard.count) / 16_000))
+            emit(.final(text: try await write(heard, options), seconds: Double(heard.count) / 16_000))
         } catch {
             emit(.failed("Whisper n'a pas pu écrire ce qui a été dit (\(error))."))
         }
     }
 
-    /// A file, for the measures.
-    func file(_ path: String, language: String?, prompt: String) async {
+    /// A file of sound or a video, or a kept sound written again.
+    func file(id: String, path: String, options: DictationListening) async {
+        while busy { try? await Task.sleep(for: .milliseconds(20)) }
+        busy = true
+        defer { busy = false }
         do {
-            let file = try AVAudioFile(forReading: URL(fileURLWithPath: path))
-            guard let read = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)) else { return }
-            try file.read(into: read)
-            let heard = convert(read)
-            let started = Date()
-            let text = try await engine.dictate(heard, language: language, prompt: prompt, long: heard.count > 16_000 * 28)
-            emit(.final(text: text, seconds: Date().timeIntervalSince(started)))
+            let heard = try await read(path)
+            guard heard.count > 4_000 else {
+                emit(.fileFailed(id: id, reason: "Il n'y a presque rien à entendre dans ce fichier."))
+                return
+            }
+            emit(.transcribed(id: id, text: try await write(heard, options), seconds: Double(heard.count) / 16_000))
         } catch {
-            emit(.failed("Le fichier n'a pas pu être lu (\(error))."))
+            emit(.fileFailed(id: id, reason: "Ce fichier n'a pas pu être lu : hub lit les sons et les vidéos que lit QuickTime."))
         }
+    }
+
+    /// The whole text; with paragraphs after the long pauses when Paul wants them, and when there are some.
+    private func write(_ heard: [Float], _ options: DictationListening) async throws -> String {
+        let long = heard.count > 16_000 * 28
+        guard let pause = options.paragraphPause else {
+            return try await engine.dictate(heard, language: options.language, prompt: options.prompt, long: long)
+        }
+        let breaks = DictationParagraphs.pauses(heard, longerThan: pause)
+        guard !breaks.isEmpty else {
+            return try await engine.dictate(heard, language: options.language, prompt: options.prompt, long: long)
+        }
+        let pieces = try await engine.dictatePieces(heard, language: options.language, prompt: options.prompt, long: long)
+        return DictationParagraphs.join(pieces.map { DictationParagraphs.Piece(text: $0.text, start: $0.start, end: $0.end) }, breaks: breaks)
     }
 }
 
@@ -125,6 +142,35 @@ func convert(_ buffer: AVAudioPCMBuffer) -> [Float] {
     return Array(UnsafeBufferPointer(start: channel, count: Int(out.frameLength)))
 }
 
+/// The sound of a file or of a video, as 16 kHz mono. AVAudioFile reads them all on macOS 27, videos and Opus voice
+/// messages included (measured 20/11 on aiff, m4a, mp3, ogg, opus, mp4, mov); read a minute at a time.
+func read(_ path: String) async throws -> [Float] {
+    let file = try AVAudioFile(forReading: URL(fileURLWithPath: path))
+    let slice = AVAudioFrameCount(file.processingFormat.sampleRate * 60)
+    guard let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: slice) else { throw CocoaError(.fileReadCorruptFile) }
+    var samples: [Float] = []
+    while file.framePosition < file.length {
+        try file.read(into: buffer, frameCount: slice)
+        guard buffer.frameLength > 0 else { break }
+        samples += convert(buffer)
+    }
+    return samples
+}
+
+/// The sound of a dictation, in AAC (about 4 kB a second), where the app asked.
+func keep(_ samples: [Float], at path: String) {
+    let url = URL(fileURLWithPath: path)
+    try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+    let settings: [String: Any] = [AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 16_000, AVNumberOfChannelsKey: 1,
+                                   AVEncoderBitRateKey: 32_000]
+    guard let file = try? AVAudioFile(forWriting: url, settings: settings, commonFormat: .pcmFormatFloat32, interleaved: false),
+          let buffer = AVAudioPCMBuffer(pcmFormat: whisperFormat, frameCapacity: AVAudioFrameCount(samples.count)),
+          let channel = buffer.floatChannelData?[0] else { return }
+    buffer.frameLength = AVAudioFrameCount(samples.count)
+    samples.withUnsafeBufferPointer { channel.update(from: $0.baseAddress!, count: samples.count) }
+    try? file.write(from: buffer)
+}
+
 let engine: WhisperEngine
 do {
     engine = try await WhisperEngine(locations: locations)
@@ -139,11 +185,22 @@ let microphone = AVAudioEngine()
 nonisolated(unsafe) var partials: Task<Void, Never>?
 emit(.ready)
 
-func startListening() {
+/// The microphone Paul chose, or the system's: set before each dictation, the engine stopped.
+func use(microphone uid: String?) {
+    guard var device = uid.flatMap(Devices.device(uid:)) ?? Devices.defaultInput() else { return }
+    microphone.inputNode.withAudioUnit { (unit: borrowing AudioUnit?) in
+        guard let unit = copy unit else { return }
+        _ = AudioUnitSetProperty(unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0, &device,
+                                 UInt32(MemoryLayout<AudioObjectID>.size))
+    }
+}
+
+func startListening(_ options: DictationListening) {
+    use(microphone: options.microphone)
     let input = microphone.inputNode
-    let format = input.outputFormat(forBus: 0)
     input.removeTap(onBus: 0)
-    input.installTap(onBus: 0, bufferSize: 4_096, format: format) { buffer, _ in
+    // The format of the microphone in use: another one may have been chosen since the last dictation.
+    input.installTap(onBus: 0, bufferSize: 4_096, format: nil) { buffer, _ in
         let chunk = convert(buffer)
         Task { await ear.append(chunk) }
     }
@@ -168,21 +225,22 @@ func stopListening() {
     microphone.stop()
 }
 
-// The orders, read on a thread of their own: reading waits.
+// The orders, read on a thread of their own: reading waits. A file is written aside: the key stays free meanwhile.
 while let line = readLine(strippingNewline: true) {
     guard let command = try? DictationWire.read(DictationCommand.self, line) else { continue }
     switch command {
-    case .start(let language, let prompt):
-        await ear.begin(language: language, prompt: prompt)
-        startListening()
+    case .start(let options):
+        await ear.begin(options)
+        startListening(options)
     case .stop:
         stopListening()
         await ear.finish(cancelled: false)
     case .cancel:
         stopListening()
         await ear.finish(cancelled: true)
-    case .file(let path, let language, let prompt):
-        await ear.file(path, language: language, prompt: prompt)
+    case .file(let id, let path, let options):
+        // Detached: the main thread waits on the next order, a task of its own would never start.
+        Task.detached { await ear.file(id: id, path: path, options: options) }
     }
 }
 exit(0)

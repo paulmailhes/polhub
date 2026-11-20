@@ -78,6 +78,16 @@ public final class WhisperEngine: TranscribingEngine, @unchecked Sendable {
     /// The Dictée (20/11): one recording, its text. The memory's words go as Whisper's prompt; a recording longer than
     /// one window is cut by WhisperKit's own detector.
     public func dictate(_ samples: [Float], language: String?, prompt: String, long: Bool) async throws -> String {
+        try await dictation(samples, language: language, prompt: prompt, long: long, timed: false)
+            .map(\.text).joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// The same, in pieces with their times (20/11 in the evening): the paragraphs start after the long pauses.
+    public func dictatePieces(_ samples: [Float], language: String?, prompt: String, long: Bool) async throws -> [EngineSegment] {
+        try await dictation(samples, language: language, prompt: prompt, long: long, timed: true)
+    }
+
+    private func dictation(_ samples: [Float], language: String?, prompt: String, long: Bool, timed: Bool) async throws -> [EngineSegment] {
         var tokens: [Int]?
         if !prompt.isEmpty, let tokenizer = kit.tokenizer {
             let begin = tokenizer.specialTokens.specialTokenBegin
@@ -88,13 +98,20 @@ public final class WhisperEngine: TranscribingEngine, @unchecked Sendable {
             usePrefillPrompt: true,
             detectLanguage: language == nil,
             skipSpecialTokens: true,
-            withoutTimestamps: true,
+            withoutTimestamps: !timed,
             promptTokens: tokens,
             concurrentWorkerCount: 4,
             chunkingStrategy: long ? .vad : ChunkingStrategy.none
         )
         let results = try await kit.transcribe(audioArray: samples, decodeOptions: options)
-        return results.map(\.text).joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard timed else {
+            return results.map { EngineSegment(start: 0, end: 0, text: $0.text, avgLogprob: 0, compressionRatio: 0, noSpeechProb: 0) }
+        }
+        return results.flatMap(\.segments).map { segment in
+            EngineSegment(start: Double(segment.start), end: Double(segment.end), text: segment.text,
+                          avgLogprob: Double(segment.avgLogprob), compressionRatio: Double(segment.compressionRatio),
+                          noSpeechProb: Double(segment.noSpeechProb))
+        }
     }
 
     public enum EngineError: Error, CustomStringConvertible {

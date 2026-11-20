@@ -100,6 +100,33 @@ public struct Preferences: @unchecked Sendable {
         public static let dictationLiveText = "dictee.direct"
         /// The clipboard as it was after the text is pasted; on by default: the text stays in the history.
         public static let dictationRestoreClipboard = "dictee.pressePapiers"
+        /// Réglages › Dictée, the choices of 20/11 in the evening. Seconds of silence before a dictation finishes alone
+        /// (0: never; 10 by default); seconds of pause before a paragraph (0: never; 3 by default).
+        public static let dictationAutoStop = "dictee.arretSeul"
+        public static let dictationParagraphPause = "dictee.paragraphes"
+        /// The text's rules (`DictationRules`), each on by default.
+        public static let dictationFillers = "dictee.euh"
+        public static let dictationSpokenPunctuation = "dictee.ponctuationDite"
+        public static let dictationDigits = "dictee.chiffres"
+        public static let dictationDropFinalPeriod = "dictee.sansPointFinal"
+        /// A space after the pasted text; on by default.
+        public static let dictationTrailingSpace = "dictee.espace"
+        /// The window at the bottom of the screen (« bas », by default) or at the top (« haut »).
+        public static let dictationWindowPlace = "dictee.fenetre"
+        /// The small sounds, the Mac muted, the music paused while Paul dictates; each on by default.
+        public static let dictationSounds = "dictee.sons"
+        public static let dictationMuteMac = "dictee.couperLeSon"
+        public static let dictationPauseMedia = "dictee.pauseMusique"
+        /// The microphones by Paul's order, as Core Audio UIDs: the first connected is used, else the system's.
+        public static let dictationMicrophones = "dictee.micros"
+        /// The names of the microphones seen once (« UID⇥nom » by line), to list those not connected now.
+        public static let dictationMicrophoneNames = "dictee.nomsDesMicros"
+        /// The sound of each dictation kept, to hear it or write it again; on by default.
+        public static let dictationKeepSound = "dictee.garderLeSon"
+        /// Days the history is kept (0: always, by default).
+        public static let dictationKeepDays = "dictee.garderJours"
+        /// The output hub muted, by its UID, until it is given back: a hub stopped mid-dictation gives it back at launch.
+        public static let dictationMutedOutput = "dictee.sonCoupePar"
         public static let cardSize = "projets.tailleDesCartes"
         /// Réglages › Projets (15/11): the logos asked of the clients' sites.
         public static let projectLogos = "projets.logosEnLigne"

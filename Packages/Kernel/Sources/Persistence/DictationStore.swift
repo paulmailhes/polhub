@@ -13,14 +13,17 @@ public struct DictationRow: Codable, FetchableRecord, PersistableRecord, Equatab
     public var app: String?
     public var seconds: Double
     public var createdAt: Date
+    /// The file it was written from (« Transcrire un fichier », base v23), by its name; nil for a dictation.
+    public var file: String?
 
-    public init(id: UUID = UUID(), text: String, raw: String, app: String?, seconds: Double, createdAt: Date) {
+    public init(id: UUID = UUID(), text: String, raw: String, app: String?, seconds: Double, createdAt: Date, file: String? = nil) {
         self.id = id
         self.text = text
         self.raw = raw
         self.app = app
         self.seconds = seconds
         self.createdAt = createdAt
+        self.file = file
     }
 }
 
@@ -70,6 +73,11 @@ enum DictationSchema {
             t.column("value", .text).notNull()
         }
     }
+
+    /// 20/11 in the evening: « Transcrire un fichier ».
+    static func addFile(_ db: Database) throws {
+        try db.alter(table: "dictation") { t in t.add(column: "file", .text) }
+    }
 }
 
 /// What the Dictée keeps (20/11): its history, and the memory Paul tends.
@@ -99,6 +107,40 @@ public struct DictationStore: Sendable {
 
     public func delete(_ id: UUID) throws {
         _ = try writer.write { try DictationRow.deleteOne($0, key: id) }
+    }
+
+    /// The text written again (« Retranscrire »).
+    public func setText(_ id: UUID, text: String, raw: String) throws {
+        try writer.write { db in
+            try db.execute(sql: "UPDATE dictation SET text = ?, raw = ? WHERE id = ?", arguments: [text, raw, id.uuidString.lowercased()])
+        }
+    }
+
+    /// The dictations whose words hold `text`, whatever the case, the newest first.
+    public func search(_ text: String, limit: Int) throws -> [DictationRow] {
+        let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !words.isEmpty else { return try recent(limit: limit) }
+        let pattern = "%" + words.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "%", with: "\\%")
+            .replacingOccurrences(of: "_", with: "\\_") + "%"
+        return try writer.read { db in
+            try DictationRow.fetchAll(db, sql: "SELECT * FROM dictation WHERE text LIKE ? ESCAPE '\\' OR file LIKE ? ESCAPE '\\' ORDER BY createdAt DESC LIMIT ?",
+                                      arguments: [pattern, pattern, limit])
+        }
+    }
+
+    /// « Garder l'historique 30 jours »: the dictations made before `date` go; their ids, for their sounds.
+    @discardableResult
+    public func deleteOlder(than date: Date) throws -> [UUID] {
+        try writer.write { db in
+            let ids = try UUID.fetchAll(db, sql: "SELECT id FROM dictation WHERE createdAt < ?", arguments: [date])
+            try db.execute(sql: "DELETE FROM dictation WHERE createdAt < ?", arguments: [date])
+            return ids
+        }
+    }
+
+    /// Every id, to find the sounds left without their dictation.
+    public func ids() throws -> Set<UUID> {
+        try writer.read { Set(try UUID.fetchAll($0, sql: "SELECT id FROM dictation")) }
     }
 
     /// Calls `onChange` on the main queue with the newest dictations: now, and after every change.

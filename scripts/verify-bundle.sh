@@ -54,6 +54,8 @@ check "droit audio-input"                 has "$entitlements" "com.apple.securit
 check "droit apple-events"                has "$entitlements" "com.apple.security.automation.apple-events"
 # Notarisation : Apple refuse une signature sans horodatage sécurisé ou avec le droit de débogage.
 lacks() { ! grep -qF -- "$2" <<<"$1"; }
+# Perl, a hardened program, loads a library only by its full path.
+media_state() { /usr/bin/perl -e 'use DynaLoader; my $l = DynaLoader::dl_load_file($ARGV[0]) or exit 2; my $s = DynaLoader::dl_find_symbol($l, "hub_media_state") or exit 3; DynaLoader::dl_install_xsub("main::o", $s); main::o();' "$(cd "$HELPERS" && pwd)/hub-media.dylib" | grep -qE '^[01] [0-9]+$'; }
 check "horodatage sécurisé"               has "$details" "Timestamp="
 check "pas de droit get-task-allow"       lacks "$entitlements" "get-task-allow"
 
@@ -69,6 +71,12 @@ for tool in hub-calcul hub-dictee hub; do
 done
 # The Dictée's helper listens to the microphone itself (20/11).
 check "hub-dictee : droit audio-input"   has "$(codesign -d --entitlements - --xml "$HELPERS/hub-dictee" 2>/dev/null)" "com.apple.security.device.audio-input"
+# The Dictée's bridge to « what is playing » (20/11): signed like the app, loaded by /usr/bin/perl.
+media_details=$(codesign -dv --verbose=4 "$HELPERS/hub-media.dylib" 2>&1 || true)
+check "hub-media.dylib présent"           test -f "$HELPERS/hub-media.dylib"
+check "hub-media.dylib signé par CQ43U6XX4Z" has "$media_details" "TeamIdentifier=CQ43U6XX4Z"
+check "hub-media.dylib horodaté"          has "$media_details" "Timestamp="
+check "hub-media.dylib répond par Perl"   media_state
 check "hub --help répond"           "$HELPERS/hub" --help
 check "aucun modèle d'IA lié à l'app"     not_linked_whisperkit
 
