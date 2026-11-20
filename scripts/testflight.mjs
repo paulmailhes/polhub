@@ -79,8 +79,11 @@ if (ordre === "attendre") {
   // Attend que la dernière version envoyée soit traitée par Apple : elle est alors dans TestFlight.
   const fiche = await app();
   if (!fiche) throw new Error("La fiche de l'app n'existe pas encore.");
+  // `pret 202611201131`: that build; else the last one uploaded.
+  const voulue = process.argv[3];
   for (;;) {
-    const r = await asc(`/v1/builds?filter[app]=${fiche.id}&sort=-uploadedDate&limit=1&fields[builds]=version,processingState`);
+    const filtre = voulue ? `&filter[version]=${voulue}` : "";
+    const r = await asc(`/v1/builds?filter[app]=${fiche.id}${filtre}&sort=-uploadedDate&limit=1&fields[builds]=version,processingState`);
     const build = r.corps?.data?.[0];
     if (build?.attributes.processingState === "VALID") {
       console.log(`Version ${build.attributes.version} prête dans TestFlight.`);
