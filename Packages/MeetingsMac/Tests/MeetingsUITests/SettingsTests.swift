@@ -14,11 +14,11 @@ import Testing
     /// Notifications, Mises à jour, Général.
     @Test func theFamiliesFollowTheSidebar() {
         let all = SettingsPane.families(hasAgenda: true, hasProjects: true, hasMails: true, hasInspiration: true)
-        #expect(all == [[.colin, .projects, .meetings, .calendar, .mails, .inspiration], [.accounts, .notifications, .updates, .general]])
+        #expect(all == [[.colin, .projects, .meetings, .calendar, .mails, .inspiration], [.accounts, .iphone, .notifications, .updates, .general]])
         #expect(all[0].map(\.section) == SidebarItem.visible(hasProjects: true, hasAgenda: true, hasMails: true, hasInspiration: true))
         #expect(SettingsPane.families(hasAgenda: true, hasProjects: true)
-            == [[.projects, .meetings, .calendar], [.accounts, .notifications, .updates, .general]])
-        #expect(SettingsPane.families(hasAgenda: false, hasProjects: false) == [[.meetings], [.notifications, .updates, .general]])
+            == [[.projects, .meetings, .calendar], [.accounts, .iphone, .notifications, .updates, .general]])
+        #expect(SettingsPane.families(hasAgenda: false, hasProjects: false) == [[.meetings], [.iphone, .notifications, .updates, .general]])
         // Paul finds a family by its color: none shared within a group.
         for group in all { #expect(Set(group.map(\.tint)).count == group.count) }
     }

@@ -11,6 +11,7 @@ VERSION  := $(shell cat VERSION)
 check:
 	swift test --package-path Packages/Kernel
 	swift test --package-path Packages/MeetingsMac
+	swift test --package-path Packages/Link
 
 # Le projet Xcode est généré, jamais versionné.
 gen:

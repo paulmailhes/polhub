@@ -97,13 +97,14 @@ public enum SidebarItem: String, Hashable, Sendable {
 /// The families of Réglages, entered one by one, as in Apple's settings (Paul, 14/11). Every new feature puts
 /// its settings in its family.
 public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
-    case general, notifications, accounts, calendar, mails, colin, projects, meetings, inspiration, updates, diagnostic, journal
+    case general, notifications, accounts, iphone, calendar, mails, colin, projects, meetings, inspiration, updates, diagnostic, journal
 
     public var title: String {
         switch self {
         case .general: "Général"
         case .notifications: "Notifications"
         case .accounts: "Comptes Google"
+        case .iphone: "iPhone"
         case .calendar: "Calendrier"
         case .mails: "Mails"
         case .colin: "Colin"
@@ -121,6 +122,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .general: "gearshape.fill"
         case .notifications: "bell.badge.fill"
         case .accounts: "person.crop.circle.fill"
+        case .iphone: "iphone"
         case .calendar: "calendar"
         case .mails: "envelope.fill"
         case .colin: "sparkles"
@@ -138,6 +140,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .general: Palette.gray
         case .notifications: Palette.red
         case .accounts: Palette.teal
+        case .iphone: Palette.blue
         case .calendar: Palette.orange
         case .mails: Palette.pink
         case .colin: Palette.green
@@ -158,6 +161,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .general: "Ouverture à la session, barre des menus, diagnostic, journal"
         case .notifications: "Rappels de rendez-vous, nouveaux rendez-vous, comptes rendus"
         case .accounts: "Comptes, couleurs, accès à l'agenda et aux mails"
+        case .iphone: "Accès depuis ton iPhone, iPhone reliés"
         case .calendar: "Nouveaux rendez-vous, affichage"
         case .mails: "Liste, images, envoi, agents, tri"
         case .colin: "Marche, ce qu'il sait, ce qu'il signale"
@@ -177,7 +181,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         let work = SidebarItem.visible(hasProjects: hasProjects, hasAgenda: hasAgenda, hasMails: hasMails, hasInspiration: hasInspiration)
             .compactMap { section in allCases.first { $0.section == section } }
             .filter { $0 != .colin || hasMails }
-        return [work, [hasAgenda ? .accounts : nil, .notifications, .updates, .general].compactMap { $0 }]
+        return [work, [hasAgenda ? .accounts : nil, .iphone, .notifications, .updates, .general].compactMap { $0 }]
     }
 
     /// The section of the sidebar a family is about (lot 7, 19/11): Colin's is the Accueil, where he lives.
@@ -189,7 +193,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .calendar: .calendar
         case .mails: .mails
         case .inspiration: .inspiration
-        case .general, .notifications, .accounts, .updates, .diagnostic, .journal: nil
+        case .general, .notifications, .accounts, .iphone, .updates, .diagnostic, .journal: nil
         }
     }
 
@@ -659,6 +663,8 @@ public struct MainWindowView<Diagnostic: View>: View {
     let updates: UpdateService?
     let notifications: NotificationHub?
     let startup: StartupControl?
+    /// Réglages › iPhone (20/11): the app's own; none in a window made without it.
+    let phone: PhoneAccess?
     @ObservedObject var router: WindowRouter
     let paths: AppPaths
     let diagnostic: Diagnostic
@@ -667,8 +673,9 @@ public struct MainWindowView<Diagnostic: View>: View {
     public init(
         library: MeetingLibrary, projects: ProjectLibrary? = nil, agenda: AgendaLibrary? = nil, mails: MailLibrary? = nil, colin: ColinLibrary? = nil,
         thread: ColinThread? = nil, colinProbe: ColinProbeControl? = nil, claudeAccounts: ClaudeAccountsModel? = nil, inspiration: InspirationLibrary? = nil, updates: UpdateService? = nil, notifications: NotificationHub? = nil,
-        startup: StartupControl? = nil, router: WindowRouter, paths: AppPaths, @ViewBuilder diagnostic: () -> Diagnostic
+        startup: StartupControl? = nil, phone: PhoneAccess? = nil, router: WindowRouter, paths: AppPaths, @ViewBuilder diagnostic: () -> Diagnostic
     ) {
+        self.phone = phone
         self.notifications = notifications
         self.startup = startup
         self.library = library
@@ -786,7 +793,8 @@ public struct MainWindowView<Diagnostic: View>: View {
                 .searchable(text: $router.query, placement: .toolbar, prompt: "Chercher dans les réunions")
             case .settings:
                 SettingsPage(router: router, updates: updates, projects: projects, agenda: agenda, mails: mails, inspiration: inspiration,
-                             library: library, notifications: notifications, startup: startup, colinThread: thread, colinProbe: colinProbe) {
+                             library: library, notifications: notifications, startup: startup, colinThread: thread, colinProbe: colinProbe,
+                             phone: phone) {
                     diagnostic
                 } journal: {
                     JournalView(entries: library.journal)

@@ -82,10 +82,18 @@ struct SettingsScreenTests {
         let logos = ProjectLogos(folder: logosFolder, database: nil, defaults: quiet)
         let router = WindowRouter()
         try await waitUntil { agenda.accounts.count == 2 && mails.senders.count == 2 }
+        // Réglages › iPhone (20/11): switched on, an iPhone paired, a QR code waiting; nothing listens (never started).
+        let phoneDefaults = try #require(UserDefaults(suiteName: "reglages-iphone-\(UUID().uuidString)"))
+        phoneDefaults.set(true, forKey: PhoneAccess.enabledKey)
+        phoneDefaults.set("https://mac.exemple.ts.net:8443", forKey: PhoneAccess.addressKey)
+        let phone = PhoneAccess(database: agenda.database, agenda: agenda, mails: mails, appVersion: "0.51.0", defaults: phoneDefaults, port: 0)
+        let (_, seen) = phone.store.pair(name: "iPhone")
+        _ = phone.store.device(for: seen)
+        phone.pair()
 
         func window(_ startup: StartupControl) -> some View {
             MainWindowView(library: library, projects: projects, agenda: agenda, mails: mails, thread: thread, colinProbe: probe,
-                           inspiration: inspiration, updates: updates, startup: startup, router: router, paths: world.paths) {
+                           inspiration: inspiration, updates: updates, startup: startup, phone: phone, router: router, paths: world.paths) {
                 DiagnosticView(model: model, colin: probe) {}
             }
             .environment(\.projectLogos, logos)

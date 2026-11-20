@@ -23,13 +23,16 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
     /// Colin's bar and the account of his probe (18/11), for Réglages › Colin.
     let colinThread: ColinThread?
     let colinProbe: ColinProbeControl?
+    /// Réglages › iPhone (20/11).
+    let phone: PhoneAccess?
     let diagnostic: Diagnostic
     let journal: Journal
 
     init(router: WindowRouter, updates: UpdateService?, projects: ProjectLibrary?, agenda: AgendaLibrary? = nil, mails: MailLibrary? = nil,
          inspiration: InspirationLibrary? = nil, library: MeetingLibrary,
          notifications: NotificationHub? = nil, startup: StartupControl? = nil, colinThread: ColinThread? = nil, colinProbe: ColinProbeControl? = nil,
-         @ViewBuilder diagnostic: () -> Diagnostic, @ViewBuilder journal: () -> Journal) {
+         phone: PhoneAccess? = nil, @ViewBuilder diagnostic: () -> Diagnostic, @ViewBuilder journal: () -> Journal) {
+        self.phone = phone
         self.colinThread = colinThread
         self.colinProbe = colinProbe
         self.notifications = notifications
@@ -97,6 +100,12 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
             NotificationsSettingsPane(hub: notifications)
         case .accounts:
             if let agenda { AccountsSettingsPane(agenda: agenda) }
+        case .iphone:
+            if let phone {
+                PhoneSettingsPane(access: phone)
+            } else {
+                ContentUnavailableView("Aucun accès", systemImage: "iphone", description: Text("La version de développement ne s'ouvre pas à l'iPhone."))
+            }
         case .calendar:
             if let agenda { CalendarSettingsPane(agenda: agenda) }
         case .mails:

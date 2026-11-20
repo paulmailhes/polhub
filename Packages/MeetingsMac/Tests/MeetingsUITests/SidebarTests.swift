@@ -103,8 +103,8 @@ import Testing
     /// then the whole app's; Diagnostic and Journal are lines of Général.
     @Test func reglagesListsItsFamilies() {
         let families = SettingsPane.families(hasAgenda: true, hasProjects: true)
-        #expect(families.map { $0.map(\.title) } == [["Projets", "Réunions", "Calendrier"], ["Comptes Google", "Notifications", "Mises à jour", "Général"]])
-        #expect(SettingsPane.families(hasAgenda: false, hasProjects: false).map { $0.map(\.title) } == [["Réunions"], ["Notifications", "Mises à jour", "Général"]])
+        #expect(families.map { $0.map(\.title) } == [["Projets", "Réunions", "Calendrier"], ["Comptes Google", "iPhone", "Notifications", "Mises à jour", "Général"]])
+        #expect(SettingsPane.families(hasAgenda: false, hasProjects: false).map { $0.map(\.title) } == [["Réunions"], ["iPhone", "Notifications", "Mises à jour", "Général"]])
     }
 
     @Test func openingTheDiagnosticEntersItsFamily() {

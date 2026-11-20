@@ -7,6 +7,7 @@ import MeetingDetection
 import MeetingsUI
 import Observability
 import Persistence
+import PolhubLink
 import Pipeline
 import PolhubDesign
 import ProbeKit
@@ -63,6 +64,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     /// Calendars, contacts and the loop of 13/11.
     private var agenda: AgendaLibrary?
     private var mails: MailLibrary?
+    /// Polhub on the iPhone (20/11): Réglages › iPhone, and the server on the loopback when Paul switched it on.
+    private var phone: PhoneAccess?
     /// What the Accueil knows (18/11): « À valider » and « Le point », kept up to date window open or not.
     private var colin: ColinLibrary?
     /// Colin's bar (18/11): his thread, and the one Claude Code it launches.
@@ -403,6 +406,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let mails = MailLibrary(agenda: agenda, root: paths.root, schedules: .keychain)
         self.mails = mails
         mails.start()
+        // Polhub on the iPhone (20/11): the development build listens one port further, so both can run.
+        let phone = PhoneAccess(database: database, agenda: agenda, mails: mails,
+                                appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0",
+                                port: isDevelopment ? LinkAPI.port + 1 : LinkAPI.port)
+        self.phone = phone
+        Task { await phone.resume() }
         // What waits for Paul's click and « Le point » (18/11): rules alone, no model, nothing leaves the Mac.
         colin = ColinLibrary(agenda: agenda, mails: mails)
         // Colin's bar (18/11): the Claude Code of this Mac, on the account of Réglages › Colin (empty: Claude Code's own),
@@ -747,7 +756,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             let diagnostic = diagnostic
             let probe = colinProbe
             let view = MainWindowView(library: library, projects: projects, agenda: agenda, mails: mails, colin: colin, thread: colinThread, colinProbe: colinProbe, claudeAccounts: claudeAccounts, inspiration: inspiration,
-                                      updates: updates, notifications: notifications, startup: startup, router: router, paths: paths) {
+                                      updates: updates, notifications: notifications, startup: startup, phone: phone, router: router, paths: paths) {
                 if let diagnostic {
                     DiagnosticView(model: diagnostic, colin: probe) { [weak self] in self?.showProbeWindow() }
                 }

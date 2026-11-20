@@ -3,6 +3,19 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.51.0 — 20 novembre 2026
+
+**Polhub s'ouvre à l'iPhone (première étape).**
+
+- Réglages › iPhone : un interrupteur « Accès depuis l'iPhone », l'adresse du Mac sur Tailscale (lue toute seule), la
+  commande à coller une fois pour que Tailscale publie Polhub, les iPhone reliés et « Retirer ».
+- « Relier un iPhone » montre un QR code valable dix minutes : l'appareil photo de l'iPhone l'ouvre dans Polhub, qui garde
+  sa clé. Le Mac n'en garde que l'empreinte.
+- Polhub n'écoute que sur ce Mac (`127.0.0.1`), jamais sur le Wi-Fi ; Tailscale le publie pour tes seuls appareils. Sans
+  la clé d'un iPhone relié, rien ne se lit.
+- Ce que l'iPhone lira : les mails (Boîte de réception, Automatiques, Envoyés, Tous les messages, les fils et leurs pièces
+  jointes), l'agenda, les projets et les réunions. L'app iPhone vient avec la prochaine étape.
+
 ## 0.50.0 — 20 novembre 2026
 
 **Colin met à jour plusieurs projets d'un coup.**

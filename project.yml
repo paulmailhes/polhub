@@ -18,6 +18,9 @@ packages:
     path: Packages/Kernel
   MeetingsMac:
     path: Packages/MeetingsMac
+  # What the Mac and the iPhone say to each other (20/11).
+  Link:
+    path: Packages/Link
 targets:
   Polhub:
     type: application
@@ -53,6 +56,8 @@ targets:
         product: Pipeline
       - package: MeetingsMac
         product: MeetingsUI
+      - package: Link
+        product: PolhubLink
       - package: MeetingsMac
         product: ProjectsUI
       - package: MeetingsMac
@@ -121,6 +126,8 @@ targets:
         product: Pipeline
       - package: MeetingsMac
         product: MeetingsUI
+      - package: Link
+        product: PolhubLink
       - package: MeetingsMac
         product: ProjectsUI
       - package: MeetingsMac
