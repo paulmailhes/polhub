@@ -58,6 +58,8 @@ targets:
         product: MeetingsUI
       - package: Link
         product: PolhubLink
+      - package: Link
+        product: PolhubCloud
       - package: MeetingsMac
         product: ProjectsUI
       - package: MeetingsMac
@@ -91,8 +93,10 @@ targets:
         # Info.plist is written by hand: Xcode drops NSAudioCaptureUsageDescription from generated ones.
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: App/Polhub/Info.plist
-        CODE_SIGN_STYLE: Manual
-        CODE_SIGN_IDENTITY: "Developer ID Application"
+        # iCloud (20/11) needs a provisioning profile: Xcode makes it with Paul's account (`make app` archives, then exports
+        # signed Developer ID). Measured in prive/docs/mesures/2026-11-20-icloud-signature.md.
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "Apple Development"
         DEVELOPMENT_TEAM: CQ43U6XX4Z
         CODE_SIGN_ENTITLEMENTS: App/Polhub/Polhub.entitlements
         ENABLE_HARDENED_RUNTIME: YES
@@ -128,6 +132,8 @@ targets:
         product: MeetingsUI
       - package: Link
         product: PolhubLink
+      - package: Link
+        product: PolhubCloud
       - package: MeetingsMac
         product: ProjectsUI
       - package: MeetingsMac
@@ -156,7 +162,8 @@ targets:
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: "Developer ID Application"
         DEVELOPMENT_TEAM: CQ43U6XX4Z
-        CODE_SIGN_ENTITLEMENTS: App/Polhub/Polhub.entitlements
+        # Without iCloud: the development build has no provisioning profile.
+        CODE_SIGN_ENTITLEMENTS: App/Polhub/PolhubDev.entitlements
         ENABLE_HARDENED_RUNTIME: YES
         # The icon, made with Icon Composer's layers so macOS gives it Liquid Glass (14/11).
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -216,6 +223,8 @@ targets:
     dependencies:
       - package: Link
         product: PolhubLink
+      - package: Link
+        product: PolhubCloud
     settings:
       base:
         PRODUCT_NAME: Polhub

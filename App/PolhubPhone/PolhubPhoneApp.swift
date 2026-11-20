@@ -8,11 +8,13 @@ struct PolhubPhoneApp: App {
     @UIApplicationDelegateAdaptor(PhoneAppDelegate.self) private var delegate
     @State private var session = PhoneSession()
     @State private var pairingProblem: String?
+    @Environment(\.scenePhase) private var phase
 
     var body: some Scene {
         WindowGroup {
             Group {
-                if session.connection == nil {
+                // Not paired, but with the Mac's copy from iCloud: the tabs show it (20/11).
+                if session.connection == nil, !session.hasCopy {
                     PairingScreen(problem: pairingProblem)
                 } else {
                     RootTabs()
@@ -23,6 +25,11 @@ struct PolhubPhoneApp: App {
             // The QR code of the Mac opens here.
             .onOpenURL { url in
                 Task { pairingProblem = await session.pair(with: url) }
+            }
+            // At launch and back in front, the Mac's copy in iCloud.
+            .task(id: phase) {
+                guard phase == .active else { return }
+                await session.refreshCloud()
             }
             // Paired: the notifications are asked once, and their token goes to the Mac at each launch.
             .task(id: session.connection?.token) {

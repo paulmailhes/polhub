@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import PolhubCloud
 import PolhubLink
 import Security
 import SwiftUI
@@ -13,11 +14,24 @@ final class PhoneSession {
     private(set) var status: LinkStatus?
     let cache: LinkCache
     let demo: Bool
+    /// The Mac's copy in iCloud (20/11): what shows with the Mac off; none in the demonstration.
+    let cloud: PhoneCloudReader?
+    /// Whether the iPhone holds a copy of the Mac's: then the tabs show, even before Tailscale pairs it.
+    private(set) var hasCopy = false
 
     init(demo: Bool = ProcessInfo.processInfo.arguments.contains("-demo")) {
         self.demo = demo
         cache = .standard
         connection = demo ? LinkConnection(address: URL(string: "https://mac.exemple.ts.net:8443")!, token: "demo") : Keychain.load()
+        cloud = demo ? nil : PhoneCloudReader(drive: ICloudDrive(), cache: cache)
+        hasCopy = cache.load(LinkAPI.Path.projects) != nil
+    }
+
+    /// At launch and back in front: what the Mac copied in iCloud since the last look.
+    func refreshCloud() async {
+        guard let cloud else { return }
+        await cloud.refresh()
+        hasCopy = cache.load(LinkAPI.Path.projects) != nil
     }
 
     var client: LinkClient? { connection.map { LinkClient(connection: $0) } }
@@ -39,8 +53,10 @@ final class PhoneSession {
     func unpair() {
         Keychain.delete()
         cache.clear()
+        cloud?.forget()
         connection = nil
         status = nil
+        hasCopy = false
     }
 
     /// The Mac's answer, or its last copy; demo answers in the demonstration mode.
@@ -51,14 +67,32 @@ final class PhoneSession {
             }
             return Fetched(value: value, keptAt: nil)
         }
-        guard let client else { throw .notPaired("Relie d'abord cet iPhone à ton Mac.") }
-        do {
-            return try await client.fetch(type, path, query: query, cache: cache)
-        } catch .notPaired(let message) {
-            // The Mac forgot this iPhone: it pairs again from the start.
-            unpair()
-            throw .notPaired(message)
+        let key = LinkAPI.key(path, query: query)
+        if let client {
+            do throws(LinkFailure) {
+                let data = try await client.data(path, query: query)
+                guard let value = try? LinkAPI.decoder.decode(type, from: data) else { throw LinkFailure.unreadable }
+                cache.store(data, for: key)
+                return Fetched(value: value, keptAt: nil)
+            } catch .notPaired(let message) {
+                // The Mac forgot this iPhone: it pairs again from the start.
+                unpair()
+                throw .notPaired(message)
+            } catch .unreachable {
+                // The Mac does not answer: its copy, freshened from iCloud.
+            } catch {
+                throw error
+            }
         }
+        await cloud?.refreshIfStale()
+        if let value = cached(type, path, query: query) { return value }
+        throw client == nil ? .notPaired("Relie d'abord cet iPhone à ton Mac.") : .unreachable
+    }
+
+    /// The copy kept on the iPhone only, with its date: nothing is asked of the Mac.
+    func cached<Value: Decodable & Sendable>(_ type: Value.Type, _ path: String, query: [String: String] = [:]) -> Fetched<Value>? {
+        guard let kept = cache.load(LinkAPI.key(path, query: query)), let value = try? LinkAPI.decoder.decode(type, from: kept.data) else { return nil }
+        return Fetched(value: value, keptAt: kept.keptAt)
     }
 
     /// A file of a message, written where Quick Look reads it.

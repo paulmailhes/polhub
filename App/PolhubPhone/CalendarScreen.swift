@@ -86,7 +86,14 @@ struct CalendarScreen: View {
             keptAt = fetched.keptAt
             problem = nil
         } catch {
-            problem = error.message
+            // The Mac does not answer and these two days were never seen: cut in its wide copy, from iCloud (20/11).
+            if mode == .days, let end = LinkWords.calendar.date(byAdding: .day, value: 2, to: start), let wide = session.cached([LinkEvent].self, LinkAPI.Path.events) {
+                events = wide.value.filter { $0.end > start && $0.start < end }
+                keptAt = wide.keptAt
+                problem = nil
+            } else {
+                problem = error.message
+            }
         }
         loaded = true
     }

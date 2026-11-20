@@ -17,6 +17,9 @@ struct PhoneSettingsPane: View {
                     Toggle("Accès depuis l'iPhone", isOn: Binding(get: { access.enabled }, set: { access.enabled = $0 }))
                 }
             }
+            Section {
+                CloudCopyRow(cloud: access.cloud)
+            }
             if access.enabled {
                 Section("Adresse du Mac") {
                     SettingRow("Adresse", help: PhoneSettingsText.addressHelp) {
@@ -115,7 +118,28 @@ struct PairingCode: View {
 }
 
 /// Réglages › iPhone's words.
+/// The copy in iCloud (20/11): on or off, and when it was last made, or what keeps it from being made.
+struct CloudCopyRow: View {
+    @ObservedObject var cloud: PhoneCloud
+
+    var body: some View {
+        SettingRow("Copie dans iCloud", help: PhoneSettingsText.cloudHelp, detail: PhoneSettingsText.cloudDetail,
+                   problem: cloud.enabled ? cloud.problem : nil) {
+            Toggle("Copie dans iCloud", isOn: Binding(get: { cloud.enabled }, set: { cloud.enabled = $0 }))
+        }
+        if cloud.enabled, cloud.problem == nil, let last = cloud.lastCopy {
+            Text(PhoneSettingsText.copied(last)).font(.meta).foregroundStyle(.secondary)
+        }
+    }
+}
+
 enum PhoneSettingsText {
+    static let cloudHelp = "Ton iPhone voit tes projets, tes réunions, ton agenda et Colin même quand le Mac est éteint, tels qu'à la dernière copie."
+    static let cloudDetail = "Dans ton iCloud, que toi seul lis : le contenu est chiffré de bout en bout (les très longues transcriptions, avec la protection avancée des données d'iCloud). Les mails n'y vont pas : ils restent chez Google."
+
+    /// « Dernière copie il y a 2 min ».
+    static func copied(_ date: Date, now: Date = Date()) -> String { "Dernière copie \(Words.ago(date, now: now))" }
+
     static let accessHelp = "Ton iPhone lit tes mails, ton agenda, tes projets et tes réunions quand le Mac est allumé."
     static let accessDetail = "Par ton réseau Tailscale seulement : Polhub n'écoute que sur ce Mac, et Tailscale le publie pour tes appareils. Un iPhone doit être relié par le code de cette page pour lire quoi que ce soit."
     static let addressHelp = "L'adresse de ce Mac sur Tailscale, que l'iPhone appelle."

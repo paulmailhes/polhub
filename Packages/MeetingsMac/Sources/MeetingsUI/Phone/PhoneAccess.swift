@@ -3,6 +3,7 @@ import LocalServer
 import Notifications
 import Persistence
 import PolhubDesign
+import PolhubCloud
 import PolhubLink
 
 /// Réglages › iPhone (20/11): the switch that opens Polhub to Paul's iPhone, the address the iPhone reaches, the QR
@@ -76,21 +77,28 @@ public final class PhoneAccess: ObservableObject {
     private var server: HTTPServer?
     private let port: UInt16
 
+    /// - cloud: the user's iCloud (20/11), for the copy the iPhone reads with the Mac off; none in a build without
+    ///   iCloud's rights, and in the tests.
     public init(database: AppDatabase, agenda: AgendaLibrary?, mails: MailLibrary?, colin: ColinThread? = nil, appVersion: String,
-                defaults: UserDefaults = .standard, port: UInt16 = LinkAPI.port) {
+                defaults: UserDefaults = .standard, port: UInt16 = LinkAPI.port, cloud: (any CloudDrive)? = nil) {
         self.defaults = defaults
         self.port = port
         store = PhoneDevices(defaults: defaults)
         api = PhoneAPI(devices: store, database: database, agenda: agenda, mails: mails, colin: colin, appVersion: appVersion)
         push = PhonePush(devices: store, defaults: defaults)
+        self.cloud = PhoneCloud(api: api, drive: cloud, defaults: defaults)
         address = defaults.string(forKey: Self.addressKey) ?? ""
         devices = store.all
     }
 
     /// At launch: listens if Paul switched it on.
     public func resume() async {
+        cloud.start()
         if enabled { await start() }
     }
+
+    /// The copy in iCloud, which needs neither Tailscale nor a paired iPhone.
+    public let cloud: PhoneCloud
 
     func start() async {
         guard server == nil else { return }

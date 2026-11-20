@@ -117,13 +117,31 @@ public struct LinkCache: Sendable {
         return folder.appending(path: String(safe.prefix(180)) + ".json")
     }
 
-    public func store(_ data: Data, for key: String) {
+    /// - at: when the answer was made, which the copy shows (« copie de 18:42 »): now for the Mac's answer, the Mac's
+    ///   time for a copy read in iCloud.
+    public func store(_ data: Data, for key: String, at date: Date = Date()) {
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let url = file(key)
         #if os(iOS)
-        try? data.write(to: file(key), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        try? data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         #else
-        try? data.write(to: file(key), options: .atomic)
+        try? data.write(to: url, options: .atomic)
         #endif
+        try? FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: url.path(percentEncoded: false))
+    }
+
+    /// A copy from iCloud: kept only if it is more recent than the one already kept (the Mac's answer, seen live, wins
+    /// over an older copy).
+    @discardableResult
+    public func storeIfNewer(_ data: Data, for key: String, at date: Date) -> Bool {
+        if let kept = load(key), kept.keptAt >= date { return false }
+        store(data, for: key, at: date)
+        return true
+    }
+
+    /// A copy the Mac took away from iCloud (a project gone).
+    public func remove(_ key: String) {
+        try? FileManager.default.removeItem(at: file(key))
     }
 
     public func load(_ key: String) -> (data: Data, keptAt: Date)? {
@@ -144,7 +162,7 @@ extension LinkClient {
     /// no longer knows this iPhone never falls back on the copy.
     public func fetch<Value: Decodable & Sendable>(_ type: Value.Type, _ path: String, query: [String: String] = [:],
                                                     cache: LinkCache) async throws(LinkFailure) -> Fetched<Value> {
-        let key = path + query.sorted { $0.key < $1.key }.map { "-\($0.key)-\($0.value)" }.joined()
+        let key = LinkAPI.key(path, query: query)
         do throws(LinkFailure) {
             let data = try await data(path, query: query)
             guard let value = try? LinkAPI.decoder.decode(type, from: data) else { throw LinkFailure.unreadable }

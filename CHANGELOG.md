@@ -3,6 +3,19 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.55.0 — 20 novembre 2026
+
+**Une copie dans ton iCloud, pour l'iPhone quand le Mac est éteint.**
+
+- Polhub copie dans ton iCloud ce que l'iPhone montre : les projets, les réunions (compte rendu et transcription),
+  l'agenda des semaines à venir et le fil de Colin. Les mails n'y vont pas : ils restent chez Google.
+- Seul ce qui a changé est copié, toutes les deux minutes et juste avant que le Mac se mette en veille.
+- Le contenu est chiffré de bout en bout : Apple ne peut pas le lire. Les très longues transcriptions le sont avec la
+  protection avancée des données d'iCloud.
+- Réglages › iPhone : « Copie dans iCloud », avec l'heure de la dernière copie, ou ce qui l'empêche.
+- L'app est désormais construite par une archive exportée signée Developer ID, avec le profil qu'iCloud demande. Même
+  signature qu'avant : les autorisations de macOS restent.
+
 ## 0.54.0 — 20 novembre 2026
 
 **Colin lit tes conversations Claude Code.**

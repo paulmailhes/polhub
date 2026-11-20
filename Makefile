@@ -17,11 +17,17 @@ check:
 gen:
 	xcodegen generate --quiet
 
+# iCloud (20/11) demande un profil : l'app est archivée, puis exportée signée Developer ID ; Xcode crée le profil avec
+# le compte de Paul (-allowProvisioningUpdates).
 app: gen
-	xcodebuild -project Polhub.xcodeproj -scheme Polhub -configuration Release \
-		-derivedDataPath build/DerivedData -quiet MARKETING_VERSION=$(VERSION) CURRENT_PROJECT_VERSION=$(VERSION) build
+	rm -rf build/Polhub.xcarchive build/export
+	xcodebuild -project Polhub.xcodeproj -scheme Polhub -configuration Release -derivedDataPath build/DerivedData \
+		-archivePath build/Polhub.xcarchive -allowProvisioningUpdates -quiet \
+		MARKETING_VERSION=$(VERSION) CURRENT_PROJECT_VERSION=$(VERSION) archive
+	xcodebuild -exportArchive -archivePath build/Polhub.xcarchive -exportPath build/export \
+		-exportOptionsPlist scripts/export-developer-id.plist -allowProvisioningUpdates -quiet
 	rm -rf $(APP)
-	ditto $(PRODUCT) $(APP)
+	ditto build/export/Polhub.app $(APP)
 
 # La version de développement : identifiant .dev, données à part, détection coupée. Jamais installée.
 app-dev: gen

@@ -10,6 +10,11 @@ public enum LinkAPI {
     /// The HTTPS port `tailscale serve` publishes it on.
     public static let publishedPort = 8443
 
+    /// The key of an answer, in the iPhone's copy and in iCloud (20/11): its path, then its query sorted by name.
+    public static func key(_ path: String, query: [String: String] = [:]) -> String {
+        path + query.sorted { $0.key < $1.key }.map { "-\($0.key)-\($0.value)" }.joined()
+    }
+
     /// The addresses, under `/v1`.
     public enum Path {
         public static let status = "/v1/status"

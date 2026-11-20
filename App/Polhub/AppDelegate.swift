@@ -7,6 +7,7 @@ import MeetingDetection
 import MeetingsUI
 import Observability
 import Persistence
+import PolhubCloud
 import PolhubLink
 import Pipeline
 import PolhubDesign
@@ -14,6 +15,7 @@ import ProbeKit
 import ProjectsUI
 import Recording
 import Summarization
+import Security
 import SwiftUI
 import Updates
 import UserNotifications
@@ -66,6 +68,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var mails: MailLibrary?
     /// Polhub on the iPhone (20/11): Réglages › iPhone, and the server on the loopback when Paul switched it on.
     private var phone: PhoneAccess?
+
+    /// Whether this build carries iCloud's rights: the release does, the development build not. CloudKit stops an app
+    /// that asks for a container it has no right to.
+    static var carriesICloud: Bool {
+        guard let task = SecTaskCreateFromSelf(nil),
+              let value = SecTaskCopyValueForEntitlement(task, "com.apple.developer.icloud-container-identifiers" as CFString, nil) else { return false }
+        return (value as? [String])?.contains(CloudRecords.container) == true
+    }
     /// What the Accueil knows (18/11): « À valider » and « Le point », kept up to date window open or not.
     private var colin: ColinLibrary?
     /// Colin's bar (18/11): his thread, and the one Claude Code it launches.
@@ -430,7 +440,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         // port further, so both can run.
         let phone = PhoneAccess(database: database, agenda: agenda, mails: mails, colin: colinThread,
                                 appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0",
-                                port: isDevelopment ? LinkAPI.port + 1 : LinkAPI.port)
+                                port: isDevelopment ? LinkAPI.port + 1 : LinkAPI.port,
+                                // The copy in iCloud (20/11): only a build that carries iCloud's rights asks CloudKit.
+                                cloud: Self.carriesICloud ? ICloudDrive() : nil)
         self.phone = phone
         Task { await phone.resume() }
         // Polhub comes back in front on the Accueil: Paul is there.
