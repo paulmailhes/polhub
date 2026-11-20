@@ -30,8 +30,21 @@ public final class InspirationLibrary: ObservableObject {
     @Published public private(set) var shown: [InspirationKind: [InspirationItemRow]] = [:]
     @Published private(set) var chips: [InspirationKind: [InspirationBrowse.ChipRow]] = [:]
     @Published public private(set) var undoable: InspirationUndo?
-    /// One line at the bottom of the page: what an addition or a collection answered.
-    @Published public var message: String?
+    /// One line at the bottom of the page: what an addition or a collection answered. It goes by itself (Paul, 20/11).
+    @Published public var message: String? {
+        didSet {
+            messageToken += 1
+            guard message != nil else { return }
+            let token = messageToken
+            Task { [weak self] in
+                guard let lifetime = self?.messageLifetime else { return }
+                try? await Task.sleep(for: lifetime)
+                if let self, self.messageToken == token { self.message = nil }
+            }
+        }
+    }
+    var messageLifetime: Duration = .seconds(8)
+    private var messageToken = 0
     /// How the last collection went, place by place.
     @Published public private(set) var status: [InspirationStatusLine] = []
     @Published public private(set) var collecting = false

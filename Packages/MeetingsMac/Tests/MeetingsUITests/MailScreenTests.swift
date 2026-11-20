@@ -581,7 +581,7 @@ struct MailScreenTests {
         try await capture("mails-lettre-page-sombre", dark: true)
         try await capture("mails-lettre-page")
         UserDefaults.standard.set(true, forKey: Preferences.Key.floatingPages)
-        // Lot 6 (19/11), last: the reply leaving says « Envoyé · Annuler » in its own bar, nothing over it; « Annuler » keeps
+        // 20/11, last: « Envoyer » closes the thread, the small pill says « Envoi dans 9 s · Annuler »; « Annuler » keeps
         // it. Last, because the call back hands the draft to the made-up Gmail, which refuses it and marks it.
         let leaving = try #require(mails.drafts.first { $0.threadKey == MailThreadRow.key(account: "moi@exemple.fr", threadID: "a") })
         router.section = .mails

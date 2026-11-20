@@ -520,3 +520,43 @@ public struct ColumnResizeLine: View {
             .accessibilityHidden(true)
     }
 }
+
+// MARK: - The pill at the bottom
+
+extension View {
+    /// The pill at the bottom of a page (Paul, 20/11: « petite pilule discrète »): one line, the meta's size, glass, never
+    /// wider than `Pill.maxWidth`; a longer text ends in « … » and says itself whole in its bubble.
+    public func bottomPill() -> some View {
+        font(.meta)
+            .lineLimit(1)
+            .padding(.horizontal, Space.l)
+            .padding(.vertical, Space.s)
+            .glassEffect(.regular, in: Capsule())
+            .modifier(PillWidth())
+    }
+}
+
+public enum Pill {
+    /// The pill's widest, its padding included.
+    public static let maxWidth: CGFloat = 520
+}
+
+/// At most `Pill.maxWidth`, else as wide as what it holds (a frame with a `maxWidth` would always take it all).
+struct PillWidth: ViewModifier {
+    func body(content: Content) -> some View {
+        CappedWidth(max: Pill.maxWidth) { content }
+    }
+}
+
+struct CappedWidth: Layout {
+    let max: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width.map { Swift.min($0, max) } ?? max
+        return subviews.first?.sizeThatFits(ProposedViewSize(width: width, height: proposal.height)) ?? .zero
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(width: bounds.width, height: bounds.height))
+    }
+}

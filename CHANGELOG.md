@@ -3,6 +3,15 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.49.0 — 20 novembre 2026
+
+**Envoyer ferme le mail ; les messages du bas, petits et passagers.**
+
+- « Envoyer » ferme le fil ou le nouveau mail aussitôt. Le mail part toujours après le délai choisi : une petite
+  pilule en bas dit « Envoi dans 8 s · Annuler », et « Annuler » rouvre le mail tel qu'il était.
+- La pilule du bas (Mails, Inspiration) tient sur une ligne, en petit, jamais plus large que 520 points ; le texte
+  entier est dans sa bulle. Un message s'en va seul au bout de 8 secondes (le ✕ le ferme avant).
+
 ## 0.48.0 — 20 novembre 2026
 
 **Le panneau de Colin se règle à la main.**

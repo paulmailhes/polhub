@@ -56,10 +56,16 @@ struct MailPanels: ViewModifier {
             }
             .animation(Motion.standard, value: thread)
             .animation(Motion.standard, value: mails.composing)
+            // « Envoyer » closes the thread (`MailLibrary.startSending`, Paul, 20/11); « Annuler » in the pill opens it again
+            // on the reply.
+            .onChange(of: mails.reopenThread) { _, key in
+                guard let key else { return }
+                thread = key
+                mails.reopenThread = nil
+            }
             // Above the bar of a draft fixed at the bottom, never over it (review of 17/11).
             .overlay(alignment: .bottom) {
-                MailUndoBar(mails: mails, draftNews: draftNews,
-                            sendingInBar: Self.sendingInBar(mails.sending?.draftID, drafts: mails.drafts, thread: thread))
+                MailUndoBar(mails: mails, draftNews: draftNews)
                     .padding(.bottom, composeBarShown ? 80 : lift)
             }
             // One Quick Look for the list's chips and the open thread's files (15/11): two would fight over the

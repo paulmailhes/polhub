@@ -43,59 +43,58 @@ struct MailSectionView: View {
     }
 }
 
-/// « Fil archivé · Annuler », for a few seconds; or what went wrong.
+/// « Fil archivé · Annuler », « Envoi dans 8 s · Annuler », or what went wrong: a small pill of one line that goes by
+/// itself (Paul, 20/11; `MailLibrary.messageLifetime`).
 struct MailUndoBar: View {
     @ObservedObject var mails: MailLibrary
     /// Whether it says that a draft an agent prepared waits: not over the Accueil, whose line says it already.
     var draftNews = true
-    /// The mail leaving says « Envoyé · Annuler » in its own bar, on screen: not here a second time (lot 6, 19/11).
-    var sendingInBar = false
-
-    private var sending: (draftID: String, subject: String, at: Date, leaving: Bool)? {
-        sendingInBar ? nil : mails.sending
-    }
 
     var body: some View {
         Group {
-            if let sending {
+            if let sending = mails.sending {
                 TimelineView(.periodic(from: .now, by: 0.5)) { context in
                     let left = max(0, Int(sending.at.timeIntervalSince(context.date).rounded(.up)))
-                    HStack(spacing: Space.m) {
+                    HStack(spacing: Space.s) {
                         // What leaves is told, not called: grey; « Annuler » is the action (design system v2, 19/11).
                         Image(systemName: "paperplane.fill").foregroundStyle(.secondary)
-                        // « 8 s » by `Words`, the French typography laid at display (lot 10, 20/11).
-                        Text(Words.typeset(left > 0 ? "« \(sending.subject) » part dans \(Words.preciseDuration(left))" : "Envoi de « \(sending.subject) »…"))
-                            .lineLimit(1)
+                        // The subject in the bubble: the pill stays small (Paul, 20/11).
+                        Text(Words.typeset(left > 0 && !sending.leaving ? "Envoi dans \(Words.preciseDuration(left))" : "Envoi…"))
+                            .help(Words.typeset("« \(sending.subject) »"))
                         if !sending.leaving {
                             undoButton { mails.cancelSend() }.disabled(left == 0)
                         }
                     }
                 }
             } else if let undo = mails.undoable {
-                HStack(spacing: Space.m) {
-                    Text(Words.typeset(undo.text))
+                HStack(spacing: Space.s) {
+                    Text(Words.typeset(undo.text)).help(Words.typeset(undo.text))
                     undoButton { mails.undo() }
                 }
             } else if let message = mails.barMessage(draftNews: draftNews) {
-                HStack(spacing: Space.m) {
-                    Text(Words.typeset(message)).fixedSize(horizontal: false, vertical: true)
-                    IconButton("xmark", help: "Fermer", size: 13) { mails.message = nil }
+                HStack(spacing: Space.s) {
+                    Text(Words.typeset(message)).help(Words.typeset(message))
+                    IconButton("xmark", help: "Fermer", size: 11) { mails.message = nil }
                 }
             }
         }
-        .font(.rowBody)
-        .padding(.horizontal, Space.xl).padding(.vertical, Space.m)
-        .glassEffect(.regular, in: Capsule())
+        .bottomPill()
         .padding(.bottom, Space.l)
-        .opacity(mails.undoable == nil && mails.barMessage(draftNews: draftNews) == nil && sending == nil ? 0 : 1)
+        .opacity(visible ? 1 : 0)
+        .allowsHitTesting(visible)
         .animation(.snappy, value: mails.undoable?.text)
+        .animation(.snappy, value: mails.message)
+    }
+
+    private var visible: Bool {
+        mails.undoable != nil || mails.barMessage(draftNews: draftNews) != nil || mails.sending != nil
     }
 
     /// « Annuler » at the app's accent, ink (design system v2, 19/11), a fill under the pointer: the glass is the
     /// capsule's only, never glass on glass (correctifs, 15/11).
     private func undoButton(_ action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text("Annuler").fontWeight(.semibold).padding(.horizontal, Space.s).padding(.vertical, Space.xs)
+            Text("Annuler").fontWeight(.semibold).padding(.horizontal, Space.xs).padding(.vertical, Space.xs / 2)
         }
         .buttonStyle(.hover(.capsule))
         .foregroundStyle(Tint.accent)

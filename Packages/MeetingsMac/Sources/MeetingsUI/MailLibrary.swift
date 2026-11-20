@@ -231,8 +231,24 @@ public final class MailLibrary: ObservableObject {
     /// The last gesture, while it can be undone: one line, one or several threads.
     @Published public private(set) var undoable: (text: String, gestures: [MailGestureRow])?
     @Published public var message: String? {
-        didSet { if !tellingDraftNews { messageIsDraftNews = false } }
+        didSet {
+            if !tellingDraftNews { messageIsDraftNews = false }
+            messageToken += 1
+            guard message != nil else { return }
+            let token = messageToken
+            Task { [weak self] in
+                guard let lifetime = self?.messageLifetime else { return }
+                try? await Task.sleep(for: lifetime)
+                if let self, self.messageToken == token { self.message = nil }
+            }
+        }
     }
+    private var messageToken = 0
+    /// How long a message stays in the pill before it goes by itself (Paul, 20/11).
+    var messageLifetime: Duration = .seconds(8)
+    /// The thread of a reply called back from the pill, to open again over the page (Paul, 20/11: the thread closes as
+    /// soon as « Envoyer » is pressed).
+    @Published public var reopenThread: String?
     /// The message says that a draft an agent prepared or changed waits in Brouillons: over the Accueil, the line
     /// « Brouillon prêt » already says it (18/11).
     public private(set) var messageIsDraftNews = false
@@ -1404,6 +1420,14 @@ public final class MailLibrary: ObservableObject {
         pushes[draftID]?.task.cancel()
         pushes[draftID] = nil
         if composing == draftID { composing = nil }
+        // « Envoyer » closes the reply's thread at once (Paul, 20/11): the pill says it leaves, with « Annuler », which
+        // opens it again (`reopenThread`).
+        if let key = draft.threadKey, let router, router.mailSelection == key || router.homeMail == key {
+            if !router.close() {
+                if router.mailSelection == key { router.mailSelection = nil }
+                if router.homeMail == key { router.homeMail = nil }
+            }
+        }
         // The screen's « (sans objet) », never the base's marker (lot 10, 20/11).
         let subject = draft.subject.isEmpty ? Words.noSubject : draft.subject
         // Gmail's delay, chosen in Réglages › Mails (15/11).
@@ -1458,7 +1482,8 @@ public final class MailLibrary: ObservableObject {
             return
         }
         if !quietly { message = "Envoi annulé : le mail t'attend dans Brouillons." }
-        if (try? store.draft(sending.draftID))?.threadKey == nil { composing = sending.draftID }
+        // The reply opens again under its thread, the new mail in its panel (Paul, 20/11: both closed on « Envoyer »).
+        if let key = (try? store.draft(sending.draftID))?.threadKey { reopenThread = key } else { composing = sending.draftID }
         schedulePush(sending.draftID, after: .zero)
     }
 

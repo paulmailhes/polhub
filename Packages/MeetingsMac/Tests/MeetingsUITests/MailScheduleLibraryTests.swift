@@ -304,6 +304,43 @@ final class SilentGmail: @unchecked Sendable {
         mails.cancelSend()
         #expect(mails.sending == nil && mails.message == "Envoi annulé : le mail t'attend dans Brouillons.")
     }
+
+    /// Paul, 20/11: the thread closes as soon as « Envoyer » is pressed; « Annuler » in the pill opens it again, on the
+    /// reply. A new mail opens again in its own panel, as before.
+    @Test func callingBackAReplyOpensItsThreadAgain() async throws {
+        let (mails, store, root) = try await library()
+        defer { try? FileManager.default.removeItem(at: root) }
+        var reply = try draft(store)
+        reply.threadKey = "moi@exemple.fr|t1"
+        try store.saveDraft(reply)
+        let new = try draft(store, subject: "Planning")
+        try await waitUntil { mails.drafts.count == 2 }
+        let router = WindowRouter()
+        mails.router = router
+        router.section = .mails
+        router.mailSelection = "moi@exemple.fr|t1"
+        mails.send(reply.id)
+        #expect(router.mailSelection == nil)
+        mails.cancelSend()
+        #expect(mails.reopenThread == "moi@exemple.fr|t1" && mails.composing == nil)
+        mails.reopenThread = nil
+        mails.send(new.id)
+        mails.cancelSend()
+        #expect(mails.reopenThread == nil && mails.composing == new.id)
+    }
+
+    /// Paul, 20/11: the pill at the bottom goes by itself; a newer message keeps its whole time.
+    @Test func aMessageGoesByItself() async throws {
+        let (mails, _, root) = try await library()
+        defer { try? FileManager.default.removeItem(at: root) }
+        mails.messageLifetime = .milliseconds(300)
+        mails.message = "Fil rangé."
+        try await Task.sleep(for: .milliseconds(200))
+        mails.message = "Fil archivé."
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(mails.message == "Fil archivé.")
+        try await waitUntil { mails.message == nil }
+    }
 }
 
 /// The notification of a programmed mail opens its folder when it has no thread.

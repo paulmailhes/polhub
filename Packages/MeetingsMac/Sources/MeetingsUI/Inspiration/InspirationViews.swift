@@ -264,7 +264,8 @@ struct InspirationNoMatch: View {
     }
 }
 
-/// « Annuler » after « Supprimer », or what an addition answered: a capsule of glass at the bottom, as in Mails.
+/// « Annuler » after « Supprimer », or what an addition answered: the small pill at the bottom, as in Mails; the message
+/// goes by itself (Paul, 20/11).
 struct InspirationMessageBar: View {
     @ObservedObject var library: InspirationLibrary
 
@@ -273,10 +274,10 @@ struct InspirationMessageBar: View {
     var body: some View {
         Group {
             if let undo = library.undoable {
-                HStack(spacing: Space.m) {
-                    Text(undo.text).lineLimit(1)
+                HStack(spacing: Space.s) {
+                    Text(undo.text).help(undo.text)
                     Button { library.undo() } label: {
-                        Text("Annuler").fontWeight(.semibold).padding(.horizontal, Space.s).padding(.vertical, Space.xs)
+                        Text("Annuler").fontWeight(.semibold).padding(.horizontal, Space.xs).padding(.vertical, Space.xs / 2)
                     }
                     .buttonStyle(.hover(.capsule))
                     // A gesture to make: the accent, ink (design system v2, 19/11).
@@ -286,16 +287,14 @@ struct InspirationMessageBar: View {
                     .help(Words.help("Annuler", .command("z")))
                 }
             } else if let message = library.message {
-                HStack(spacing: Space.m) {
-                    Text(message).fixedSize(horizontal: false, vertical: true)
-                    IconButton("xmark", help: "Fermer", size: 13) { library.message = nil }
+                HStack(spacing: Space.s) {
+                    Text(message).help(message)
+                    IconButton("xmark", help: "Fermer", size: 11) { library.message = nil }
                 }
             }
         }
-        .font(.rowBody)
-        .padding(.horizontal, Space.xl)
-        .padding(.vertical, Space.m)
-        .glassEffect(.regular, in: Capsule())
+        // The small pill of Mails, one line (Paul, 20/11).
+        .bottomPill()
         .padding(.bottom, Space.l)
         .opacity(visible ? 1 : 0)
         .allowsHitTesting(visible)
