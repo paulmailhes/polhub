@@ -1,4 +1,4 @@
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// A card of « ta journée » (0.37.0, Paul: « mets-le dans des cartes, ça va rendre le truc beaucoup plus digeste et

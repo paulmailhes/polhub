@@ -5,16 +5,16 @@ import Domain
 import Foundation
 import Mail
 import Persistence
-import PolhubDesign
+import HubDesign
 import ProjectsUI
 import SwiftUI
 import Testing
 @testable import MeetingsUI
 
-/// The new Accueil with made-up data (18/11): `POLHUB_LIVE=1 POLHUB_SNAPSHOTS=<dossier hors du dépôt> swift test --filter
+/// The new Accueil with made-up data (18/11): `HUB_LIVE=1 HUB_SNAPSHOTS=<dossier hors du dépôt> swift test --filter
 /// HomeScreenTests`. Wide and at the window's smallest width, light and dark. Nothing of it is kept in the repository;
 /// every name, address and subject is invented.
-@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"] != nil))
+@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"] != nil))
 struct HomeScreenTests {
     static let me = "moi@exemple.fr"
 
@@ -24,7 +24,7 @@ struct HomeScreenTests {
     }
 
     @Test func theHome() async throws {
-        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"]), isDirectory: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let root = FileManager.default.temporaryDirectory.appending(path: "accueil \(UUID().uuidString)", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -136,7 +136,7 @@ struct HomeScreenTests {
         router.section = .home
         let window = MainWindowView(library: library, projects: ProjectLibrary(store: projects, meetings: meetingStore), agenda: agenda, mails: mails, colin: colin,
                                     router: router, paths: AppPaths(root: root, logs: root)) { EmptyView() }
-        let live = ProcessInfo.processInfo.environment["POLHUB_LIVE"] != nil
+        let live = ProcessInfo.processInfo.environment["HUB_LIVE"] != nil
         // The page alone on the window's ground, at the widths the window gives it: what an offscreen drawing shows
         // faithfully, in the dark too.
         // Two invented Claude accounts, as Vigie would say them (0.36.0).

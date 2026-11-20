@@ -1,5 +1,5 @@
 import Notifications
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// The three round buttons of « Coup d'œil », as Control Center's toggles: a circle of glass, filled with its color

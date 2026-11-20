@@ -4,7 +4,7 @@ import GoogleKit
 import Mail
 import MailFormat
 import Persistence
-import PolhubDesign
+import HubDesign
 import Testing
 @testable import MeetingsUI
 

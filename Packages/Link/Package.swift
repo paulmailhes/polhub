@@ -2,19 +2,19 @@
 import PackageDescription
 
 /// What Polhub on the Mac and Polhub on the iPhone say to each other (20/11): the API's addresses, the pairing link and
-/// the JSON types. Foundation only, for both platforms; and the copy in iCloud (`PolhubCloud`).
+/// the JSON types. Foundation only, for both platforms; and the copy in iCloud (`HubCloud`).
 let package = Package(
     name: "Link",
     platforms: [.macOS("27.0"), .iOS("27.0")],
     products: [
-        .library(name: "PolhubLink", targets: ["PolhubLink"]),
-        .library(name: "PolhubCloud", targets: ["PolhubCloud"]),
+        .library(name: "HubLink", targets: ["HubLink"]),
+        .library(name: "HubCloud", targets: ["HubCloud"]),
     ],
     targets: [
-        .target(name: "PolhubLink"),
+        .target(name: "HubLink"),
         // The copy in the user's iCloud (20/11), for the Mac which writes it and the iPhone which reads it.
-        .target(name: "PolhubCloud", dependencies: ["PolhubLink"]),
-        .testTarget(name: "PolhubLinkTests", dependencies: ["PolhubLink"]),
-        .testTarget(name: "PolhubCloudTests", dependencies: ["PolhubCloud", "PolhubLink"]),
+        .target(name: "HubCloud", dependencies: ["HubLink"]),
+        .testTarget(name: "HubLinkTests", dependencies: ["HubLink"]),
+        .testTarget(name: "HubCloudTests", dependencies: ["HubCloud", "HubLink"]),
     ]
 )

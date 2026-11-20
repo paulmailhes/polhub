@@ -4,7 +4,7 @@ import Foundation
 import MeetingDetection
 import Observability
 import Persistence
-import PolhubDesign
+import HubDesign
 import Recording
 
 /// The short notices shown at the top of the screen.

@@ -1,6 +1,6 @@
 import Colin
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// Behind « Voir » in « Le point » (step 3, 18/11; the Accueil's pass, 18/11): what came since Paul last came — the

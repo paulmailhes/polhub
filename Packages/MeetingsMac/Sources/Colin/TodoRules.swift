@@ -1,7 +1,7 @@
 import Domain
 import Foundation
 import Persistence
-import PolhubDesign
+import HubDesign
 
 /// « À faire » on the Accueil (0.36.0, 18/11): the projects where it is Paul's turn (« priorité 2 ») and those whose
 /// deadline is past or within a week, grouped by day, the late first. A deadline is the next dated step: a meeting of

@@ -1,6 +1,6 @@
 import Domain
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// « Liste » (14/11): every project, its columns sortable, a status to filter by; a double click opens it.

@@ -5,18 +5,18 @@ import Foundation
 import Mail
 import MailFormat
 import Persistence
-import PolhubDesign
+import HubDesign
 import ProjectsUI
 import SwiftUI
 import Testing
 @testable import MeetingsUI
 
-/// The people where Paul works (15/11), with made-up people: `POLHUB_SNAPSHOTS=<dossier> swift test --filter
-/// PeopleScreenTests` (add `POLHUB_LIVE=1` for the glass). Nothing of them is kept in the repository.
-@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"] != nil))
+/// The people where Paul works (15/11), with made-up people: `HUB_SNAPSHOTS=<dossier> swift test --filter
+/// PeopleScreenTests` (add `HUB_LIVE=1` for the glass). Nothing of them is kept in the repository.
+@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"] != nil))
 struct PeopleScreenTests {
     @Test func thePeopleScreens() async throws {
-        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"]), isDirectory: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let root = FileManager.default.temporaryDirectory.appending(path: "personnes \(UUID().uuidString)", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: root) }

@@ -1,4 +1,4 @@
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// The label of the menu bar's item: the logo, and the clock, the countdown, « fin ? » or « 8 min » beside it

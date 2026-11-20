@@ -3,7 +3,7 @@ import Agenda
 import Domain
 import Foundation
 import Persistence
-import PolhubDesign
+import HubDesign
 import ProjectsUI
 import SwiftUI
 import Testing

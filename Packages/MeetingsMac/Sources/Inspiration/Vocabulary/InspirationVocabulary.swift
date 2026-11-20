@@ -1,6 +1,6 @@
 import Foundation
 import Persistence
-import PolhubDesign
+import HubDesign
 import Yams
 
 /// The controlled vocabulary of a collection's categories (16/11): its families (`secteur`, `style`…), the tags

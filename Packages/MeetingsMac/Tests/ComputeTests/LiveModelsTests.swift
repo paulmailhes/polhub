@@ -4,8 +4,8 @@ import Testing
 import Transcription
 
 /// The real models, the real `polhub-calcul`, with the network forbidden. Not part of `make check`:
-/// `swift build --product polhub-calcul && POLHUB_MODELS=1 swift test --filter LiveModelsTests`.
-@Suite(.enabled(if: ProcessInfo.processInfo.environment["POLHUB_MODELS"] == "1"))
+/// `swift build --product polhub-calcul && HUB_MODELS=1 swift test --filter LiveModelsTests`.
+@Suite(.enabled(if: ProcessInfo.processInfo.environment["HUB_MODELS"] == "1"))
 struct LiveModelsTests {
     static let package = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
     static let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appending(path: "Fixtures")

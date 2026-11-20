@@ -1,5 +1,5 @@
 import Foundation
-import PolhubDesign
+import HubDesign
 
 /// A Claude account as Vigie says it to its read token (0.36.0, 18/11): its name and how much of it is used — never
 /// an address, a folder or a key.

@@ -1,7 +1,7 @@
 import Domain
 import Foundation
 import Persistence
-import PolhubDesign
+import HubDesign
 import Summarization
 
 /// Where the transcription of a meeting is, as the window says it.

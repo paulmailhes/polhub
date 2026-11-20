@@ -3,7 +3,7 @@ import AppKit
 import Domain
 import Persistence
 import ProjectsUI
-import PolhubDesign
+import HubDesign
 import SwiftUI
 import Updates
 

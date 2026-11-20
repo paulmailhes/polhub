@@ -3,7 +3,7 @@ import Combine
 import Mail
 import MailFormat
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// A draft being written, shared by its text and its bar: the editor, the addresses typed and not yet chips,

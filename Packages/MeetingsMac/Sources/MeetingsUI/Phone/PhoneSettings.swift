@@ -1,7 +1,7 @@
 import AppKit
 import CoreImage
 import CoreImage.CIFilterBuiltins
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// Réglages › iPhone (Paul, 20/11): the switch, the Mac's address on Tailscale, the QR code that pairs an iPhone, the

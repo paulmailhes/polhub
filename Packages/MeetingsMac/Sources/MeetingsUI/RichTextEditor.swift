@@ -1,6 +1,6 @@
 import AppKit
 import MailFormat
-import PolhubDesign
+import HubDesign
 import SwiftUI
 import WebKit
 

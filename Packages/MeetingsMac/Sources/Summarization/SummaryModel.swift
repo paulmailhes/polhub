@@ -1,7 +1,7 @@
 import Domain
 import Foundation
 import Persistence
-import PolhubDesign
+import HubDesign
 
 /// A meeting's summary: what was said, what matters, what was decided, what is to be done (design of 12/11,
 /// « Points clés » 15/11).

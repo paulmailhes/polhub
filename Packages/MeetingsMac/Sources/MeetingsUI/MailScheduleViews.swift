@@ -1,6 +1,6 @@
 import Mail
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// « Programmer l'envoi » (wave B, Paul's yes of 15/11): Gmail's choices next to « Envoyer », the date picker, the

@@ -1,7 +1,7 @@
 import Agenda
 import Colin
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// The day the Accueil shows: today, or tomorrow in the evening (0.36.0).

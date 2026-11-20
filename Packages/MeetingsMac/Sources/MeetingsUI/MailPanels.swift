@@ -1,5 +1,5 @@
 import Persistence
-import PolhubDesign
+import HubDesign
 import QuickLook
 import SwiftUI
 

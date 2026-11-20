@@ -1,5 +1,5 @@
 import Colin
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// The words of « Le point ».

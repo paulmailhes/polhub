@@ -599,7 +599,7 @@ struct MailDeskFixture {
                       // Nor Vigie's read token (0.36.0): only the app reads it.
                       "read-token", "X-Vigie"]
         // Its own code, and all it is built on: the Kernel's domain and base (second review of 14/11).
-        for folder in ["Sources/ReadingKit", "Sources/PolhubCLI", "Sources/MailFormat", "../Kernel/Sources/Persistence", "../Kernel/Sources/Domain"] {
+        for folder in ["Sources/ReadingKit", "Sources/HubCLI", "Sources/MailFormat", "../Kernel/Sources/Persistence", "../Kernel/Sources/Domain"] {
             let files = try FileManager.default.contentsOfDirectory(at: package.appending(path: folder), includingPropertiesForKeys: nil)
             for file in files where file.pathExtension == "swift" {
                 let text = try String(contentsOf: file, encoding: .utf8)
@@ -614,7 +614,7 @@ struct MailDeskFixture {
         #expect(!block.contains("\"Mail\"") && !block.contains("GoogleKit") && !block.contains("Agenda"))
         // Nor on Colin (18/11), which launches Claude Code: the helper of the agents is built on none of it.
         #expect(!block.contains("\"Colin\""))
-        let cli = try #require(manifest.range(of: #"name: "PolhubCLI""#)).upperBound
+        let cli = try #require(manifest.range(of: #"name: "HubCLI""#)).upperBound
         let cliBlock = manifest[cli...].prefix { $0 != "]" }
         #expect(!cliBlock.contains("\"Mail\"") && !cliBlock.contains("GoogleKit") && !cliBlock.contains("Agenda") && !cliBlock.contains("MeetingsUI"))
         #expect(!cliBlock.contains("\"Colin\""))

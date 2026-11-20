@@ -1,7 +1,7 @@
 import AppKit
 import Domain
 import Persistence
-import PolhubDesign
+import HubDesign
 import Summarization
 import SwiftUI
 import UniformTypeIdentifiers

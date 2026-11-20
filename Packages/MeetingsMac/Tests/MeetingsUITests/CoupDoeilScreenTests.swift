@@ -4,7 +4,7 @@ import Foundation
 import Notifications
 import Persistence
 import Pipeline
-import PolhubDesign
+import HubDesign
 import ProjectsUI
 import SwiftUI
 import Testing
@@ -12,13 +12,13 @@ import Updates
 @testable import MeetingsUI
 
 /// The menu bar's logo in each state, and « Coup d'œil », with made-up meetings, events and mails (15/11):
-/// `POLHUB_LIVE=1 POLHUB_SNAPSHOTS=<dossier> swift test --filter CoupDoeilScreenTests`. Nothing of them is kept in the
+/// `HUB_LIVE=1 HUB_SNAPSHOTS=<dossier> swift test --filter CoupDoeilScreenTests`. Nothing of them is kept in the
 /// repository.
-@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"] != nil), .serialized)
+@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"] != nil), .serialized)
 struct CoupDoeilScreenTests {
     private var output: URL {
         get throws {
-            let folder = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
+            let folder = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"]), isDirectory: true)
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             return folder
         }
@@ -325,7 +325,7 @@ final class PanelWorld {
     }
 }
 
-/// The panel in a window of its own size, as the menu bar shows it: glass behind, rounded. With `POLHUB_LIVE=1`, on
+/// The panel in a window of its own size, as the menu bar shows it: glass behind, rounded. With `HUB_LIVE=1`, on
 /// screen and captured by the system.
 @MainActor
 enum PanelWindow {
@@ -347,7 +347,7 @@ enum PanelWindow {
         window.isReleasedWhenClosed = false
         window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         defer { window.close() }
-        guard ProcessInfo.processInfo.environment["POLHUB_LIVE"] != nil else { return }
+        guard ProcessInfo.processInfo.environment["HUB_LIVE"] != nil else { return }
         window.setFrameTopLeftPoint(NSPoint(x: 40, y: (NSScreen.main?.visibleFrame.maxY ?? 900) - 20))
         // Never key nor active: a key typed meanwhile must not reach the panel (J would open the made-up Meet in Dia).
         // Under every window, never over Paul's work (19/11): its own image is what is taken.

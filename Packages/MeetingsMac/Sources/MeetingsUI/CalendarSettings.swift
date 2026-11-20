@@ -1,6 +1,6 @@
 import Agenda
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// Réglages › Calendrier (Paul, 14/11): the new events, the week. The accounts live in Réglages › Comptes Google.

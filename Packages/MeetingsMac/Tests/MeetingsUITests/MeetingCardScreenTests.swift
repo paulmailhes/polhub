@@ -6,12 +6,12 @@ import Testing
 @testable import MeetingsUI
 
 /// The card before a Meet, and the HUD (the same panel over every app), captured over a desktop-like background, light
-/// and dark (invented events). `POLHUB_LIVE=1 POLHUB_SNAPSHOTS=<dossier> swift test --filter MeetingCardScreenTests`
+/// and dark (invented events). `HUB_LIVE=1 HUB_SNAPSHOTS=<dossier> swift test --filter MeetingCardScreenTests`
 /// (live: the glass).
-@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"] != nil), .serialized)
+@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"] != nil), .serialized)
 struct MeetingCardScreenTests {
     private var output: URL {
-        get throws { URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true) }
+        get throws { URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"]), isDirectory: true) }
     }
 
     @Test func theCard() async throws {

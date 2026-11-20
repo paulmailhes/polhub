@@ -2,20 +2,20 @@ import AppKit
 import Agenda
 import Foundation
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 import Testing
 @testable import MeetingsUI
 
 /// The pages of « Inspiration », to look at (16/11), with an invented world: images drawn by the tests, made-up
 /// studios and sites. Not part of `make check`:
-/// `POLHUB_LIVE=1 POLHUB_SNAPSHOTS=<dossier> swift test --filter InspirationScreenTests` (live: glass and toolbar).
-@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"] != nil), .serialized)
+/// `HUB_LIVE=1 HUB_SNAPSHOTS=<dossier> swift test --filter InspirationScreenTests` (live: glass and toolbar).
+@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"] != nil), .serialized)
 struct InspirationScreenTests {
     static let size = NSSize(width: 1_320, height: 860)
 
     private func output() throws -> URL {
-        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"]), isDirectory: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         return output
     }

@@ -1,5 +1,5 @@
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// The new mails (15/11): the unread mails of people in the inbox, those filed in a project first (a dot of its color),

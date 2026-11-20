@@ -6,7 +6,7 @@ import Pipeline
 import Recording
 import ProjectsUI
 import Summarization
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// One meeting, on one page (14/11, 15/11): who and when, its summary in four parts and its actions, then the

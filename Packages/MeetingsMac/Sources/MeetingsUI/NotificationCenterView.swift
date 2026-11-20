@@ -1,5 +1,5 @@
 import Notifications
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 // Polhub's notification center (Paul, 15/11: « un système de notification dans l'outil »): a bell with the count of

@@ -1,6 +1,6 @@
 import AppKit
 import Colin
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// The probe of Colin as the Diagnostic page shows it (17/11): the Claude account it uses, its button, and where it

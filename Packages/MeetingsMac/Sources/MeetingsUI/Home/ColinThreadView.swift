@@ -1,7 +1,7 @@
 import AppKit
 import Colin
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// Why an answer of Colin stopped before its end (lot 10, 20/11): a call, the Mac's sleep, Colin turned off. The answer

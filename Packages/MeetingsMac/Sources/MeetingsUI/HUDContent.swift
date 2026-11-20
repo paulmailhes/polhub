@@ -1,6 +1,6 @@
 import Foundation
 import Pipeline
-import PolhubDesign
+import HubDesign
 
 /// What a pop-up shows. The prompt goes first, then an alert, then a short notice.
 public enum HUDContent: Equatable, Sendable {

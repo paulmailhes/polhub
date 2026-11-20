@@ -1,4 +1,4 @@
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// How the Accueil is laid out (lot 5, 19/11, « Colin à droite »): the day on the left, 640 points at most; Colin's panel

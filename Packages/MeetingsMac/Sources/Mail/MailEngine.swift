@@ -3,7 +3,7 @@ import Foundation
 import GoogleKit
 import MailFormat
 import Persistence
-import PolhubDesign
+import HubDesign
 import UniformTypeIdentifiers
 
 /// Keeps the copy of each mailbox in step with Gmail (14/11): a first reading of everything, the most recent

@@ -1,5 +1,5 @@
 import Colin
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// What Colin is, said at the head of his panel (lot 5, 19/11): his real state — prêt, répond…, attend ta visio, se

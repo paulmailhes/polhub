@@ -2,14 +2,14 @@ import AppKit
 import Foundation
 import Notifications
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 import Testing
 @testable import MeetingsUI
 
-/// Polhub's notification center (15/11), with made-up notifications: `POLHUB_LIVE=1 POLHUB_SNAPSHOTS=<dossier> swift test
+/// Polhub's notification center (15/11), with made-up notifications: `HUB_LIVE=1 HUB_SNAPSHOTS=<dossier> swift test
 /// --filter NotificationCenterScreenTests`. Live, the bell's real popover is captured too, glass included.
-@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"] != nil))
+@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"] != nil))
 struct NotificationCenterScreenTests {
     let now = Date()
 
@@ -54,7 +54,7 @@ struct NotificationCenterScreenTests {
     }
 
     @Test func thePanel() async throws {
-        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"]), isDirectory: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         for dark in [false, true] {
             let name = dark ? "sombre" : "clair"
@@ -70,7 +70,7 @@ struct NotificationCenterScreenTests {
             // The bell and its count, closed.
             try await LiveWindow.capture(BellCorner(inbox: sample(), opensAlone: false), to: output.appending(path: "cloche-pastille-\(name).png"),
                                          size: NSSize(width: 360, height: 120), dark: dark)
-            if ProcessInfo.processInfo.environment["POLHUB_LIVE"] != nil {
+            if ProcessInfo.processInfo.environment["HUB_LIVE"] != nil {
                 try await PopoverCapture.capture(BellCorner(inbox: sample()), to: output.appending(path: "cloche-\(name).png"),
                                                  size: NSSize(width: 760, height: 820), dark: dark)
             }

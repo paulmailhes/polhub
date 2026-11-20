@@ -1,6 +1,6 @@
 import Colin
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// The words of « À valider »: one sentence and one button by line.

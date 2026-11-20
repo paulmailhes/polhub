@@ -3,7 +3,7 @@ import Domain
 import Foundation
 import ImageIO
 import Persistence
-import PolhubDesign
+import HubDesign
 import Testing
 import UniformTypeIdentifiers
 @testable import ProjectsUI

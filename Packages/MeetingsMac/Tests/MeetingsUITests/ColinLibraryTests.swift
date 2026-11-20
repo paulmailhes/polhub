@@ -4,7 +4,7 @@ import Domain
 import Foundation
 import Mail
 import Persistence
-import PolhubDesign
+import HubDesign
 import Testing
 @testable import MeetingsUI
 

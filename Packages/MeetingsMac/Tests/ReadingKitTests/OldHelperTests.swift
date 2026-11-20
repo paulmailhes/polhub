@@ -6,12 +6,12 @@ import Testing
 
 /// The entry test of step 3 (18/11): a helper of before the journal — still running in the sessions opened before an
 /// update, with its program of before — writes a base of v18, and its writes are journaled as an agent's, with
-/// `lastEditedAt` left as it was. Only with `POLHUB_OLD_HELPER`, the path of such a `polhub`: `make check` never runs
+/// `lastEditedAt` left as it was. Only with `HUB_OLD_HELPER`, the path of such a `polhub`: `make check` never runs
 /// a program from outside.
-@Suite(.enabled(if: ProcessInfo.processInfo.environment["POLHUB_OLD_HELPER"] != nil), .timeLimit(.minutes(1)))
+@Suite(.enabled(if: ProcessInfo.processInfo.environment["HUB_OLD_HELPER"] != nil), .timeLimit(.minutes(1)))
 struct OldHelperTests {
     @Test func anOldHelpersWriteIsJournaled() throws {
-        let helper = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_OLD_HELPER"]))
+        let helper = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["HUB_OLD_HELPER"]))
         let folder = FileManager.default.temporaryDirectory.appending(path: "ancien-programme \(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }

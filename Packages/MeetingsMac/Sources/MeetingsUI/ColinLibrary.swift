@@ -5,7 +5,7 @@ import Domain
 import Foundation
 import GRDB
 import Persistence
-import PolhubDesign
+import HubDesign
 
 /// What the Accueil knows (18/11): « À valider » and « Le point », made by rules alone and kept up to date out of the
 /// display. The base is read away from the main thread, once for a burst of changes, and only for writings a line

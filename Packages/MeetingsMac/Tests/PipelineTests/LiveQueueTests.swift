@@ -7,13 +7,13 @@ import Testing
 
 /// The whole chain on a copy of a real meeting folder: the queue, the `polhub-calcul` of the app,
 /// the real models, the import. Not part of `make check`:
-/// `POLHUB_LIVE_MEETING=<dossier> POLHUB_CALCUL=<outil> swift test --filter LiveQueueTests`.
-@Suite(.enabled(if: ProcessInfo.processInfo.environment["POLHUB_LIVE_MEETING"] != nil))
+/// `HUB_LIVE_MEETING=<dossier> HUB_CALCUL=<outil> swift test --filter LiveQueueTests`.
+@Suite(.enabled(if: ProcessInfo.processInfo.environment["HUB_LIVE_MEETING"] != nil))
 struct LiveQueueTests {
     @Test func aRealMeetingIsTranscribedEndToEnd() async throws {
         let environment = ProcessInfo.processInfo.environment
-        let source = URL(fileURLWithPath: try #require(environment["POLHUB_LIVE_MEETING"]), isDirectory: true)
-        let helper = URL(fileURLWithPath: try #require(environment["POLHUB_CALCUL"]))
+        let source = URL(fileURLWithPath: try #require(environment["HUB_LIVE_MEETING"]), isDirectory: true)
+        let helper = URL(fileURLWithPath: try #require(environment["HUB_CALCUL"]))
         let file = try MeetingFile.decoder.decode(MeetingFile.self, from: Data(contentsOf: source.appending(path: "meeting.json")))
 
         let root = FileManager.default.temporaryDirectory.appending(path: "chaîne \(UUID().uuidString)", directoryHint: .isDirectory)

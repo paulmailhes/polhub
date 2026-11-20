@@ -20,18 +20,18 @@ gen:
 # iCloud (20/11) demande un profil : l'app est archivée, puis exportée signée Developer ID ; Xcode crée le profil avec
 # le compte de Paul (-allowProvisioningUpdates).
 app: gen
-	rm -rf build/Polhub.xcarchive build/export
-	xcodebuild -project Polhub.xcodeproj -scheme Polhub -configuration Release -derivedDataPath build/DerivedData \
-		-archivePath build/Polhub.xcarchive -allowProvisioningUpdates -quiet \
+	rm -rf build/hub.xcarchive build/export
+	xcodebuild -project hub-board.xcodeproj -scheme Hub -configuration Release -derivedDataPath build/DerivedData \
+		-archivePath build/hub.xcarchive -allowProvisioningUpdates -quiet \
 		MARKETING_VERSION=$(VERSION) CURRENT_PROJECT_VERSION=$(VERSION) archive
-	xcodebuild -exportArchive -archivePath build/Polhub.xcarchive -exportPath build/export \
+	xcodebuild -exportArchive -archivePath build/hub.xcarchive -exportPath build/export \
 		-exportOptionsPlist scripts/export-developer-id.plist -allowProvisioningUpdates -quiet
 	rm -rf $(APP)
 	ditto build/export/hub.app $(APP)
 
 # La version de développement : identifiant .dev, données à part, détection coupée. Jamais installée.
 app-dev: gen
-	xcodebuild -project Polhub.xcodeproj -scheme PolhubDev -configuration Release \
+	xcodebuild -project hub-board.xcodeproj -scheme HubDev -configuration Release \
 		-derivedDataPath build/DerivedData -quiet MARKETING_VERSION=$(VERSION) CURRENT_PROJECT_VERSION=$(VERSION) build
 	rm -rf "build/hub dev.app"
 	ditto "build/DerivedData/Build/Products/Release/hub dev.app" "build/hub dev.app"

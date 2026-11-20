@@ -1,7 +1,7 @@
 import Domain
 import Foundation
 import Persistence
-import PolhubDesign
+import HubDesign
 
 /// « Colin tient le kanban seul » (step 3, 18/11): two rules, no model, nothing that leaves the Mac. What they return
 /// is written by the app, signed Colin's, each change with « Annuler ».

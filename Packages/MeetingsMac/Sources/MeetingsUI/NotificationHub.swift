@@ -3,7 +3,7 @@ import Colin
 import Foundation
 import Notifications
 import Persistence
-import PolhubDesign
+import HubDesign
 
 /// Polhub's notifications, run by the app (14/11): the reminders macOS keeps (shown even when Polhub is not
 /// running), the new events, a meeting not recorded, a summary ready. Réglages › Notifications decides. Every

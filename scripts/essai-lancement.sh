@@ -11,7 +11,7 @@ BIN="build/Polhub.app/Contents/MacOS/Polhub"
 [ -x "$BIN" ] || { echo "Introuvable : $BIN (lancer « make app »)"; exit 1; }
 ROOT="$HOME/Library/Application Support/Polhub/Mesures"
 JOURNAL="$ROOT/lancements.jsonl"
-export POLHUB_NO_ALERT=1
+export HUB_NO_ALERT=1
 failures=0
 mkdir -p "$ROOT"
 marker="$(mktemp)"

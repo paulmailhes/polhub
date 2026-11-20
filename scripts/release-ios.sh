@@ -32,8 +32,8 @@ swift test --package-path Packages/Link >dist/tests-ios.log 2>&1 || { tail -30 d
 
 echo "2/3 Archive $VERSION ($BUILD)"
 xcodegen generate --quiet
-xcodebuild -project Polhub.xcodeproj -scheme PolhubPhone -configuration Release -destination 'generic/platform=iOS' \
-  -archivePath "$OUT/Polhub.xcarchive" -derivedDataPath build/DerivedData-ios-release "${AUTH[@]}" \
+xcodebuild -project hub-board.xcodeproj -scheme HubPhone -configuration Release -destination 'generic/platform=iOS' \
+  -archivePath "$OUT/hub.xcarchive" -derivedDataPath build/DerivedData-ios-release "${AUTH[@]}" \
   MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD" archive >"$OUT/archive.log" 2>&1 \
   || { grep -E 'error:' "$OUT/archive.log" | head -20 >&2; fail "L'archive a échoué ($OUT/archive.log)."; }
 
@@ -51,7 +51,7 @@ cat >"$OUT/export.plist" <<PLIST
 PLIST
 # La signature de distribution et l'envoi passent par le compte Apple ouvert dans Xcode : la clé d'API (App Manager) n'a
 # pas le droit de signer « dans le nuage » (mesuré le 20/11 : « Cloud signing permission error »).
-xcodebuild -exportArchive -archivePath "$OUT/Polhub.xcarchive" -exportOptionsPlist "$OUT/export.plist" -exportPath "$OUT/export" \
+xcodebuild -exportArchive -archivePath "$OUT/hub.xcarchive" -exportOptionsPlist "$OUT/export.plist" -exportPath "$OUT/export" \
   -allowProvisioningUpdates >"$OUT/export.log" 2>&1 || { grep -E 'error:' "$OUT/export.log" | head -20 >&2; fail "L'envoi a échoué ($OUT/export.log)."; }
 node scripts/testflight.mjs groupe || echo "Le groupe TestFlight n'a pas pu être préparé : la version est envoyée quand même." >&2
 echo "Envoyée : Polhub iPhone $VERSION ($BUILD). Apple la traite…"

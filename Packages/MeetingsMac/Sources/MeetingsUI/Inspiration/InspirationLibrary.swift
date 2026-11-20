@@ -2,7 +2,7 @@ import Foundation
 import GRDB
 import Inspiration
 import Persistence
-import PolhubDesign
+import HubDesign
 
 /// « Supprimer », while « Annuler » can bring the item back.
 public struct InspirationUndo: Identifiable, Equatable, Sendable {

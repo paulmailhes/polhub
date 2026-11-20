@@ -1,11 +1,11 @@
 import AppKit
-import PolhubDesign
+import HubDesign
 import SwiftUI
 import Testing
 
 /// A probe for lot 3 (19/11), kept out of the app: how the system's own controls and glass buttons take a tint posed
 /// at the root, in a window that says it is in front (never activated: Paul works meanwhile).
-@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["POLHUB_SONDE_TEINTE"] != nil))
+@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["HUB_SONDE_TEINTE"] != nil))
 struct ControlsTintProbeTests {
     final class FrontWindow: NSWindow {
         override var isKeyWindow: Bool { true }
@@ -13,7 +13,7 @@ struct ControlsTintProbeTests {
     }
 
     @Test func theTints() async throws {
-        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SONDE_TEINTE"]), isDirectory: true)
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["HUB_SONDE_TEINTE"]), isDirectory: true)
         let graphite = Tint.Pair("#1D1D1F", "#8E8E93").color
         for dark in [false, true] {
             let view = HStack(alignment: .top, spacing: 28) {
@@ -75,7 +75,7 @@ struct ControlsTintProbeTests {
 }
 
 /// The system's buttons' heights, size by size, to match Polhub's own roles to them (lot 3, 19/11).
-@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["POLHUB_SONDE_TEINTE"] != nil))
+@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["HUB_SONDE_TEINTE"] != nil))
 struct ButtonHeightsProbeTests {
     @Test func theHeights() {
         _ = NSApplication.shared

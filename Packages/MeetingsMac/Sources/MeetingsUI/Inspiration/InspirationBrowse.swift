@@ -1,7 +1,7 @@
 import Foundation
 import Inspiration
 import Persistence
-import PolhubDesign
+import HubDesign
 
 // What the pages of « Inspiration » show, without a screen (16/11): the words of each page, the search, the
 // filters (one value per family, as the vault's tag bar), the chips each family offers, the meta line of a card,

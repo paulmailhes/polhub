@@ -4,7 +4,7 @@ import Foundation
 import Mail
 import Network
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 import Testing
 import WebKit
@@ -231,11 +231,11 @@ final class CountingServer: @unchecked Sendable {
     }
 }
 
-/// The mail screens with made-up mails (14/11): `POLHUB_LIVE=1 POLHUB_SNAPSHOTS=<dossier> swift test --filter MailScreenTests`.
-@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"] != nil))
+/// The mail screens with made-up mails (14/11): `HUB_LIVE=1 HUB_SNAPSHOTS=<dossier> swift test --filter MailScreenTests`.
+@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"] != nil))
 struct MailScreenTests {
     @Test func theMailScreens() async throws {
-        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"]), isDirectory: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let root = FileManager.default.temporaryDirectory.appending(path: "mails \(UUID().uuidString)", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -597,7 +597,7 @@ struct MailScreenTests {
     /// 16/11: a draft an agent formatted and joined a file to, as the app adopts it (its HTML made by Polhub from the
     /// agent's markdown, its plain version shown whole), in the compose view.
     @Test func anAgentsFormattedDraft() async throws {
-        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"]), isDirectory: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let root = FileManager.default.temporaryDirectory.appending(path: "mails-agent \(UUID().uuidString)", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -645,9 +645,9 @@ struct MailScreenTests {
     }
 }
 
-/// Real mails, on Paul's Mac only, to check their rendering: `POLHUB_VRAIS_MAILS=<fichier.html>:<fichier.html>`
-/// with `POLHUB_LIVE=1 POLHUB_SNAPSHOTS=<dossier hors du dépôt>`. Nothing of them is kept in the repository.
-@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["POLHUB_VRAIS_MAILS"] != nil))
+/// Real mails, on Paul's Mac only, to check their rendering: `HUB_VRAIS_MAILS=<fichier.html>:<fichier.html>`
+/// with `HUB_LIVE=1 HUB_SNAPSHOTS=<dossier hors du dépôt>`. Nothing of them is kept in the repository.
+@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["HUB_VRAIS_MAILS"] != nil))
 struct RealMailRenderingTests {
     struct Host: View {
         let body_: String
@@ -669,9 +669,9 @@ struct RealMailRenderingTests {
     }
 
     @Test func realMailsRender() async throws {
-        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"]), isDirectory: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-        let files = (ProcessInfo.processInfo.environment["POLHUB_VRAIS_MAILS"] ?? "").split(separator: ":").map(String.init)
+        let files = (ProcessInfo.processInfo.environment["HUB_VRAIS_MAILS"] ?? "").split(separator: ":").map(String.init)
         for (index, path) in files.enumerated() {
             let text = try String(contentsOfFile: path, encoding: .utf8)
             let fixed = MailParser.repaired(text) ?? text

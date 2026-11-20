@@ -2,7 +2,7 @@ import AppKit
 import Agenda
 import MeetingDetection
 import Persistence
-import PolhubDesign
+import HubDesign
 import ProjectsUI
 import SwiftUI
 import Updates

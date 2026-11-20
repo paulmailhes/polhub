@@ -1,6 +1,6 @@
 import Combine
 import Foundation
-import PolhubDesign
+import HubDesign
 
 // Polhub's own list of the notifications it sent (Paul, 15/11: « un système de notification dans l'outil »): every
 // notification macOS showed is kept here too, in a small file outside the base, so Paul finds it again in the app.

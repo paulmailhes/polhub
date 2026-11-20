@@ -1,6 +1,6 @@
 import Agenda
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// The words of « Aujourd'hui ».

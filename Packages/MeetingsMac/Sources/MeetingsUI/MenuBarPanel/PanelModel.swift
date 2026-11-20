@@ -5,7 +5,7 @@ import GoogleKit
 import MeetingDetection
 import Persistence
 import Pipeline
-import PolhubDesign
+import HubDesign
 import Summarization
 import SwiftUI
 import Updates

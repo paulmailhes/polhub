@@ -1,7 +1,7 @@
 import Domain
 import Foundation
 import Persistence
-import PolhubDesign
+import HubDesign
 
 /// Audio is kept 30 days, counted from the transcription (validated choice): a meeting recorded before
 /// step 2 keeps its audio until it is transcribed. Detection journals are kept 30 days too.

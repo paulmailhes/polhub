@@ -3,7 +3,7 @@ import AppKit
 import Domain
 import Persistence
 import ProjectsUI
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// Where the overlapping events of a day sit: a column, and how many columns their group shares.

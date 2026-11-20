@@ -4,7 +4,7 @@ import Foundation
 import GoogleKit
 import Notifications
 import Persistence
-import PolhubDesign
+import HubDesign
 import Testing
 @testable import MeetingsUI
 

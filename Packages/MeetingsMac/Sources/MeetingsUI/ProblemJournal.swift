@@ -1,7 +1,7 @@
 import Domain
 import Foundation
 import Persistence
-import PolhubDesign
+import HubDesign
 
 extension AppDatabase {
     /// What the system said of a problem, in the journal of Réglages (lot 10, 20/11), never on the screen: `Words.problem`

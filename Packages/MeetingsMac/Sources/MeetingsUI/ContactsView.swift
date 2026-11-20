@@ -1,7 +1,7 @@
 import Domain
 import Persistence
 import ProjectsUI
-import PolhubDesign
+import HubDesign
 import Summarization
 import SwiftUI
 

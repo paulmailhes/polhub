@@ -1,6 +1,6 @@
 import Domain
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// The Kanban: Priorité 2 (the most urgent, Paul's scale), Priorité 1, En pause, then Terminé at the right; four

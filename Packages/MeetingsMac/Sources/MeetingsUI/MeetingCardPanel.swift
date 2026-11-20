@@ -2,7 +2,7 @@ import Agenda
 import AppKit
 import Notifications
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// The card before a meeting with a Meet (Paul, 16/11: macOS's banners « s'en vont direct »): at the top right of

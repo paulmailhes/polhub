@@ -5,7 +5,7 @@ import Foundation
 import Mail
 import MailFormat
 import Persistence
-import PolhubDesign
+import HubDesign
 @testable import ProjectsUI
 import SwiftUI
 import Testing
@@ -14,8 +14,8 @@ import Testing
 /// The pages of lot 8 (19/11): Projets (Kanban, Liste, a project's page), Réunions (the list and a meeting), Calendrier
 /// (the week and an event's bubble), Contacts, Inspiration (the grid and an item), in light and dark. Every person,
 /// project, meeting and mail here is made up; each project has its color chosen, so that two runs compare. Not part of
-/// `make check`: `POLHUB_LIVE=1 POLHUB_SNAPSHOTS=<dossier> swift test --filter PagesScreenTests` (live: glass and toolbar).
-@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"] != nil), .serialized)
+/// `make check`: `HUB_LIVE=1 HUB_SNAPSHOTS=<dossier> swift test --filter PagesScreenTests` (live: glass and toolbar).
+@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"] != nil), .serialized)
 struct PagesScreenTests {
     @MainActor struct World {
         let root: URL
@@ -45,7 +45,7 @@ struct PagesScreenTests {
     }
 
     private func output() throws -> URL {
-        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"]), isDirectory: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         return output
     }

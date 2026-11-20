@@ -1,6 +1,6 @@
 import AppKit
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 import UniformTypeIdentifiers
 

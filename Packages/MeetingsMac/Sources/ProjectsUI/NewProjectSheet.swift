@@ -1,6 +1,6 @@
 import Domain
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// The window that creates a project, with all its fields (Paul, 14/11); opened by « + ».

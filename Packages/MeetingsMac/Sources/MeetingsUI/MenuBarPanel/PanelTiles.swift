@@ -1,4 +1,4 @@
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// The two tiles of « Coup d'œil », side by side, always in the same place: Calendrier and Mails. « Tuiles allégées »

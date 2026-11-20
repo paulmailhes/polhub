@@ -6,7 +6,7 @@ import Mail
 import MailFormat
 import Notifications
 import Persistence
-import PolhubDesign
+import HubDesign
 import ProjectsUI
 import SwiftUI
 import Testing
@@ -14,8 +14,8 @@ import Testing
 
 /// The window's frame (lot 4, 19/11): the sidebar, the bar of the mails' list, the panels and their ✕, the titles,
 /// the links between objects. Every person, project and mail here is made up. Not part of `make check`:
-/// `POLHUB_LIVE=1 POLHUB_SNAPSHOTS=<dossier> swift test --filter NavigationScreenTests` (live: glass and toolbar).
-@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"] != nil), .serialized)
+/// `HUB_LIVE=1 HUB_SNAPSHOTS=<dossier> swift test --filter NavigationScreenTests` (live: glass and toolbar).
+@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"] != nil), .serialized)
 struct NavigationScreenTests {
     /// A made-up world: three mailboxes, a project with a meeting and an event, two notifications not seen yet, the
     /// three pages of « Inspiration ».
@@ -45,7 +45,7 @@ struct NavigationScreenTests {
     }
 
     private func output() throws -> URL {
-        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"]), isDirectory: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         return output
     }

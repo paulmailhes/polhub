@@ -3,7 +3,7 @@ import Combine
 import Foundation
 import GRDB
 import Persistence
-import PolhubDesign
+import HubDesign
 
 /// Colin's one thread (18/11): Paul's questions and Colin's answers, kept in the base, and what the app imposes on
 /// Colin. During a call or a transcription the bar waits; a call that begins, the Mac's sleep and the switch stop

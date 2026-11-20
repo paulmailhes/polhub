@@ -1,7 +1,7 @@
 # Système de design de Polhub
 
 Polhub suit Liquid Glass, le langage visuel de macOS 26 et suivants. Toute nouvelle page reprend ces règles
-et les composants du module `PolhubDesign` (`Packages/MeetingsMac/Sources/PolhubDesign`).
+et les composants du module `HubDesign` (`Packages/MeetingsMac/Sources/HubDesign`).
 
 Référence : [Adopting Liquid Glass](https://developer.apple.com/documentation/technologyoverviews/adopting-liquid-glass)
 (Apple).
@@ -190,7 +190,7 @@ les autres gardent la leur sous leur carte. Le bandeau du bas (`MailUndoBar`) mo
 
 ## Les couleurs
 
-**Une couleur, un sens** (`Tint`, module `PolhubDesign`, fichier `Tint.swift`). Chaque valeur est celle d'un texte :
+**Une couleur, un sens** (`Tint`, module `HubDesign`, fichier `Tint.swift`). Chaque valeur est celle d'un texte :
 lisible à 4,5:1 au moins sur une fenêtre et sur une carte, en clair et en sombre (`TintTests`). Une couleur de sens
 ne va jamais seule : toujours un mot ou un symbole avec elle.
 
@@ -290,7 +290,7 @@ Quatre rôles, et rien d'autre ne dessine un bouton dans le contenu :
 Tout ce qui se clique répond : un fond au survol, un léger enfoncement à l'appui. Et **le survol ne déplace
 rien** : il change un fond, une ombre, une échelle, jamais une marge ni la place d'un élément. Sur macOS,
 `.hoverEffect` n'existe pas : le survol vient de `onHover`, dans les outils de `Interaction.swift` (module
-`PolhubDesign`).
+`HubDesign`).
 
 | Outil | Usage |
 |---|---|
@@ -318,7 +318,7 @@ rien** : il change un fond, une ombre, une échelle, jamais une marge ni la plac
 ## Les mots
 
 Lot 10 du plan d'affinage (20/11). **Un mot par chose et par geste**, écrit à un seul endroit : les formats, les accords,
-les bulles et les erreurs sortent de `Words` (module `PolhubDesign`, `Words.swift`), qui fixe le français une fois. Un
+les bulles et les erreurs sortent de `Words` (module `HubDesign`, `Words.swift`), qui fixe le français une fois. Un
 nouveau mot entre ici avant d'entrer dans le code.
 
 - **Les choses.** **Rendez-vous** : une entrée d'agenda. **Visio** : un rendez-vous avec un lien Google Meet. **Réunion** :
@@ -693,7 +693,7 @@ latérale) ; un objet ouvert (un projet, une réunion, un contact, une fiche) a 
   (Réglages › Colin) ; « Les mails de tes projets », pour les agents, est une préférence, pas une barrière : une
   session qui a un terminal peut la changer (Réglages › Mails ; audit de sécurité du 19/11, M6 et M8).
 - Une page n'a pas de bouton de réglage à elle ; au plus un raccourci vers sa famille dans Réglages.
-- Chaque réglage a sa clé et sa valeur par défaut dans `Preferences` (module `PolhubDesign`) ; les vues le lisent
+- Chaque réglage a sa clé et sa valeur par défaut dans `Preferences` (module `HubDesign`) ; les vues le lisent
   par `@AppStorage(Preferences.Key…)`.
 - Réglages est en bas de la barre latérale, à part du travail.
 
@@ -702,15 +702,15 @@ latérale) ; un objet ouvert (un projet, une réunion, un contact, une fiche) a 
 Les captures hors écran ne dessinent ni le verre ni la barre d'outils. Pour voir le vrai rendu :
 
 ```sh
-POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter DesignCatalogueScreenTests # les couleurs et les boutons, avant / après
-POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter "WindowSnapshotTests|MailScreenTests/theMailScreens|PeopleScreenTests"
-POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter CoupDoeilScreenTests   # Coup d'œil et le logo
-POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter NotificationCenterScreenTests  # la cloche
-POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter MeetingCardScreenTests  # la carte avant une visio, le HUD
-POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter InspirationScreenTests  # Inspiration, données inventées
-POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter HomeScreenTests         # l'Accueil, données inventées
-POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter SettingsScreenTests     # Réglages, chaque page, clair et sombre
-POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter PagesScreenTests        # Projets, Réunions, Calendrier, Contacts, Inspiration
+HUB_LIVE=1 HUB_SNAPSHOTS=/tmp/captures swift test --filter DesignCatalogueScreenTests # les couleurs et les boutons, avant / après
+HUB_LIVE=1 HUB_SNAPSHOTS=/tmp/captures swift test --filter "WindowSnapshotTests|MailScreenTests/theMailScreens|PeopleScreenTests"
+HUB_LIVE=1 HUB_SNAPSHOTS=/tmp/captures swift test --filter CoupDoeilScreenTests   # Coup d'œil et le logo
+HUB_LIVE=1 HUB_SNAPSHOTS=/tmp/captures swift test --filter NotificationCenterScreenTests  # la cloche
+HUB_LIVE=1 HUB_SNAPSHOTS=/tmp/captures swift test --filter MeetingCardScreenTests  # la carte avant une visio, le HUD
+HUB_LIVE=1 HUB_SNAPSHOTS=/tmp/captures swift test --filter InspirationScreenTests  # Inspiration, données inventées
+HUB_LIVE=1 HUB_SNAPSHOTS=/tmp/captures swift test --filter HomeScreenTests         # l'Accueil, données inventées
+HUB_LIVE=1 HUB_SNAPSHOTS=/tmp/captures swift test --filter SettingsScreenTests     # Réglages, chaque page, clair et sombre
+HUB_LIVE=1 HUB_SNAPSHOTS=/tmp/captures swift test --filter PagesScreenTests        # Projets, Réunions, Calendrier, Contacts, Inspiration
 ```
 
 Une suite à la fois : lancées ensemble, les captures ont laissé des corps de mails vides (19/11).

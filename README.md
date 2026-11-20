@@ -56,7 +56,7 @@ notarisée et archivée pour les mises à jour) se prépare avec `scripts/releas
 
 | Dossier | Contenu |
 |---|---|
-| `App/Polhub` | L'application : barre des menus, fenêtre, lancement, relance |
+| `App/Hub` | L'application : barre des menus, fenêtre, lancement, relance |
 | `Packages/Kernel` | Types du domaine, base SQLite (GRDB), journaux |
 | `Packages/MeetingsMac` | Détection, capture audio, transcription, file de calcul, interface, projets, ligne de commande |
 

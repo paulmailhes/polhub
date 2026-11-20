@@ -1,7 +1,7 @@
 import Agenda
 import MailFormat
 import Persistence
-import PolhubDesign
+import HubDesign
 import ProjectsUI
 import SwiftUI
 

@@ -1,8 +1,8 @@
 import Foundation
 import Notifications
 import Persistence
-import PolhubCloud
-import PolhubLink
+import HubCloud
+import HubLink
 import Testing
 @testable import MeetingsUI
 

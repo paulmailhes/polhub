@@ -1,8 +1,8 @@
 import Domain
 import Foundation
 import Persistence
-import PolhubCloud
-import PolhubLink
+import HubCloud
+import HubLink
 import Testing
 @testable import MeetingsUI
 

@@ -1,6 +1,6 @@
 import Agenda
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// The guests of an event, in its card (15/11): who is a contact, who is in the event's project, and the click to

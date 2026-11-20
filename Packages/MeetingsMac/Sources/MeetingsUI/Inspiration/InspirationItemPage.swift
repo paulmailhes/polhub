@@ -1,5 +1,5 @@
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// An item open (16/11): its images large (a post's side by side), its links, its text, its fonts and client, its

@@ -4,8 +4,8 @@ import Foundation
 import LocalServer
 import Mail
 import Persistence
-import PolhubDesign
-import PolhubLink
+import HubDesign
+import HubLink
 
 /// What Polhub on the Mac answers Polhub on the iPhone (20/11): the same mails, folders, calendar, projects and
 /// meetings as the window, in JSON. Every request carries the token of a paired iPhone; read only in this version.

@@ -1,7 +1,7 @@
 import Domain
 import Foundation
 import Persistence
-import PolhubDesign
+import HubDesign
 
 /// « Le point » on the Accueil (18/11): the week, what is due, whose turn it is, what came since the last time. Four
 /// sentences at most, made by rules alone: no model, nothing that leaves the Mac.

@@ -1,6 +1,6 @@
 import AppKit
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// Réglages › Inspiration (16/11): the LinkedIn pages followed, the automatic collection and how its last runs went,

@@ -1,6 +1,6 @@
 import Domain
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// Missed meetings, alerts and notes, the latest first.

@@ -1,7 +1,7 @@
 import AVFoundation
 import Combine
 import Foundation
-import PolhubDesign
+import HubDesign
 import Recording
 
 /// Plays a meeting: « Moi » and « Les autres » on two tracks of one composition, in phase, each of which

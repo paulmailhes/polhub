@@ -5,7 +5,7 @@ import Mail
 import MailFormat
 import Notifications
 import Persistence
-import PolhubDesign
+import HubDesign
 import Testing
 @testable import MeetingsUI
 

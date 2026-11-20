@@ -1,6 +1,6 @@
 import Foundation
 import Persistence
-import PolhubDesign
+import HubDesign
 
 /// The card that stays at the top right of the screen before a meeting with a Meet, with « Rejoindre » (Paul,
 /// 16/11: macOS's banners « s'en vont direct »). Pure: the panel is the app's (`MeetingCardPresenter`).

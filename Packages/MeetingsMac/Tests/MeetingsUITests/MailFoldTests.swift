@@ -182,9 +182,9 @@ import WebKit
     }
 }
 
-/// The folds as Paul sees them (19/11): `POLHUB_LIVE=1 POLHUB_SNAPSHOTS=<dossier hors du dépôt> swift test --filter
+/// The folds as Paul sees them (19/11): `HUB_LIVE=1 HUB_SNAPSHOTS=<dossier hors du dépôt> swift test --filter
 /// MailFoldScreenTests`. The windows stay under every other one.
-@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"] != nil))
+@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"] != nil))
 struct MailFoldScreenTests {
     static let forward = """
     <div>Pour info, le planning de Camille.</div><div class="gmail_quote"><div dir="ltr" class="gmail_attr">---------- Message transféré ---------<br>
@@ -194,7 +194,7 @@ struct MailFoldScreenTests {
     """
 
     @Test func theFolds() async throws {
-        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"]), isDirectory: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         for (name, body) in [("outlook", MailFoldTests.outlook), ("transfert", Self.forward)] {
             for dark in [false, true] {

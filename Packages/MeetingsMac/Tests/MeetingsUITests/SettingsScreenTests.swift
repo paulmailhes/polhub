@@ -3,7 +3,7 @@ import Agenda
 import Domain
 import Foundation
 import Persistence
-import PolhubDesign
+import HubDesign
 import ProjectsUI
 import SwiftUI
 import Testing
@@ -12,15 +12,15 @@ import Updates
 
 /// Réglages, every family and every page, in light and dark (lot 7, 19/11), with an invented world: made-up accounts,
 /// senders, journal and studios. Not part of `make check`:
-/// `POLHUB_LIVE=1 POLHUB_SNAPSHOTS=<dossier> swift test --filter SettingsScreenTests` (live: glass and toolbar).
+/// `HUB_LIVE=1 HUB_SNAPSHOTS=<dossier> swift test --filter SettingsScreenTests` (live: glass and toolbar).
 /// Nothing is ever checked for real: the Diagnostic's states are set by hand, so that it never tests the micro or the
 /// sound.
-@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"] != nil), .serialized)
+@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"] != nil), .serialized)
 struct SettingsScreenTests {
     static let size = NSSize(width: 1_000, height: 860)
 
     private func output() throws -> URL {
-        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"]), isDirectory: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         return output
     }

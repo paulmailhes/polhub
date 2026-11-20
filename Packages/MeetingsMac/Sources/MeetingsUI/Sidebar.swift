@@ -1,6 +1,6 @@
 import Agenda
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// A row of the sidebar's list: a section, or one of the mails' folders under « Mails » (Paul, 15/11). Inspiration is one

@@ -1,6 +1,6 @@
 import Domain
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// What the search found, by meeting; a line opens its meeting at that moment.

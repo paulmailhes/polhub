@@ -245,9 +245,9 @@ final class SlowTaggingModel: InspirationTaggingModel, @unchecked Sendable {
     }
 }
 
-/// The real model on this Mac, on an invented post: run by hand (`POLHUB_MODELE_APPLE=1`) to measure, never by
+/// The real model on this Mac, on an invented post: run by hand (`HUB_MODELE_APPLE=1`) to measure, never by
 /// `make check`.
-@Suite(.enabled(if: ProcessInfo.processInfo.environment["POLHUB_MODELE_APPLE"] != nil))
+@Suite(.enabled(if: ProcessInfo.processInfo.environment["HUB_MODELE_APPLE"] != nil))
 struct AppleTaggerMeasureTests {
     @Test func theRealModelTagsAnInventedPost() async throws {
         let database = try AppDatabase.inMemory()

@@ -1,5 +1,5 @@
 import Foundation
-import PolhubDesign
+import HubDesign
 import Testing
 @testable import MeetingsUI
 

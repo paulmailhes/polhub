@@ -2,7 +2,7 @@ import AppKit
 import Agenda
 import Foundation
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 import Testing
 @testable import MeetingsUI

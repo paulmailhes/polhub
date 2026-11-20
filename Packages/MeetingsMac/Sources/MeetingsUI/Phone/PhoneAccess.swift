@@ -2,9 +2,9 @@ import Foundation
 import LocalServer
 import Notifications
 import Persistence
-import PolhubDesign
-import PolhubCloud
-import PolhubLink
+import HubDesign
+import HubCloud
+import HubLink
 
 /// Réglages › iPhone (20/11): the switch that opens Polhub to Paul's iPhone, the address the iPhone reaches, the QR
 /// code that pairs one, and the iPhones paired. The server listens on the Mac's loopback only; `tailscale serve`

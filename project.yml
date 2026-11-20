@@ -1,4 +1,4 @@
-name: Polhub
+name: hub-board
 options:
   bundleIdPrefix: fr.paulmailhes
 settings:
@@ -22,16 +22,16 @@ packages:
   Link:
     path: Packages/Link
 targets:
-  Polhub:
+  Hub:
     type: application
     platform: macOS
     sources:
-      - path: App/Polhub
+      - path: App/Hub
         excludes:
           - "*.plist"
           - "*.entitlements"
       # The relaunch agent's plist must sit where SMAppService looks for it.
-      - path: App/Polhub/fr.paulmailhes.polhub.relance.plist
+      - path: App/Hub/fr.paulmailhes.polhub.relance.plist
         buildPhase:
           copyFiles:
             destination: wrapper
@@ -57,28 +57,28 @@ targets:
       - package: MeetingsMac
         product: MeetingsUI
       - package: Link
-        product: PolhubLink
+        product: HubLink
       - package: Link
-        product: PolhubCloud
+        product: HubCloud
       - package: MeetingsMac
         product: ProjectsUI
       - package: MeetingsMac
         product: Summarization
       - package: MeetingsMac
-        product: PolhubDesign
+        product: HubDesign
       - package: MeetingsMac
         product: Notifications
       # « Inspiration » (16/11): its collection and its tagger, run by the app.
       - package: MeetingsMac
         product: Inspiration
       # Step 2: the computing process and the command line, in Contents/Helpers.
-      - target: PolhubCalcul
+      - target: HubCalcul
         embed: true
         codeSign: true
         copy:
           destination: wrapper
           subpath: Contents/Helpers
-      - target: PolhubCLI
+      - target: HubCLI
         embed: true
         codeSign: true
         copy:
@@ -94,21 +94,21 @@ targets:
         SWIFT_VERSION: "6.0"
         # Info.plist is written by hand: Xcode drops NSAudioCaptureUsageDescription from generated ones.
         GENERATE_INFOPLIST_FILE: NO
-        INFOPLIST_FILE: App/Polhub/Info.plist
+        INFOPLIST_FILE: App/Hub/Info.plist
         # iCloud (20/11) needs a provisioning profile: Xcode makes it with Paul's account (`make app` archives, then exports
         # signed Developer ID). Measured in prive/docs/mesures/2026-11-20-icloud-signature.md.
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "Apple Development"
         DEVELOPMENT_TEAM: CQ43U6XX4Z
-        CODE_SIGN_ENTITLEMENTS: App/Polhub/Polhub.entitlements
+        CODE_SIGN_ENTITLEMENTS: App/Hub/Hub.entitlements
         ENABLE_HARDENED_RUNTIME: YES
         # The icon, made with Icon Composer's layers so macOS gives it Liquid Glass (14/11).
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-  PolhubDev:
+  HubDev:
     type: application
     platform: macOS
     sources:
-      - path: App/Polhub
+      - path: App/Hub
         excludes:
           - "*.plist"
           - "*.entitlements"
@@ -133,20 +133,20 @@ targets:
       - package: MeetingsMac
         product: MeetingsUI
       - package: Link
-        product: PolhubLink
+        product: HubLink
       - package: Link
-        product: PolhubCloud
+        product: HubCloud
       - package: MeetingsMac
         product: ProjectsUI
       - package: MeetingsMac
         product: Inspiration
-      - target: PolhubCalcul
+      - target: HubCalcul
         embed: true
         codeSign: true
         copy:
           destination: wrapper
           subpath: Contents/Helpers
-      - target: PolhubCLI
+      - target: HubCLI
         embed: true
         codeSign: true
         copy:
@@ -160,21 +160,21 @@ targets:
         SWIFT_VERSION: "6.0"
         # Info.plist is written by hand: Xcode drops NSAudioCaptureUsageDescription from generated ones.
         GENERATE_INFOPLIST_FILE: NO
-        INFOPLIST_FILE: App/Polhub/Info-dev.plist
+        INFOPLIST_FILE: App/Hub/Info-dev.plist
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: "Developer ID Application"
         DEVELOPMENT_TEAM: CQ43U6XX4Z
         # Without iCloud: the development build has no provisioning profile.
-        CODE_SIGN_ENTITLEMENTS: App/Polhub/PolhubDev.entitlements
+        CODE_SIGN_ENTITLEMENTS: App/Hub/HubDev.entitlements
         ENABLE_HARDENED_RUNTIME: YES
         # The icon, made with Icon Composer's layers so macOS gives it Liquid Glass (14/11).
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
   # hub-calcul: the models live only in this process (WhisperKit, Silero), never in the app.
-  PolhubCalcul:
+  HubCalcul:
     type: tool
     platform: macOS
     sources:
-      - path: Packages/MeetingsMac/Sources/PolhubCalcul
+      - path: Packages/MeetingsMac/Sources/HubCalcul
     dependencies:
       - package: MeetingsMac
         product: Compute
@@ -191,11 +191,11 @@ targets:
         ENABLE_HARDENED_RUNTIME: YES
         SKIP_INSTALL: YES
   # hub: the meetings read-only, for the terminal and Claude Code (MCP).
-  PolhubCLI:
+  HubCLI:
     type: tool
     platform: macOS
     sources:
-      - path: Packages/MeetingsMac/Sources/PolhubCLI
+      - path: Packages/MeetingsMac/Sources/HubCLI
     dependencies:
       - package: MeetingsMac
         product: ReadingKit
@@ -213,21 +213,21 @@ targets:
         ENABLE_HARDENED_RUNTIME: YES
         SKIP_INSTALL: YES
   # Polhub on the iPhone (20/11): the same name on screen, its own identifier, TestFlight.
-  PolhubPhone:
+  HubPhone:
     type: application
     platform: iOS
     deploymentTarget: "27.0"
     sources:
-      - path: App/PolhubPhone
+      - path: App/HubPhone
         excludes:
           - "*.plist"
           - "*.entitlements"
-      - path: App/Polhub/AppIcon.icon
+      - path: App/Hub/AppIcon.icon
     dependencies:
       - package: Link
-        product: PolhubLink
+        product: HubLink
       - package: Link
-        product: PolhubCloud
+        product: HubCloud
     settings:
       base:
         PRODUCT_NAME: hub
@@ -236,9 +236,9 @@ targets:
         SWIFT_VERSION: "6.0"
         TARGETED_DEVICE_FAMILY: "1"
         GENERATE_INFOPLIST_FILE: NO
-        INFOPLIST_FILE: App/PolhubPhone/Info.plist
+        INFOPLIST_FILE: App/HubPhone/Info.plist
         # The notifications (20/11): Apple's push service, production (TestFlight).
-        CODE_SIGN_ENTITLEMENTS: App/PolhubPhone/PolhubPhone.entitlements
+        CODE_SIGN_ENTITLEMENTS: App/HubPhone/HubPhone.entitlements
         MARKETING_VERSION: "1.0.0"
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: CQ43U6XX4Z
@@ -246,21 +246,21 @@ targets:
         OTHER_CODE_SIGN_FLAGS: ""
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
 schemes:
-  PolhubPhone:
+  HubPhone:
     build:
       targets:
-        PolhubPhone: all
+        HubPhone: all
     run:
       config: Debug
-  Polhub:
+  Hub:
     build:
       targets:
-        Polhub: all
+        Hub: all
     run:
       config: Debug
-  PolhubDev:
+  HubDev:
     build:
       targets:
-        PolhubDev: all
+        HubDev: all
     run:
       config: Debug

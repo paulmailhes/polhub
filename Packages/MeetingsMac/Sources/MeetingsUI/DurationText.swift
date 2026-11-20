@@ -1,5 +1,5 @@
 import Foundation
-import PolhubDesign
+import HubDesign
 
 /// Kept for what still calls it; the words are `Words`' (lot 10, 20/11).
 public enum DurationText {

@@ -1,7 +1,7 @@
 import AppKit
 import Colin
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 // The pieces of Colin's thread (the Accueil's pass, 18/11): Paul's bubble, the days, an answer with its actions in

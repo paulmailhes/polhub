@@ -3,7 +3,7 @@ import Domain
 import Foundation
 import GRDB
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// What Polhub keeps of a project's site and logo, in `Logos/sites.json`, outside the base (15/11).

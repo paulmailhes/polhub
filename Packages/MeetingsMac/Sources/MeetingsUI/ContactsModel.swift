@@ -1,6 +1,6 @@
 import Foundation
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// The last time Paul and a contact crossed (15/11): a mail, a recorded meeting, an event of the calendars.

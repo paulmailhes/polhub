@@ -1,4 +1,4 @@
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// The words of Réglages › Colin (18/11). Lot 7 (19/11): one line of help under each setting, the long texts behind « ⓘ ».

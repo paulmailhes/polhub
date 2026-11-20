@@ -1,4 +1,4 @@
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// The words of Réglages › Projets (lot 7, 19/11): one line under the logos' switch, the detail behind « ⓘ ».

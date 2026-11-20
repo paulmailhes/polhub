@@ -3,7 +3,7 @@ import Notifications
 import Persistence
 import LocalServer
 import Mail
-import PolhubLink
+import HubLink
 import Testing
 @testable import MeetingsUI
 

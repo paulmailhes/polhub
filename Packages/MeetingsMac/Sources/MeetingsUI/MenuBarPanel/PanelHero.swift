@@ -1,6 +1,6 @@
 import Agenda
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// The hero of « Coup d'œil » (15/11): a large calm card that says what matters now and offers one main action

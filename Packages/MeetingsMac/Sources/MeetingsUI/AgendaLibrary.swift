@@ -6,7 +6,7 @@ import GRDB
 import Mail
 import Persistence
 import ProjectsUI
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// Calendars, contacts and the loop, for the window: what the base holds, and Paul's gestures (13/11).

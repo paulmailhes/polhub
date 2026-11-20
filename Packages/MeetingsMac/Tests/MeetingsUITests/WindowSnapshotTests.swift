@@ -2,7 +2,7 @@ import AppKit
 import Domain
 import Foundation
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 import Testing
 @testable import MeetingsUI
@@ -10,11 +10,11 @@ import ProjectsUI
 import Updates
 
 /// Draws the window off screen, at a few widths, into PNG files to look at. Not part of `make check`:
-/// `POLHUB_SNAPSHOTS=<dossier> swift test --filter WindowSnapshotTests`.
-@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"] != nil))
+/// `HUB_SNAPSHOTS=<dossier> swift test --filter WindowSnapshotTests`.
+@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"] != nil))
 struct WindowSnapshotTests {
     @Test func theMeetingsSectionAtSeveralWidths() async throws {
-        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"]), isDirectory: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let root = FileManager.default.temporaryDirectory.appending(path: "fenêtre \(UUID().uuidString)", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -66,7 +66,7 @@ struct WindowSnapshotTests {
     }
 
     @Test func theProjectsBoard() async throws {
-        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"]), isDirectory: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let root = FileManager.default.temporaryDirectory.appending(path: "kanban \(UUID().uuidString)", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -100,7 +100,7 @@ struct WindowSnapshotTests {
     }
 
     @Test func theProjectPage() async throws {
-        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"]), isDirectory: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let database = try AppDatabase.inMemory()
         let store = ProjectStore(database)
@@ -154,7 +154,7 @@ struct WindowSnapshotTests {
 
     /// Réglages and its tabs: Mises à jour, Diagnostic, Journal.
     @Test func theSettingsPage() async throws {
-        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"]), isDirectory: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let root = FileManager.default.temporaryDirectory.appending(path: "réglages \(UUID().uuidString)", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -183,7 +183,7 @@ struct WindowSnapshotTests {
 
     /// Accueil, Calendrier and Contacts, with made-up data (13/11).
     @Test func theAgendaScreens() async throws {
-        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"]), isDirectory: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let root = FileManager.default.temporaryDirectory.appending(path: "agenda \(UUID().uuidString)", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -288,7 +288,7 @@ struct WindowSnapshotTests {
     /// Contacts (15/11): the list by last exchange, and a contact's page with its projects, mails, events and
     /// meetings, in light and dark, narrow and wide. Every person here is made up.
     @Test func theContactsSection() async throws {
-        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"]), isDirectory: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let root = FileManager.default.temporaryDirectory.appending(path: "contacts \(UUID().uuidString)", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -395,7 +395,7 @@ struct WindowSnapshotTests {
 
     /// The event editor (14/11).
     @Test func theEventEditor() async throws {
-        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"]), isDirectory: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let database = try AppDatabase.inMemory()
         try CalendarStore(database).addAccount(email: "paul@atelier-nord.fr", at: Date())
@@ -410,13 +410,13 @@ struct WindowSnapshotTests {
     }
 }
 
-/// A window as the app makes it. With `POLHUB_LIVE=1`, it is shown on screen and captured by the system, glass
+/// A window as the app makes it. With `HUB_LIVE=1`, it is shown on screen and captured by the system, glass
 /// and toolbar included (14/11: the offscreen drawing leaves them out); otherwise it is drawn offscreen.
 @MainActor
 enum LiveWindow {
     static func capture(_ view: some View, to file: URL, size: NSSize = NSSize(width: 1_280, height: 780), dark: Bool = false,
                         wait: Duration = .milliseconds(1_500)) async throws {
-        let live = ProcessInfo.processInfo.environment["POLHUB_LIVE"] != nil
+        let live = ProcessInfo.processInfo.environment["HUB_LIVE"] != nil
         let host = NSHostingController(rootView: view)
         host.sceneBridgingOptions = [.title, .toolbars]
         let window = NSWindow(contentViewController: host)

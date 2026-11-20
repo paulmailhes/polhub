@@ -1,5 +1,5 @@
 import os
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// The Claude accounts Vigie knows (0.36.0, 18/11), read once a minute while the Accueil shows. The app alone makes one:

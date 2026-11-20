@@ -1,6 +1,6 @@
 import AppKit
 import ImageIO
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 // The images of « Inspiration », light on memory (16/11): a card of 300 points never decodes the 1 600-pixel image

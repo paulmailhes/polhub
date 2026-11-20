@@ -1,16 +1,16 @@
 import AppKit
-import PolhubDesign
+import HubDesign
 import SwiftUI
 import Testing
 
 /// Lot 3, before anything changes in the app (plan of 19/11): what the app draws today beside the design system v2,
 /// the ink accent, the tints and the four roles of a button, in light and in dark. Shown to Paul before it spreads.
-/// `POLHUB_LIVE=1 POLHUB_SNAPSHOTS=<dossier hors du dépôt> swift test --filter DesignCatalogueScreenTests`. Every text
+/// `HUB_LIVE=1 HUB_SNAPSHOTS=<dossier hors du dépôt> swift test --filter DesignCatalogueScreenTests`. Every text
 /// is invented.
-@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"] != nil))
+@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"] != nil))
 struct DesignCatalogueScreenTests {
     @Test func theCatalogue() async throws {
-        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]), isDirectory: true)
+        let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"]), isDirectory: true)
         for dark in [false, true] {
             try await LiveWindow.capture(DesignCatalogue().background(Color(nsColor: .windowBackgroundColor)),
                                          to: output.appending(path: "design-v2\(dark ? "-sombre" : "").png"), size: NSSize(width: 1_000, height: 640),

@@ -4,7 +4,7 @@ import Foundation
 import Pipeline
 import GRDB
 import Persistence
-import PolhubDesign
+import HubDesign
 import Summarization
 
 public struct DaySection: Equatable, Identifiable, Sendable {

@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 import Pipeline
-import PolhubDesign
+import HubDesign
 
 /// The menu bar's logo and the few characters next to it (« Coup d'œil », 15/11). From the most to the least
 /// important: a recording (the red circle and its clock), a meeting just detected (the circle in outline and the

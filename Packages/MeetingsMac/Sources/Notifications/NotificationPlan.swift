@@ -1,7 +1,7 @@
 import Domain
 import Foundation
 import Persistence
-import PolhubDesign
+import HubDesign
 
 /// One notification Polhub asks macOS to show, now or at a date.
 public struct PlannedNotice: Equatable, Sendable {

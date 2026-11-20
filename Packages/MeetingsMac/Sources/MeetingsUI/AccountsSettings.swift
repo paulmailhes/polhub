@@ -1,6 +1,6 @@
 import Agenda
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// Réglages › Comptes Google (14/11): the accounts the calendar and the mails share, their colors, what each

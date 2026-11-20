@@ -28,7 +28,7 @@ public enum MailHTML {
                 + (parts.quote.map { block($0, " data-polhub-quote") } ?? "")
         }
         // Hidden until the script has adapted the colors: no white flash. CSS shows it anyway after a moment.
-        // A link the mail leaves unstyled takes the app's accent, ink (`Tint.ink` of PolhubDesign: #1D1D1F in light,
+        // A link the mail leaves unstyled takes the app's accent, ink (`Tint.ink` of HubDesign: #1D1D1F in light,
         // #F5F5F7 in dark), and keeps WebKit's own underline: it is known by its line, no longer by its blue (design
         // system v2, 19/11). The mail's own styles still win.
         let darkStyle = dark

@@ -1,4 +1,4 @@
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// « À régler » (15/11): only when something keeps Polhub from working well, one line per cause, three at most, the

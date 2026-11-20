@@ -1,5 +1,5 @@
 import Foundation
-import PolhubDesign
+import HubDesign
 
 public protocol UpdateInstalling: Sendable {
     func prepare(_ release: Release) async throws -> URL

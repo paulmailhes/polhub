@@ -3,9 +3,9 @@ import SwiftUI
 import Testing
 @testable import MeetingsUI
 
-/// « Sonde de Colin » as the Diagnostic page shows it, in each of its states: only with `POLHUB_SNAPSHOTS=<folder>`.
+/// « Sonde de Colin » as the Diagnostic page shows it, in each of its states: only with `HUB_SNAPSHOTS=<folder>`.
 /// The section alone: the page's own checks test the microphone, which a capture must not do.
-@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"] != nil))
+@MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"] != nil))
 struct ColinProbeScreenTests {
     /// Holds what the app's runner would call when the probe ends.
     @MainActor final class Ending {
@@ -27,7 +27,7 @@ struct ColinProbeScreenTests {
     }
 
     @Test func theProbeSection() async throws {
-        let folder = URL(fileURLWithPath: ProcessInfo.processInfo.environment["POLHUB_SNAPSHOTS"]!, isDirectory: true)
+        let folder = URL(fileURLWithPath: ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"]!, isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
 
         let idle = control().control

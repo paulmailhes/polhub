@@ -6,7 +6,7 @@ import GRDB
 import Mail
 import MailFormat
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 import UniformTypeIdentifiers
 

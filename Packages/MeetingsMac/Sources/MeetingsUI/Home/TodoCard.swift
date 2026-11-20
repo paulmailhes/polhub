@@ -1,6 +1,6 @@
 import Colin
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// The gestures of a line of « À faire » (lot 5, 19/11), the same under the pointer and at the right click.

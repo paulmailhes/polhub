@@ -1,5 +1,5 @@
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// The words of Réglages › Mails (lot 7, 19/11): one line of help under each setting that needs one, the long texts

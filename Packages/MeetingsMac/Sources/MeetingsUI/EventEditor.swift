@@ -2,7 +2,7 @@ import Agenda
 import Domain
 import MailFormat
 import Persistence
-import PolhubDesign
+import HubDesign
 import SwiftUI
 
 /// What opens the editor: a new event (at a time, or now) or one to change.

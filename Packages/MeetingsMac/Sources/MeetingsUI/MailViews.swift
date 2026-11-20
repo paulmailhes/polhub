@@ -4,7 +4,7 @@ import GRDB
 import Mail
 import MailFormat
 import Persistence
-import PolhubDesign
+import HubDesign
 import ProjectsUI
 import QuickLook
 import SwiftUI
