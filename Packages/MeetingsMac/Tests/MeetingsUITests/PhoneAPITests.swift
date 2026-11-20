@@ -9,7 +9,7 @@ import HubLink
 import Testing
 @testable import MeetingsUI
 
-/// Polhub on the iPhone (20/11): the Mac answers a paired iPhone only, in JSON. Every name here is invented.
+/// hub on the iPhone (20/11): the Mac answers a paired iPhone only, in JSON. Every name here is invented.
 @MainActor @Suite struct PhoneAPITests {
     func defaults() throws -> UserDefaults {
         try #require(UserDefaults(suiteName: "iphone-\(UUID().uuidString)"))

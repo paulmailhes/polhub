@@ -1,14 +1,14 @@
 import AppKit
 
-/// The menu bar's logo: the three columns of Polhub's icon (Paul, 14/11). One rule (« Coup d'œil », 15/11): filled,
-/// Polhub watches for meetings; in outline, it does not (detection paused, or the development build, which never
+/// The menu bar's logo: the three columns of hub's icon (Paul, 14/11). One rule (« Coup d'œil », 15/11): filled,
+/// hub watches for meetings; in outline, it does not (detection paused, or the development build, which never
 /// detects). A small cut-out badge on the top right corner when a recording is at risk. A template image, so the menu
 /// bar draws it black or white with the rest, tinted bars included; nothing in it moves.
 public enum MenuBarGlyph {
     public enum Style: Sendable, Hashable {
-        /// Polhub watches for meetings.
+        /// hub watches for meetings.
         case filled
-        /// Polhub does not watch: detection paused, or the development build.
+        /// hub does not watch: detection paused, or the development build.
         case outline
     }
 
@@ -64,7 +64,7 @@ public enum MenuBarGlyph {
 
     static func description(style: Style, badge: Bool) -> String {
         // The detection is active or suspended, never « arrêtée » (lot 10, 20/11).
-        let state = style == .filled ? "Polhub" : "Polhub, détection suspendue"
+        let state = style == .filled ? "hub" : "hub, détection suspendue"
         return badge ? "\(state), un enregistrement est menacé" : state
     }
 

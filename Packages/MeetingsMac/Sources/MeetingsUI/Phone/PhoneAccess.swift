@@ -6,7 +6,7 @@ import HubDesign
 import HubCloud
 import HubLink
 
-/// Réglages › iPhone (20/11): the switch that opens Polhub to Paul's iPhone, the address the iPhone reaches, the QR
+/// Réglages › iPhone (20/11): the switch that opens hub to Paul's iPhone, the address the iPhone reaches, the QR
 /// code that pairs one, and the iPhones paired. The server listens on the Mac's loopback only; `tailscale serve`
 /// publishes it on Paul's tailnet.
 @MainActor
@@ -75,7 +75,7 @@ public final class PhoneAccess: ObservableObject {
         push.plan(notifies ? reminders : [])
     }
 
-    /// The number on Polhub's icon (20/11), read by each notification, and in the Mac's answers.
+    /// The number on hub's icon (20/11), read by each notification, and in the Mac's answers.
     public var badge: (@MainActor () -> Int)? {
         didSet {
             push.badge = badge
@@ -130,7 +130,7 @@ public final class PhoneAccess: ObservableObject {
         } catch {
             server.stop()
             running = false
-            problem = "Polhub n'a pas pu ouvrir l'accès : le port \(port) est déjà pris par une autre app. Quitte-la, puis rallume l'accès."
+            problem = "hub n'a pas pu ouvrir l'accès : le port \(port) est déjà pris par une autre app. Quitte-la, puis rallume l'accès."
         }
     }
 
@@ -145,7 +145,7 @@ public final class PhoneAccess: ObservableObject {
     public func pair() async {
         if Self.base(address) == nil { await readTailscale() }
         guard let base = Self.base(address) else {
-            problem = "Polhub n'a pas trouvé l'adresse du Mac sur Tailscale : colle-la dans « Adresse » (https://…:8443)."
+            problem = "hub n'a pas trouvé l'adresse du Mac sur Tailscale : colle-la dans « Adresse » (https://…:8443)."
             return
         }
         problem = nil

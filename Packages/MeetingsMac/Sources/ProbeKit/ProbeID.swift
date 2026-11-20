@@ -9,7 +9,7 @@ public enum ProbeID: String, CaseIterable, Sendable, Codable {
     case call
     case record
     case pipeline
-    /// Step 0 of Colin (17/11): Claude Code launched by Polhub, on invented texts.
+    /// Step 0 of Colin (17/11): Claude Code launched by hub, on invented texts.
     case colin
     /// The rules of « À valider », counted on the mails of the base (18/11): numbers only, no model, nothing sent.
     case colinRules = "colin-regles"
@@ -31,7 +31,7 @@ public enum ProbeID: String, CaseIterable, Sendable, Codable {
         case .call: "Appel d'essai"
         case .record: "Enregistreur de réunion"
         case .pipeline: "Chaîne complète (enregistrer, finaliser, relire)"
-        case .colin: "Colin : Claude Code depuis Polhub"
+        case .colin: "Colin : Claude Code depuis hub"
         case .colinRules: "Colin : les règles sur tes mails"
         }
     }

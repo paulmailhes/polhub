@@ -1,6 +1,6 @@
 import Foundation
 
-/// An event an agent asks for (`rendez_vous` of `polhub mcp`, 16/11). The helper has no network: it leaves the
+/// An event an agent asks for (`rendez_vous` of `hub mcp`, 16/11). The helper has no network: it leaves the
 /// request in `Agenda/demandes`, posts `AgentEventFiles.signal`, and waits for the app's answer in `Agenda/reponses`.
 /// The app makes the event with the editor's code, never with a guest, marked « préparé par un agent ».
 public struct AgentEventRequest: Codable, Equatable, Sendable {

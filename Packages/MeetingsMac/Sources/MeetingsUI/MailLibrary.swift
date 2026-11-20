@@ -84,7 +84,7 @@ public enum MailFolder: String, Hashable, Sendable, CaseIterable {
 }
 
 /// A thread put aside whole: in Gmail's trash or in its spam (wave B, Paul's yes of 15/11). Gmail empties both
-/// after 30 days; Polhub only brings a thread back, never deletes it for good (that needs a wider Google
+/// after 30 days; hub only brings a thread back, never deletes it for good (that needs a wider Google
 /// permission): no reply, no forward, no case from there.
 public enum MailAside: String, Hashable, Sendable, CaseIterable {
     case trash, spam
@@ -284,7 +284,7 @@ public final class MailLibrary: ObservableObject {
     @Published public private(set) var drafts: [MailDraftRow] = []
     /// A draft an agent changed (17/11): its editor, if open, opens again on the new version.
     @Published public private(set) var agentRevisions: [String: Int] = [:]
-    /// The drafts Gmail holds that Polhub did not make.
+    /// The drafts Gmail holds that hub did not make.
     @Published public private(set) var gmailDrafts: [MailMessageRow] = []
     @Published public private(set) var sent: [MailThreadRow] = []
     /// « Tous les messages »: the copy, archived threads too (15/11).
@@ -320,7 +320,7 @@ public final class MailLibrary: ObservableObject {
     @Published public var unreadOnly = false
     /// The senders Paul could leave (the « Abonnements »), the busiest first.
     @Published public private(set) var subscriptions: [MailSubscription] = []
-    /// The senders Paul left from Polhub, with the day.
+    /// The senders Paul left from hub, with the day.
     @Published public private(set) var unsubscribed: [String: Date] = [:]
     /// What Gmail found for a text, on Enter: its threads join the copy's.
     private var gmailFound: (text: String, keys: [String])?
@@ -443,14 +443,14 @@ public final class MailLibrary: ObservableObject {
             }
             .store(in: &cancellables)
         }
-        // The Mac wakes: a mail programmed meanwhile leaves now (wave B). Polhub never wakes the Mac itself.
+        // The Mac wakes: a mail programmed meanwhile leaves now (wave B). hub never wakes the Mac itself.
         NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification).sink { [weak self] _ in
             self?.refresh()
         }
         .store(in: &cancellables)
         // Gmail's answers once kept on disk by the shared session (a spam's body among them) go (wave B review).
         GoogleHTTP.forgetOldCache()
-        // The attachments an agent asked for (`polhub mcp` has no network, 16/11): downloaded at its signal, and those
+        // The attachments an agent asked for (`hub mcp` has no network, 16/11): downloaded at its signal, and those
         // left from before at the launch.
         fileRequests = ExternalChangeSignal.listen(name: MailFiles.requestSignal, queue: .main) { [weak self] in
             Task { await self?.serveFileRequests() }
@@ -689,7 +689,7 @@ public final class MailLibrary: ObservableObject {
         return unreadOnly ? threads.filter(\.unread) : threads
     }
 
-    /// The drafts waiting: Polhub's and those begun elsewhere. A programmed mail is in « Programmés » only, as in
+    /// The drafts waiting: hub's and those begun elsewhere. A programmed mail is in « Programmés » only, as in
     /// Gmail.
     public var draftCount: Int { drafts.filter { scheduled[$0.id] == nil }.count + gmailDrafts.count }
 
@@ -841,7 +841,7 @@ public final class MailLibrary: ObservableObject {
         undoable = nil
         Task {
             do { for gesture in gestures { try await engine.undo(gesture) } } catch {
-                // Polhub's words, the system's to the journal (lot 10, 20/11).
+                // hub's words, the system's to the journal (lot 10, 20/11).
                 let problem = Words.problem("Le changement n'a pas pu être annulé", error)
                 message = problem.sentence
                 agenda.database.journal(problem)
@@ -927,7 +927,7 @@ public final class MailLibrary: ObservableObject {
                 if token == asideToken {
                     // What the copy holds stays in the list: said in place of what to do (lot 10, 20/11).
                     let problem = Words.problem("Gmail n'a pas donné \(aside == .trash ? "sa corbeille" : "son spam")", error,
-                                                remedy: "Voici ce que Polhub en a déjà.")
+                                                remedy: "Voici ce que hub en a déjà.")
                     message = problem.sentence
                     agenda.database.journal(problem)
                 }
@@ -988,7 +988,7 @@ public final class MailLibrary: ObservableObject {
             }
             refreshFiles()
         } catch {
-            // Polhub's words, the system's to the journal (lot 10, 20/11).
+            // hub's words, the system's to the journal (lot 10, 20/11).
             let problem = Words.problem("Gmail n'a pas répondu à la recherche", error)
             message = problem.sentence
             agenda.database.journal(problem)
@@ -1051,8 +1051,8 @@ public final class MailLibrary: ObservableObject {
         do {
             try store.remember(address: address, tab: .some(nil), images: false, filing: .some(nil), at: Date())
         } catch {
-            // Polhub's words, the system's to the journal (lot 10, 20/11).
-            let problem = Words.problem("Polhub n'a pas pu oublier \(address)", error)
+            // hub's words, the system's to the journal (lot 10, 20/11).
+            let problem = Words.problem("hub n'a pas pu oublier \(address)", error)
             message = problem.sentence
             agenda.database.journal(problem)
         }
@@ -1076,7 +1076,7 @@ public final class MailLibrary: ObservableObject {
     }
 
     /// A file of a message, downloaded once: an image, a PDF or a document shows in Quick Look; anything else
-    /// (HTML, archive, program) is never opened by Polhub, only saved where Paul says.
+    /// (HTML, archive, program) is never opened by hub, only saved where Paul says.
     public func open(_ attachment: MailAttachment, of carrier: MailMessageRow) {
         let id = MailListedFile(messageKey: carrier.id, attachment: attachment).id
         guard !opening.contains(id) else { return }
@@ -1088,7 +1088,7 @@ public final class MailLibrary: ObservableObject {
                 if AttachmentSafety.canOpen(name: attachment.filename) { preview = url } else { saveCopy(of: url) }
             } catch {
                 opening.remove(id)
-                // Polhub's words, then what to do; the system's text to the journal (lot 10, 20/11).
+                // hub's words, then what to do; the system's text to the journal (lot 10, 20/11).
                 let problem = Words.problem("La pièce jointe n'a pas pu être lue", error, remedy: "Ouvre le fil dans Gmail.")
                 message = problem.sentence
                 agenda.database.journal(problem)
@@ -1105,7 +1105,7 @@ public final class MailLibrary: ObservableObject {
     public func save(_ attachment: MailAttachment, of carrier: MailMessageRow) {
         Task {
             do { saveCopy(of: try await engine.file(attachment, of: carrier)) } catch {
-                // Polhub's words, then what to do; the system's text to the journal (lot 10, 20/11).
+                // hub's words, then what to do; the system's text to the journal (lot 10, 20/11).
                 let problem = Words.problem("La pièce jointe n'a pas pu être lue", error, remedy: "Ouvre le fil dans Gmail.")
                 message = problem.sentence
                 agenda.database.journal(problem)
@@ -1242,7 +1242,7 @@ public final class MailLibrary: ObservableObject {
             try store.saveDraft(draft)
             return draft.id
         } catch {
-            // Polhub's words, the system's to the journal (lot 10, 20/11).
+            // hub's words, the system's to the journal (lot 10, 20/11).
             let problem = Words.problem(mode == .forward ? "Le transfert n'a pas pu être préparé" : "La réponse n'a pas pu être préparée", error)
             self.message = problem.sentence
             self.agenda.database.journal(problem)
@@ -1284,7 +1284,7 @@ public final class MailLibrary: ObservableObject {
         pushes[draftID] = (token, task)
     }
 
-    /// The drafts Gmail does not hold in their last version (a push that failed, Polhub quit too soon).
+    /// The drafts Gmail does not hold in their last version (a push that failed, hub quit too soon).
     private func pushPending() {
         for draft in drafts where draft.needsPush && draft.conflict == nil && draft.origin != .agent && pushes[draft.id] == nil
             && sending?.draftID != draft.id && !Self.isBlank(draft) {
@@ -1305,7 +1305,7 @@ public final class MailLibrary: ObservableObject {
                 try await engine.keepMine(draftID)
                 schedulePush(draftID, after: .zero)
             } catch {
-                // Polhub's words, the system's to the journal (lot 10, 20/11).
+                // hub's words, the system's to the journal (lot 10, 20/11).
                 let problem = Words.problem("Ce brouillon n'a pas pu être gardé", error)
                 message = problem.sentence
                 agenda.database.journal(problem)
@@ -1313,7 +1313,7 @@ public final class MailLibrary: ObservableObject {
         }
     }
 
-    /// « Le supprimer », « Prendre celui de Gmail »: Polhub lets it go; Gmail's copy, if any, stays among the
+    /// « Le supprimer », « Prendre celui de Gmail »: hub lets it go; Gmail's copy, if any, stays among the
     /// drafts begun elsewhere.
     public func forgetDraft(_ draftID: String, gmailKept: Bool) {
         if composing == draftID { composing = nil }
@@ -1324,8 +1324,8 @@ public final class MailLibrary: ObservableObject {
                 // The group's own title in Brouillons (lot 10, 20/11).
                 if gmailKept { message = "La version de Gmail t'attend dans Brouillons, sous « Commencés dans Gmail »." }
             } catch {
-                // « Le supprimer », « Prendre celui de Gmail »: Polhub's version goes (lot 10, 20/11).
-                let problem = Words.problem("Ce brouillon n'a pas pu être supprimé de Polhub", error)
+                // « Le supprimer », « Prendre celui de Gmail »: hub's version goes (lot 10, 20/11).
+                let problem = Words.problem("Ce brouillon n'a pas pu être supprimé de hub", error)
                 message = problem.sentence
                 agenda.database.journal(problem)
             }
@@ -1351,7 +1351,7 @@ public final class MailLibrary: ObservableObject {
                 total += file.size
                 plan.append((file.url, name, file.size))
             } catch {
-                // A refusal of Polhub's (a folder, a file it cannot read) says its reason by `LocalizedError`; never the
+                // A refusal of hub's (a folder, a file it cannot read) says its reason by `LocalizedError`; never the
                 // system's text on the screen (lot 10, 20/11).
                 let problem = Words.problem("« \(url.lastPathComponent) » n'a pas pu être joint", error)
                 message = problem.sentence
@@ -1407,7 +1407,7 @@ public final class MailLibrary: ObservableObject {
     }
 
     /// Paul's click: the mail leaves in ten seconds, unless he calls it back. Nothing of it is kept in the base:
-    /// if Polhub quits meanwhile, nothing leaves and the draft stays.
+    /// if hub quits meanwhile, nothing leaves and the draft stays.
     public func send(_ draftID: String) {
         // A programmed mail leaves now only through « Envoyer maintenant » (`sendScheduledNow`).
         guard sending == nil, scheduled[draftID] == nil, let draft = try? store.draft(draftID) else { return }
@@ -1494,7 +1494,7 @@ public final class MailLibrary: ObservableObject {
     }
 
     /// What the agents dropped (step « Agents »), taken at once: their new drafts, and the changes of the drafts they
-    /// prepared (17/11). A changed draft stays in Polhub until Paul sees it; an open editor opens again on it.
+    /// prepared (17/11). A changed draft stays in hub until Paul sees it; an open editor opens again on it.
     func takeAgentDrafts() async {
         let pass = await engine.takeAgentDrafts(busy: { [weak self] id in
             await MainActor.run { self?.sending?.draftID == id }
@@ -1563,7 +1563,7 @@ public final class MailLibrary: ObservableObject {
         if composing == draftID { composing = nil }
         Task {
             do { try await engine.discard(draftID) } catch {
-                // Polhub's words, the system's to the journal (lot 10, 20/11).
+                // hub's words, the system's to the journal (lot 10, 20/11).
                 let problem = Words.problem("Ce brouillon n'a pas pu être supprimé", error)
                 message = problem.sentence
                 agenda.database.journal(problem)
@@ -1596,7 +1596,7 @@ public final class MailLibrary: ObservableObject {
             } catch GoogleError.readOnlyBuild {
                 message = "La version de développement ne programme aucun envoi."
             } catch {
-                // Polhub's words, the system's to the journal (lot 10, 20/11).
+                // hub's words, the system's to the journal (lot 10, 20/11).
                 let problem = Words.problem("L'envoi n'a pas pu être programmé", error)
                 message = problem.sentence
                 agenda.database.journal(problem)
@@ -1618,7 +1618,7 @@ public final class MailLibrary: ObservableObject {
                     message = "« \(entry.subject) » n'est plus programmé : il t'attend dans Brouillons."
                 }
             } catch {
-                // Polhub's words, the system's to the journal (lot 10, 20/11).
+                // hub's words, the system's to the journal (lot 10, 20/11).
                 let problem = Words.problem("L'envoi programmé n'a pas pu être annulé", error)
                 message = problem.sentence
                 agenda.database.journal(problem)
@@ -1678,22 +1678,22 @@ public final class MailLibrary: ObservableObject {
                     MailScheduleNotice(title: "Pas encore parti", body: "« \(entry.subject) » était programmé pour \(planned) : \(lateReason(entry)). Il attend ton accord dans Programmés.",
                                        threadKey: entry.threadKey, folder: .scheduled))
         case .setAside:
-            let text = "Polhub a trouvé dans le Trousseau une liste d'envois programmés qu'il n'avait pas écrite : il l'a écartée, rien n'en est parti."
+            let text = "hub a trouvé dans le Trousseau une liste d'envois programmés qu'il n'avait pas écrite : il l'a écartée, rien n'en est parti."
             return (text, MailScheduleNotice(title: "Envois programmés", body: text, threadKey: nil, folder: .scheduled))
         case .stopped(let entry, let stop):
             let text = "« \(entry.subject) » n'est pas parti : \(stop)." + (stop == .vanished ? "" : " Il t'attend dans Brouillons.")
             return (text, MailScheduleNotice(title: "Mail non envoyé", body: text, threadKey: stop == .vanished ? nil : entry.threadKey,
                                              folder: stop == .vanished ? .scheduled : .drafts))
         case .maybeSent(let entry):
-            let text = "« \(entry.subject) » est peut-être parti : Polhub s'est arrêté pendant son envoi. Regarde dans Envoyés avant de le renvoyer."
+            let text = "« \(entry.subject) » est peut-être parti : hub s'est arrêté pendant son envoi. Regarde dans Envoyés avant de le renvoyer."
             return (text, MailScheduleNotice(title: "Mail programmé", body: text, threadKey: entry.threadKey, folder: .sent))
         }
     }
 
-    /// Why a programmed mail is late, from when Polhub first tried to send it (wave B review): asleep or closed at its
+    /// Why a programmed mail is late, from when hub first tried to send it (wave B review): asleep or closed at its
     /// time, or awake while Gmail or the network did not answer.
     nonisolated static func lateReason(_ entry: ScheduledSend) -> String {
-        entry.gmailWasLate ? "Gmail ne répondait pas à l'heure prévue" : "ton Mac était en veille ou Polhub fermé"
+        entry.gmailWasLate ? "Gmail ne répondait pas à l'heure prévue" : "ton Mac était en veille ou hub fermé"
     }
 
     /// A notification's click: its folder, from the top.
@@ -1736,7 +1736,7 @@ public final class MailLibrary: ObservableObject {
                 refreshFolders()
                 open(draft, router: router)
             } catch {
-                // Polhub's words, the system's to the journal (lot 10, 20/11).
+                // hub's words, the system's to the journal (lot 10, 20/11).
                 let problem = Words.problem("Ce brouillon n'a pas pu être repris", error)
                 self.message = problem.sentence
                 self.agenda.database.journal(problem)
@@ -1861,7 +1861,7 @@ public final class MailLibrary: ObservableObject {
     /// « Afficher l'original ».
     public func original(of message: MailMessageRow) async -> String {
         do { return try await engine.original(of: message) } catch {
-            // Polhub's words in the sheet, the system's to the journal (lot 10, 20/11).
+            // hub's words in the sheet, the system's to the journal (lot 10, 20/11).
             let problem = Words.problem("L'original n'a pas pu être lu", error)
             agenda.database.journal(problem)
             return problem.sentence

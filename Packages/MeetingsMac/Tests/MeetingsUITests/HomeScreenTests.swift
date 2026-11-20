@@ -249,11 +249,11 @@ struct HomeScreenTests {
         func colinThread(on: Bool, busy: Bool, hanging: Bool) throws -> ColinThread {
             let defaults = try #require(UserDefaults(suiteName: "accueil-colin-\(UUID().uuidString)"))
             defaults.set(on, forKey: Preferences.Key.colinOn)
-            let good = ClaudeInit(model: "claude-opus-5-5", permissionMode: "dontAsk", apiKeySource: "none", tools: ColinTool.allowed, servers: ["polhub": "connected"])
+            let good = ClaudeInit(model: "claude-opus-5-5", permissionMode: "dontAsk", apiKeySource: "none", tools: ColinTool.allowed, servers: ["hub": "connected"])
             let launcher = FakeLauncher { _, _ in
                 FakeSession(onSend: { _, rank in
                     rank == 1 ? [.initialized(good), .result(ClaudeResult(text: "prêt"))]
-                        : [.initialized(good), .assistant(text: "", tools: ["mcp__polhub__mails"], calls: [ClaudeToolCall(id: "t1", name: "mcp__polhub__mails", arguments: [:])]), .textDelta("Marc t'a écrit lundi ") ] + (hanging ? [] : [])
+                        : [.initialized(good), .assistant(text: "", tools: ["mcp__hub__mails"], calls: [ClaudeToolCall(id: "t1", name: "mcp__hub__mails", arguments: [:])]), .textDelta("Marc t'a écrit lundi ") ] + (hanging ? [] : [])
                 })
             }
             let work = root.appending(path: "colin-travail", directoryHint: .isDirectory)
@@ -357,7 +357,7 @@ struct HomeScreenTests {
         // question and failed answer join the thread.
         let brokenDefaults = try #require(UserDefaults(suiteName: "accueil-colin-\(UUID().uuidString)"))
         brokenDefaults.set(true, forKey: Preferences.Key.colinOn)
-        let connected = ClaudeInit(model: "claude-opus-5-5", permissionMode: "dontAsk", apiKeySource: "none", tools: ColinTool.allowed, servers: ["polhub": "connected"])
+        let connected = ClaudeInit(model: "claude-opus-5-5", permissionMode: "dontAsk", apiKeySource: "none", tools: ColinTool.allowed, servers: ["hub": "connected"])
         let notLoggedIn = FakeLauncher { _, _ in
             FakeSession(onSend: { _, rank in
                 rank == 1 ? [.initialized(connected), .result(ClaudeResult(isError: true, text: "Not logged in · Please run /login"))] : []

@@ -7,7 +7,7 @@ public enum AppDatabaseError: Error, LocalizedError, Equatable {
 
     public var errorDescription: String? {
         switch self {
-        case .newerBase: "La base vient d'une version plus récente de Polhub : installe la dernière version pour l'ouvrir."
+        case .newerBase: "La base vient d'une version plus récente de hub : installe la dernière version pour l'ouvrir."
         }
     }
 }
@@ -17,7 +17,7 @@ public enum AppDatabaseError: Error, LocalizedError, Equatable {
 public final class AppDatabase: Sendable {
     public let writer: any DatabaseWriter
     /// Who writes the projects through this opening (step 3 of Colin, 18/11): Paul in the app; a session's helper
-    /// (`polhub mcp`) an agent, or Colin. The base journals it with each change.
+    /// (`hub mcp`) an agent, or Colin. The base journals it with each change.
     public let author: ChangeAuthor
 
     public init(path: String) throws {
@@ -50,7 +50,7 @@ public final class AppDatabase: Sendable {
     }
 
     /// Before any migration of a base that already holds Paul's data (review of 15/11): a base left by a newer
-    /// Polhub is refused, never read with the wrong meanings; a base about to change gets a copy first, named
+    /// hub is refused, never read with the wrong meanings; a base about to change gets a copy first, named
     /// after the first migration it is about to get.
     static func protect(_ writer: any DatabaseWriter, backups: URL, now: Date,
                         copy: (any DatabaseWriter, String) throws -> Void = { writer, path in try writer.backup(to: DatabaseQueue(path: path)) }) throws {
@@ -64,7 +64,7 @@ public final class AppDatabase: Sendable {
         let target = backups.appending(path: backupName(before: pending, on: now))
         // A copy of the same day is already the base before this migration: it stays.
         guard !FileManager.default.fileExists(atPath: target.path(percentEncoded: false)) else { return }
-        // Written under another name, then renamed: a copy that failed on the way (a full disk, Polhub stopped)
+        // Written under another name, then renamed: a copy that failed on the way (a full disk, hub stopped)
         // never passes for the copy at the next opening (correctifs, 15/11).
         let partial = backups.appending(path: target.lastPathComponent + ".partiel")
         let manager = FileManager.default
@@ -107,7 +107,7 @@ public final class AppDatabase: Sendable {
         return AppDatabase(unmigrated: try DatabasePool(path: path, configuration: configuration))
     }
 
-    /// For `polhub mcp`, whose project tools write (13/11): reads and writes, waits up to 5 s for the app,
+    /// For `hub mcp`, whose project tools write (13/11): reads and writes, waits up to 5 s for the app,
     /// and never migrates — only the app does. The base must already be at the app's version.
     public static func forTools(path: String, author: ChangeAuthor = .agent) throws -> AppDatabase {
         var configuration = Configuration()
@@ -130,7 +130,7 @@ public final class AppDatabase: Sendable {
         try writer.read { try $0.tableExists("project") && $0.tableExists("project_journal") }
     }
 
-    /// Another process (`polhub mcp`) wrote in the base: the app's observations fetch again.
+    /// Another process (`hub mcp`) wrote in the base: the app's observations fetch again.
     public func notifyExternalChanges() throws {
         try writer.write { try $0.notifyChanges(in: .fullDatabase) }
     }
@@ -561,7 +561,7 @@ public final class AppDatabase: Sendable {
                 t.add(column: "agentVersionAt", .datetime)
             }
         }
-        // Colin's Accueil (18/11): each thread keeps who spoke last, and Polhub keeps the lines Paul sets aside.
+        // Colin's Accueil (18/11): each thread keeps who spoke last, and hub keeps the lines Paul sets aside.
         // A helper of before reads a base of after: two columns it does not know, and a table it never opens.
         // It adds, and reads no row: no check of the links between tables is asked of it either (`.immediate`), so
         // nothing the base holds can make it fail. The turns of the threads already there are counted after it, by

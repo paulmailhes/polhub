@@ -93,7 +93,7 @@ public final class ColinProbeControl: ObservableObject {
     /// A click is ignored for this long after a probe ends.
     public nonisolated static let rest: Duration = .seconds(1)
 
-    /// How long ago the Mac last woke, in seconds, as the system keeps it: a Polhub opened after the wake, or
+    /// How long ago the Mac last woke, in seconds, as the system keeps it: a hub opened after the wake, or
     /// relaunched by its own update, did not see it happen. Read on the clock that counts the time awake, which a
     /// change of the date cannot move (measured on 18/11: within a second of the dated one). `nil`: the Mac has not
     /// slept since it started.
@@ -283,8 +283,8 @@ public final class ColinProbeControl: ObservableObject {
         case "limite-atteinte": "ton compte Claude a atteint sa limite."
         case "sans-reponse": "Claude Code n'a pas répondu."
         case "lancement-impossible": "Claude Code n'a pas pu se lancer."
-        case "isolation": "Claude Code a chargé plus que ce que Polhub lui demande."
-        case "isolation-inconnue": "Polhub n'a pas pu vérifier ce que Claude Code a chargé."
+        case "isolation": "Claude Code a chargé plus que ce que hub lui demande."
+        case "isolation-inconnue": "hub n'a pas pu vérifier ce que Claude Code a chargé."
         case "erreur": "Claude Code a répondu par une erreur dès le premier lancement."
         default: nil
         }
@@ -300,7 +300,7 @@ struct ColinProbeSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Sonde de Colin").font(.headline)
-            Text("Mesure si Claude Code répond bien depuis Polhub. Environ deux minutes, avec des textes inventés. Elle utilise un peu de ton abonnement Claude : l'équivalent d'une dizaine de centimes.")
+            Text("Mesure si Claude Code répond bien depuis hub. Environ deux minutes, avec des textes inventés. Elle utilise un peu de ton abonnement Claude : l'équivalent d'une dizaine de centimes.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

@@ -51,7 +51,7 @@ import Testing
         #expect(due([tomorrow], closed: [MeetingCardPlan.key(today)], at: now.addingTimeInterval(24 * 3600)) == ["serie"])
     }
 
-    /// The meeting Polhub records or offers to record is the one Paul is in: no card for it. The next one, back to
+    /// The meeting hub records or offers to record is the one Paul is in: no card for it. The next one, back to
     /// back, still comes.
     @Test func noCardForTheMeetingUnderWay() {
         let current = event("en-cours", inMinutes: -1, code: "abc-defg-hij")

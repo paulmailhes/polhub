@@ -180,7 +180,7 @@ public struct MailDesk: Sendable {
         }.joined(separator: "\n") + "\n\nPour en lire une : `piece_jointe` avec ce fil et son « numero »."
     }
 
-    /// A file of a thread (Paul, 16/11: « Polhub ne sait pas lire les fichiers joints »). Not on the Mac yet, the
+    /// A file of a thread (Paul, 16/11: « hub ne sait pas lire les fichiers joints »). Not on the Mac yet, the
     /// app is asked to download it (this helper has no network), and waited for.
     public func file(_ which: String, number: Int, wait: TimeInterval = 25) throws -> FileAnswer {
         let thread = try find(which, rules: try store.filingRules())
@@ -188,7 +188,7 @@ public struct MailDesk: Sendable {
         guard let chosen = all.first(where: { $0.number == number }) else {
             throw ToolError(all.isEmpty ? "Ce fil n'a pas de pièce jointe." : "Pas de pièce jointe n° \(number) : ce fil en a \(all.count) (outil `piece_jointe` sans numéro).")
         }
-        guard !chosen.message.labels.contains("SPAM") else { throw ToolError("Polhub n'ouvre pas les pièces jointes d'un spam.") }
+        guard !chosen.message.labels.contains("SPAM") else { throw ToolError("hub n'ouvre pas les pièces jointes d'un spam.") }
         let url = files.attachment(chosen.file, of: chosen.message)
         let name = AttachmentSafety.cleanName(chosen.file.filename)
         func there() -> Bool { FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) }
@@ -198,7 +198,7 @@ public struct MailDesk: Sendable {
             let deadline = Date().addingTimeInterval(wait)
             while !there() && Date() < deadline { Thread.sleep(forTimeInterval: 0.3) }
             guard there() else {
-                throw ToolError("Polhub n'a pas encore téléchargé « \(name) » : il doit être ouvert et en ligne. Réessaie dans un instant.")
+                throw ToolError("hub n'a pas encore téléchargé « \(name) » : il doit être ouvert et en ligne. Réessaie dans un instant.")
             }
         }
         return AttachmentReader.read(url, name: name, mimeType: chosen.file.mimeType, maximumText: Self.maximumText)
@@ -222,7 +222,7 @@ public struct MailDesk: Sendable {
     }
 
     /// One line of what a sender wrote (a subject, a name): no invisible character, no line break that
-    /// would pass for one of Polhub's own lines.
+    /// would pass for one of hub's own lines.
     static func line(_ text: String) -> String {
         HTMLText.clean(text).components(separatedBy: .newlines).joined(separator: " ").replacingOccurrences(of: "\t", with: " ")
             .trimmingCharacters(in: .whitespaces)
@@ -230,7 +230,7 @@ public struct MailDesk: Sendable {
 
     func body(of message: MailMessageRow) -> String {
         guard message.hasBody, let data = try? Data(contentsOf: files.body(of: message)) else {
-            return "(corps non chargé : Polhub ne l'a pas encore copié sur le Mac)"
+            return "(corps non chargé : hub ne l'a pas encore copié sur le Mac)"
         }
         let raw = String(decoding: data, as: UTF8.self)
         let text = message.bodyIsHTML ? HTMLText.visible(raw) : HTMLText.clean(raw)
@@ -264,7 +264,7 @@ public struct MailDesk: Sendable {
     public func draft(replyTo which: String?, all: Bool, to: [String], cc: [String], subject: String?, text: String, account: String?,
                       joining paths: [String] = [], format: MailAgentDraftRow.Format = .plain) throws -> String {
         guard try store.acceptsAgentDrafts(), try store.agentDraftsTakeFiles(), try store.agentDraftsChange() else {
-            throw ToolError("La base de Polhub n'accepte pas encore de brouillon : la dernière version de Polhub doit être ouverte une fois.")
+            throw ToolError("La base de hub n'accepte pas encore de brouillon : la dernière version de hub doit être ouverte une fois.")
         }
         // No invisible character leaves under Paul's eyes (review of 14/11): tags, zero widths, reversals.
         let body = HTMLText.clean(text).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -274,7 +274,7 @@ public struct MailDesk: Sendable {
         // Every file is checked before anything is written: one refused stops the drop, nothing is left half done.
         let chosen = try joinable(paths)
         var closing = (cleaned ? "Des caractères invisibles ont été retirés du texte. " : "") + "Paul le relit et l'envoie lui-même : aucun outil ne peut l'envoyer."
-        if format == .markdown { closing = "Texte mis en forme : Polhub en fait le mail (gras, italique, listes, liens), sans autre balise. " + closing }
+        if format == .markdown { closing = "Texte mis en forme : hub en fait le mail (gras, italique, listes, liens), sans autre balise. " + closing }
         var row: MailAgentDraftRow
         var answer: String
         if let which {
@@ -282,8 +282,8 @@ public struct MailDesk: Sendable {
             let thread = try find(which, rules: rules)
             row = MailAgentDraftRow(mode: all ? .replyAll : .reply, account: thread.account, threadKey: thread.id, subject: thread.subject, body: body,
                                     createdAt: now(), format: format)
-            answer = "Réponse\(all ? " à tous" : "") déposée dans Polhub sous le fil « \(Self.line(thread.subject)) » (boîte \(thread.account)), marquée « préparé par un agent ». "
-            answer += "Polhub calcule lui-même ses destinataires, comme Gmail. "
+            answer = "Réponse\(all ? " à tous" : "") déposée dans hub sous le fil « \(Self.line(thread.subject)) » (boîte \(thread.account)), marquée « préparé par un agent ». "
+            answer += "hub calcule lui-même ses destinataires, comme Gmail. "
             if !to.isEmpty || !cc.isEmpty { answer += "Les adresses données (« a », « cc ») sont ignorées pour une réponse. " }
         } else {
             let people = try Self.addresses(to, "a"), copies = try Self.addresses(cc, "cc")
@@ -293,7 +293,7 @@ public struct MailDesk: Sendable {
             row = MailAgentDraftRow(mode: .new, account: from, to: people, cc: copies, subject: subject, body: body, createdAt: now(), format: format)
             let rules = try store.filingRules()
             let strangers = (people + copies).filter { !rules.isPerson($0.email) }.map(\.email)
-            answer = "Nouveau mail « \(subject) » déposé dans Polhub (boîte \(from)), marqué « préparé par un agent ». "
+            answer = "Nouveau mail « \(subject) » déposé dans hub (boîte \(from)), marqué « préparé par un agent ». "
             if !strangers.isEmpty {
                 answer += "Adresses que Paul n'a jamais utilisées, qu'il verra signalées : \(strangers.joined(separator: ", ")). "
             }
@@ -317,7 +317,7 @@ public struct MailDesk: Sendable {
     /// first.
     func mailbox(_ asked: String?, for people: [MailAddress]) throws -> String {
         let accounts = try store.mailAccounts()
-        guard let first = accounts.first else { throw ToolError("Aucune boîte Gmail n'est autorisée dans Polhub.") }
+        guard let first = accounts.first else { throw ToolError("Aucune boîte Gmail n'est autorisée dans hub.") }
         if let asked = asked?.trimmingCharacters(in: .whitespaces).lowercased(), !asked.isEmpty {
             guard let match = accounts.first(where: { $0 == asked || $0.hasPrefix(asked + "@") || $0.hasSuffix("@" + asked) }) else {
                 throw ToolError("« \(asked) » n'est pas une boîte de Paul. Ses boîtes : \(accounts.joined(separator: ", ")).")

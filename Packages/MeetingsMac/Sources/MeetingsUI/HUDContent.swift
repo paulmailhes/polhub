@@ -104,7 +104,7 @@ public enum HUDText {
     public static func alert(_ alert: AppAlert) -> (title: String, message: String, action: String?) {
         switch alert {
         case .tabsUnreadable:
-            ("Polhub ne lit plus les onglets de Dia", "Les réunions sont détectées par le micro seul.", "Ouvrir le Diagnostic")
+            ("hub ne lit plus les onglets de Dia", "Les réunions sont détectées par le micro seul.", "Ouvrir le Diagnostic")
         case .selfTestFailed:
             ("Le son des autres n'est pas capté", "Vérifie l'autorisation « Enregistrement de l'audio du système ».", "Ouvrir le Diagnostic")
         case .diskLow(let freeGB):

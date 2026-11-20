@@ -2,12 +2,12 @@ import CryptoKit
 import Foundation
 import Notifications
 
-/// Polhub's notifications on the iPhone (20/11): what the Mac notifies — new mails, new events, a summary ready, a
+/// hub's notifications on the iPhone (20/11): what the Mac notifies — new mails, new events, a summary ready, a
 /// mail that did not leave — and the reminders before an event, sent by Apple's push service to every paired iPhone,
 /// while the Mac is awake. The key is the team's (Réglages › iPhone says whether it is found); it never leaves the Mac.
 @MainActor
 final class PhonePush {
-    /// The team of Polhub's apps; the topic of the iPhone app.
+    /// The team of hub's apps; the topic of the iPhone app.
     static let team = "CQ43U6XX4Z"
     static let topic = "fr.paulmailhes.polhub.ios"
     /// Where the key's file is, and its identifier: set once, in the preferences.

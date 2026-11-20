@@ -3,11 +3,11 @@ import Foundation
 /// The Mac answers: who it is, which version it speaks, and which paired iPhone asked.
 public struct LinkStatus: Codable, Sendable, Equatable {
     public var version: Int
-    /// The Mac's Polhub, « 0.51.0 ».
+    /// The Mac's hub, « 0.51.0 ».
     public var appVersion: String
     /// The paired iPhone's name, as the Mac knows it.
     public var device: String
-    /// The number on Polhub's icon (20/11): the unread mails and what Polhub told that was not seen yet.
+    /// The number on hub's icon (20/11): the unread mails and what hub told that was not seen yet.
     public var badge: Int?
 
     public init(version: Int = LinkAPI.version, appVersion: String, device: String, badge: Int? = nil) {

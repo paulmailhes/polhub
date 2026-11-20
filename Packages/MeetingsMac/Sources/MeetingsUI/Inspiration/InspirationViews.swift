@@ -303,7 +303,7 @@ struct InspirationMessageBar: View {
     }
 }
 
-/// « Ajouter un site »: its address; Polhub reads the rest.
+/// « Ajouter un site »: its address; hub reads the rest.
 struct InspirationAddSiteSheet: View {
     @ObservedObject var library: InspirationLibrary
     let added: (UUID) -> Void
@@ -324,7 +324,7 @@ struct InspirationAddSiteSheet: View {
                     if let problem {
                         ErrorLine(problem)
                     } else {
-                        Text("Polhub lit son titre, sa description et son image.").foregroundStyle(.secondary)
+                        Text("hub lit son titre, sa description et son image.").foregroundStyle(.secondary)
                     }
                 }
                 .font(.meta)

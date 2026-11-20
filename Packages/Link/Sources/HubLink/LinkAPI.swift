@@ -1,6 +1,6 @@
 import Foundation
 
-/// How Polhub on the iPhone reaches Polhub on the Mac (20/11). The Mac listens on its own loopback only; `tailscale
+/// How hub on the iPhone reaches hub on the Mac (20/11). The Mac listens on its own loopback only; `tailscale
 /// serve` publishes it in HTTPS on Paul's tailnet. Every request carries the token of a paired iPhone.
 public enum LinkAPI {
     /// The version of these addresses: the iPhone says which one it speaks, the Mac refuses another.

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Publie une version de Polhub pour iPhone sur TestFlight. Usage : scripts/release-ios.sh 1.0.0
+# Publie une version de hub pour iPhone sur TestFlight. Usage : scripts/release-ios.sh 1.0.0
 #   1. tests du paquet Link ; 2. archive signée (identifiant fr.paulmailhes.polhub.ios) ;
 #   3. envoi à App Store Connect, d'où TestFlight la donne à l'iPhone de Paul.
 # Réglages locaux (jamais publiés) : prive/appstore.env définit APPSTORE_KEY_ID, APPSTORE_ISSUER_ID et APPSTORE_KEY_PATH,
@@ -54,5 +54,5 @@ PLIST
 xcodebuild -exportArchive -archivePath "$OUT/hub.xcarchive" -exportOptionsPlist "$OUT/export.plist" -exportPath "$OUT/export" \
   -allowProvisioningUpdates >"$OUT/export.log" 2>&1 || { grep -E 'error:' "$OUT/export.log" | head -20 >&2; fail "L'envoi a échoué ($OUT/export.log)."; }
 node scripts/testflight.mjs groupe || echo "Le groupe TestFlight n'a pas pu être préparé : la version est envoyée quand même." >&2
-echo "Envoyée : Polhub iPhone $VERSION ($BUILD). Apple la traite…"
+echo "Envoyée : hub iPhone $VERSION ($BUILD). Apple la traite…"
 node scripts/testflight.mjs pret "$BUILD" && echo "Dans TestFlight : l'iPhone la reçoit seul."

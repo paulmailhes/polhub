@@ -134,7 +134,7 @@ struct CoupDoeilScreenTests {
     }
 }
 
-/// A made-up Polhub for the panel: two Google accounts, three events this Sunday, two projects in Priorité 2, a meeting
+/// A made-up hub for the panel: two Google accounts, three events this Sunday, two projects in Priorité 2, a meeting
 /// of yesterday with its summary, mails of people, two notifications not seen. Each state changes a little of it.
 @MainActor
 final class PanelWorld {

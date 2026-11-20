@@ -3,7 +3,7 @@ import Persistence
 import Testing
 @testable import Inspiration
 
-/// The categories' vocabularies (16/11): the two the vault had, bundled with Polhub, and the mock-ups' types.
+/// The categories' vocabularies (16/11): the two the vault had, bundled with hub, and the mock-ups' types.
 @Suite struct VocabularyTests {
     func temporaryFolder() throws -> URL {
         let folder = FileManager.default.temporaryDirectory.appending(path: "vocabulaire \(UUID().uuidString)", directoryHint: .isDirectory)
@@ -69,7 +69,7 @@ import Testing
         #expect(!websites.isTooShort("Title: Exemple\nSite: https://exemple.fr\n\nUn studio de design graphique installé à Nantes, en France."))
     }
 
-    /// Polhub's own copy (the vault's, with the tags Paul added by hand) comes before the bundled one; a broken copy
+    /// hub's own copy (the vault's, with the tags Paul added by hand) comes before the bundled one; a broken copy
     /// is passed over.
     @Test func polhubsOwnCopyComesBeforeTheBundledOne() throws {
         let root = try temporaryFolder()

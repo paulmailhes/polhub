@@ -189,7 +189,7 @@ import Updates
         #expect(PanelModel.report(meetings, now: now)?.meetingID == older.id)
     }
 
-    /// Opened in Polhub's window once transcribed, a meeting's summary counts as read; opened while it records or is
+    /// Opened in hub's window once transcribed, a meeting's summary counts as read; opened while it records or is
     /// transcribed, it still announces itself when it is ready.
     @Test func aMeetingOpenedOnceTranscribedIsRead() {
         let done = meeting("Revue de maquettes", start: at(14, 0), transcribed: at(14, 50))
@@ -329,7 +329,7 @@ import Updates
         let mailFailure = PanelModel.Mails.Failure(account: "paul@atelier-nord.fr", text: GoogleError.expired.description)
         let failed = PanelModel.Updates(state: .failed("refusée"), latest: "0.18.0", autoInstall: true)
         let issues = PanelModel.issues(alerts: [.tabsUnreadable], accounts: [expired, offline], mailFailure: mailFailure, updates: failed)
-        #expect(issues.map(\.title) == ["Polhub ne lit plus les onglets de Dia", "Compte Atelier Nord à reconnecter", "La mise à jour 0.18.0 a échoué"])
+        #expect(issues.map(\.title) == ["hub ne lit plus les onglets de Dia", "Compte Atelier Nord à reconnecter", "La mise à jour 0.18.0 a échoué"])
         #expect(issues.map(\.action) == [.diagnostic, .accounts, .installUpdate])
         #expect(issues[1].detail == "Son agenda et ses mails ne se mettent plus à jour.")
         // Three at most, the riskiest first.
@@ -338,11 +338,11 @@ import Updates
         // Nothing to settle: a version that waits for a quiet moment is a grey line of the footer.
         let waiting = PanelModel.Updates(state: .waitingForIdle, latest: "0.18.0", autoInstall: true)
         #expect(PanelModel.issues(alerts: [], accounts: [offline], updates: waiting).isEmpty)
-        #expect(PanelModel.updateLine(waiting) == "Polhub 0.18.0 s'installera au calme")
+        #expect(PanelModel.updateLine(waiting) == "hub 0.18.0 s'installera au calme")
         #expect(PanelModel.updateLine(PanelModel.Updates()) == nil)
         // A version that waits for Paul, the automatic installation off.
         let manual = PanelModel.Updates(state: .idle, latest: "0.18.0", autoInstall: false)
-        #expect(PanelModel.issues(alerts: [], updates: manual).map(\.title) == ["Polhub 0.18.0 est disponible"])
+        #expect(PanelModel.issues(alerts: [], updates: manual).map(\.title) == ["hub 0.18.0 est disponible"])
         #expect(PanelModel.needsReconnecting(GoogleError.needsWrite.description) && PanelModel.needsReconnecting(GoogleError.refused("admin_policy_enforced").description))
         #expect(!PanelModel.needsReconnecting(GoogleError.timeout.description) && !PanelModel.needsReconnecting(GoogleError.http(503).description))
     }

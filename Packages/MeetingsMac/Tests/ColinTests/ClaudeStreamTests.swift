@@ -11,9 +11,9 @@ import Testing
     static let lists = #""tools":[],"mcp_servers":[],"plugins":[],"skills":[],"slash_commands":[],"additional_directories":[]"#
 
     @Test func theInitTellsWhatIsLoaded() {
-        let e = event(#"{"type":"system","subtype":"init","apiKeySource":"none","claude_code_version":"2.1.304","cwd":"/tmp/x","tools":["mcp__polhub__projets"],"mcp_servers":[{"name":"polhub","status":"connected"}],"model":"claude-haiku-4-5","permissionMode":"dontAsk","slash_commands":[],"skills":[],"plugins":[{"name":"p","path":"/x"}],"additional_directories":[],"capabilities":["interrupt_receipt_v1"],"uuid":"u","session_id":"s"}"#)
+        let e = event(#"{"type":"system","subtype":"init","apiKeySource":"none","claude_code_version":"2.1.304","cwd":"/tmp/x","tools":["mcp__hub__projets"],"mcp_servers":[{"name":"hub","status":"connected"}],"model":"claude-haiku-4-5","permissionMode":"dontAsk","slash_commands":[],"skills":[],"plugins":[{"name":"p","path":"/x"}],"additional_directories":[],"capabilities":["interrupt_receipt_v1"],"uuid":"u","session_id":"s"}"#)
         #expect(e == .initialized(ClaudeInit(version: "2.1.304", model: "claude-haiku-4-5", permissionMode: "dontAsk", apiKeySource: "none",
-            tools: ["mcp__polhub__projets"], servers: ["polhub": "connected"], plugins: 1, skills: 0, slashCommands: 0, capabilities: ["interrupt_receipt_v1"])))
+            tools: ["mcp__hub__projets"], servers: ["hub": "connected"], plugins: 1, skills: 0, slashCommands: 0, capabilities: ["interrupt_receipt_v1"])))
     }
 
     /// As Claude Code 2.1.304 says it (measured on 17/11): its own plugins are named « builtin », and it tells its
@@ -50,14 +50,14 @@ import Testing
             return event(#"{"type":"system","subtype":"init",\#(body)}"#)
         }
         #expect(initial(#"tools=[{"name":"Bash"}]"#) == .initialized(ClaudeInit(missing: ["tools"])))
-        #expect(initial(#"mcp_servers=["polhub"]"#) == .initialized(ClaudeInit(missing: ["mcp_servers"])))
+        #expect(initial(#"mcp_servers=["hub"]"#) == .initialized(ClaudeInit(missing: ["mcp_servers"])))
         #expect(initial(#"skills={"un":"objet"}"#) == .initialized(ClaudeInit(missing: ["skills"])))
         #expect(initial("slash_commands=null") == .initialized(ClaudeInit(missing: ["slash_commands"])))
         #expect(initial(#"additional_directories="/x""#) == .initialized(ClaudeInit(missing: ["additional_directories"])))
         // A server that does not say its name cannot be counted: the list is not taken for empty.
         #expect(initial(#"mcp_servers=[{"status":"pending"}]"#) == .initialized(ClaudeInit(missing: ["mcp_servers"])))
-        #expect(initial(#"mcp_servers=[{"name":"polhub","status":"connected"},{"statut":"x"}]"#)
-            == .initialized(ClaudeInit(servers: ["polhub": "connected"], missing: ["mcp_servers"])))
+        #expect(initial(#"mcp_servers=[{"name":"hub","status":"connected"},{"statut":"x"}]"#)
+            == .initialized(ClaudeInit(servers: ["hub": "connected"], missing: ["mcp_servers"])))
     }
 
     /// Numbers nobody would write, and values of the wrong kind: read as they can be, never a crash.
@@ -98,15 +98,15 @@ import Testing
     }
 
     @Test func anAssistantMessageGivesItsTextAndItsTools() {
-        #expect(event(#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Bonjour."},{"type":"tool_use","id":"t1","name":"mcp__polhub__projets","input":{}}]},"parent_tool_use_id":null}"#)
-            == .assistant(text: "Bonjour.", tools: ["mcp__polhub__projets"], calls: [ClaudeToolCall(id: "t1", name: "mcp__polhub__projets", arguments: [:])]))
+        #expect(event(#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Bonjour."},{"type":"tool_use","id":"t1","name":"mcp__hub__projets","input":{}}]},"parent_tool_use_id":null}"#)
+            == .assistant(text: "Bonjour.", tools: ["mcp__hub__projets"], calls: [ClaudeToolCall(id: "t1", name: "mcp__hub__projets", arguments: [:])]))
     }
 
     /// The Accueil's pass (18/11): a tool's start is said the moment the model begins to write it, before its
     /// arguments; a text block's start is nothing.
     @Test func aToolStartIsSaid() {
-        #expect(event(#"{"type":"stream_event","event":{"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_1","name":"mcp__polhub__mails","input":{}}}}"#)
-            == .toolStarted(id: "toolu_1", name: "mcp__polhub__mails"))
+        #expect(event(#"{"type":"stream_event","event":{"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_1","name":"mcp__hub__mails","input":{}}}}"#)
+            == .toolStarted(id: "toolu_1", name: "mcp__hub__mails"))
         #expect(event(#"{"type":"stream_event","event":{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}}"#)
             == .other("stream_event/content_block_start"))
     }
@@ -114,8 +114,8 @@ import Testing
     /// A call's arguments, as short texts: numbers and switches written, lists joined, 60 characters at most.
     @Test func aCallSaysItsArguments() {
         let long = String(repeating: "a", count: 80)
-        #expect(event(#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_1","name":"mcp__polhub__mails","input":{"projet":"Cabinet Martin","limite":5,"non_lus":true,"numeros":[1,2],"texte":"\#(long)","objet":{"a":1}}}]}}"#)
-            == .assistant(text: "", tools: ["mcp__polhub__mails"], calls: [ClaudeToolCall(id: "toolu_1", name: "mcp__polhub__mails", arguments: [
+        #expect(event(#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_1","name":"mcp__hub__mails","input":{"projet":"Cabinet Martin","limite":5,"non_lus":true,"numeros":[1,2],"texte":"\#(long)","objet":{"a":1}}}]}}"#)
+            == .assistant(text: "", tools: ["mcp__hub__mails"], calls: [ClaudeToolCall(id: "toolu_1", name: "mcp__hub__mails", arguments: [
                 "projet": "Cabinet Martin", "limite": "5", "non_lus": "true", "numeros": "1, 2", "texte": String(long.prefix(59)) + "…"])]))
     }
 
@@ -166,9 +166,9 @@ import Testing
     }
 
     @Test func aResultGivesItsCostItsTokensAndItsRefusals() {
-        #expect(event(#"{"type":"result","subtype":"success","duration_ms":1200,"duration_api_ms":900,"is_error":false,"num_turns":2,"result":"fini","total_cost_usd":0.0002,"usage":{"input_tokens":12,"output_tokens":3,"cache_creation_input_tokens":800,"cache_read_input_tokens":100},"permission_denials":[{"tool_name":"mcp__polhub__journal","tool_use_id":"t2","tool_input":{}}]}"#)
+        #expect(event(#"{"type":"result","subtype":"success","duration_ms":1200,"duration_api_ms":900,"is_error":false,"num_turns":2,"result":"fini","total_cost_usd":0.0002,"usage":{"input_tokens":12,"output_tokens":3,"cache_creation_input_tokens":800,"cache_read_input_tokens":100},"permission_denials":[{"tool_name":"mcp__hub__journal","tool_use_id":"t2","tool_input":{}}]}"#)
             == .result(ClaudeResult(subtype: "success", isError: false, durationMs: 1200, numTurns: 2, costUSD: 0.0002, inputTokens: 912, outputTokens: 3,
-                                    denied: ["mcp__polhub__journal"], apiErrorStatus: nil, text: "fini")))
+                                    denied: ["mcp__hub__journal"], apiErrorStatus: nil, text: "fini")))
         #expect(event(#"{"type":"result","subtype":"error_during_execution","is_error":true,"api_error_status":401}"#)
             == .result(ClaudeResult(subtype: "error_during_execution", isError: true, durationMs: 0, numTurns: 0, costUSD: 0, inputTokens: 0, outputTokens: 0,
                                     denied: [], apiErrorStatus: 401, text: "")))

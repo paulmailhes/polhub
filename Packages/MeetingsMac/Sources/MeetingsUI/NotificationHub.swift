@@ -5,16 +5,16 @@ import Notifications
 import Persistence
 import HubDesign
 
-/// Polhub's notifications, run by the app (14/11): the reminders macOS keeps (shown even when Polhub is not
+/// hub's notifications, run by the app (14/11): the reminders macOS keeps (shown even when hub is not
 /// running), the new events, a meeting not recorded, a summary ready. Réglages › Notifications decides. Every
-/// notification shown is also kept in Polhub's own list, `inbox` (15/11): what Réglages turns off is neither shown
+/// notification shown is also kept in hub's own list, `inbox` (15/11): what Réglages turns off is neither shown
 /// nor kept.
 @MainActor
 public final class NotificationHub: ObservableObject {
     let client: any NotificationCenterClient
     let agenda: AgendaLibrary
     let settings: () -> Preferences
-    /// Events Paul made from Polhub: not announced as new.
+    /// Events Paul made from hub: not announced as new.
     var madeHere: Set<String> = []
     /// Meetings already flagged as not recorded.
     var alerted: Set<String> = []
@@ -22,7 +22,7 @@ public final class NotificationHub: ObservableObject {
     var scheduled: [PlannedNotice] = []
     /// What macOS lets them do, a state (lot 10, 20/11); `nil` until it is read.
     @Published public private(set) var authorization: NotificationAuthorization?
-    /// Polhub's own list of what it notified (15/11): the bell of the sidebar reads it.
+    /// hub's own list of what it notified (15/11): the bell of the sidebar reads it.
     public let inbox: NotificationInbox?
 
     public init(agenda: AgendaLibrary, client: any NotificationCenterClient = SystemNotifications(),
@@ -87,8 +87,8 @@ public final class NotificationHub: ObservableObject {
         await refresh(now: now)
     }
 
-    /// Google's id of an event Paul made from Polhub.
-    func madeFromPolhub(_ eventID: String) {
+    /// Google's id of an event Paul made from hub.
+    func madeFromHub(_ eventID: String) {
         madeHere.insert(eventID)
     }
 
@@ -169,7 +169,7 @@ public final class NotificationHub: ObservableObject {
     /// « Envoyer une notification d'essai ».
     public func test() async {
         _ = await SystemNotifications.requestAuthorization()
-        await deliver(PlannedNotice(id: "essai|\(Int(Date().timeIntervalSince1970))", fireDate: Date(), title: "Polhub",
+        await deliver(PlannedNotice(id: "essai|\(Int(Date().timeIntervalSince1970))", fireDate: Date(), title: "hub",
                                     body: "Les notifications marchent.", eventID: nil, meetCode: nil, account: nil, kind: .test))
         await readAuthorization()
     }
@@ -179,14 +179,14 @@ public final class NotificationHub: ObservableObject {
     }
 }
 
-/// « Ouvrir Polhub à l'ouverture de session »: the app's relaunch agent, which also starts it with the session.
+/// « Ouvrir hub à l'ouverture de session »: the app's relaunch agent, which also starts it with the session.
 @MainActor
 public final class StartupControl: ObservableObject {
     @Published public private(set) var isOn: Bool
     @Published public private(set) var message: String?
     let read: () -> Bool
     let write: (Bool) -> String?
-    /// A meeting is on: the switch waits (turning it off stops Polhub, on hands it over to macOS).
+    /// A meeting is on: the switch waits (turning it off stops hub, on hands it over to macOS).
     let busy: () -> Bool
     /// This copy was opened by Paul: turning it on hands over to macOS's copy, and this window closes.
     public let handsOver: Bool

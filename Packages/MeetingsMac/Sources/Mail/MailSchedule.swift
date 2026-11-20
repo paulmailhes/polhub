@@ -6,7 +6,7 @@ import Persistence
 import Security
 
 /// A mail Paul programmed (« Programmer l'envoi », wave B, 15/11). The Gmail API has no send at a given time:
-/// Polhub keeps the mail and sends it itself. The entry lives in the Keychain, never in the base: a row of the
+/// hub keeps the mail and sends it itself. The entry lives in the Keychain, never in the base: a row of the
 /// base, a preference or a restored backup can never ask for a send. It holds the fingerprint of exactly what
 /// leaves; at the time, the mail is built again, and any difference stops it.
 public struct ScheduledSend: Codable, Sendable, Equatable, Identifiable {
@@ -15,7 +15,7 @@ public struct ScheduledSend: Codable, Sendable, Equatable, Identifiable {
         case waiting
         /// Claimed: on its way to Gmail. Found so at a launch, it may have left: never sent again.
         case leaving
-        /// More than `MailEngine.lateLimit` late (the Mac asleep, Polhub closed): it waits for Paul.
+        /// More than `MailEngine.lateLimit` late (the Mac asleep, hub closed): it waits for Paul.
         case held
     }
 
@@ -30,11 +30,11 @@ public struct ScheduledSend: Codable, Sendable, Equatable, Identifiable {
     public var state: State
     public var lastError: String?
     public var createdAt: Date
-    /// Gmail's copy of the draft as Polhub last gave it (its draft, its message), kept here and not only in the base:
+    /// Gmail's copy of the draft as hub last gave it (its draft, its message), kept here and not only in the base:
     /// a row whose ids were cleared or changed never skips the check of what the phone did (security review).
     public var gmailDraftID: String?
     public var gmailMessageID: String?
-    /// The first time Polhub tried to send it: late from the start (the Mac asleep, Polhub closed), or late because
+    /// The first time hub tried to send it: late from the start (the Mac asleep, hub closed), or late because
     /// Gmail did not answer at its time.
     public var firstTriedAt: Date?
 
@@ -57,8 +57,8 @@ public struct ScheduledSend: Codable, Sendable, Equatable, Identifiable {
         self.firstTriedAt = firstTriedAt
     }
 
-    /// Late because Gmail or the network did not answer at its time, rather than the Mac asleep or Polhub closed:
-    /// Polhub first tried within five minutes of it.
+    /// Late because Gmail or the network did not answer at its time, rather than the Mac asleep or hub closed:
+    /// hub first tried within five minutes of it.
     public var gmailWasLate: Bool {
         firstTriedAt.map { $0.timeIntervalSince(sendAt) <= 5 * 60 } ?? false
     }
@@ -75,15 +75,15 @@ public protocol ScheduleVault: Sendable {
 public enum ScheduleVaultError: Error, Equatable, CustomStringConvertible {
     case unreadable(Int32)
     case unwritable(Int32)
-    /// The item under the vault's name was not Polhub's (any program could read it): its list was set aside, never
-    /// read, and Polhub's own, empty, took its place.
+    /// The item under the vault's name was not hub's (any program could read it): its list was set aside, never
+    /// read, and hub's own, empty, took its place.
     case foreign
 
     public var description: String {
         switch self {
         case .unreadable(let status): "le Trousseau ne donne pas les envois programmés (\(status))"
         case .unwritable(let status): "le Trousseau n'a pas pris les envois programmés (\(status))"
-        case .foreign: "une liste d'envois programmés que Polhub n'avait pas écrite était dans le Trousseau"
+        case .foreign: "une liste d'envois programmés que hub n'avait pas écrite était dans le Trousseau"
         }
     }
 }
@@ -101,9 +101,9 @@ extension ScheduleVaultError: LocalizedError {
 
 /// The vault's item as the Keychain gives it.
 public enum VaultItem: Sendable, Equatable {
-    /// Readable by Polhub alone, as Polhub makes it: its list.
+    /// Readable by hub alone, as hub makes it: its list.
     case kept(Data)
-    /// Any program may read it without asking (`security add-generic-password -A`). Polhub never makes such an
+    /// Any program may read it without asking (`security add-generic-password -A`). hub never makes such an
     /// item: another program put it there, and its list is not even read.
     case openToAll
 }
@@ -114,13 +114,13 @@ public protocol VaultKeychain: Sendable {
     func read() throws -> VaultItem?
     /// Writes over the item in place; `false` when there is none.
     func update(_ data: Data) throws -> Bool
-    /// Makes the item, readable by Polhub alone.
+    /// Makes the item, readable by hub alone.
     func add(_ data: Data) throws
     func delete() throws
 }
 
 /// The login Keychain and it only: a keychain another program puts ahead of it in the search list is never read.
-/// The item is made by Polhub (its access list trusts Polhub alone, as the Google tokens).
+/// The item is made by hub (its access list trusts hub alone, as the Google tokens).
 public struct LoginKeychainItem: VaultKeychain {
     let service: String
     let account: String
@@ -210,14 +210,14 @@ public struct LoginKeychainItem: VaultKeychain {
     }
 }
 
-/// The login Keychain: one item for the whole list, readable only by Polhub (as the Google tokens). One account
+/// The login Keychain: one item for the whole list, readable only by hub (as the Google tokens). One account
 /// per flavor: the development build never shares, and the engine never calls it there anyway.
 ///
 /// Any program running as Paul may make an item under this name while there is none (`security
 /// add-generic-password`), or put a keychain ahead of the login one: the item is looked for in the login keychain
-/// only, and one that any program could read is never Polhub's, so its list is never adopted (security review of
-/// wave B). What only a data-protection keychain with Polhub's own access group would close (an item made by
-/// another program for Polhub alone) waits for a provisioning profile (to measure on Paul's Mac).
+/// only, and one that any program could read is never hub's, so its list is never adopted (security review of
+/// wave B). What only a data-protection keychain with hub's own access group would close (an item made by
+/// another program for hub alone) waits for a provisioning profile (to measure on Paul's Mac).
 public struct KeychainScheduleVault: ScheduleVault {
     public static let service = "fr.paulmailhes.polhub.envois-programmes"
     let keychain: any VaultKeychain
@@ -233,11 +233,11 @@ public struct KeychainScheduleVault: ScheduleVault {
     public func load() throws -> [ScheduledSend] {
         switch try keychain.read() {
         case nil:
-            // Made at once, by Polhub: no other program finds the place free to put a list of its own there.
+            // Made at once, by hub: no other program finds the place free to put a list of its own there.
             try keychain.add(try JSONEncoder().encode([ScheduledSend]()))
             return []
         case .openToAll?:
-            // Another program's: never read, never sent. Polhub's own, empty, takes its place, and Paul is told.
+            // Another program's: never read, never sent. hub's own, empty, takes its place, and Paul is told.
             try keychain.delete()
             try keychain.add(try JSONEncoder().encode([ScheduledSend]()))
             throw ScheduleVaultError.foreign
@@ -309,9 +309,9 @@ public enum ScheduleOutcome: Sendable, Equatable {
     case held(ScheduledSend)
     /// It did not leave, and will not: the draft stays in Brouillons.
     case stopped(ScheduledSend, ScheduleStop)
-    /// Polhub stopped while it was leaving: it may have left. Never sent again.
+    /// hub stopped while it was leaving: it may have left. Never sent again.
     case maybeSent(ScheduledSend)
-    /// The Keychain held a list Polhub never wrote: set aside, nothing of it left (security review of wave B).
+    /// The Keychain held a list hub never wrote: set aside, nothing of it left (security review of wave B).
     case setAside
 }
 
@@ -323,7 +323,7 @@ public enum ScheduleStop: Error, Sendable, Equatable, CustomStringConvertible {
     case conflict(MailDraftRow.Conflict)
     /// Gmail's copy is in the trash (the conversation deleted on the phone).
     case trashed
-    /// The mailbox no longer lets Polhub read and send its mails.
+    /// The mailbox no longer lets hub read and send its mails.
     case noAccess
     /// The draft is gone.
     case vanished
@@ -336,7 +336,7 @@ public enum ScheduleStop: Error, Sendable, Equatable, CustomStringConvertible {
         case .conflict(.absent): "le brouillon n'est plus dans Gmail : envoyé ou supprimé ailleurs"
         case .conflict(.modifie): "le brouillon a été modifié dans Gmail, sur un autre appareil"
         case .trashed: "il a été mis à la corbeille dans Gmail"
-        case .noAccess: "Polhub n'a plus accès aux mails de cette boîte"
+        case .noAccess: "hub n'a plus accès aux mails de cette boîte"
         case .vanished: "le brouillon n'existe plus"
         case .refused(let reason): "Gmail l'a refusé (\(reason))"
         }

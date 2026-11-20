@@ -119,7 +119,7 @@ public struct CalendarSync: Sendable {
             pageToken = page.nextPageToken
         } while pageToken != nil
         let seen = Set(events.map(\.eventID))
-        // What Polhub wrote since this sync started is newer than what it read (review of 14/11).
+        // What hub wrote since this sync started is newer than what it read (review of 14/11).
         let gone = try store.allEvents().filter {
             $0.account == account.lowercased() && $0.startAt >= from && $0.startAt < to && !seen.contains($0.eventID) && $0.updatedAt <= now
         }

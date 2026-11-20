@@ -43,7 +43,7 @@ public enum MailTab: String, Hashable, Sendable, CaseIterable {
 }
 
 /// « La case » of a thread (plan of 14/11, step « Ranger »): a project, or Perso, Newsletters, Paiements,
-/// Services. Polhub only: no label is made in Gmail. `none` is Paul saying the thread has no case.
+/// Services. hub only: no label is made in Gmail. `none` is Paul saying the thread has no case.
 public enum MailFiling: Hashable, Sendable {
     case project(UUID)
     case perso, newsletters, payments, services

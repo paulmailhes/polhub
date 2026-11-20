@@ -179,9 +179,9 @@ struct SettingsRow: View {
 /// behind « ⓘ ». Colin, Mails, Inspiration and Projets keep theirs beside their page.
 enum SettingsText {
     // Général
-    static let startup = "Ouvrir Polhub à l'ouverture de session"
+    static let startup = "Ouvrir hub à l'ouverture de session"
     static let startupHelp = "Il se relance aussi tout seul s'il s'arrête."
-    static let startupDetail = "Polhub reste dans la barre des menus quand sa fenêtre est fermée : les réunions s'enregistrent et les notifications arrivent."
+    static let startupDetail = "hub reste dans la barre des menus quand sa fenêtre est fermée : les réunions s'enregistrent et les notifications arrivent."
     static let floating = "Ouvrir un mail ou un projet"
     static let floatingHelp = "En fenêtre flottante, la liste reste visible derrière."
     // « Visio »: a rendez-vous with a Google Meet link, never « un Meet » (lot 10, 20/11).
@@ -191,7 +191,7 @@ enum SettingsText {
     // Notifications
     static let reminders = "Rappels avant un rendez-vous"
     static let remindersHelp = "Un clic sur un rappel rejoint la visio avec le bon compte."
-    static let remindersDetail = "La visio s'ouvre dans Dia, où la réunion s'enregistre. Les rappels arrivent même si Polhub est fermé."
+    static let remindersDetail = "La visio s'ouvre dans Dia, où la réunion s'enregistre. Les rappels arrivent même si hub est fermé."
     static let card = "Carte qui reste à l'écran avant une visio"
     static let cardHelp = "En haut à droite, jusqu'à ce que tu rejoignes ou la fermes, dix minutes après le début au plus."
     static let unrecorded = "Visio commencée sans enregistrement"
@@ -272,7 +272,7 @@ struct GeneralSettingsPane: View {
     }
 }
 
-/// « Ouvrir Polhub à l'ouverture de session », in Général: its help, and what holds it back (`ErrorLine`) in its place.
+/// « Ouvrir hub à l'ouverture de session », in Général: its help, and what holds it back (`ErrorLine`) in its place.
 struct StartupToggle: View {
     @ObservedObject var startup: StartupControl
 
@@ -287,7 +287,7 @@ struct StartupToggle: View {
 enum StartupAnswer: Equatable {
     /// A meeting is on: the switch waits for its end (`StartupControl.message` says so).
     case wait
-    /// Turning it off stops Polhub: asked first.
+    /// Turning it off stops hub: asked first.
     case confirmOff
     /// Turning it on hands this copy over to macOS, whose window closes: asked first.
     case confirmOn
@@ -297,7 +297,7 @@ enum StartupAnswer: Equatable {
 
 extension StartupControl {
     /// The one way to switch the relaunch (review of 14/11; lot 7, 19/11: the Diagnostic's switch went round it): it waits
-    /// for the end of a meeting, asks before stopping Polhub or handing it over, and turns it on at once otherwise.
+    /// for the end of a meeting, asks before stopping hub or handing it over, and turns it on at once otherwise.
     func ask(_ on: Bool) -> StartupAnswer {
         guard canChange() else { return .wait }
         if !on { return .confirmOff }
@@ -324,16 +324,16 @@ struct StartupSwitch: View {
             case .wait, .done: break
             }
         }))
-        .confirmationDialog("Ne plus ouvrir Polhub à l'ouverture de session ?", isPresented: $confirmingOff) {
+        .confirmationDialog("Ne plus ouvrir hub à l'ouverture de session ?", isPresented: $confirmingOff) {
             Button("Ne plus l'ouvrir", role: .destructive) { startup.set(false) }
         } message: {
             // French typography, laid at display (lot 10, 20/11).
-            Text(Words.typeset("Polhub se ferme aussitôt et ne se relance plus seul après un arrêt : les réunions ne s'enregistrent que s'il est ouvert. Tu le rouvres depuis Applications."))
+            Text(Words.typeset("hub se ferme aussitôt et ne se relance plus seul après un arrêt : les réunions ne s'enregistrent que s'il est ouvert. Tu le rouvres depuis Applications."))
         }
-        .confirmationDialog("Ouvrir Polhub à l'ouverture de session ?", isPresented: $confirmingOn) {
+        .confirmationDialog("Ouvrir hub à l'ouverture de session ?", isPresented: $confirmingOn) {
             Button("Ouvrir à la session") { startup.set(true) }
         } message: {
-            Text(Words.typeset("macOS prend Polhub sous sa garde : cette fenêtre se ferme, rouvre-la par l'icône de la barre des menus."))
+            Text(Words.typeset("macOS prend hub sous sa garde : cette fenêtre se ferme, rouvre-la par l'icône de la barre des menus."))
         }
     }
 }
@@ -372,7 +372,7 @@ enum ReminderMenu {
     }
 }
 
-/// Réglages › Notifications (Paul, 14/11): what Polhub announces, and when.
+/// Réglages › Notifications (Paul, 14/11): what hub announces, and when.
 struct NotificationsSettingsPane: View {
     let hub: NotificationHub?
     @AppStorage(Preferences.Key.reminders) private var reminders = true
@@ -530,7 +530,7 @@ struct UpdatesSettingsView: View {
     var body: some View {
         Form {
             Section {
-                LabeledContent("Version installée", value: updates.current.description)
+                LabeledContent("Version installée", value: "hub-board \(updates.current.description)")
                 // A meta: « 9:04 » today, « hier 9:04 », « 18 nov. 9:04 », by `Words` (lot 10, 20/11).
                 LabeledContent("Dernière vérification", value: updates.lastCheck.map {
                     Words.shortMoment($0, now: Date())
@@ -554,7 +554,7 @@ struct UpdatesSettingsView: View {
                     }
                 }
                 if updates.newer.isEmpty, updates.lastCheck != nil, updates.state == .idle {
-                    Text("Polhub est à jour.").foregroundStyle(.secondary)
+                    Text("hub est à jour.").foregroundStyle(.secondary)
                 }
                 ForEach(updates.newer, id: \.version) { release in
                     VStack(alignment: .leading, spacing: 4) {

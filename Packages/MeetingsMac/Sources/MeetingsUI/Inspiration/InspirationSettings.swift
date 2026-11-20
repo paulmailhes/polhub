@@ -131,9 +131,9 @@ enum InspirationSettingsText {
 
     // One line of help under each setting, the long detail behind « ⓘ » (lot 7, 19/11).
     static let sourcesHelp = "Leurs 10 derniers posts, lus sans compte ni cookie ; la couleur les marque dans Branding."
-    static let collectHelp = "Awwwards et tes pages LinkedIn, plusieurs fois par jour, quand Polhub est ouvert."
+    static let collectHelp = "Awwwards et tes pages LinkedIn, plusieurs fois par jour, quand hub est ouvert."
     // Fifteen words at most a sentence (lot 10, 20/11).
-    static let collectDetail = "Le site du jour d'Awwwards toutes les 2 heures, de 8 h à 22 h. Les pages LinkedIn à 9 h, 14 h et 20 h, et au réveil du Mac. Seulement quand Polhub est ouvert, jamais dans la version de développement."
+    static let collectDetail = "Le site du jour d'Awwwards toutes les 2 heures, de 8 h à 22 h. Les pages LinkedIn à 9 h, 14 h et 20 h, et au réveil du Mac. Seulement quand hub est ouvert, jamais dans la version de développement."
     // « l'IA d'Apple », never « le modèle d'Apple » (lot 10, 20/11).
     static let aiHelp = "L'IA d'Apple, sur le Mac, range chaque nouvelle fiche ; jamais celles que tu as rangées."
 

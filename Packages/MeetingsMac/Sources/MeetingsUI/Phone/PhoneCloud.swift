@@ -5,7 +5,7 @@ import HubCloud
 import HubDesign
 import HubLink
 
-/// The copy in iCloud (20/11, lot 1 of « Polhub sans le Mac »): the Mac copies into the user's iCloud what the iPhone
+/// The copy in iCloud (20/11, lot 1 of « hub sans le Mac »): the Mac copies into the user's iCloud what the iPhone
 /// shows (the projects, the meetings, the agenda, Colin's thread), the mails apart, which stay at Google. The iPhone
 /// reads it when the Mac does not answer. Only what changed is written, every two minutes and before the Mac sleeps.
 @MainActor public final class PhoneCloud: ObservableObject {

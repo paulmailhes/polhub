@@ -2,7 +2,7 @@ import Compute
 import Foundation
 import Transcription
 
-/// `polhub-calcul '<CalculRequest en JSON>'`: transcribes one meeting, one JSON message per line on
+/// `hub-calcul '<CalculRequest en JSON>'`: transcribes one meeting, one JSON message per line on
 /// the standard output. Launched by the app outside meetings, stopped by a signal as soon as a Meet shows.
 setenv("HF_HUB_OFFLINE", "1", 1)
 
@@ -25,7 +25,7 @@ func fail(_ message: String) -> Never {
 }
 
 guard CommandLine.arguments.count == 2, let request = try? JSONDecoder().decode(CalculRequest.self, from: Data(CommandLine.arguments[1].utf8)) else {
-    fail("Usage : polhub-calcul '<requête JSON>'")
+    fail("Usage : hub-calcul '<requête JSON>'")
 }
 let locations = ModelLocations.standard
 let missing = locations.missing()

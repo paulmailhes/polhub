@@ -3,7 +3,7 @@ import Foundation
 /// Why Colin cannot answer (18/11), as the bar says it. Read from what Claude Code left: a result in error, a limit
 /// refused, its error output, or a process gone before its turn ended.
 public enum ColinFailure: Equatable, Sendable {
-    /// No Claude Code on this Mac, or Polhub cannot say where to launch it.
+    /// No Claude Code on this Mac, or hub cannot say where to launch it.
     case missing
     /// The account is not connected: nothing is tried again.
     case notConnected
@@ -13,7 +13,7 @@ public enum ColinFailure: Equatable, Sendable {
     case launch
     /// No answer: gone, or silent past the turn's limit.
     case noAnswer
-    /// The launch loaded more than Polhub asked (its `init`, or a hook): stopped before anything of Paul's left.
+    /// The launch loaded more than hub asked (its `init`, or a hook): stopped before anything of Paul's left.
     case isolation(String)
 
     /// What a result in error, or a process gone, says that will go on: its limit, its connection; for a process

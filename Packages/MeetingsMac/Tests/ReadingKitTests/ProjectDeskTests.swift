@@ -4,7 +4,7 @@ import Persistence
 import Testing
 @testable import ReadingKit
 
-/// The project tools of `polhub mcp`, which replace those of the `obsidian` server (13/11).
+/// The project tools of `hub mcp`, which replace those of the `obsidian` server (13/11).
 struct DeskFixture {
     let now = ISO8601DateFormatter().date(from: "2026-11-13T17:30:00Z")!
     let database: AppDatabase
@@ -43,7 +43,7 @@ struct DeskFixture {
         try projects.setProject(meetingID: meeting.id, projectID: atelier.id)
     }
 
-    /// `root`: the folder of Polhub's data, where Inspiration's images live.
+    /// `root`: the folder of hub's data, where Inspiration's images live.
     func desk(in folder: String? = nil, root: URL? = nil) -> ProjectDesk {
         ProjectDesk(projects: projects, meetings: meetings, workingDirectory: folder, dataRoot: root, now: { [now] in now },
                     timeZone: TimeZone(identifier: "Europe/Paris")!)

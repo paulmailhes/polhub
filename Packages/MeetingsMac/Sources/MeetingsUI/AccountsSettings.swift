@@ -31,7 +31,7 @@ struct AccountsSettingsPane: View {
                 leaving = nil
             }
         } message: {
-            Text("Ses rendez-vous et ses mails disparaissent de Polhub ; rien ne change chez Google.")
+            Text("Ses rendez-vous et ses mails disparaissent de hub ; rien ne change chez Google.")
         }
     }
 }
@@ -74,7 +74,7 @@ struct AccountSettingsRow: View {
                     .accessibilityAddTraits(chosen ? .isSelected : [])
                 }
             }
-            // Its error said by `ErrorLine`, « Mails autorisés » in the color of « done » (design system v2, 19/11). Polhub's
+            // Its error said by `ErrorLine`, « Mails autorisés » in the color of « done » (design system v2, 19/11). hub's
             // sentence, never the text the base keeps: the error is read again by its own words (lot 10, 20/11).
             if let error = account.lastError {
                 ErrorLine(Words.problem("L'agenda ne se met plus à jour", GoogleError(stored: error)).sentence).font(.meta)

@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Notifications
 
-/// Polhub's own list of its notifications (Paul, 15/11): kept, capped, collapsed, grouped, and what a click opens.
+/// hub's own list of its notifications (Paul, 15/11): kept, capped, collapsed, grouped, and what a click opens.
 @MainActor @Suite struct NotificationInboxTests {
     let now = Date(timeIntervalSince1970: 1_794_562_920)
     let folder: URL

@@ -4,7 +4,7 @@ import Testing
 @testable import Persistence
 
 /// Base v16 (18/11): each thread keeps who spoke last (the last message received, the last one of Paul's), and
-/// Polhub keeps what Paul sets aside on the Accueil. The migration only adds columns and a table; the threads
+/// hub keeps what Paul sets aside on the Accueil. The migration only adds columns and a table; the threads
 /// already there get their turn right after it, in a pass of its own that can never keep the base shut. A helper
 /// that never migrates still reads a base of before.
 @Suite struct MigrationV16Tests {
@@ -105,7 +105,7 @@ import Testing
     }
 
     @Test func aBaseStillAtV15ReadsItsThreads() throws {
-        // `polhub mcp` never migrates: on a base the app has not opened since its update, the threads still read.
+        // `hub mcp` never migrates: on a base the app has not opened since its update, the threads still read.
         let (folder, path) = try baseAtV15 { db in
             try thread(db, "a")
             try message(db, "a1", thread: "a", hours: 0, sender: Self.client, labels: #"["INBOX"]"#)

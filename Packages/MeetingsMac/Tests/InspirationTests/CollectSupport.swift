@@ -167,7 +167,7 @@ enum CollectFixtures {
     }
 }
 
-/// An empty Polhub (base in memory, image folders in a temporary folder) and its collector on the fake web.
+/// An empty hub (base in memory, image folders in a temporary folder) and its collector on the fake web.
 struct CollectWorld {
     let root: URL
     let paths: AppPaths
@@ -178,7 +178,7 @@ struct CollectWorld {
     init() throws {
         root = FileManager.default.temporaryDirectory.appending(path: "collecte \(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        paths = AppPaths(root: root.appending(path: "Polhub", directoryHint: .isDirectory), logs: root.appending(path: "Logs"))
+        paths = AppPaths(root: root.appending(path: "hub", directoryHint: .isDirectory), logs: root.appending(path: "Logs"))
         database = try AppDatabase.inMemory()
     }
 

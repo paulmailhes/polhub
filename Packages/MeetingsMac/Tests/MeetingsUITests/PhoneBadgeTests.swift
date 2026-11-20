@@ -7,15 +7,15 @@ import HubLink
 import Testing
 @testable import MeetingsUI
 
-/// The number on Polhub's icon (Paul, 20/11: « un nombre de notifications qui mélangent un peu les mails et tout »),
+/// The number on hub's icon (Paul, 20/11: « un nombre de notifications qui mélangent un peu les mails et tout »),
 /// in the Dock and on the iPhone; a mail deleted by a swipe on the iPhone. Every name here is invented.
 @MainActor @Suite struct PhoneBadgeTests {
     func notice(_ kind: PlannedNotice.Kind, seen: Bool) -> InboxNotice {
-        InboxNotice(PlannedNotice(id: UUID().uuidString, fireDate: Date(), title: "Polhub", body: "…", eventID: nil, meetCode: nil,
+        InboxNotice(PlannedNotice(id: UUID().uuidString, fireDate: Date(), title: "hub", body: "…", eventID: nil, meetCode: nil,
                                   account: nil, kind: kind), at: Date(), seen: seen)
     }
 
-    /// The unread mails of the main tab, and what Polhub told and Paul did not see yet: a mail's notice is already
+    /// The unread mails of the main tab, and what hub told and Paul did not see yet: a mail's notice is already
     /// counted by its mail.
     @Test func theBadgeMixesTheUnreadMailsAndTheNoticesNotSeen() {
         let notices = [notice(.summary, seen: false), notice(.draft, seen: false), notice(.mail, seen: false), notice(.reminder, seen: true)]

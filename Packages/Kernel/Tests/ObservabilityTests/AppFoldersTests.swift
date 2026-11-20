@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Observability
 
-/// 20/11 : Polhub devient hub-board. Ses dossiers changent de nom au premier lancement de la nouvelle version ; l'ancien
+/// 20/11 : hub devient hub-board. Ses dossiers changent de nom au premier lancement de la nouvelle version ; l'ancien
 /// chemin devient un lien, pour la ligne de commande des sessions déjà ouvertes et pour un retour en arrière.
 @Suite struct AppFoldersTests {
     func scratch() throws -> URL {
@@ -54,7 +54,7 @@ import Testing
         #expect(try String(contentsOf: root.appending(path: "Polhub/Polhub.sqlite"), encoding: .utf8) == "ancienne")
     }
 
-    /// A `polhub mcp` still alive in an open session opens the base by its old path: the same file, never an empty base.
+    /// A `hub mcp` still alive in an open session opens the base by its old path: the same file, never an empty base.
     @Test func theOldPathStillReachesTheSameBase() throws {
         let root = try scratch()
         defer { try? FileManager.default.removeItem(at: root) }

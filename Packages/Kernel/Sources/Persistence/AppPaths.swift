@@ -22,7 +22,7 @@ public struct AppPaths: Sendable, Equatable {
     }
 
     /// A hidden identifier: the base keeps its file name of before 20/11, so that the previous version, after a
-    /// rollback, and a `polhub mcp` of an open session open the same base.
+    /// rollback, and a `hub mcp` of an open session open the same base.
     public static let databaseFileName = "Polhub.sqlite"
 
     public var database: URL { root.appending(path: Self.databaseFileName) }
@@ -30,7 +30,7 @@ public struct AppPaths: Sendable, Equatable {
     public var backups: URL { root.appending(path: "Sauvegardes", directoryHint: .isDirectory) }
     /// The projects' logos, and the sites they come from (15/11): outside the base.
     public var logos: URL { root.appending(path: "Logos", directoryHint: .isDirectory) }
-    /// The notifications Polhub sent, as its own list shows them (15/11): a small file, outside the base.
+    /// The notifications hub sent, as its own list shows them (15/11): a small file, outside the base.
     public var notifications: URL { root.appending(path: "Notifications.json") }
     /// « Inspiration » (16/11): the images of the sites, the branding and the mock-ups, outside the base (the
     /// base's copies stay small), and the vocabularies brought from the vault.

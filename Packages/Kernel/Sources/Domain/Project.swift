@@ -1,7 +1,7 @@
 import Foundation
 
 /// A project's column on the board: four statuses since 15/11 (Paul). The raw values stay lowercase, as the
-/// `projets` tool of `polhub mcp` writes them.
+/// `projets` tool of `hub mcp` writes them.
 public enum ProjectStatus: String, Codable, Sendable, CaseIterable {
     // In Paul's scale the higher number is the more urgent (15/11: « priorité 2 c'est le plus priorité ») :
     // Priorité 2 first, at the left of the board and on top of every list.
@@ -14,7 +14,7 @@ public enum ProjectStatus: String, Codable, Sendable, CaseIterable {
     public static let boardOrder: [ProjectStatus] = allCases
 
     /// A value read from the base, never refused: an old status (before the migration `v12`, or written by
-    /// an older `polhub mcp`) finds its new column, anything else goes « En pause ». « priorité 2 » keeps its
+    /// an older `hub mcp`) finds its new column, anything else goes « En pause ». « priorité 2 » keeps its
     /// meaning here: only the migration moves the old ones.
     public init(tolerant raw: String) {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -34,7 +34,7 @@ public enum ProjectStatus: String, Codable, Sendable, CaseIterable {
         self.init(tolerant: try decoder.singleValueContainer().decode(String.self))
     }
 
-    /// Lowercase, for `polhub mcp`: « priorité 1 ».
+    /// Lowercase, for `hub mcp`: « priorité 1 ».
     public var label: String { rawValue }
 
     /// For the window: « Priorité 1 ».

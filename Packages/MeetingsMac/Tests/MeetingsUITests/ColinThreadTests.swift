@@ -11,7 +11,7 @@ import Testing
 @MainActor
 @Suite struct ColinThreadTests {
     nonisolated static let good = ClaudeInit(model: "claude-opus-5-5", permissionMode: "dontAsk", apiKeySource: "none", tools: ColinTool.allowed,
-                                 servers: ["polhub": "connected"])
+                                 servers: ["hub": "connected"])
 
     /// Warm-up, then the answer « Trois projets. » to each question; or `answer` for each.
     nonisolated static func session(_ answer: (@Sendable (String, Int) -> [ClaudeEvent])? = nil, warmUp: [ClaudeEvent]? = nil) -> FakeSession {
@@ -23,7 +23,7 @@ import Testing
     }
 
     /// A Claude Code that starts answering and never ends.
-    nonisolated static let hanging: @Sendable (String, Int) -> [ClaudeEvent] = { _, _ in [.initialized(good), .assistant(text: "", tools: ["mcp__polhub__mails"], calls: [ClaudeToolCall(id: "t1", name: "mcp__polhub__mails", arguments: [:])]), .textDelta("Trois ")] }
+    nonisolated static let hanging: @Sendable (String, Int) -> [ClaudeEvent] = { _, _ in [.initialized(good), .assistant(text: "", tools: ["mcp__hub__mails"], calls: [ClaudeToolCall(id: "t1", name: "mcp__hub__mails", arguments: [:])]), .textDelta("Trois ")] }
 
     final class Flag: @unchecked Sendable {
         private let lock = NSLock()
@@ -115,8 +115,8 @@ import Testing
     @Test func anAnswerKeepsItsSteps() async throws {
         let world = try world(FakeLauncher { _, _ in
             Self.session { _, _ in
-                [.initialized(Self.good), .textDelta("Deux "), .toolStarted(id: "t1", name: "mcp__polhub__mails"),
-                 .assistant(text: "", tools: ["mcp__polhub__mails"], calls: [ClaudeToolCall(id: "t1", name: "mcp__polhub__mails", arguments: ["projet": "Cabinet Martin"])]),
+                [.initialized(Self.good), .textDelta("Deux "), .toolStarted(id: "t1", name: "mcp__hub__mails"),
+                 .assistant(text: "", tools: ["mcp__hub__mails"], calls: [ClaudeToolCall(id: "t1", name: "mcp__hub__mails", arguments: ["projet": "Cabinet Martin"])]),
                  .toolResult(isError: false, outcomes: [ClaudeToolOutcome(id: "t1", isError: false)]),
                  .textDelta("mails."), .result(ClaudeResult(durationMs: 1_200, costUSD: 0.02, text: "Deux mails."))]
             }
@@ -193,7 +193,7 @@ import Testing
     /// Final review (18/11): an action that begins shows the whole sentence before it — no word held back.
     @Test func theSentenceBeforeAnActionShowsWhole() async throws {
         let world = try world(FakeLauncher { _, _ in
-            Self.session { _, _ in [.initialized(Self.good), .textDelta("Je regarde tes mails."), .toolStarted(id: "t1", name: "mcp__polhub__mails")] }
+            Self.session { _, _ in [.initialized(Self.good), .textDelta("Je regarde tes mails."), .toolStarted(id: "t1", name: "mcp__hub__mails")] }
         })
         ask(world.thread, "Quoi de neuf ?")
         try await waitUntil { world.thread.visible == "Je regarde tes mails." }
@@ -228,7 +228,7 @@ import Testing
         try await waitUntil { world.thread.messages.count == 4 && world.thread.messages.last?.state == .done }
         let sent = try #require(world.launcher.all.first).sent
         #expect(sent.count == 3)
-        #expect(sent[1].hasPrefix("Le contexte de Polhub") && sent[1].contains("Écrire court.") && sent[1].contains("Brouillon prêt pour Claire"))
+        #expect(sent[1].hasPrefix("Le contexte de hub") && sent[1].contains("Écrire court.") && sent[1].contains("Brouillon prêt pour Claire"))
         #expect(sent[1].hasSuffix("\n\nOù on en est ?") && sent[2] == "Et demain ?")
     }
 
@@ -394,14 +394,14 @@ import Testing
 
     @Test func theWorkingPhraseFollowsTheTool() {
         #expect(ColinThread.phrase(for: nil) == "Colin réfléchit…")
-        #expect(ColinThread.phrase(for: "mcp__polhub__projets") == "Colin regarde tes projets…")
-        #expect(ColinThread.phrase(for: "mcp__polhub__contexte") == "Colin regarde tes projets…")
-        #expect(ColinThread.phrase(for: "mcp__polhub__mail") == "Colin lit tes mails…")
-        #expect(ColinThread.phrase(for: "mcp__polhub__reunion") == "Colin lit tes réunions…")
-        #expect(ColinThread.phrase(for: "mcp__polhub__projet") == "Colin met à jour le projet…")
-        #expect(ColinThread.phrase(for: "mcp__polhub__fait") == "Colin met à jour le projet…")
-        #expect(ColinThread.phrase(for: "mcp__polhub__agenda") == "Colin regarde ton agenda…")
-        #expect(ColinThread.phrase(for: "mcp__polhub__brouillon") == "Colin écrit le brouillon…")
+        #expect(ColinThread.phrase(for: "mcp__hub__projets") == "Colin regarde tes projets…")
+        #expect(ColinThread.phrase(for: "mcp__hub__contexte") == "Colin regarde tes projets…")
+        #expect(ColinThread.phrase(for: "mcp__hub__mail") == "Colin lit tes mails…")
+        #expect(ColinThread.phrase(for: "mcp__hub__reunion") == "Colin lit tes réunions…")
+        #expect(ColinThread.phrase(for: "mcp__hub__projet") == "Colin met à jour le projet…")
+        #expect(ColinThread.phrase(for: "mcp__hub__fait") == "Colin met à jour le projet…")
+        #expect(ColinThread.phrase(for: "mcp__hub__agenda") == "Colin regarde ton agenda…")
+        #expect(ColinThread.phrase(for: "mcp__hub__brouillon") == "Colin écrit le brouillon…")
     }
 
     @Test func eachFailureIsSaidPlainly() {
@@ -411,6 +411,6 @@ import Testing
         #expect(ColinThread.sentence(.limit(resetsAt: reset), calendar: calendar) == "Limite atteinte · reprend à 16:20")
         #expect(ColinThread.sentence(.limit(resetsAt: nil), calendar: calendar) == "Limite atteinte.")
         #expect(ColinThread.sentence(.missing, calendar: calendar) == "Claude Code est introuvable sur ce Mac.")
-        #expect(ColinThread.sentence(.isolation("outils"), calendar: calendar) == "Claude Code a chargé plus que ce que Polhub lui demande : Colin s'est arrêté.")
+        #expect(ColinThread.sentence(.isolation("outils"), calendar: calendar) == "Claude Code a chargé plus que ce que hub lui demande : Colin s'est arrêté.")
     }
 }

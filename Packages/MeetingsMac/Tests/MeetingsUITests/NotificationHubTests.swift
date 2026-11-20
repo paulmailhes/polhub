@@ -62,7 +62,7 @@ import Testing
         try calendar.applyGoogle(account: "paul@exemple.fr", changed: [event("b", inMinutes: 90), event("c", inMinutes: 120)], cancelled: [], at: now)
         let center = Center()
         let hub = hub(center)
-        hub.madeFromPolhub("c")
+        hub.madeFromHub("c")
         await hub.afterSync(before: before, firstReading: [], now: now)
         #expect(center.delivered.map(\.title) == ["Nouveau rendez-vous"])
         #expect(center.delivered.first?.eventID == CalendarEventRow.key(account: "paul@exemple.fr", eventID: "b"))
@@ -168,7 +168,7 @@ import Testing
         #expect(center.delivered.map(\.body) == ["Atelier maquette"])
     }
 
-    // MARK: - Polhub's own list (15/11)
+    // MARK: - hub's own list (15/11)
 
     /// Every notification shown is kept in the list, with what its click opens.
     @Test func everyNotificationShownIsKeptInTheList() async throws {

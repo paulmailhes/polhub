@@ -16,7 +16,7 @@ public struct InspirationDesk: Sendable {
     }
 
     let store: InspirationStore
-    /// Polhub's data folder (`AppPaths.root`), where the images are; `nil`: no image.
+    /// hub's data folder (`AppPaths.root`), where the images are; `nil`: no image.
     let dataRoot: URL?
     let timeZone: TimeZone
 
@@ -127,7 +127,7 @@ public struct InspirationDesk: Sendable {
     /// The items of these kinds, without the bin, newest first.
     func live(_ kinds: [InspirationKind]) throws -> [InspirationItemRow] {
         guard try store.isAvailable() else {
-            throw ToolError("Inspiration n'est pas encore dans la base : la dernière version de Polhub doit être ouverte une fois.")
+            throw ToolError("Inspiration n'est pas encore dans la base : la dernière version de hub doit être ouverte une fois.")
         }
         let items = try kinds.flatMap { try store.items(kind: $0) }
         return kinds.count == 1 ? items : items.sorted { $0.date != $1.date ? $0.date > $1.date : $0.createdAt > $1.createdAt }

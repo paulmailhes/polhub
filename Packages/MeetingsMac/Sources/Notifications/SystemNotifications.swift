@@ -16,7 +16,7 @@ public enum NoticeKey {
     static let plainCategory = "polhub"
 }
 
-/// What macOS lets Polhub's notifications do (lot 10, 20/11): Réglages offers to open Réglages Système when they are
+/// What macOS lets hub's notifications do (lot 10, 20/11): Réglages offers to open Réglages Système when they are
 /// refused, by this state, never by its words.
 public enum NotificationAuthorization: Equatable, Sendable {
     case allowed, denied, notAsked, unknown
@@ -41,8 +41,8 @@ public enum NotificationAuthorization: Equatable, Sendable {
     }
 }
 
-/// macOS's notification center. A notification scheduled at a date is shown by macOS itself, even when Polhub is
-/// not running; a click opens Polhub, which joins the Meet or opens the page (14/11).
+/// macOS's notification center. A notification scheduled at a date is shown by macOS itself, even when hub is
+/// not running; a click opens hub, which joins the Meet or opens the page (14/11).
 public struct SystemNotifications: NotificationCenterClient {
     public init() {}
 
@@ -62,7 +62,7 @@ public struct SystemNotifications: NotificationCenterClient {
         (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])) ?? false
     }
 
-    /// What macOS lets Polhub's notifications do: a state, read by Réglages, its words beside it (lot 10, 20/11).
+    /// What macOS lets hub's notifications do: a state, read by Réglages, its words beside it (lot 10, 20/11).
     public static func authorization() async -> NotificationAuthorization {
         NotificationAuthorization(await UNUserNotificationCenter.current().notificationSettings().authorizationStatus)
     }

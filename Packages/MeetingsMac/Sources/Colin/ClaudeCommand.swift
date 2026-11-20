@@ -1,6 +1,6 @@
 import Foundation
 
-/// One launch of Claude Code by Polhub, closed on itself: none of the user's settings, hooks, plugins, skills,
+/// One launch of Claude Code by hub, closed on itself: none of the user's settings, hooks, plugins, skills,
 /// instructions or servers come along, no tool of the Mac, nothing asked on a screen, no session and no memory kept,
 /// deaf to the other sessions. What it may use is said here and nowhere else.
 public struct ClaudeCommand: Equatable, Sendable {
@@ -112,10 +112,10 @@ public struct ClaudeCommand: Equatable, Sendable {
         return path
     }
 
-    /// Polhub's own server and nothing else, on the base given. `colin`: Colin's profile, fixed here, out of the
+    /// hub's own server and nothing else, on the base given. `colin`: Colin's profile, fixed here, out of the
     /// model's reach.
     public static func mcpConfig(helper: URL, base: URL, colin: Bool = false) -> String {
-        json(["mcpServers": ["polhub": [
+        json(["mcpServers": ["hub": [
             "type": "stdio",
             "command": helper.path(percentEncoded: false),
             "args": ["mcp", "--base", base.path(percentEncoded: false)] + (colin ? ["--colin"] : []),

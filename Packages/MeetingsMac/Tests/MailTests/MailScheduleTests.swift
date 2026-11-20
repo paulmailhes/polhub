@@ -7,7 +7,7 @@ import Persistence
 import Testing
 @testable import Mail
 
-/// Wave B, 15/11 (« Programmer l'envoi »): Gmail cannot send at a given time, so Polhub keeps the mail and sends
+/// Wave B, 15/11 (« Programmer l'envoi »): Gmail cannot send at a given time, so hub keeps the mail and sends
 /// it itself. The list lives in the Keychain (here, a vault in memory), with the fingerprint of what leaves; no row
 /// of the base and no setting can ever make a mail leave.
 @Suite struct MailScheduleTests {
@@ -227,7 +227,7 @@ import Testing
     }
 
     /// Edited or sent on the phone after Paul programmed it, then the row's Gmail ids cleared or changed by hand:
-    /// the entry keeps Gmail's copy as Polhub gave it, so the phone's choice still stops it (security review).
+    /// the entry keeps Gmail's copy as hub gave it, so the phone's choice still stops it (security review).
     @Test func aPhoneEditCancelsWhateverTheRowSays() async throws {
         for (phone, row) in [("modifié", "vidé"), ("envoyé", "vidé"), ("modifié", "suivi")] {
             let f = try await setUp()
@@ -338,8 +338,8 @@ import Testing
     }
 
     /// A Keychain item another program made under the vault's name (`security add-generic-password -A`, before
-    /// Polhub's first launch), holding a due entry whose fingerprint matches a draft: never read, nothing leaves;
-    /// Polhub's own, empty, takes its place and Paul is told. The same list in Polhub's own item would leave.
+    /// hub's first launch), holding a due entry whose fingerprint matches a draft: never read, nothing leaves;
+    /// hub's own, empty, takes its place and Paul is told. The same list in hub's own item would leave.
     @Test func aListPolhubNeverWroteNeverSends() async throws {
         for planted in [true, false] {
             let f = try await setUp()
@@ -396,7 +396,7 @@ import Testing
         guard case .stopped(_, .conflict(.absent))? = f.outcomes.all.last else { Issue.record("pas arrêté"); return }
     }
 
-    /// Changed on the phone meanwhile: Polhub neither sends nor writes over it; Paul chooses.
+    /// Changed on the phone meanwhile: hub neither sends nor writes over it; Paul chooses.
     @Test func aMailEditedOnThePhoneWaitsForPaul() async throws {
         let f = try await setUp()
         defer { try? FileManager.default.removeItem(at: f.root) }
@@ -412,7 +412,7 @@ import Testing
         guard case .stopped(_, .conflict(.modifie))? = f.outcomes.all.last else { Issue.record("pas arrêté"); return }
     }
 
-    /// The Mac asleep, Polhub closed (Paul, 15/11): three hours late it leaves at once and says so; thirteen hours
+    /// The Mac asleep, hub closed (Paul, 15/11): three hours late it leaves at once and says so; thirteen hours
     /// late it waits for Paul, whose « Envoyer maintenant » sends it.
     @Test func lateWithinTheLimitLeavesBeyondItWaits() async throws {
         let f = try await setUp()
@@ -440,7 +440,7 @@ import Testing
         #expect(f.sends == 2 && f.vault.all.isEmpty)
     }
 
-    /// Polhub stopped while a mail was leaving: it may have left; it is never sent again, and Paul is told.
+    /// hub stopped while a mail was leaving: it may have left; it is never sent again, and Paul is told.
     @Test func aCrashWhileLeavingNeverSendsAgain() async throws {
         let vault = MemoryScheduleVault()
         let f = try await setUp(vault: vault)
@@ -616,7 +616,7 @@ final class FakeVaultKeychain: VaultKeychain, @unchecked Sendable {
     }
 }
 
-/// The vault over the Keychain's item: made by Polhub when there is none, written in place, and an item any program
+/// The vault over the Keychain's item: made by hub when there is none, written in place, and an item any program
 /// could read set aside unread (security review of wave B).
 @Suite struct KeychainScheduleVaultTests {
     let entry = ScheduledSend(draftID: "d1", account: "moi@exemple.fr", sendAt: Date(timeIntervalSince1970: 0), fingerprint: "f", subject: "Devis",

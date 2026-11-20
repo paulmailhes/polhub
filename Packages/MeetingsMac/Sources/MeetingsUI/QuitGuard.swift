@@ -15,7 +15,7 @@ public enum QuitGuard {
     public static func question(status: RecorderStatus, sending: Bool) -> Question? {
         switch status {
         case .recording, .presumedEnded:
-            return Question(title: "Polhub enregistre une réunion",
+            return Question(title: "hub enregistre une réunion",
                             detail: "Si tu quittes maintenant, la suite de la réunion ne sera pas enregistrée.",
                             stay: "Continuer l'enregistrement", quit: "Quitter quand même")
         case .idle, .prompting, .paused:

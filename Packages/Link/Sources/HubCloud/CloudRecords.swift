@@ -36,7 +36,7 @@ public struct CloudRequest: Equatable, Sendable {
     }
 }
 
-/// The two kinds of records of Polhub's container, and nothing more: a schema in production changes only by Apple's
+/// The two kinds of records of hub's container, and nothing more: a schema in production changes only by Apple's
 /// console, so their content is JSON, which changes with the app (`Copie`, and later `Demande`).
 public enum CloudRecords {
     public static let container = "iCloud.fr.paulmailhes.polhub"

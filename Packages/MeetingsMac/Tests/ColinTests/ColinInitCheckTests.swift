@@ -3,11 +3,11 @@ import Foundation
 import Testing
 @testable import Colin
 
-/// What Polhub accepts of a launch of Colin (18/11): his fifteen tools, his one server, nothing of the user's, Opus,
+/// What hub accepts of a launch of Colin (18/11): his fifteen tools, his one server, nothing of the user's, Opus,
 /// no key. Checked on every `init`, which Claude Code says again at each turn.
 @Suite struct ColinInitCheckTests {
     static let good = ClaudeInit(version: "2.1.304", model: "claude-opus-5-5", permissionMode: "dontAsk", apiKeySource: "none",
-                                 tools: ColinTool.allowed, servers: ["polhub": "connected"], builtinPlugins: 4, agents: ["claude"], messaging: true)
+                                 tools: ColinTool.allowed, servers: ["hub": "connected"], builtinPlugins: 4, agents: ["claude"], messaging: true)
 
     func with(_ change: (inout ClaudeInit) -> Void) -> ClaudeInit {
         var value = Self.good
@@ -21,12 +21,12 @@ import Testing
 
     @Test func anythingMoreOrOtherStopsIt() {
         let tools = Set(ColinTool.allowed)
-        #expect(ColinInitCheck.problem(with { $0.tools.append("mcp__polhub__note") }, tools: tools) == "outils")
-        #expect(ColinInitCheck.problem(with { $0.tools.append("mcp__polhub__journal") }, tools: tools) == "outils")
+        #expect(ColinInitCheck.problem(with { $0.tools.append("mcp__hub__note") }, tools: tools) == "outils")
+        #expect(ColinInitCheck.problem(with { $0.tools.append("mcp__hub__journal") }, tools: tools) == "outils")
         #expect(ColinInitCheck.problem(with { $0.tools.removeLast() }, tools: tools) == "outils")
         #expect(ColinInitCheck.problem(with { $0.tools.append("Bash") }, tools: tools) == "outils")
         #expect(ColinInitCheck.problem(with { $0.servers["autre"] = "connected" }, tools: tools) == "serveurs")
-        #expect(ColinInitCheck.problem(with { $0.servers["polhub"] = "failed" }, tools: tools) == "serveurs")
+        #expect(ColinInitCheck.problem(with { $0.servers["hub"] = "failed" }, tools: tools) == "serveurs")
         #expect(ColinInitCheck.problem(with { $0.plugins = 1 }, tools: tools) == "plugins")
         #expect(ColinInitCheck.problem(with { $0.skills = 1 }, tools: tools) == "skills")
         #expect(ColinInitCheck.problem(with { $0.slashCommands = 2 }, tools: tools) == "commandes")

@@ -426,7 +426,7 @@ public actor MailEngine {
     /// A file of a message, downloaded once. macOS marks it as coming from a mail.
     public func file(_ attachment: MailAttachment, of message: MailMessageRow) async throws -> URL {
         // A spam's files are never written on the Mac, nor opened (wave B).
-        guard !message.labels.contains("SPAM") else { throw GoogleError.refused("Polhub n'ouvre pas les pièces jointes d'un spam : ouvre-le dans Gmail") }
+        guard !message.labels.contains("SPAM") else { throw GoogleError.refused("hub n'ouvre pas les pièces jointes d'un spam : ouvre-le dans Gmail") }
         let url = files.attachment(attachment, of: message)
         if FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) { return url }
         func bytes(_ attachmentID: String) async throws -> Data {
@@ -556,7 +556,7 @@ public actor MailEngine {
     }
 
     /// The draft as it leaves: Paul's text, the mailbox's signature, the quoted message, the files. A file
-    /// whose name Polhub would not have written is refused.
+    /// whose name hub would not have written is refused.
     func outgoing(_ draft: MailDraftRow) throws -> OutgoingMail {
         let cursor = try store.cursor(account: draft.account)
         let signature = draft.signature ? cursor?.signature : nil
@@ -622,7 +622,7 @@ public actor MailEngine {
         return held
     }
 
-    /// The entry learns the copy Gmail holds now, as Polhub just gave it. If the vault cannot take it, the next check
+    /// The entry learns the copy Gmail holds now, as hub just gave it. If the vault cannot take it, the next check
     /// finds Gmail's message changed and stops: never a send of anything else.
     private func noteGmailCopy(of draftID: String, _ held: MailDraftRow) {
         guard var all = ledger, let index = all.firstIndex(where: { $0.draftID == draftID }) else { return }
@@ -649,7 +649,7 @@ public actor MailEngine {
         return try store.draft(draft.id) ?? draft
     }
 
-    /// Gmail's copy is still the one Polhub gave: same draft, same message (`known`: the row's, or the one a programmed
+    /// Gmail's copy is still the one hub gave: same draft, same message (`known`: the row's, or the one a programmed
     /// send keeps). A programmed one also stops once its conversation went to the trash in Gmail (wave B review).
     private func check(_ draft: MailDraftRow, _ gmailDraftID: String, known: String?, sealed: Bool = false) async throws {
         do {
@@ -694,7 +694,7 @@ public actor MailEngine {
         if let settled = try store.draft(draftID) { noteGmailCopy(of: draftID, settled) }
     }
 
-    /// « Le supprimer » or « Prendre celui de Gmail »: the draft leaves Polhub only; Gmail's copy, if any,
+    /// « Le supprimer » or « Prendre celui de Gmail »: the draft leaves hub only; Gmail's copy, if any,
     /// stays among the drafts begun elsewhere.
     public func forgetLocally(_ draftID: String) async throws {
         await settled(draftID)
@@ -881,7 +881,7 @@ public actor MailEngine {
         }
     }
 
-    /// A draft written in Gmail (the phone, the web), taken up in Polhub: its text, its people, its files. A
+    /// A draft written in Gmail (the phone, the web), taken up in hub: its text, its people, its files. A
     /// formatted draft (links, images) keeps its HTML whole, below what Paul adds; taken up twice, it is the
     /// same draft.
     public func resume(gmailDraft message: MailMessageRow) async throws -> MailDraftRow {
@@ -935,7 +935,7 @@ public actor MailEngine {
 
     // MARK: - Programmed sends (wave B, 15/11)
 
-    /// Later than this after its time (the Mac asleep, Polhub closed), a programmed mail no longer leaves on its
+    /// Later than this after its time (the Mac asleep, hub closed), a programmed mail no longer leaves on its
     /// own: it waits for Paul (Paul, 15/11).
     public static let lateLimit: TimeInterval = 12 * 3_600
     /// After a passing failure (offline at wake, Gmail busy), the next try.
@@ -958,7 +958,7 @@ public actor MailEngine {
             onScheduleOutcome(.setAside)
             loaded = try schedules.load()
         }
-        // Polhub stopped while these were leaving: they may have left. Never sent again; Paul is told.
+        // hub stopped while these were leaving: they may have left. Never sent again; Paul is told.
         let cut = loaded.filter { $0.state == .leaving }
         if !cut.isEmpty {
             loaded.removeAll { $0.state == .leaving }
@@ -1107,7 +1107,7 @@ public actor MailEngine {
             retryAt[draftID] = now().addingTimeInterval(Self.retryDelay)
             replace(back)
         } catch {
-            // The draft's line says Polhub's sentence, never the system's text (lot 10, 20/11).
+            // The draft's line says hub's sentence, never the system's text (lot 10, 20/11).
             try? store.markDraftError(draftID, error: Words.problem("Gmail a refusé l'envoi programmé", error).sentence)
             finish(entry, .stopped(entry, .refused("\(error)")))
         }
@@ -1262,7 +1262,7 @@ public actor MailEngine {
     /// A change an agent asked for a draft the agents prepared (17/11): only what it gives changes; the people of a
     /// reply, its quote and its thread stay; files are added. Never a draft Paul wrote, nor one programmed, leaving,
     /// in conflict with Gmail, or retouched by Paul since the agent read it. Gmail's copy, if any, goes: the agent's
-    /// version stays in Polhub until Paul has seen it (spec of 14/11: on the phone, a tap would send it unmarked).
+    /// version stays in hub until Paul has seen it (spec of 14/11: on the phone, a tap would send it unmarked).
     /// A draft gone takes the request with it; a deletion Gmail could not take waits for the next pass.
     private func applyChange(_ row: MailAgentDraftRow, to targetID: String, busy: @Sendable (String) async -> Bool,
                              into pass: inout AgentDraftPass) async {
@@ -1324,14 +1324,14 @@ public actor MailEngine {
 
     /// The files the agent joined, copied into the draft's folder (a clone on the Mac's disk) before the draft exists;
     /// the drop's folder goes once the draft is in the base. Each is read as it is on the disk, never as the row says;
-    /// a name Polhub would not have written, or a file gone, is left out, and said on the draft (review of 16/11).
+    /// a name hub would not have written, or a file gone, is left out, and said on the draft (review of 16/11).
     private func takeFiles(of drop: MailAgentDraftRow, into draft: inout MailDraftRow) throws -> [MailDraftFile] {
         guard !drop.files.isEmpty else { return [] }
         let folder = files.draftFolder(draft)
         var taken: [MailDraftFile] = [], missing: [String] = []
         defer {
             if !missing.isEmpty {
-                draft.lastError = "Polhub n'a pas pu reprendre \(missing.count > 1 ? "ces fichiers" : "ce fichier") de l'agent : "
+                draft.lastError = "hub n'a pas pu reprendre \(missing.count > 1 ? "ces fichiers" : "ce fichier") de l'agent : "
                     + missing.map { "« \(HTMLText.clean($0)) »" }.joined(separator: ", ")
             }
         }

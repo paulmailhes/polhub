@@ -103,7 +103,7 @@ import Testing
         #expect(try FileManager.default.contentsOfDirectory(atPath: backups.path(percentEncoded: false)).filter { $0.hasSuffix(".sqlite") }.count == 1)
     }
 
-    /// Correctifs du 15/11 : une copie qui échoue en route (disque plein, Polhub arrêté) ne laisse rien sous le nom
+    /// Correctifs du 15/11 : une copie qui échoue en route (disque plein, hub arrêté) ne laisse rien sous le nom
     /// de la copie, et l'ouverture suivante en fait une vraie avant de migrer.
     @Test func aFailedCopyLeavesNothingAndTheNextOpeningCopiesAgain() throws {
         let folder = try temporaryFolder()
@@ -136,7 +136,7 @@ import Testing
         #expect(!FileManager.default.fileExists(atPath: folder.appending(path: "Sauvegardes").path(percentEncoded: false)))
     }
 
-    /// A base left by a newer Polhub is refused, never read with the wrong meanings.
+    /// A base left by a newer hub is refused, never read with the wrong meanings.
     @Test func aBaseFromANewerVersionIsRefused() throws {
         let folder = try temporaryFolder()
         defer { try? FileManager.default.removeItem(at: folder) }

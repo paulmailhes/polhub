@@ -54,7 +54,7 @@ final class FakeGmail: @unchecked Sendable {
     }
     var signature = "<b>Moi</b> · Studio Exemple"
     /// Gmail takes this long to answer a draft's upload, after it made the draft: a connection cut meanwhile
-    /// leaves a draft Polhub never heard of.
+    /// leaves a draft hub never heard of.
     private var slowUpload: Duration?
     func answerUploadsAfter(_ delay: Duration?) { lock.withLock { slowUpload = delay } }
     /// The draft changed in Gmail, on the phone: a new message under the same draft.

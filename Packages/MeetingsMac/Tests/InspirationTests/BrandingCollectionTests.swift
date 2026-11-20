@@ -3,7 +3,7 @@ import Persistence
 import Testing
 @testable import Inspiration
 
-/// The posts of the LinkedIn pages followed, collected by Polhub (16/11), without account nor cookie: the company
+/// The posts of the LinkedIn pages followed, collected by hub (16/11), without account nor cookie: the company
 /// page for the ten latest, the embed page of each new one, up to five still images, the refusals said plainly.
 @Suite struct BrandingCollectionTests {
     let now = Date(timeIntervalSince1970: 1_794_830_400)
@@ -13,7 +13,7 @@ import Testing
         let atelier: InspirationSourceRow
     }
 
-    /// Two pages followed; a post already in Polhub; the studio's page, its embeds and images served; the
+    /// Two pages followed; a post already in hub; the studio's page, its embeds and images served; the
     /// atelier's page behind LinkedIn's login wall.
     func setUp(_ world: CollectWorld) throws -> Pages {
         let studio = try world.store.saveSource(InspirationSourceRow(name: "Studio Exemple", link: CollectFixtures.studioPage, color: "#e8b923", createdAt: now))

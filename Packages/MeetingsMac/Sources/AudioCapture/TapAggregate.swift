@@ -19,7 +19,7 @@ public final class TapAggregate: @unchecked Sendable {
     public init(tap: ProcessTap, mainSubDeviceUID: String? = nil) throws {
         let uid = Self.uidPrefix + UUID().uuidString
         var description: [String: Any] = [
-            kAudioAggregateDeviceNameKey: "Polhub (capture)",
+            kAudioAggregateDeviceNameKey: "hub (capture)",
             kAudioAggregateDeviceUIDKey: uid,
             kAudioAggregateDeviceIsPrivateKey: true,
             kAudioAggregateDeviceIsStackedKey: false,

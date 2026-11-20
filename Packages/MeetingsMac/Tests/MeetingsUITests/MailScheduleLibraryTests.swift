@@ -81,7 +81,7 @@ final class SilentGmail: @unchecked Sendable {
         let entry = ScheduledSend(draftID: "d", account: "moi@exemple.fr", sendAt: planned, fingerprint: "", subject: "Devis", threadKey: nil,
                                   createdAt: planned)
         let late = MailLibrary.texts(for: .sent(entry, at: date(2026, 11, 23, 9, 12)), calendar: paris)
-        #expect(late.notice?.body == "Parti à 9:12 au lieu de 8:00 : ton Mac était en veille ou Polhub fermé." && late.notice?.title == "« Devis »")
+        #expect(late.notice?.body == "Parti à 9:12 au lieu de 8:00 : ton Mac était en veille ou hub fermé." && late.notice?.title == "« Devis »")
         #expect(MailLibrary.texts(for: .sent(entry, at: planned.addingTimeInterval(2)), calendar: paris).notice == nil)
         let changed = MailLibrary.texts(for: .stopped(entry, .changed), calendar: paris)
         #expect(changed.notice?.body.hasPrefix("« Devis » n'est pas parti : le brouillon a changé depuis que tu l'as programmé.") == true)
@@ -93,7 +93,7 @@ final class SilentGmail: @unchecked Sendable {
     }
 
     /// Late because Gmail did not answer, with the Mac awake: it says so; left the day after: the day too
-    /// (wave B review). A list Polhub never wrote, set aside: Paul is told.
+    /// (wave B review). A list hub never wrote, set aside: Paul is told.
     @Test func whyItIsLateAndWhichDay() {
         let planned = date(2026, 11, 23, 8)
         var entry = ScheduledSend(draftID: "d", account: "moi@exemple.fr", sendAt: planned, fingerprint: "", subject: "Devis", threadKey: nil,
@@ -106,7 +106,7 @@ final class SilentGmail: @unchecked Sendable {
                                     threadKey: nil, createdAt: planned)
         evening.firstTriedAt = date(2026, 11, 23, 7, 30)
         #expect(MailLibrary.texts(for: .sent(evening, at: date(2026, 11, 23, 7, 30)), calendar: paris).notice?.body
-            == "Parti à 7:30 au lieu d'hier 23:00 : ton Mac était en veille ou Polhub fermé.")
+            == "Parti à 7:30 au lieu d'hier 23:00 : ton Mac était en veille ou hub fermé.")
         let aside = MailLibrary.texts(for: .setAside)
         #expect(aside.notice?.folder == .scheduled && aside.notice?.body.contains("rien n'en est parti") == true)
         #expect(MailLibrary.texts(for: .stopped(entry, .trashed)).notice?.body.contains("corbeille") == true)

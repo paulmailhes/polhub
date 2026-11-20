@@ -6,7 +6,7 @@ import Testing
 /// page that passes (a 5xx at wake) says so.
 @Suite struct GoogleHTTPTests {
     /// `URLSession.shared` keeps its answers in `Caches/…/Cache.db` and `fsCachedData`: a spam's body would stay
-    /// there. Polhub's own session keeps nothing, neither answers nor cookies.
+    /// there. hub's own session keeps nothing, neither answers nor cookies.
     @Test func whatGoogleAnswersIsNeverKeptOnDisk() {
         let configuration = GoogleHTTP.session.configuration
         #expect(configuration.urlCache == nil)

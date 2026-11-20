@@ -11,7 +11,7 @@ enum RemoteImage {
         UTType.heif.identifier, UTType.tiff.identifier, UTType.bmp.identifier, "public.avif", "public.avci",
     ]
 
-    /// An image Polhub decodes: its header says one of the allowed kinds, whatever the server called it.
+    /// An image hub decodes: its header says one of the allowed kinds, whatever the server called it.
     static func isAcceptable(_ data: Data, contentType: String?) -> Bool {
         if let contentType, contentType.contains("svg") || contentType.hasPrefix("text/") { return false }
         guard let source = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary),

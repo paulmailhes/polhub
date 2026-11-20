@@ -3,7 +3,7 @@ import Persistence
 import HubDesign
 
 /// What a step is about, as the screen can say it: a thread by its subject and person, a meeting by its title, and the
-/// project — found in Polhub's own base by the screen, never copied from what the tool gave back.
+/// project — found in hub's own base by the screen, never copied from what the tool gave back.
 public struct StepSubject: Equatable, Sendable {
     public var title: String?
     public var project: String?

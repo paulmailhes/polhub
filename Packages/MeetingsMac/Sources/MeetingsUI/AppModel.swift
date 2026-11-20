@@ -94,7 +94,7 @@ public final class AppModel {
     /// Detection is paused (whatever records meanwhile).
     public var isPaused: Bool { pausedUntil != nil }
 
-    /// Polhub watches for meetings: detection on, not paused. The logo is filled then, in outline otherwise (always in
+    /// hub watches for meetings: detection on, not paused. The logo is filled then, in outline otherwise (always in
     /// outline in the development build).
     public var isWatching: Bool { detectionOn && !isPaused }
 

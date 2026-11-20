@@ -1,6 +1,6 @@
-# Système de design de Polhub
+# Système de design de hub
 
-Polhub suit Liquid Glass, le langage visuel de macOS 26 et suivants. Toute nouvelle page reprend ces règles
+hub suit Liquid Glass, le langage visuel de macOS 26 et suivants. Toute nouvelle page reprend ces règles
 et les composants du module `HubDesign` (`Packages/MeetingsMac/Sources/HubDesign`).
 
 Référence : [Adopting Liquid Glass](https://developer.apple.com/documentation/technologyoverviews/adopting-liquid-glass)
@@ -15,7 +15,7 @@ Le design system v2 (plan d'affinage du 19/11) tient en cinq règles :
   (le lecteur d'une réunion, la barre de saisie de Colin), les panneaux en verre (Coup d'œil, le HUD, la carte avant
   une visio). **Jamais un bouton en verre dans le contenu** : dans une fenêtre qui n'est pas au premier plan, il
   paraît désactivé (mesuré le 19/11). Jamais de verre sur du texte à lire, jamais de verre sur du verre.
-- **Une couleur a un seul sens** (`Tint`, ci-dessous). L'accent est celui de Polhub, l'encre, quel que soit l'accent
+- **Une couleur a un seul sens** (`Tint`, ci-dessous). L'accent est celui de hub, l'encre, quel que soit l'accent
   du Mac : aucune vue n'écrit `Color.accentColor`.
 - **La hiérarchie vient de la taille et de l'air**, pas de la couleur.
 - **Tout ce qui se clique répond, et rien ne bouge au survol.**
@@ -66,7 +66,7 @@ Le lot 4 (19/11) a posé ces règles ; le code navigue par les méthodes du rout
 - **Les touches de la fenêtre**, les mêmes que dans Coup d'œil : ⌘1 à ⌘7 suivent la barre latérale de haut en bas
   (calculés depuis sa liste, `SidebarItem.numbered`), ⌘, ouvre Réglages, ⌘N fait le « + » de la page (un nouveau mail là
   où la page n'en a pas), ⌘F pose le curseur dans sa recherche. ⌘[ ⌘], les boutons de la souris et le balayage
-  parcourent l'historique ; ⌘← ⌘→ aussi, sauf dans un texte qu'on écrit, l'éditeur d'un mail compris. Polhub n'a pas de
+  parcourent l'historique ; ⌘← ⌘→ aussi, sauf dans un texte qu'on écrit, l'éditeur d'un mail compris. hub n'a pas de
   barre des menus à lui : son moniteur de touches les lit (`NavigationInput`, `WindowKeys`).
 - **Un nom mène à son objet** : le projet d'un fil, d'une réunion ou d'un rendez-vous (« Ouvrir le projet » en tête de
   son menu), la date d'une réunion vers son rendez-vous, les prochains rendez-vous d'un projet.
@@ -124,7 +124,7 @@ Elle copie Gmail, l'outil que Paul connaît le mieux (Paul, 15/11 : « calque-to
 - après les noms, « Brouillon » et « Programmé » en gris (le rouge ne dit plus que le retard), « En retard » au rouge du
   retard ;
 - **les pièces jointes** en pastilles sous la ligne, alignées sur l'objet, en densité « Par défaut » ; un clic sur une
-  pastille ouvre le fichier dans Coup d'œil (Quick Look) sans ouvrir le fil ; un type que Polhub n'ouvre jamais
+  pastille ouvre le fichier dans Coup d'œil (Quick Look) sans ouvrir le fil ; un type que hub n'ouvre jamais
   s'enregistre ;
 - **une liste vide dit quoi faire** (`MailEmptyState`), jamais « Rien ici » : ce qui arrive dans le dossier et « ⌘N pour
   écrire » ; « Tout est lu » et « Afficher tous les mails » quand « Non lus » a tout caché ; « 1 boîte est masquée » et
@@ -196,7 +196,7 @@ ne va jamais seule : toujours un mot ou un symbole avec elle.
 
 | Jeton | Sens | Clair | Sombre |
 |---|---|---|---|
-| `Tint.accent` | l'encre de Polhub : le bouton principal, la sélection, un lien | `#1D1D1F` | `#F5F5F7` |
+| `Tint.accent` | l'encre de hub : le bouton principal, la sélection, un lien | `#1D1D1F` | `#F5F5F7` |
 | `Tint.late` | en retard, une échéance passée | `#B42318` | `#FF6961` |
 | `Tint.attention` | maintenant, bientôt, à vérifier, un problème | `#944A00` | `#FFB340` |
 | `Tint.recording` | une réunion qui s'enregistre, « Arrêter » | `#C00013` | `#FF7A70` |
@@ -232,7 +232,7 @@ ne va jamais seule : toujours un mot ou un symbole avec elle.
 | `ErrorLine("Phrase")` | Un problème en une ligne : l'icône d'attention dans sa couleur, la phrase dans celle du texte |
 | `SectionTitle("Titre", systemImage:, count:) { trailing }` | Le titre d'une carte ou d'une partie |
 | `Chip("Texte", systemImage:, tint:, dot:)` | Un statut, une date, une étiquette ; `dot:` met une couleur d'identité dans un point, le texte reste neutre |
-| `AudioProblemLine(problem:)` (module `MeetingsUI`) | L'audio d'une réunion qui ne se lit pas : la phrase de Polhub par `ErrorLine`, le texte du système sous « Détails » (`AudioProblem`, lot 8) |
+| `AudioProblemLine(problem:)` (module `MeetingsUI`) | L'audio d'une réunion qui ne se lit pas : la phrase de hub par `ErrorLine`, le texte du système sous « Détails » (`AudioProblem`, lot 8) |
 | `Avatar(initiales, size:)` | Une personne |
 | `ColorDot(couleur)` | Un compte, un statut, un projet |
 | `FloatingBar { }` | Des commandes flottantes en bas d'une page, en verre |
@@ -267,7 +267,7 @@ Quatre rôles, et rien d'autre ne dessine un bouton dans le contenu :
 | Ligne | `RowButton`, `.buttonStyle(.row)`, `LineButtonStyle(ground:)` | Une ligne entière qui est un bouton |
 
 - **Dans la barre d'outils**, les styles du système (« Nouveau mail » en `.glassProminent`, à la teinte des
-  commandes). **Partout ailleurs**, panneaux en verre et popovers compris, les rôles de Polhub : un bouton en verre
+  commandes). **Partout ailleurs**, panneaux en verre et popovers compris, les rôles de hub : un bouton en verre
   teinté ressemble au principal, et un bouton en verre paraît éteint dans une fenêtre qui n'est pas devant (mesuré le
   19/11).
 - **Un rond en verre qui flotte** au-dessus d'une page (✕ d'un panneau, « … » d'un projet) reste neutre :
@@ -322,8 +322,8 @@ les bulles et les erreurs sortent de `Words` (module `HubDesign`, `Words.swift`)
 nouveau mot entre ici avant d'entrer dans le code.
 
 - **Les choses.** **Rendez-vous** : une entrée d'agenda. **Visio** : un rendez-vous avec un lien Google Meet. **Réunion** :
-  ce que Polhub a enregistré. Ni « call », ni « RDV », ni « le Meet » : « Google Meet » nomme le service. **Compte rendu** :
-  ce que Polhub écrit après une réunion (« Résumé » n'en est que la première partie) ; **la transcription**, jamais « le
+  ce que hub a enregistré. Ni « call », ni « RDV », ni « le Meet » : « Google Meet » nomme le service. **Compte rendu** :
+  ce que hub écrit après une réunion (« Résumé » n'en est que la première partie) ; **la transcription**, jamais « le
   moteur ». **Mail**, **fil** (la conversation), **message** (un mail d'un fil), **adresse** (jamais « e-mail »).
   **Compte** Google, sa **boîte** (ses mails), son **agenda** ; **Calendrier** est la page. **Tâche du moment**, **action**,
   **échéance**. **Colin** est en marche ou à l'arrêt ; **la détection**, active ou suspendue. **L'IA d'Apple**.
@@ -333,7 +333,7 @@ nouveau mot entre ici avant d'entrer dans le code.
   **Actualiser** relit Google ; **Connecter**, **Déconnecter**, **Reconnecter** un compte ; **Ajouter à « P »**, **Retirer
   de « P »** ; **Ranger** met dans un projet ou une case, **Archiver** sort de la boîte de réception ; **Réessayer** après
   un échec.
-- **La voix.** Tutoiement, quinze mots au plus par phrase, aucun point d'exclamation ; l'app se nomme « Polhub ». Aucun mot
+- **La voix.** Tutoiement, quinze mots au plus par phrase, aucun point d'exclamation ; l'app se nomme « hub », en minuscules, même en début de phrase (« hub-board » en entier, sur l'App Store, sur GitHub et dans « À propos »). Aucun mot
   du code à l'écran (geste, ligne, piste, sonde, moteur, copie). Un mot anglais ne reste que s'il nomme un produit
   (Google Meet, LinkedIn, Dia) ou si Paul l'a choisi.
 - **Un bouton** : un verbe à l'infinitif, une majuscule au premier mot, sans point ; « … » s'il reste un choix à faire.
@@ -347,7 +347,7 @@ nouveau mot entre ici avant d'entrer dans le code.
   « Rejoindre dans Dia avec le compte X » (`Words.joinHelp`).
 - **Une erreur** dit ce qui n'a pas marché, puis quoi faire, par `Words.problem` : « Le fil n'a pas pu être rangé : pas
   de connexion à Internet. Vérifie la connexion du Mac, puis réessaie. » Le texte du système ne s'affiche jamais : il va
-  au journal (`Problem.journal`). Une erreur de Polhub dit sa raison en français par `LocalizedError` (`failureReason`,
+  au journal (`Problem.journal`). Une erreur de hub dit sa raison en français par `LocalizedError` (`failureReason`,
   `recoverySuggestion`).
 
 | Format (`Words`) | Écriture |
@@ -376,7 +376,7 @@ nouveau mot entre ici avant d'entrer dans le code.
 
 Une image monochrome de 18 × 16 (22 de large avec la pastille) que la barre colore seule (`MenuBarGlyph`,
 `MenuBarLabel`, module `MeetingsUI`).
-Une seule règle : **plein**, Polhub guette les réunions ; **en contour**, il ne les guette pas ; **rouge**, il
+Une seule règle : **plein**, hub guette les réunions ; **en contour**, il ne les guette pas ; **rouge**, il
 enregistre des voix. Rien n'y bouge : l'image change seulement avec l'état.
 
 | État, du plus au moins prioritaire | Logo |
@@ -456,7 +456,7 @@ Lot 5 du plan d'affinage (19/11), « Colin à droite » : ta journée est la pag
   adresse s'écrit en clair.
 - **La barre** (`ColinComposer`) flotte au pied du panneau, à 12 points de ses bords, et le fil passe sous son verre
   (`safeAreaBar`) : 44 points sur une ligne, rayon 16, jusqu'à huit lignes, le texte en 15 points, à son pied un rond
-  de 28 points pour envoyer (pas de bouton pour dicter : la dictée de Polhub viendra, sur Whisper), plein d'encre quand
+  de 28 points pour envoyer (pas de bouton pour dicter : la dictée de hub viendra, sur Whisper), plein d'encre quand
   il y a du texte, ■ gris pendant une réponse. Entrée envoie, Maj+Entrée va à la ligne, Échap arrête ; un mot en cours
   de dictée n'est jamais envoyé. Ce qui la retient (« Colin attend la fin de ta visio. », un réveil du Mac, une panne) se
   dit au-dessus du champ, dans le verre. Au-dessus de la barre, tant que Paul n'a rien demandé aujourd'hui, trois
@@ -501,7 +501,7 @@ Lot 5 du plan d'affinage (19/11), « Colin à droite » : ta journée est la pag
   échéance ». Après l'un d'eux, « Cabinet Martin livré · Annuler » en tête de liste pendant huit secondes. Six lignes,
   celles d'aujourd'hui et de demain toujours, puis « Voir les N autres ». Vide : « Rien à faire. ».
 - **« Comptes Claude »** (`ClaudeAccountsCard`, 0.36.0) : seulement si Vigie est là et répond au jeton de lecture
-  qu'il réserve à Polhub ; sinon rien, ni titre ni erreur. Une ligne par compte connecté : le nom (80 points), une
+  qu'il réserve à hub ; sinon rien, ni titre ni erreur. Une ligne par compte connecté : le nom (80 points), une
   barre de six points (`Surface.fill`, le plein en gris) du quota le plus serré (la semaine, ou celle d'un modèle si
   elle est plus haute), le pourcentage ; dessous « tient · lun. 20:00 », ou « plein jeu. 14:00 » à la couleur d'attention, et la
   session de cinq heures au-delà de 75 %. Sans relevé récent : la barre vide, « pas de relevé récent ».
@@ -521,7 +521,7 @@ Le panneau qui s'ouvre d'un clic sur le logo (`MenuBarPanel`, dossier `MeetingsU
 Centre de contrôle. La logique vit à part, testée sans écran (`PanelModel`).
 
 - **De haut en bas** : « À régler » (seulement s'il y a une cause), la vedette, deux tuiles fixes (Calendrier, Mails),
-  les nouveaux mails, trois boutons ronds (Enregistrer, Nouveau mail, Suspendre), le pied (Ouvrir Polhub, la cloche,
+  les nouveaux mails, trois boutons ronds (Enregistrer, Nouveau mail, Suspendre), le pied (Ouvrir hub, la cloche,
   Réglages, « ⋯ »). Les tuiles et les boutons ne bougent jamais ; le bandeau, le contenu de la vedette et les mails
   partent quand ils n'ont rien à dire.
 - **Rien n'est dit deux fois** (« Tuiles allégées », Paul, 16/11) : une tuile Réunions redisait la vedette, une tuile
@@ -529,7 +529,7 @@ Centre de contrôle. La logique vit à part, testée sans écran (`PanelModel`).
   Le lot 9 (20/11) a retiré les derniers doublons : « Mails » et le nombre n'ont qu'une place (la tuile ; la carte des
   mails n'a plus d'en-tête et la tuile ne nomme plus les expéditeurs qu'elle liste), l'heure n'en a qu'une (sous « Libre
   jusqu'à 16:30 », la tuile Calendrier ne redit pas 16:30), une boîte à reconnecter n'est dite que dans « À régler », et
-  l'Accueil ne s'ouvre que par « Ouvrir Polhub » (la carte de la journée se lit, elle ne se clique plus). Avant
+  l'Accueil ne s'ouvre que par « Ouvrir hub » (la carte de la journée se lit, elle ne se clique plus). Avant
   d'ajouter une chose au panneau, vérifier qu'aucune autre ne la dit déjà.
 - **Mesures** (lot 9, 20/11 : sur l'échelle de l'app) : 360 points de large, marges de 16, écarts de 8 ; tuiles de
   160 × 80 (rayon 16, 12 à l'intérieur) ; vedette de rayon 16, 16 à l'intérieur de chaque côté, ses boutons 8 sous le
@@ -555,7 +555,7 @@ Centre de contrôle. La logique vit à part, testée sans écran (`PanelModel`).
   puis « Jamais pour ce lien » dessous, seulement pour un lien Meet. Un Meet enregistré puis fini dans son créneau n'est
   jamais « pas enregistrée » : son compte rendu en préparation prend la place.
   Le compte rendu (en cours ou prêt) a une croix en haut à droite qui le range pour de bon ; il se range aussi seul dès
-  que la réunion est ouverte dans Polhub une fois transcrite (Paul, 16/11 : « je l'ai déjà traité, j'ai plus besoin
+  que la réunion est ouverte dans hub une fois transcrite (Paul, 16/11 : « je l'ai déjà traité, j'ai plus besoin
   qu'il s'affiche »). Les comptes rendus rangés sont gardés d'un lancement à l'autre (`AppModel.reportsPutAway`).
 - **Le sur-titre de la vedette** (`PanelModel.eyebrow`) est une étiquette grise de 12 points semi-gras, en casse
   normale (« Dans 8 min », « Enregistrement », « Vendredi 20 novembre » ; lot 9, 20/11 : en capitales de 13 avant). Une
@@ -598,10 +598,10 @@ Centre de contrôle. La logique vit à part, testée sans écran (`PanelModel`).
   sa ligne en 13, à 16 du bord ; « Rejoindre » est le bouton principal de l'app (`.primary`, dessiné à la main : le
   panneau ne prend jamais la main, un bouton proéminent du système y deviendrait gris), la croix un `IconButton`.
 - **Elle reste** jusqu'à « Rejoindre » ou la croix, dix minutes après le début au plus ; jamais pour la réunion que
-  Polhub enregistre déjà. Réglages › Notifications : activée, 2 min avant (1, 2 ou 5).
+  hub enregistre déjà. Réglages › Notifications : activée, 2 min avant (1, 2 ou 5).
 - **Le HUD** (la réunion détectée, un message, une alerte) flotte dans le même panneau et parle de même : son titre en
   15 points semi-gras (deux lignes au plus), sa ligne en 13 (deux lignes au plus), à 16 du bord ; 480 points de large
-  (440 avant) et la hauteur de ses mots, de 76 à 120 (lot 9, 20/11 : « Google Meet · Rev… » et « Polhub ne lit plus
+  (440 avant) et la hauteur de ses mots, de 76 à 120 (lot 9, 20/11 : « Google Meet · Rev… » et « hub ne lit plus
   les ongl… » étaient coupés).
 
 ## Inspiration
@@ -688,7 +688,7 @@ latérale) ; un objet ouvert (un projet, une réunion, un contact, une fiche) a 
   sa question.
 - **Un réglage, une seule garde** : l'ouverture à la session et la relance passent partout par `StartupControl`
   (`StartupSwitch`, dans Général et dans le Diagnostic) : elles attendent la fin d'une réunion et demandent avant de
-  fermer Polhub.
+  fermer hub.
 - **Ce qui quitte le Mac se dit là où on le choisit** : ce que Colin lit pour répondre part chez Anthropic
   (Réglages › Colin) ; « Les mails de tes projets », pour les agents, est une préférence, pas une barrière : une
   session qui a un terminal peut la changer (Réglages › Mails ; audit de sécurité du 19/11, M6 et M8).

@@ -10,10 +10,10 @@ import Yams
 public struct InspirationVocabulary: Sendable, Equatable {
     /// Where it was read.
     public enum Origin: Sendable, Equatable {
-        /// Polhub's own copy (`AppPaths.inspiration`): the vault's, with the tags Paul added by hand, brought by the
+        /// hub's own copy (`AppPaths.inspiration`): the vault's, with the tags Paul added by hand, brought by the
         /// import while there was a vault.
         case app(URL)
-        /// The one shipped with Polhub.
+        /// The one shipped with hub.
         case bundled
     }
 
@@ -123,12 +123,12 @@ public struct InspirationVocabulary: Sendable, Equatable {
         return try parse(Data(contentsOf: url), kind: kind, origin: .bundled)
     }
 
-    /// Polhub's own copy: the vault's, brought by the import, so that Paul's tags outlived Obsidian.
+    /// hub's own copy: the vault's, brought by the import, so that Paul's tags outlived Obsidian.
     public static func appCopy(_ kind: InspirationKind, paths: AppPaths) -> URL {
         paths.inspiration.appending(path: fileName(kind))
     }
 
-    /// Polhub's own copy when there is one that reads, else the bundled one.
+    /// hub's own copy when there is one that reads, else the bundled one.
     public static func load(_ kind: InspirationKind, paths: AppPaths? = nil) -> InspirationVocabulary {
         if let paths {
             let url = appCopy(kind, paths: paths)
@@ -235,7 +235,7 @@ public enum VocabularyError: Error, Equatable, CustomStringConvertible {
 
     public var description: String {
         switch self {
-        case .missing(let name): "Le vocabulaire « \(name) » manque à Polhub."
+        case .missing(let name): "Le vocabulaire « \(name) » manque à hub."
         case .unreadable: "Le vocabulaire est illisible."
         }
     }

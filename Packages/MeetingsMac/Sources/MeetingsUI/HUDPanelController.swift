@@ -102,7 +102,7 @@ public final class HUDPanelController {
     }
 
     public func showAlert(title: String, message: String, action: String?, onAction: @escaping () -> Void, onClose: @escaping () -> Void) {
-        // Polhub's own sentence, its French typography laid here: « … » and « : » never part from their words
+        // hub's own sentence, its French typography laid here: « … » and « : » never part from their words
         // (`Words.typeset`, lot 10, 20/11).
         prepare(.alert, title: title, subtitle: Words.typeset(message))
         model.actionTitle = action
@@ -193,7 +193,7 @@ public final class HUDPanelController {
     nonisolated static let maxHeight: CGFloat = 120
 
     /// The HUD's size (lot 9, 20/11): 480 wide, as tall as its words need, from 76 to 120. In the panel's 15 and 13 points,
-    /// a long alert (« Polhub ne lit plus les onglets de Dia ») takes two lines and its explanation two more: cut to one
+    /// a long alert (« hub ne lit plus les onglets de Dia ») takes two lines and its explanation two more: cut to one
     /// line, its title lost « onglets de Dia ».
     static func size(fitting content: NSView) -> CGSize {
         CGSize(width: panelSize.width, height: min(maxHeight, max(panelSize.height, content.fittingSize.height.rounded(.up))))
@@ -296,7 +296,7 @@ struct HUDView: View {
         .frame(width: HUDPanelController.panelSize.width)
         .frame(minHeight: HUDPanelController.panelSize.height)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-        // The HUD's root: Polhub's accent, ink, whatever the Mac's (design system v2, 19/11).
+        // The HUD's root: hub's accent, ink, whatever the Mac's (design system v2, 19/11).
         .tint(Tint.control.color)
     }
 

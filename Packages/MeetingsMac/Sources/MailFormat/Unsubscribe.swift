@@ -4,7 +4,7 @@ import Foundation
 public enum UnsubscribeMethod: Equatable, Sendable {
     /// One click: a POST the sender's server expects, nothing to fill in. Only for a mail Gmail authenticated.
     case oneClick(URL)
-    /// A mail to send: Polhub prepares it, Paul sends it himself.
+    /// A mail to send: hub prepares it, Paul sends it himself.
     case mail(to: String, subject: String?)
     /// The sender's page, opened in the browser.
     case page(URL)

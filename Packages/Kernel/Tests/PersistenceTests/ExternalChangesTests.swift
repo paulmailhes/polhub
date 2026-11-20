@@ -69,7 +69,7 @@ final class Counter: @unchecked Sendable {
     }
 }
 
-/// Polhub closed: SQLite removed the base's `-wal` and `-shm`, and a read-only opening fails (13/11).
+/// hub closed: SQLite removed the base's `-wal` and `-shm`, and a read-only opening fails (13/11).
 @Suite struct ReadingAClosedBaseTests {
     @Test func theCommandReadsTheBaseEvenWhenTheAppIsClosed() throws {
         let folder = FileManager.default.temporaryDirectory.appending(path: "fermée \(UUID().uuidString)", directoryHint: .isDirectory)

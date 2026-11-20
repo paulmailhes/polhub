@@ -2,7 +2,7 @@ import Foundation
 
 /// An event Google puts in several of Paul's calendars (an invitation sent to two of his addresses) shows once,
 /// under the account to join it with (Paul, 14/11). The rule lives here since 16/11, so that the app (`EventCopies`,
-/// Agenda) and the agents' helper (`agenda` of `polhub mcp`, which never links the Agenda module) read the calendars alike.
+/// Agenda) and the agents' helper (`agenda` of `hub mcp`, which never links the Agenda module) read the calendars alike.
 public enum CalendarCopies {
     /// A public mailbox (gmail.com and the like): Paul's personal account rather than a work one.
     public static func isPublicMailbox(_ email: String) -> Bool {

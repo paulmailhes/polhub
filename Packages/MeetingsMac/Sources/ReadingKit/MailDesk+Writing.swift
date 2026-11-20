@@ -52,17 +52,17 @@ extension MailDesk {
         let resolved = given.resolvingSymlinksInPath()
         // The path as given, and the file it leads to: a link never opens the way to what is kept out.
         for url in [given, resolved] {
-            if isPolhubData(url) {
-                throw ToolError("« \(shown) » est gardé par Polhub (une pièce jointe d'un mail, une image d'Inspiration) : un agent ne le joint pas. "
+            if isHubData(url) {
+                throw ToolError("« \(shown) » est gardé par hub (une pièce jointe d'un mail, une image d'Inspiration) : un agent ne le joint pas. "
                                 + "Dis à Paul de le joindre lui-même, depuis le fil.")
             }
             if let hidden = hiddenPart(url) {
-                throw ToolError("« \(shown) » est un fichier caché, ou dans un dossier caché (« \(hidden) ») : Polhub ne le joint pas.")
+                throw ToolError("« \(shown) » est un fichier caché, ou dans un dossier caché (« \(hidden) ») : hub ne le joint pas.")
             }
-            if isInLibrary(url) { throw ToolError("« \(shown) » est dans la Bibliothèque de Paul (~/Library) : Polhub ne le joint pas.") }
+            if isInLibrary(url) { throw ToolError("« \(shown) » est dans la Bibliothèque de Paul (~/Library) : hub ne le joint pas.") }
             if url.pathComponents.contains(where: { $0.caseInsensitiveCompare("Keychains") == .orderedSame })
                 || ["keychain", "keychain-db"].contains(url.pathExtension.lowercased()) {
-                throw ToolError("« \(shown) » est un trousseau de clés : Polhub ne le joint pas.")
+                throw ToolError("« \(shown) » est un trousseau de clés : hub ne le joint pas.")
             }
         }
         let file: (url: URL, size: Int)
@@ -74,7 +74,7 @@ extension MailDesk {
         }
         guard FileManager.default.isReadableFile(atPath: file.url.path(percentEncoded: false)) else { throw ToolError("« \(shown) » ne peut pas être lu.") }
         if [given, resolved].contains(where: Self.holdsASecret) {
-            throw ToolError("« \(shown) » ressemble à une clé, un secret ou une base de données : Polhub ne le joint pas. "
+            throw ToolError("« \(shown) » ressemble à une clé, un secret ou une base de données : hub ne le joint pas. "
                             + "Si Paul le veut, il le joint lui-même depuis le brouillon.")
         }
         return (file.url, given.lastPathComponent, file.size)
@@ -113,8 +113,8 @@ extension MailDesk {
         return nil
     }
 
-    /// In Polhub's own data, beside the base (mails' attachments, Inspiration's images): Paul joins those from the app.
-    func isPolhubData(_ url: URL) -> Bool {
+    /// In hub's own data, beside the base (mails' attachments, Inspiration's images): Paul joins those from the app.
+    func isHubData(_ url: URL) -> Bool {
         let data = files.root.deletingLastPathComponent()
         return [data.standardizedFileURL, data.resolvingSymlinksInPath()].contains { root in
             let folder = root.pathComponents
@@ -150,14 +150,14 @@ extension MailDesk {
             }
         } catch {
             try? FileManager.default.removeItem(at: folder)
-            throw ToolError("Les fichiers n'ont pas pu être copiés pour Polhub : \(error.localizedDescription)")
+            throw ToolError("Les fichiers n'ont pas pu être copiés pour hub : \(error.localizedDescription)")
         }
     }
 
     // MARK: - The case of a thread
 
     /// Files a thread in a case (Paul, 16/11: « ranger un fil dans un projet »): a project, Perso, Newsletters,
-    /// Paiements, Services, or none. As Paul's click on its case, in Polhub only (no Gmail label); but an agent's choice
+    /// Paiements, Services, or none. As Paul's click on its case, in hub only (no Gmail label); but an agent's choice
     /// teaches nothing about the sender: his next mails do not follow, he becomes no contact. Only a thread Paul lets the
     /// agents read.
     public func fileThread(_ which: String, into place: String) throws -> String {
@@ -173,7 +173,7 @@ extension MailDesk {
         default: after = filing.title ?? place
         }
         let subject = thread.subject.isEmpty ? "(sans objet)" : Self.line(thread.subject)
-        return "Fil « \(subject) » [\(thread.threadID)] rangé : \(after) (avant : \(before)). Dans Polhub seulement : rien ne change dans Gmail, "
+        return "Fil « \(subject) » [\(thread.threadID)] rangé : \(after) (avant : \(before)). Dans hub seulement : rien ne change dans Gmail, "
             + "et les prochains mails de cet expéditeur ne suivent pas."
     }
 

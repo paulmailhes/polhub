@@ -215,7 +215,7 @@ struct MailDeskFixture {
         }
     }
 
-    /// Paul, 16/11: « Polhub ne sait pas lire les fichiers joints ». The files of a thread are numbered in `mail`; an
+    /// Paul, 16/11: « hub ne sait pas lire les fichiers joints ». The files of a thread are numbered in `mail`; an
     /// image is shown shrunk, a text read; one not on the Mac yet is asked of the app, never fetched here.
     @Test func theAgentsReadTheAttachments() throws {
         let fixture = try MailDeskFixture()
@@ -320,11 +320,11 @@ struct MailDeskFixture {
         refused([path(".claude/worktrees/wf-2/devis.pdf")], "« .claude »")
         refused([path("Code/projet/.claude/settings.json")], "« .claude »")
         refused([path("Code/projet/.claude/worktrees/wf-1/.git/config")], "« .git »")
-        // What Polhub keeps (a mail's attachment, an image of Inspiration): Paul joins it from the thread.
+        // What hub keeps (a mail's attachment, an image of Inspiration): Paul joins it from the thread.
         let kept = fixture.root.appending(path: "Mails/\(fixture.account)/m1-2")
         try FileManager.default.createDirectory(at: kept, withIntermediateDirectories: true)
         try Data("%PDF-1.4".utf8).write(to: kept.appending(path: "devis.pdf"))
-        refused([kept.appending(path: "devis.pdf").path(percentEncoded: false)], "gardé par Polhub")
+        refused([kept.appending(path: "devis.pdf").path(percentEncoded: false)], "gardé par hub")
         refused([path(".gnupg/secring.gpg")], "caché")
         refused([path("Library/Mail/boite.txt")], "Bibliothèque")
         refused([path("Library/Keychains/login.keychain-db")], "Bibliothèque")
@@ -344,7 +344,7 @@ struct MailDeskFixture {
         #expect(((try? FileManager.default.contentsOfDirectory(atPath: staging.path(percentEncoded: false))) ?? []).isEmpty)
     }
 
-    /// The Library and Polhub's data written another way are still them (audit of 19/11): another case, or the Data
+    /// The Library and hub's data written another way are still them (audit of 19/11): another case, or the Data
     /// volume's own path (`/System/Volumes/Data/…`). A key, a secret or a base never leaves, wherever it lies; a
     /// Keynote file, though named `.key`, is a document.
     @Test func theLibraryWrittenAnotherWayAndTheSecretsAreRefused() throws {
@@ -378,8 +378,8 @@ struct MailDeskFixture {
         try FileManager.default.createDirectory(at: kept, withIntermediateDirectories: true)
         try Data("%PDF-1.4".utf8).write(to: kept.appending(path: "devis.pdf"))
         let keptReal = diskPath(kept)
-        refused("/System/Volumes/Data" + keptReal + "/devis.pdf", "gardé par Polhub")
-        refused(keptReal.uppercased() + "/DEVIS.PDF", "gardé par Polhub")
+        refused("/System/Volumes/Data" + keptReal + "/devis.pdf", "gardé par hub")
+        refused(keptReal.uppercased() + "/DEVIS.PDF", "gardé par hub")
         // Keys, secrets and bases, wherever they lie.
         func write(_ relative: String, _ text: String) throws { try Data(text.utf8).write(to: home.appending(path: relative)) }
         try write("Documents/serveur.pem", "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n")
@@ -413,7 +413,7 @@ struct MailDeskFixture {
         let drops = try fixture.store.agentDrafts()
         #expect(drops.count == 1 && drops[0].id == id && drops[0].body == "Bonjour Nina, voici le devis." && drops[0].subject == "Devis du site")
         #expect(drops[0].to == [MailAddress(email: "nina@exemple.net")])
-        // In Polhub's drafts: a request the app applies; the draft is untouched until then.
+        // In hub's drafts: a request the app applies; the draft is untouched until then.
         try fixture.store.saveDraft(MailDraftRow(id: "brouillon-agent-01", account: fixture.account, mode: .new, to: [MailAddress(email: "nina@exemple.net")],
                                                  subject: "Devis", body: "Bonjour", origin: .agent, createdAt: fixture.now, agentVersionAt: fixture.now))
         _ = try fixture.desk().change("brouillon-agent-01", text: "**Bonjour** Nina", subject: nil, to: [], cc: [], format: .markdown)
@@ -515,7 +515,7 @@ struct MailDeskFixture {
         #expect(try !toolText(deleted).1 && writes.count == 4 && fixture.store.agentDrafts().isEmpty)
     }
 
-    /// Paul, 16/11: an agent files a thread in a case, as Paul's click does (in Polhub only), but learns nothing about
+    /// Paul, 16/11: an agent files a thread in a case, as Paul's click does (in hub only), but learns nothing about
     /// its sender: his next mails do not follow, he becomes no contact. Paul's scope holds.
     @Test func rangerFilesAThreadWithoutLearningItsSender() throws {
         let fixture = try MailDeskFixture()

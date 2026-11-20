@@ -1,6 +1,6 @@
 import Foundation
 
-/// What Claude Code says first: what it loaded. Polhub checks it at every launch (anything more than what was asked
+/// What Claude Code says first: what it loaded. hub checks it at every launch (anything more than what was asked
 /// stops the launch), and it is also how a change of Claude Code shows.
 public struct ClaudeInit: Equatable, Sendable {
     public var version: String
@@ -143,7 +143,7 @@ public enum ClaudeEvent: Equatable, Sendable {
     case rateLimit(ClaudeRateLimit)
     case result(ClaudeResult)
     case controlResponse(requestID: String, success: Bool)
-    /// A line Polhub has no use for, or does not know yet: « type/subtype ». Counted, never fatal.
+    /// A line hub has no use for, or does not know yet: « type/subtype ». Counted, never fatal.
     case other(String)
     /// Never decoded: the process adds it when it ends, with the end of what it wrote on its error output.
     case exited(code: Int32, errors: String)

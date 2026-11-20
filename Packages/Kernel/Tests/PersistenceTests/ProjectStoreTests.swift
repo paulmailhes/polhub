@@ -16,7 +16,7 @@ import Testing
     }
 
     /// 15/11 (Paul): four statuses, the most urgent first (« priorité 2 c'est le plus priorité »); their raw values
-    /// stay lowercase for `polhub mcp`, their titles are the board's.
+    /// stay lowercase for `hub mcp`, their titles are the board's.
     @Test func fourStatusesInTheBoardsOrder() {
         #expect(ProjectStatus.boardOrder == [.priorite2, .priorite1, .enPause, .termine])
         #expect(ProjectStatus.allCases.map(\.label) == ["priorité 2", "priorité 1", "en pause", "terminé"])
@@ -70,7 +70,7 @@ import Testing
         let c = try store.addProject(name: "C", status: .priorite1, at: now)
         try store.move(c.id, to: .termine, before: nil)
         #expect(try names(store, .termine) == ["C", "A", "B"])
-        // Moved by an agent (`polhub mcp`), the same.
+        // Moved by an agent (`hub mcp`), the same.
         let d = try store.addProject(name: "D", status: .priorite1, at: now)
         try store.signed(.agent).move(d.id, to: .termine, before: nil)
         #expect(try names(store, .termine) == ["D", "C", "A", "B"])

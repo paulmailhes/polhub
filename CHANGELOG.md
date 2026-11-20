@@ -3,6 +3,16 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.58.0 — 20 novembre 2026
+
+**Polhub s'appelle maintenant hub.**
+
+- L'app s'appelle « hub » : dans le Dock, la barre des menus, les notifications et sur l'iPhone. Son nom complet,
+  « hub-board », est sur GitHub et dans Réglages › Mises à jour.
+- Rien ne se perd : tes autorisations, tes comptes Google, tes réglages, la copie iCloud et l'iPhone restent tels
+  quels.
+- Tes agents Claude Code trouvent ses outils sous le nom « hub ».
+
 ## 0.57.1 — 20 novembre 2026
 
 **Préparation du nouveau nom : rien ne change à l'écran.**

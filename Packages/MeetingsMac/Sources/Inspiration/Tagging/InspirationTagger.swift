@@ -34,7 +34,7 @@ public actor InspirationTagger {
     /// The items the model declined or could not tag since the launch: not asked again.
     private var declined: Set<UUID> = []
 
-    /// `paths`: where Polhub's copy of the vocabularies is; without it, the bundled ones.
+    /// `paths`: where hub's copy of the vocabularies is; without it, the bundled ones.
     /// `answerTimeout`: what one answer of the model may take (16/11: it looped up to six minutes on a post, the Mac
     /// working for nothing meanwhile); past it, the item is passed until the next launch.
     public init(database: AppDatabase, paths: AppPaths? = nil, model: any InspirationTaggingModel = AppleTaggingModel(),

@@ -3,7 +3,7 @@ import Persistence
 import Testing
 @testable import MeetingsUI
 
-/// Polhub without Obsidian (16/11): Paul deleted the vault. No code reads it any more, no screen leads to it, no
+/// hub without Obsidian (16/11): Paul deleted the vault. No code reads it any more, no screen leads to it, no
 /// setting keeps its folder; what came from it stays in the base.
 @MainActor @Suite struct WithoutVaultTests {
     static let package = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()

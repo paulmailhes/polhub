@@ -30,7 +30,7 @@ public enum LinkedInPublic {
         public var links: [String]
     }
 
-    /// A post made into a Polhub item's fields, as the vault's notes were written.
+    /// A post made into a hub item's fields, as the vault's notes were written.
     public struct Post: Sendable, Equatable {
         /// The first line, without hashtags nor links; what precedes « by ».
         public var title: String

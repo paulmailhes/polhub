@@ -41,7 +41,7 @@ let package = Package(
     ],
     targets: [
         .target(name: "AudioCapture"),
-        .target(name: "Transcription", dependencies: [.product(name: "Domain", package: "Kernel")]),
+        .target(name: "Transcription", dependencies: [.product(name: "Domain", package: "Kernel"), .product(name: "Observability", package: "Kernel")]),
         // Updates from the versions published on GitHub, never during a meeting.
         // Lot 10 (20/11): what it says of an update that failed comes from `Words` (HubDesign).
         .target(name: "Updates", dependencies: ["HubDesign", .product(name: "Observability", package: "Kernel")]),
@@ -49,7 +49,7 @@ let package = Package(
         // The design system: tokens and components every screen uses (14/11, docs/design-system.md).
         // Its icons are Phosphor's, duotone weight (MIT, the license beside them in Icons/) (15/11).
         .target(name: "HubDesign", resources: [.copy("Icons")]),
-        // Polhub's notifications: reminders, new events, meetings not recorded, summaries (14/11).
+        // hub's notifications: reminders, new events, meetings not recorded, summaries (14/11).
         // Lot 10 (20/11): its dates and its counts are written by `Words` (HubDesign), as the screens'.
         .target(name: "Notifications", dependencies: [
             "HubDesign",
@@ -91,7 +91,7 @@ let package = Package(
             .product(name: "Persistence", package: "Kernel"),
             .product(name: "Yams", package: "Yams"),
         ], resources: [.copy("Vocabulary/Resources")]),
-        // Colin, the agent of the home page (17/11): how Polhub finds Claude Code on this Mac, starts it alone and reads
+        // Colin, the agent of the home page (17/11): how hub finds Claude Code on this Mac, starts it alone and reads
         // what it answers. No dependency: the probe of step 0 uses it first, the home page later.
         // Colin (17/11): the engine that launches Claude Code, and the rules of the Accueil, which read the base.
         // Lot 10 (20/11): « Le point », « À faire » and the kanban write their days with `Words` (HubDesign).
@@ -129,7 +129,7 @@ let package = Package(
             "Colin",
             "Notifications",
             "Inspiration",
-            // Polhub on the iPhone (20/11): the server on the loopback, and what it says.
+            // hub on the iPhone (20/11): the server on the loopback, and what it says.
             "LocalServer",
             .product(name: "HubLink", package: "Link"),
             .product(name: "HubCloud", package: "Link"),
@@ -137,7 +137,7 @@ let package = Package(
             .product(name: "Persistence", package: "Kernel"),
             .product(name: "GRDB", package: "GRDB.swift"),
         ]),
-        // A small HTTP server on the Mac's loopback, for Polhub on the iPhone (20/11).
+        // A small HTTP server on the Mac's loopback, for hub on the iPhone (20/11).
         .target(name: "LocalServer"),
         .target(name: "Recording", dependencies: [
             "AudioCapture",

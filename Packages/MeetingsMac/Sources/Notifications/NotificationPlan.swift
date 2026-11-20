@@ -3,7 +3,7 @@ import Foundation
 import Persistence
 import HubDesign
 
-/// One notification Polhub asks macOS to show, now or at a date.
+/// One notification hub asks macOS to show, now or at a date.
 public struct PlannedNotice: Equatable, Sendable {
     /// `test`: « Envoyer une notification d'essai » (15/11: it has its own kind, so the list does not file it under
     /// Calendrier). `draft`: a draft an agent prepared waits for Paul on the Accueil (18/11).
@@ -54,7 +54,7 @@ public struct PlannedNotice: Equatable, Sendable {
 public enum NotificationPlan {
     /// macOS keeps a limited number of pending notifications per app: the nearest ones only.
     public static let limit = 48
-    /// Reminders are planned this far ahead (a week: they still come when Polhub is closed for a weekend), and
+    /// Reminders are planned this far ahead (a week: they still come when hub is closed for a weekend), and
     /// planned again at each reading of the calendars; `limit` keeps under macOS's cap (review of 14/11).
     public static let horizon: TimeInterval = 7 * 86_400
     /// A meeting with a Meet still not recorded after this long is flagged.
@@ -83,7 +83,7 @@ public enum NotificationPlan {
 
     /// The coming events that appeared since the previous reading, by Google's id (a copy shown under another
     /// account is not new): never at an account's first reading (no flood when an account is connected), nor those
-    /// Paul made from Polhub, declined ones, whole days. The reading window slides ahead: an event beyond the end
+    /// Paul made from hub, declined ones, whole days. The reading window slides ahead: an event beyond the end
     /// of the previous window (`windowEnds`, per account) only entered it, it is not new (review of 14/11).
     public static func newEvents(before: Set<String>, after: [CalendarEventRow], firstReading: Set<String>, madeHere: Set<String>,
                                  windowEnds: [String: Date], now: Date) -> [CalendarEventRow] {
@@ -110,7 +110,7 @@ public enum NotificationPlan {
         }
     }
 
-    /// A visio, a meeting of the agenda with a Meet link, not a « réunion »: what Polhub recorded (lot 10, 20/11). The
+    /// A visio, a meeting of the agenda with a Meet link, not a « réunion »: what hub recorded (lot 10, 20/11). The
     /// title says it is not recorded, the body need not: shorter, it holds in the bell's two lines (« …ne l'enregistre
     /// pas.… » was cut).
     public static func unrecordedNotice(_ event: CalendarEventRow, now: Date) -> PlannedNotice {
@@ -176,7 +176,7 @@ public enum NotificationPlan {
     }
 }
 
-/// macOS's notification center, as Polhub uses it: behind a protocol for the tests.
+/// macOS's notification center, as hub uses it: behind a protocol for the tests.
 public protocol NotificationCenterClient: Sendable {
     func pendingIdentifiers() async -> [String]
     func schedule(_ notice: PlannedNotice, sound: Bool) async
@@ -184,7 +184,7 @@ public protocol NotificationCenterClient: Sendable {
     func deliverNow(_ notice: PlannedNotice, sound: Bool) async
 }
 
-/// Brings macOS's pending reminders in line with the plan: Polhub's stale ones go, missing ones come; nothing else
+/// Brings macOS's pending reminders in line with the plan: hub's stale ones go, missing ones come; nothing else
 /// is touched.
 public enum ReminderSync {
     public static func apply(_ plan: [PlannedNotice], to center: any NotificationCenterClient, sound: Bool) async {

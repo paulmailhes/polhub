@@ -220,6 +220,6 @@ import Testing
 
     @Test func withoutATestMailTheEssaySaysWhatToDo() async {
         let essay = await MailTrashEssay.run(send: { _ in Data(#"{"resultSizeEstimate":0}"#.utf8) }, flavor: .prod)
-        #expect(!essay.found && essay.text.contains("Polhub essai"))
+        #expect(!essay.found && essay.text.contains("hub essai"))
     }
 }

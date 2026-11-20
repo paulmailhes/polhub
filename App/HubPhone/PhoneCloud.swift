@@ -2,7 +2,7 @@ import Foundation
 import HubCloud
 import HubLink
 
-/// The copy the Mac keeps in the user's iCloud (20/11, lot 1 of « Polhub sans le Mac »): read into the iPhone's own copy,
+/// The copy the Mac keeps in the user's iCloud (20/11, lot 1 of « hub sans le Mac »): read into the iPhone's own copy,
 /// so the projects, the meetings, the agenda and Colin show with the Mac off, at the time of the Mac's last copy.
 @MainActor
 final class PhoneCloudReader {

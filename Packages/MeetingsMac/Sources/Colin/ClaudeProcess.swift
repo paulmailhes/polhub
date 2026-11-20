@@ -24,7 +24,7 @@ public enum ClaudeProcessError: Error {
     case closing
 }
 
-/// Every Claude Code that Polhub launched and that still runs. When the app goes, none is left behind: `stopAll` asks
+/// Every Claude Code that hub launched and that still runs. When the app goes, none is left behind: `stopAll` asks
 /// each to stop, waits a little, and kills what is left.
 public final class ClaudeProcesses: @unchecked Sendable {
     public static let shared = ClaudeProcesses()

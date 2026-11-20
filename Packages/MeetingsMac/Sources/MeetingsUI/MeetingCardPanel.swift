@@ -27,7 +27,7 @@ public final class MeetingCardPresenter: ObservableObject {
         self.accountColor = color
     }
 
-    /// The events and the clock, as the app sees them (`meetingCode`: the meeting Polhub records or offers to record).
+    /// The events and the clock, as the app sees them (`meetingCode`: the meeting hub records or offers to record).
     public func update(events: [CalendarEventRow], now: Date, enabled: Bool, minutes: Int, meetingCode: String?) {
         let due = enabled ? MeetingCardPlan.due(events, now: now, minutes: minutes, closed: closed, meetingCode: meetingCode) : []
         guard due != cards else { return }
@@ -111,13 +111,13 @@ struct MeetingCardStack: View {
             }
         }
         .frame(width: MeetingCardMetrics.width, alignment: .top)
-        // The card's root: Polhub's accent, ink, whatever the Mac's (design system v2, 19/11).
+        // The card's root: hub's accent, ink, whatever the Mac's (design system v2, 19/11).
         .tint(Tint.control.color)
     }
 }
 
 /// One card, in glass (it floats over everything): the account's color in its round, the title, « Dans 2 min »,
-/// « Rejoindre » in Polhub's ink (design system v2, 19/11: an account's color never goes on a button), and the cross.
+/// « Rejoindre » in hub's ink (design system v2, 19/11: an account's color never goes on a button), and the cross.
 /// It reads as « Coup d'œil » (lot 9, 20/11): its title in 15 points and its line in 13 (13 and 11 before, under the
 /// app's floor), 16 from its edge, « Rejoindre » the panel's main button and the cross the app's discreet one.
 struct MeetingCardView: View {
@@ -150,7 +150,7 @@ struct MeetingCardView: View {
             // The title takes all the room the buttons leave, before it is cut (lot 9, 20/11).
             .layoutPriority(1)
             Spacer(minLength: Space.xs)
-            // The panel's main button, drawn by hand in Polhub's ink (`.primary`): the panel never becomes key, and a
+            // The panel's main button, drawn by hand in hub's ink (`.primary`): the panel never becomes key, and a
             // prominent button of the system turns grey there. It answers the pointer and the press, as every button of
             // the app (lot 9, 20/11: a plain capsule before). The account stays in its round (design system v2, 19/11).
             Button("Rejoindre", action: join)

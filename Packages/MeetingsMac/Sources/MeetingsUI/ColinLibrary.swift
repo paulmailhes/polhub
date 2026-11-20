@@ -18,7 +18,7 @@ public final class ColinLibrary: ObservableObject {
     /// « Le point »: four sentences at most, as they stood when Paul came back.
     /// Its lines, typed (lot 10, 20/11): the Accueil reads their kind, never their words.
     @Published public private(set) var briefing: [Briefing.Line] = []
-    /// When « Le point » was prepared: at a return of Paul's, or when Polhub opened.
+    /// When « Le point » was prepared: at a return of Paul's, or when hub opened.
     @Published public private(set) var briefingAt: Date?
     /// The threads where a client wrote since Paul last came: behind « Voir », with what moved.
     @Published public private(set) var briefingMails: [MailThreadRow] = []
@@ -260,7 +260,7 @@ public final class ColinLibrary: ObservableObject {
         }
     }
 
-    /// Everything Polhub copies was read again since `date`: the mailboxes it follows and the calendars. What came
+    /// Everything hub copies was read again since `date`: the mailboxes it follows and the calendars. What came
     /// while Paul was away is then in the base.
     private func readAgain(since date: Date) -> Bool {
         let calendars = agenda.accounts.allSatisfy { ($0.lastSyncAt ?? .distantPast) >= date }
@@ -270,8 +270,8 @@ public final class ColinLibrary: ObservableObject {
 
     // MARK: - Paul is there
 
-    /// The Accueil shows, or Polhub comes back in front on the Accueil. « Le point » is prepared when Paul is back
-    /// (the first time of a day, or three hours later), and when Polhub has none yet since it opened.
+    /// The Accueil shows, or hub comes back in front on the Accueil. « Le point » is prepared when Paul is back
+    /// (the first time of a day, or three hours later), and when hub has none yet since it opened.
     public func seen() {
         let date = now()
         let before = presence
@@ -286,7 +286,7 @@ public final class ColinLibrary: ObservableObject {
             wanted = (since: state.since, at: date)
             state.preparedAt = date
         } else if briefingAt == nil, wanted == nil {
-            // Polhub opened again while Paul was there (an update): the point is prepared again, and says only
+            // hub opened again while Paul was there (an update): the point is prepared again, and says only
             // what came since his last passage. What came before, he has seen.
             wanted = (since: before.lastSeen ?? state.since, at: date)
             state.preparedAt = date
@@ -351,7 +351,7 @@ public final class ColinLibrary: ObservableObject {
     private static let absencesKept = 100
     private static let absenceFloor: TimeInterval = 30 * 60
     /// A point just prepared stays open this long at most: longer than the calendars take to be read again (ten
-    /// minutes), so that the cap is not what closes it while Polhub runs.
+    /// minutes), so that the cap is not what closes it while hub runs.
     private static let pointSettles: TimeInterval = 15 * 60
 
     /// « Annuler » on a change behind « Voir »: what Colin or an agent wrote is put back, what changed since stays.

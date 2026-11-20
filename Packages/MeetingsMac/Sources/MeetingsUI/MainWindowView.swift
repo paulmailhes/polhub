@@ -155,7 +155,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
     }
 
     /// What the family's page holds (lot 10, 20/11: Mails, Colin, Projets and Journal said their page again; « kanban »
-    /// in a sentence, « Polhub », never « l'app »).
+    /// in a sentence, « hub », never « l'app »).
     var subtitle: String {
         switch self {
         case .general: "Ouverture à la session, barre des menus, diagnostic, journal"
@@ -170,7 +170,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .inspiration: "Pages LinkedIn, collecte, catégories"
         case .updates: "Version installée, installation automatique"
         case .diagnostic: "Autorisations, micro, Dia"
-        case .journal: "Ce que Polhub a fait et vu"
+        case .journal: "Ce que hub a fait et vu"
         }
     }
 
@@ -634,7 +634,7 @@ public enum NavigationInput {
     }
 }
 
-/// Polhub's window: the projects, the meetings, and Réglages (updates, diagnostic, journal).
+/// hub's window: the projects, the meetings, and Réglages (updates, diagnostic, journal).
 public struct MainWindowView<Diagnostic: View>: View {
     /// The sidebar, the meetings' list, its divider and the smallest meeting page: derived from them, so that the
     /// narrowest window never squeezes the sidebar nor cuts the page (correctifs, 15/11: 860 had become too narrow).
@@ -752,7 +752,7 @@ public struct MainWindowView<Diagnostic: View>: View {
                 } else {
                     // What did not work, then what to do (lot 10, 20/11).
                     ContentUnavailableView("Les projets ne s'ouvrent pas", systemImage: "square.grid.3x2",
-                                           description: Text("Quitte Polhub et rouvre-le."))
+                                           description: Text("Quitte hub et rouvre-le."))
                 }
             case .meetings:
                 // A fixed list and a detail that wraps its text: a split view let the detail push the
@@ -789,7 +789,7 @@ public struct MainWindowView<Diagnostic: View>: View {
                 }
                 // The sidebar's word; never the meeting's title, written large in its page (lot 4, 19/11).
                 .windowTitle("Réunions")
-                // « réunion », what Polhub recorded; never « transcriptions » for the page (lot 10, 20/11).
+                // « réunion », what hub recorded; never « transcriptions » for the page (lot 10, 20/11).
                 .searchable(text: $router.query, placement: .toolbar, prompt: "Chercher dans les réunions")
             case .settings:
                 SettingsPage(router: router, updates: updates, projects: projects, agenda: agenda, mails: mails, inspiration: inspiration,
@@ -804,7 +804,7 @@ public struct MainWindowView<Diagnostic: View>: View {
         .frame(minWidth: Self.minimumWidth, minHeight: 520)
         // A project's name in a thread leads to it, from Mails as from the Accueil (lot 4, 19/11).
         .onAppear { mails?.router = router }
-        // Polhub's own accent, ink, whatever the Mac's (design system v2, 19/11): the app sets it on the window's root
+        // hub's own accent, ink, whatever the Mac's (design system v2, 19/11): the app sets it on the window's root
         // too; here, a window made by a test or a capture shows it as well.
         .tint(Tint.control.color)
     }

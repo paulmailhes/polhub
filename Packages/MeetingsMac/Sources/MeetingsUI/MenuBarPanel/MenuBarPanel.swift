@@ -8,7 +8,7 @@ import SwiftUI
 import Updates
 
 /// « Coup d'œil », the panel under the menu bar's logo (15/11), built as macOS's Control Center: from top to bottom,
-/// « À régler » (only when something keeps Polhub from working well), the hero (what matters now, one main action),
+/// « À régler » (only when something keeps hub from working well), the hero (what matters now, one main action),
 /// two fixed tiles (Calendrier, Mails), the new mails of people, three round buttons and the footer (« Tuiles
 /// allégées », Paul, 16/11: nothing said twice).
 /// The grid and the buttons never move; only the banner, the hero's content and the mails change, and go when they
@@ -56,7 +56,7 @@ public struct MenuBarPanel: View {
         // an older, shorter height, and squeezed the hero (Paul's capture, 16/11, during a recording).
         .fixedSize(horizontal: false, vertical: true)
         .environment(\.projectLogos, context.projectLogos)
-        // Polhub's accent, ink, whatever the Mac's (design system v2, 19/11): the panel's glass buttons take it.
+        // hub's accent, ink, whatever the Mac's (design system v2, 19/11): the panel's glass buttons take it.
         .tint(Tint.control.color)
     }
 

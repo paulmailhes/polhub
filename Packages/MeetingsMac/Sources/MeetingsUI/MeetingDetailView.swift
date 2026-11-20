@@ -341,7 +341,7 @@ struct MeetingDetailView: View {
                                           participants: participants.map(\.name), summary: summary, actions: actions, lines: lines,
                                           me: MeetingExport.firstName())
         if case .failure(let error) = MeetingExport.save(page, suggestedName: MeetingExport.fileName(title: row.title, date: row.startedAt)) {
-            // Polhub's sentence in the alert, the system's text in the journal (lot 10, 20/11).
+            // hub's sentence in the alert, the system's text in the journal (lot 10, 20/11).
             let problem = Words.problem("Le fichier n'a pas pu être écrit", error)
             exportError = problem.sentence
             store.database.journal(problem)
@@ -420,18 +420,18 @@ struct MeetingDetailView: View {
         case .safetyElapsed: "micro rendu, fin confirmée 10 min après"
         case .diaQuit: "Dia quitté"
         case .userStopped: "arrêtée à la main"
-        // Polhub by its name, never « l'app » (lot 10, 20/11).
-        case .interrupted: "interrompue (Polhub s'était arrêté)"
+        // hub by its name, never « l'app » (lot 10, 20/11).
+        case .interrupted: "interrompue (hub s'était arrêté)"
         case .nextMeeting: "une autre réunion a commencé"
         }
     }
 }
 
-/// Why a meeting's audio does not play, in French (lot 8, 19/11): Polhub's sentence for Paul, the system's own text
+/// Why a meeting's audio does not play, in French (lot 8, 19/11): hub's sentence for Paul, the system's own text
 /// (English, a file's name) kept for « Détails ». It replaces « La réunion ne se lit pas : » and the system's text.
 struct AudioProblem: Equatable {
     let sentence: String
-    /// What the system said, under « Détails »; none when Polhub's sentence says it all.
+    /// What the system said, under « Détails »; none when hub's sentence says it all.
     let details: String?
 
     /// Nothing was recorded for the meeting.

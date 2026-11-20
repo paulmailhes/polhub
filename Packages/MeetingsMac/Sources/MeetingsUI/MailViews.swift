@@ -400,7 +400,7 @@ final class MailThreadModel: ObservableObject {
                 html[message.id] = page.isHTML
                 bodies[message.id] = page.text
             } catch {
-                // Polhub's sentence on the screen, the system's text to the journal (lot 10, 20/11).
+                // hub's sentence on the screen, the system's text to the journal (lot 10, 20/11).
                 let problem = Words.problem("Ce message n'a pas pu être lu", error)
                 failed[message.id] = problem.sentence
                 library.agenda.database.journal(problem)
@@ -440,7 +440,7 @@ final class MailThreadModel: ObservableObject {
                     try? FileManager.default.removeItem(at: target)
                     try FileManager.default.copyItem(at: url, to: target)
                 } catch {
-                    // Polhub's words, the system's text to the journal (lot 10, 20/11).
+                    // hub's words, the system's text to the journal (lot 10, 20/11).
                     let problem = Words.problem("La pièce jointe « \(file.filename) » n'a pas pu être copiée dans ce dossier", error)
                     library.message = problem.sentence
                     library.agenda.database.journal(problem)
@@ -991,7 +991,7 @@ struct MailMessageView: View {
                     .frame(height: height)
                     .padding(onLight ? Space.m : 0)
                     .background(onLight ? Color.white : .clear, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
-                // A spam's files never open in Polhub: Gmail shows them, with its warnings.
+                // A spam's files never open in hub: Gmail shows them, with its warnings.
                 if !message.files.isEmpty, !isSpam { files }
             }
         } else if let failure = model.failed[message.id] {
@@ -1019,7 +1019,7 @@ struct MailMessageView: View {
     }
 }
 
-/// A file of a message: its icon, its name, its size. A click opens it (or saves what Polhub never opens).
+/// A file of a message: its icon, its name, its size. A click opens it (or saves what hub never opens).
 struct AttachmentTile: View {
     let file: MailAttachment
     let open: () -> Void
@@ -1054,7 +1054,7 @@ struct AttachmentTile: View {
         .animation(Motion.quick, value: hovering)
         .contextMenu { Button("Enregistrer…", action: save) }
         // What a click does, a verb and its object, without a period (lot 10, 20/11).
-        .help(AttachmentSafety.canOpen(name: file.filename) ? "Ouvrir l'aperçu" : "Enregistrer le fichier : il ne s'ouvre pas dans Polhub")
+        .help(AttachmentSafety.canOpen(name: file.filename) ? "Ouvrir l'aperçu" : "Enregistrer le fichier : il ne s'ouvre pas dans hub")
     }
 }
 

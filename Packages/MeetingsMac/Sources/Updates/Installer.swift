@@ -19,7 +19,7 @@ public struct Installer: Sendable {
             switch self {
             case .download(let reason): "le téléchargement a échoué (\(reason))"
             case .tooBig: "l'archive est anormalement grosse"
-            case .noApp: "l'archive ne contient pas Polhub.app"
+            case .noApp: "l'archive ne contient pas hub.app"
             case .refused(let error): "\(error)"
             case .launch(let reason): "l'installation ne démarre pas (\(reason))"
             }

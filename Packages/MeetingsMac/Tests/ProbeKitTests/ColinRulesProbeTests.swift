@@ -437,6 +437,6 @@ import Testing
         #expect(ProbeID.colinRules.title == "Colin : les règles sur tes mails")
         #expect(ProbeID.listed.contains(.colinRules))
         #expect(await ProbeRegistry.make(.colinRules) != nil)
-        #expect(LaunchArguments.parse(["Polhub", "--probe", "colin-regles"])?.probe == .colinRules)
+        #expect(LaunchArguments.parse(["hub", "--probe", "colin-regles"])?.probe == .colinRules)
     }
 }

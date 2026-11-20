@@ -9,7 +9,7 @@ public enum ProjectStoreError: Error, Equatable, LocalizedError, CustomStringCon
 
     public var errorDescription: String? {
         switch self {
-        case .needsApp: "Polhub doit être ouvert une fois : sa base n'a pas encore le journal des changements. Rien n'a été écrit."
+        case .needsApp: "hub doit être ouvert une fois : sa base n'a pas encore le journal des changements. Rien n'a été écrit."
         }
     }
     /// What a session reads when a tool fails.
@@ -111,7 +111,7 @@ public struct ProjectStore: Sendable {
     }
 
 
-    /// The notes, written by a session (`polhub mcp`): not a change of Paul's, so `lastEditedAt` stays.
+    /// The notes, written by a session (`hub mcp`): not a change of Paul's, so `lastEditedAt` stays.
     /// « Supprimer le projet » (15/11): it leaves the board and every list, its meetings, mails and contacts stay;
     /// `restore` brings it back as it was.
     public func moveToTrash(projectID: UUID, at date: Date) throws {

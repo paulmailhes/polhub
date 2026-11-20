@@ -4,7 +4,7 @@ import HubDesign
 import SwiftUI
 
 /// The hero of « Coup d'œil » (15/11): a large calm card that says what matters now and offers one main action
-/// (`.primary`, ↩, Polhub's ink), sometimes a second (`.secondary`). It is tinted only while a meeting records
+/// (`.primary`, ↩, hub's ink), sometimes a second (`.secondary`). It is tinted only while a meeting records
 /// (`Tint.recording`) or when something asks for a look (`Tint.attention`), neutral otherwise (design system v2, 19/11:
 /// one color, one meaning). It changes with a fade. The countdown and the recording's clock tick in their own
 /// timeline; the rest follows the panel's, every 30 s.
@@ -259,7 +259,7 @@ struct PanelHero: View {
                 HeroDetail(overview, lines: 2)
             case .transcriptReady(let reason):
                 HeroDetail(reason ?? "Pas de compte rendu pour cette réunion", lines: 2)
-            // Polhub's sentence, then what to do (`Words.problem`, lot 10, 20/11): the text a job kept may be the system's,
+            // hub's sentence, then what to do (`Words.problem`, lot 10, 20/11): the text a job kept may be the system's,
             // it never shows.
             case .transcriptionFailed:
                 HeroDetail(Words.problem("La transcription a échoué").sentence, lines: 2)
@@ -343,13 +343,13 @@ struct PanelHero: View {
 
     // MARK: - The day
 
-    /// Nothing else to say: the day, calm. A card to read, as the others (lot 9, 20/11): « Ouvrir Polhub », at the foot,
+    /// Nothing else to say: the day, calm. A card to read, as the others (lot 9, 20/11): « Ouvrir hub », at the foot,
     /// is the one way to the Accueil; the day's chevron was a second.
     private func day(title: String, line: String?) -> some View {
         HeroCard(tint: nil, centered: true) {
             eyebrow
             // The detection is active or suspended, never « coupée » (lot 10, 20/11).
-            HeroTitle(line ?? (context.app.isWatching ? "Polhub guette les réunions" : "La détection est suspendue"))
+            HeroTitle(line ?? (context.app.isWatching ? "hub guette les réunions" : "La détection est suspendue"))
         }
     }
 }

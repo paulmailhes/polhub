@@ -9,7 +9,7 @@ import Testing
 @Suite(.serialized) struct PropertyListenerTests {
     func makeEmptyPrivateAggregate() throws -> AudioObjectID {
         let description: [String: Any] = [
-            kAudioAggregateDeviceNameKey: "Polhub (test)",
+            kAudioAggregateDeviceNameKey: "hub (test)",
             kAudioAggregateDeviceUIDKey: "fr.paulmailhes.polhub.test." + UUID().uuidString,
             kAudioAggregateDeviceIsPrivateKey: true,
         ]

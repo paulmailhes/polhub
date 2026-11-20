@@ -15,7 +15,7 @@ public enum ChecklistItem: String, CaseIterable, Identifiable, Sendable {
         case .systemAudio: "Enregistrement de l'audio du système"
         case .diaAutomation: "Automatisation de Dia"
         case .models: "Modèles de transcription"
-        case .relaunch: "Relancer Polhub s'il plante, et l'ouvrir à chaque session"
+        case .relaunch: "Relancer hub s'il plante, et l'ouvrir à chaque session"
         }
     }
 
@@ -25,7 +25,7 @@ public enum ChecklistItem: String, CaseIterable, Identifiable, Sendable {
         case .systemAudio: "Pour enregistrer le son des autres, dans Dia. Vérifié par un son inaudible."
         case .diaAutomation: "Pour voir qu'un onglet Google Meet s'ouvre."
         case .models: "Pour transcrire sur ton Mac, hors ligne : WhisperKit et le détecteur de voix, téléchargés une fois."
-        case .relaunch: "Sans cela, une réunion n'est enregistrée que si tu as ouvert Polhub toi-même."
+        case .relaunch: "Sans cela, une réunion n'est enregistrée que si tu as ouvert hub toi-même."
         }
     }
 
@@ -231,7 +231,7 @@ public struct DiagnosticView: View {
                 }
                 .disabled(model.testing.contains(item))
                 if state != .ok, let url = item.settingsURL {
-                    // macOS's settings, named as in Réglages › Notifications: Polhub has its own Réglages.
+                    // macOS's settings, named as in Réglages › Notifications: hub has its own Réglages.
                     Button("Ouvrir Réglages Système") { NSWorkspace.shared.open(url) }
                 }
             }

@@ -1,7 +1,7 @@
 import HubDesign
 import SwiftUI
 
-/// « À régler » (15/11): only when something keeps Polhub from working well, one line per cause, three at most, the
+/// « À régler » (15/11): only when something keeps hub from working well, one line per cause, three at most, the
 /// riskiest for the recordings first. Drawn as the app's bands (`Banner`, lot 9, 20/11): the panel's calm card, its
 /// fill and its stroke, where only the icon carries attention's color (`Tint.attention`); the title and the detail stay in
 /// the text's colors. A card of the panel, it has the others' radius (16), and its causes share it: three bands would

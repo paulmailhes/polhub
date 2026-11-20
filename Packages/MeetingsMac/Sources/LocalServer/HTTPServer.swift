@@ -83,7 +83,7 @@ public struct HTTPResponse: Sendable {
     }
 }
 
-/// A small HTTP/1.1 server for Polhub's iPhone (20/11): it listens on the Mac's loopback only (`127.0.0.1`), never on
+/// A small HTTP/1.1 server for hub's iPhone (20/11): it listens on the Mac's loopback only (`127.0.0.1`), never on
 /// a network; `tailscale serve` publishes it on Paul's tailnet. One request per connection, a body of 20 MB at most.
 public final class HTTPServer: @unchecked Sendable {
     public typealias Handler = @Sendable (HTTPRequest) async -> HTTPResponse

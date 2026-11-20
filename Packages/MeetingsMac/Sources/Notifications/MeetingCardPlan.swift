@@ -19,7 +19,7 @@ public enum MeetingCardPlan {
     }
 
     /// The events whose card shows now: a Meet Paul attends, from `minutes` before its start to ten minutes after
-    /// (never past its end), not closed, and not the meeting Polhub records or offers to record (Paul is in it).
+    /// (never past its end), not closed, and not the meeting hub records or offers to record (Paul is in it).
     public static func due(_ events: [CalendarEventRow], now: Date, minutes: Int, closed: Set<String>, meetingCode: String?) -> [CalendarEventRow] {
         let current = meetingCode?.lowercased()
         var seen: Set<String> = []

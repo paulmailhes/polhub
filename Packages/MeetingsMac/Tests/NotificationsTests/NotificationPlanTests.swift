@@ -5,7 +5,7 @@ import Testing
 import UserNotifications
 @testable import Notifications
 
-/// Polhub's notifications (Paul, 14/11): reminders before an event, new events, a meeting not recorded.
+/// hub's notifications (Paul, 14/11): reminders before an event, new events, a meeting not recorded.
 @Suite struct NotificationPlanTests {
     let now = Date(timeIntervalSince1970: 1_794_562_920)
 
@@ -97,7 +97,7 @@ import UserNotifications
     }
 }
 
-/// Only Polhub's reminders are replaced when the plan changes; the others stay.
+/// Only hub's reminders are replaced when the plan changes; the others stay.
 @Suite struct ReminderSyncTests {
     final class FakeCenter: NotificationCenterClient, @unchecked Sendable {
         var pending: [String] = []

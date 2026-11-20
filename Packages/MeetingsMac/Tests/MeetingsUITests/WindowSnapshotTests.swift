@@ -160,7 +160,7 @@ struct WindowSnapshotTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let database = try AppDatabase.inMemory()
         let store = MeetingStore(database)
-        try store.addJournal(JournalEntry(createdAt: Date(), kind: .info, message: "Polhub est passé de 0.3.0 à 0.3.1."))
+        try store.addJournal(JournalEntry(createdAt: Date(), kind: .info, message: "hub est passé de 0.3.0 à 0.3.1."))
         let library = MeetingLibrary(store: store)
         let projects = ProjectLibrary(store: ProjectStore(database), meetings: store)
         let updates = UpdateService(current: SemanticVersion("0.3.1")!, fetch: { Data("[]".utf8) }, isIdle: { true },

@@ -52,7 +52,7 @@ import Testing
 }
 
 /// A page's title is chosen by its author (audit of 19/11): with the two separators in it, it could forge a Meet tab
-/// in front. The script turns them into spaces before Polhub reads them. Run by AppleScript itself, without Dia.
+/// in front. The script turns them into spaces before hub reads them. Run by AppleScript itself, without Dia.
 @MainActor @Suite struct DiaTitleTests {
     @Test func theSeparatorsOfATitleBecomeSpaces() throws {
         let source = DiaAdapter.cleaner + "\nreturn my clean(\"Point\" & (character id 30) & \"w9\" & (character id 31) & \"t9\")"

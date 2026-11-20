@@ -99,7 +99,7 @@ struct Fixture {
         let answer = try call(MCPServer(reader: try Fixture().reader), #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}"#)
         let result = try #require(answer["result"] as? [String: Any])
         #expect(result["protocolVersion"] as? String == "2025-06-18")
-        #expect((result["serverInfo"] as? [String: Any])?["name"] as? String == "polhub")
+        #expect((result["serverInfo"] as? [String: Any])?["name"] as? String == "hub")
         #expect(answer["id"] as? Int == 1)
     }
 
@@ -109,7 +109,7 @@ struct Fixture {
         #expect(info?["version"] as? String == "0.3.1")
     }
 
-    /// The command lives in `Polhub.app/Contents/Helpers/`: its version is the app's.
+    /// The command lives in `hub.app/Contents/Helpers/`: its version is the app's.
     @Test func aHelperReadsTheVersionOfItsApp() throws {
         let app = FileManager.default.temporaryDirectory.appending(path: "essai \(UUID().uuidString)/Polhub.app", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: app.deletingLastPathComponent()) }

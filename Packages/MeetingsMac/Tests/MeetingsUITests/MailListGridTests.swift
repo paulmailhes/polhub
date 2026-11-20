@@ -86,7 +86,7 @@ import Testing
         #expect(empty(.inbox, searching: true).title == "Aucun mail trouvé" && empty(.inbox, searching: true).systemImage == "magnifyingglass")
         #expect(empty(.inbox, searching: true, unreadOnly: true).title == "Aucun mail trouvé")
         #expect(empty(.inbox, reading: true).title == "Lecture de tes boîtes…" && empty(.inbox, reading: true).action == nil)
-        // Polhub's drafts and the programmed mails do not wait for the first reading.
+        // hub's drafts and the programmed mails do not wait for the first reading.
         #expect(empty(.drafts, reading: true).title == "Aucun brouillon" && empty(.scheduled, reading: true).title == "Aucun envoi programmé")
         #expect(empty(.trash, readingAside: true).title == "Lecture de Gmail…")
         // Nothing says « Rien ici » any more.

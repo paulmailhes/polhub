@@ -28,6 +28,6 @@ import Testing
         }
         #expect(!(try read("docs/index.html")).contains("Tout reste sur le Mac"))
         // « Never by itself » holds, Colin apart.
-        #expect(!(try read("docs/confidentialite.html")).contains("selon les conditions de cet assistant. Polhub ne le fait jamais de lui-même."))
+        #expect(!(try read("docs/confidentialite.html")).contains("selon les conditions de cet assistant. hub ne le fait jamais de lui-même."))
     }
 }

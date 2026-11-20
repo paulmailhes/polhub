@@ -65,7 +65,7 @@ public final class UpdateService: ObservableObject {
         try await Releases.fetchFirst(Releases.listURLs) { url in
             var request = URLRequest(url: url, timeoutInterval: 20)
             request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-            request.setValue("Polhub", forHTTPHeaderField: "User-Agent")
+            request.setValue("hub", forHTTPHeaderField: "User-Agent")
             let (data, response) = try await URLSession.shared.data(for: request)
             return (data, (response as? HTTPURLResponse)?.statusCode ?? 0)
         }
@@ -119,7 +119,7 @@ public final class UpdateService: ObservableObject {
             quit()
         } catch {
             lastFailure = now()
-            // Polhub's words, never the system's text (lot 10, 20/11).
+            // hub's words, never the system's text (lot 10, 20/11).
             state = .failed(Words.problem("La mise à jour \(release.version) n'a pas pu s'installer", error, remedy: "Nouvel essai dans une heure.").sentence)
         }
     }
@@ -143,7 +143,7 @@ public final class UpdateService: ObservableObject {
         case .checking: "Vérification…"
         case .downloading: "Téléchargement de la nouvelle version…"
         case .waitingForIdle: "La mise à jour s'installera à la fin de la réunion ou de la transcription en cours."
-        case .installing: "Installation : Polhub va se relancer."
+        case .installing: "Installation : hub va se relancer."
         case .failed(let message): message
         }
     }
@@ -152,6 +152,6 @@ public final class UpdateService: ObservableObject {
     public static func upgradeNote(previous: String?, current: String) -> String? {
         guard let previous, previous != current else { return nil }
         // Neither « → » nor « — » in a sentence (lot 10, 20/11).
-        return "Polhub est passé de \(previous) à \(current)."
+        return "hub est passé de \(previous) à \(current)."
     }
 }

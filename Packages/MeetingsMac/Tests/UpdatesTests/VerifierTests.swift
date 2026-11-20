@@ -27,8 +27,8 @@ import Testing
         let app = folder.appending(path: "Polhub.app", directoryHint: .isDirectory)
         let macOS = app.appending(path: "Contents/MacOS", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: macOS, withIntermediateDirectories: true)
-        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/usr/bin/true"), to: macOS.appending(path: "Polhub"))
-        let plist: NSDictionary = ["CFBundleIdentifier": "fr.paulmailhes.polhub", "CFBundleExecutable": "Polhub",
+        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/usr/bin/true"), to: macOS.appending(path: "hub"))
+        let plist: NSDictionary = ["CFBundleIdentifier": "fr.paulmailhes.polhub", "CFBundleExecutable": "hub",
                                    "CFBundleShortVersionString": "0.3.1", "CFBundlePackageType": "APPL"]
         plist.write(to: app.appending(path: "Contents/Info.plist"), atomically: true)
         let sign = Process()
@@ -50,7 +50,7 @@ import Testing
 
     static let built = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appending(path: "../../../../build/hub.app").standardizedFileURL
 
-    /// Only after `make app`: a Polhub signed with the author's Developer ID passes.
+    /// Only after `make app`: a hub signed with the author's Developer ID passes.
     @Test(.enabled(if: FileManager.default.fileExists(atPath: VerifierTests.built.path(percentEncoded: false))))
     func aBuiltHubPasses() {
         #expect(Verifier.signatureError(app: Self.built) == nil)
@@ -135,7 +135,7 @@ extension VerifierTests {
         #expect(try run(script) == 0)
         #expect(try installedVersion(layout) == "0.3.1")
         let kept = try FileManager.default.contentsOfDirectory(atPath: layout.keep.path(percentEncoded: false))
-        #expect(kept == ["Polhub-precedente.zip"])
+        #expect(kept == ["hub-board-precedente.zip"])
     }
 
     @Test func aVersionThatNeverStartsIsRolledBack() throws {
@@ -188,7 +188,7 @@ extension VerifierTests {
         #expect(try String(contentsOf: started, encoding: .utf8) == "0.3.0")
     }
 
-    /// The real check is Apple's: the author's Developer ID, Polhub, and Apple's notarization.
+    /// The real check is Apple's: the author's Developer ID, hub, and Apple's notarization.
     @Test func theRealCheckIsTheVerifiersRequirement() {
         #expect(SwapScript.signatureCheck.hasPrefix("/usr/bin/codesign --verify --strict --deep -R "))
         #expect(SwapScript.signatureCheck.contains(Verifier.requirement()))
@@ -214,8 +214,8 @@ extension VerifierTests {
         return process
     }
 
-    /// 20/11: the iPhone app in the simulator is called Polhub too; the swap took it for another copy, gave up, and
-    /// left Paul without Polhub. Only a copy of the installed app counts.
+    /// 20/11: the iPhone app in the simulator is called hub too; the swap took it for another copy, gave up, and
+    /// left Paul without hub. Only a copy of the installed app counts.
     @Test func aProgramOfTheSameNameElsewhereDoesNotStopTheSwap() throws {
         let layout = try layout()
         defer { try? FileManager.default.removeItem(at: layout.root) }
@@ -230,7 +230,7 @@ extension VerifierTests {
         #expect(try installedVersion(layout) == "0.3.1")
     }
 
-    /// When a copy of the installed app does run, nothing is changed, but Polhub is started again all the same.
+    /// When a copy of the installed app does run, nothing is changed, but hub is started again all the same.
     @Test func anotherCopyOfTheInstalledAppStopsTheSwapButPolhubStartsAgain() throws {
         let layout = try layout()
         defer { try? FileManager.default.removeItem(at: layout.root) }
@@ -261,7 +261,7 @@ extension VerifierTests {
         #expect(try run(script) == 0)
         #expect(try String(contentsOf: target.appending(path: "Contents/version"), encoding: .utf8) == "0.3.1")
         #expect(!FileManager.default.fileExists(atPath: layout.installed.path(percentEncoded: false)))
-        #expect(try FileManager.default.contentsOfDirectory(atPath: layout.keep.path(percentEncoded: false)) == ["Polhub-precedente.zip"])
+        #expect(try FileManager.default.contentsOfDirectory(atPath: layout.keep.path(percentEncoded: false)) == ["hub-board-precedente.zip"])
     }
 
     /// A renamed version that never starts: the old app comes back under its own name, the new one is taken away.

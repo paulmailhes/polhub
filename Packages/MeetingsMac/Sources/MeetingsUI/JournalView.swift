@@ -11,7 +11,7 @@ struct JournalView: View {
         if entries.isEmpty {
             // An empty state: « Aucun … », then how the page fills (lot 10, 20/11).
             ContentUnavailableView("Aucune alerte", systemImage: "checkmark.circle",
-                                   description: Text("Polhub note ici les réunions manquées et ce qui n'a pas marché."))
+                                   description: Text("hub note ici les réunions manquées et ce qui n'a pas marché."))
         } else {
             List(entries) { entry in
                 HStack(alignment: .firstTextBaseline, spacing: Space.m) {

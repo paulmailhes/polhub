@@ -1,7 +1,7 @@
 // swift-tools-version: 6.2
 import PackageDescription
 
-/// What Polhub on the Mac and Polhub on the iPhone say to each other (20/11): the API's addresses, the pairing link and
+/// What hub on the Mac and hub on the iPhone say to each other (20/11): the API's addresses, the pairing link and
 /// the JSON types. Foundation only, for both platforms; and the copy in iCloud (`HubCloud`).
 let package = Package(
     name: "Link",

@@ -185,7 +185,7 @@ public final class AgendaLibrary: ObservableObject {
             return CalendarWrite.insertRequest(accessToken: token, draft: draft, timeZone: zone, requestID: requestID)
         }, for: account)
         if let row = try CalendarWrite.event(from: data, account: account) {
-            notifications?.madeFromPolhub(row.eventID)
+            notifications?.madeFromHub(row.eventID)
             try CalendarStore(database).applyGoogle(account: account, changed: [row], cancelled: [], at: Date())
         }
         // The copies in Paul's other calendars follow at once (review of 14/11).
@@ -203,7 +203,7 @@ public final class AgendaLibrary: ObservableObject {
         await syncAll()
     }
 
-    /// A sync that reads Google while Polhub writes would put back what it read: writes wait for it (review of 14/11).
+    /// A sync that reads Google while hub writes would put back what it read: writes wait for it (review of 14/11).
     private func waitForSync() async {
         for _ in 0..<300 where syncing { try? await Task.sleep(for: .milliseconds(100)) }
     }
@@ -215,7 +215,7 @@ public final class AgendaLibrary: ObservableObject {
     private var servingAgents = false
     private var serveAgentsAgain = false
 
-    /// The events the agents ask for (`rendez_vous`; `polhub mcp` has no network): made at their signal, and those
+    /// The events the agents ask for (`rendez_vous`; `hub mcp` has no network): made at their signal, and those
     /// left from before at the launch. Réglages › Calendrier gives the default agenda and length.
     public func startAgentEvents(root: URL, flavor: AppFlavor = .current) {
         agentEvents = AgentEventMaker(database: database, root: root, flavor: flavor,
@@ -233,7 +233,7 @@ public final class AgendaLibrary: ObservableObject {
     }
 
     /// One pass at a time; a signal during a pass makes it run once more. Paul is told of each event made. No wait for
-    /// a sync under way: the agent waits only 25 s, and a sync keeps what Polhub writes meanwhile (review of 14/11).
+    /// a sync under way: the agent waits only 25 s, and a sync keeps what hub writes meanwhile (review of 14/11).
     public func serveAgentEvents() async {
         guard let agentEvents else { return }
         if servingAgents {

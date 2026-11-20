@@ -100,7 +100,7 @@ import Testing
         #expect(again.gmailDraftID != id && again.gmailDraftID.flatMap { gmail.drafts[$0] } != nil && again.conflict == nil)
     }
 
-    /// Changed on the phone meanwhile: Polhub does not write over it.
+    /// Changed on the phone meanwhile: hub does not write over it.
     @Test func aDraftChangedInGmailIsNotWrittenOver() async throws {
         let (engine, gmail, store, root) = try await setUp()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -237,7 +237,7 @@ import Testing
         #expect(row.quoteHTML?.contains("https://exemple.fr/devis") == true && row.quoteText?.contains("le devis") == true)
     }
 
-    /// Paul, 16/11: a draft taken up in Polhub, then sent from Gmail, stayed in Brouillons. Untouched here, it goes
+    /// Paul, 16/11: a draft taken up in hub, then sent from Gmail, stayed in Brouillons. Untouched here, it goes
     /// when Gmail says its message went; changed here since, it waits for Paul.
     @Test func aDraftSentFromGmailLeavesPolhub() async throws {
         let (engine, gmail, store, root) = try await setUp()
@@ -289,7 +289,7 @@ import Testing
         #expect(try store.gmailOnlyDrafts().isEmpty)
     }
 
-    /// Step « Agents »: what an agent drops becomes a draft marked as his, its people worked out by Polhub
+    /// Step « Agents »: what an agent drops becomes a draft marked as his, its people worked out by hub
     /// from the thread, never by the agent; nothing reaches Gmail and nothing leaves on its own.
     @Test func anAgentsDropBecomesADraftAndNeverLeavesOnItsOwn() async throws {
         let (engine, gmail, store, root) = try await setUp()
@@ -364,7 +364,7 @@ extension MailEngine {
     }
 
     /// A name longer than 120 characters keeps its extension, and a name cleaned once stays as it is: the app takes up
-    /// an agent's file only under a name Polhub would write (review of 16/11).
+    /// an agent's file only under a name hub would write (review of 16/11).
     @Test func aLongNameKeepsItsExtensionAndStaysClean() {
         let names = [String(repeating: "x", count: 119) + " proposition finale.pdf", String(repeating: "z", count: 119) + ".pdf",
                      String(repeating: "y", count: 130) + ".pdf", String(repeating: "w", count: 130), "devis.pdf", " .caché. "]

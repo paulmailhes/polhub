@@ -40,7 +40,7 @@ final class PhoneSession {
 
     /// The link of the QR code: kept if the Mac answers with it; else what went wrong.
     func pair(with url: URL) async -> String? {
-        guard let pairing = LinkAPI.pairing(from: url) else { return "Ce code n'est pas celui de Polhub sur le Mac." }
+        guard let pairing = LinkAPI.pairing(from: url) else { return "Ce code n'est pas celui de hub sur le Mac." }
         let candidate = LinkConnection(address: pairing.address, token: pairing.token)
         do throws(LinkFailure) {
             status = try await LinkClient(connection: candidate).get(LinkStatus.self, LinkAPI.Path.status)
@@ -117,7 +117,7 @@ final class PhoneSession {
         showBadge(status?.badge)
     }
 
-    /// The number on Polhub's icon, as the Mac counts it (20/11): the unread mails and what it told not yet seen.
+    /// The number on hub's icon, as the Mac counts it (20/11): the unread mails and what it told not yet seen.
     func showBadge(_ badge: Int?) {
         guard let badge, !demo else { return }
         UNUserNotificationCenter.current().setBadgeCount(badge)
@@ -247,7 +247,7 @@ enum Keychain {
     }
 }
 
-/// Polhub's ink: near black in light, near white in dark (the Mac's accent, 19/11).
+/// hub's ink: near black in light, near white in dark (the Mac's accent, 19/11).
 extension Color {
     static let ink = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.96, green: 0.96, blue: 0.97, alpha: 1)
                                                                     : UIColor(red: 0.11, green: 0.11, blue: 0.12, alpha: 1) })

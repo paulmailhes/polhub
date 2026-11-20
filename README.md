@@ -1,6 +1,9 @@
-# Polhub
+# hub-board
 
-Une application macOS qui enregistre seule les réunions Google Meet ouvertes dans le navigateur
+Un tableau de bord pour Mac et iPhone, et ses add-ons : projets, mails, agenda, réunions, dictée, Vigie. Rien ne
+passe par un serveur. On l'appelle « hub ».
+
+Il enregistre seul les réunions Google Meet ouvertes dans le navigateur
 [Dia](https://www.diabrowser.com/), les transcrit sur le Mac et les range dans des projets. **L'audio ne
 quitte jamais la machine**, et le texte n'en sort que si l'utilisateur le veut : vers un assistant qu'il branche
 lui-même, ou vers Colin, l'agent de l'Accueil, quand il l'allume (il est à l'arrêt par défaut).
@@ -22,7 +25,7 @@ usage : il n'est ni configurable pour d'autres navigateurs, ni traduit.
 - **Montre le dialogue** « Moi / Les autres », relié au lecteur. On peut chercher dans toutes les
   réunions et relancer une transcription dans une autre langue.
 - **Range les projets** : un kanban, des vues « À rendre » et « À surveiller », une page par projet.
-- **S'ouvre à Claude Code** par la commande `polhub` et son serveur MCP, sans réseau : les projets,
+- **S'ouvre à Claude Code** par la commande `hub` et son serveur MCP, sans réseau : les projets,
   les réunions, les mails, l'agenda, les contacts et l'inspiration à lire ; des actions, des notes
   et des brouillons à préparer, et des rendez-vous créés dans l'agenda à sa demande, sans aucun
   invité. Aucun mail ne part sans l'utilisateur : il relit et envoie lui-même.
@@ -39,14 +42,14 @@ usage : il n'est ni configurable pour d'autres navigateurs, ni traduit.
 - Un Mac à puce Apple, sous macOS 27 ;
 - le navigateur Dia ;
 - environ 1,6 Go pour les modèles de transcription, rangés dans
-  `~/Library/Application Support/Polhub/Models/`.
+  `~/Library/Application Support/hub-board/Models/`.
 
 ## Construire
 
 ```bash
 brew install xcodegen
 make check   # les tests, sans micro, sans navigateur, sans modèle
-make app     # build/Polhub.app, signée (certificat Developer ID requis)
+make app     # build/hub.app, signée (certificat Developer ID requis)
 ```
 
 La signature utilise une identité « Developer ID Application ». Une version publiable (app signée,
@@ -60,7 +63,7 @@ notarisée et archivée pour les mises à jour) se prépare avec `scripts/releas
 | `Packages/Kernel` | Types du domaine, base SQLite (GRDB), journaux |
 | `Packages/MeetingsMac` | Détection, capture audio, transcription, file de calcul, interface, projets, ligne de commande |
 
-Le calcul tourne dans un processus séparé, `polhub-calcul`, que l'app lance hors réunion :
+Le calcul tourne dans un processus séparé, `hub-calcul`, que l'app lance hors réunion :
 l'app ne charge jamais de modèle.
 
 ## Licence

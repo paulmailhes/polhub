@@ -227,7 +227,7 @@ struct PagesScreenTests {
         try await capture(world.window(), "reunions", wait: .milliseconds(2_500))
         try await LiveWindow.capture(world.window(), to: try output().appending(path: "reunions-etroit.png"),
                                      size: NSSize(width: MainWindowView<EmptyView>.minimumWidth, height: 860), wait: .milliseconds(2_500))
-        // « Détails » unfolded: the system's own text, under Polhub's sentence (lot 8).
+        // « Détails » unfolded: the system's own text, under hub's sentence (lot 8).
         let problem = AudioProblem(CocoaError(.fileReadNoSuchFile, userInfo: [NSFilePathErrorKey: "/Reunions/exemple/meeting.json"]))
         try await capture(AudioProblemLine(problem: problem, open: true).padding(PageMetrics.horizontal).frame(width: 760, alignment: .leading)
                             .background(Color(nsColor: .windowBackgroundColor)),

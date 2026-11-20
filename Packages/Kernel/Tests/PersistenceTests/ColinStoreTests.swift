@@ -183,8 +183,8 @@ import Testing
         #expect(ColinTool.conversation.readsAThirdParty && ColinTool.conversations.readsAThirdParty)
         #expect(ColinTool.allCases.filter(\.changesAProject) == [.projet, .action, .fait, .journal])
         #expect(ColinTool.allCases.filter(\.createsAProject) == [.nouveau_projet])
-        #expect(ColinTool.allowed.first == "mcp__polhub__projets")
-        #expect(ColinTool.brouillon.allowedName == "mcp__polhub__brouillon")
+        #expect(ColinTool.allowed.first == "mcp__hub__projets")
+        #expect(ColinTool.brouillon.allowedName == "mcp__hub__brouillon")
         #expect(ColinTool.lockMark == "Verrou de Colin")
     }
 

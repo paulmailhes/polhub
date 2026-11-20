@@ -90,7 +90,7 @@ final class Switch: @unchecked Sendable {
         installer.fails = true
         let updates = service(installer: installer, clock: clock)
         await updates.tick()
-        #expect(installer.prepared == 1 && UpdateService.text(updates.state)?.contains("Polhub.app") == true)
+        #expect(installer.prepared == 1 && UpdateService.text(updates.state)?.contains("hub.app") == true)
         clock.date = start.addingTimeInterval(600)
         await updates.tick()
         #expect(installer.prepared == 1)
@@ -128,11 +128,11 @@ final class Switch: @unchecked Sendable {
     @Test func everyStateHasAFrenchText() {
         #expect(UpdateService.text(.idle) == nil)
         #expect(UpdateService.text(.waitingForIdle) == "La mise à jour s'installera à la fin de la réunion ou de la transcription en cours.")
-        #expect(UpdateService.text(.installing) == "Installation : Polhub va se relancer.")
+        #expect(UpdateService.text(.installing) == "Installation : hub va se relancer.")
     }
 
     @Test func theJournalSaysWhichVersionCameIn() {
-        #expect(UpdateService.upgradeNote(previous: "0.3.0", current: "0.3.1") == "Polhub est passé de 0.3.0 à 0.3.1.")
+        #expect(UpdateService.upgradeNote(previous: "0.3.0", current: "0.3.1") == "hub est passé de 0.3.0 à 0.3.1.")
         #expect(UpdateService.upgradeNote(previous: "0.3.1", current: "0.3.1") == nil)
         #expect(UpdateService.upgradeNote(previous: nil, current: "0.3.1") == nil)
     }

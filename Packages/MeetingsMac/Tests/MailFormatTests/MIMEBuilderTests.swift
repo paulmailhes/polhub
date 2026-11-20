@@ -3,7 +3,7 @@ import Persistence
 import Testing
 @testable import MailFormat
 
-/// 14/11, step « Écrire »: the message Gmail sends is exactly what Polhub builds.
+/// 14/11, step « Écrire »: the message Gmail sends is exactly what hub builds.
 @Suite struct MIMEBuilderTests {
     let date = Date(timeIntervalSince1970: 1_794_562_920)
     let me = MailAddress(name: "Moi", email: "moi@exemple.fr")

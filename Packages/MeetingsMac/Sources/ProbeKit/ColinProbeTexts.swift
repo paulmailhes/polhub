@@ -2,7 +2,7 @@ import Foundation
 
 /// What the probe of Colin says to Claude Code: invented texts only, never a real mail nor a real meeting.
 enum ColinProbeTexts {
-    static let system = "Tu es Colin, l'assistant de Polhub. Réponds en français, en une ou deux phrases."
+    static let system = "Tu es Colin, l'assistant de hub. Réponds en français, en une ou deux phrases."
 
     static let ping = "Réponds seulement : ok"
 

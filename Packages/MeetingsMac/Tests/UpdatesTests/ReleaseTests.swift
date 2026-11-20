@@ -36,7 +36,7 @@ import Testing
         #expect(releases.first?.archiveURL.absoluteString == "https://github.com/paulmailhes/polhub/releases/download/v0.3.1/Polhub.zip")
     }
 
-    /// 20/11 : Polhub devient hub-board. La 0.57.0 trouve la 0.57.1 (Polhub.zip, dépôt polhub) ; la 0.57.1 trouve la
+    /// 20/11 : hub devient hub-board. La 0.57.0 trouve la 0.57.1 (hub.zip, dépôt polhub) ; la 0.57.1 trouve la
     /// 0.58.0 (hub-board.zip, dépôt hub-board) ; une archive d'un autre dépôt n'est jamais prise.
     @Test func bothNamesOfReleaseAreFound() throws {
         let json = """

@@ -4,10 +4,10 @@ import Persistence
 
 /// Paul, 17/11: « il me le recrée à chaque fois ». An agent sees the drafts the agents prepared, changes one by its
 /// identifier instead of dropping another, or deletes it, when Paul asks. Never a draft Paul wrote. A drop still
-/// waiting for the app changes in place; a draft already in Polhub gets a request the app applies (this helper has
+/// waiting for the app changes in place; a draft already in hub gets a request the app applies (this helper has
 /// no network, and only the app speaks to Gmail).
 extension MailDesk {
-    /// What an identifier names: a drop the app has not taken yet, or a draft in Polhub.
+    /// What an identifier names: a drop the app has not taken yet, or a draft in hub.
     enum Changeable {
         case waiting(MailAgentDraftRow)
         case draft(MailDraftRow)
@@ -29,7 +29,7 @@ extension MailDesk {
 
     func requireChanges() throws {
         guard try store.acceptsAgentDrafts(), try store.agentDraftsTakeFiles(), try store.agentDraftsChange() else {
-            throw ToolError("La base de Polhub ne connaît pas encore ce geste : la dernière version de Polhub doit être ouverte une fois.")
+            throw ToolError("La base de hub ne connaît pas encore ce geste : la dernière version de hub doit être ouverte une fois.")
         }
     }
 
@@ -51,7 +51,7 @@ extension MailDesk {
             var parts = ["« \(draft.subject.isEmpty ? "(sans objet)" : Self.line(draft.subject)) »", kind(draft.mode, threadKey: draft.threadKey),
                          "boîte \(draft.account)", "modifié le \(moment(draft.updatedAt))"]
             if draft.retouchedByPaul { parts.append("retouché par Paul : repars de ce texte") }
-            if requests.contains(draft.id) { parts.append("une modification demandée attend que Polhub l'applique") }
+            if requests.contains(draft.id) { parts.append("une modification demandée attend que hub l'applique") }
             lines.append("- [\(draft.id)] " + parts.joined(separator: " · "))
             // Formatted: given as the little markdown, to give back with « format » markdown and keep its formatting.
             let text = draft.bodyHTML.map(MailRichText.markdown) ?? draft.body
@@ -61,7 +61,7 @@ extension MailDesk {
         for drop in waiting.prefix(30) {
             let parts = ["« \(drop.subject.isEmpty ? "(objet du fil)" : Self.line(drop.subject)) »", kind(drop.mode, threadKey: drop.threadKey),
                          drop.account.map { "boîte \($0)" } ?? "", "déposé le \(moment(drop.createdAt))",
-                         "pas encore dans Polhub : il y entre à son ouverture"].filter { !$0.isEmpty }
+                         "pas encore dans hub : il y entre à son ouverture"].filter { !$0.isEmpty }
             lines.append("- [\(drop.id)] " + parts.joined(separator: " · "))
             lines += details(to: drop.to, cc: drop.cc, body: drop.body, files: drop.files.map(\.filename), markdown: drop.format == .markdown)
         }
@@ -96,7 +96,7 @@ extension MailDesk {
 
     // MARK: - Changing
 
-    /// The draft named: a drop waiting, or a draft in Polhub the agents prepared, by its identifier or its beginning
+    /// The draft named: a drop waiting, or a draft in hub the agents prepared, by its identifier or its beginning
     /// (8 characters at least). A draft Paul wrote is refused, said as such.
     func changeable(_ which: String) throws -> Changeable {
         let key = which.trimmingCharacters(in: CharacterSet(charactersIn: "[] ").union(.whitespacesAndNewlines)).lowercased()
@@ -181,7 +181,7 @@ extension MailDesk {
             if try store.updateDrop(drop) {
                 return answer("modifié", target, notes: notes, files: added)
             }
-            // Taken by the app meanwhile: it is a draft in Polhub now, with the same identifier.
+            // Taken by the app meanwhile: it is a draft in hub now, with the same identifier.
             return try change(drop.id, text: text, subject: subject, to: to, cc: cc, format: format, joining: paths)
         }
         guard case .draft(let draft) = target else { return "" }
@@ -199,7 +199,7 @@ extension MailDesk {
         return answer("modifié", target, notes: notes, files: request.files)
     }
 
-    /// Deletes a draft the agents prepared: a drop waiting goes at once; a draft in Polhub, by the app (and from Gmail).
+    /// Deletes a draft the agents prepared: a drop waiting goes at once; a draft in hub, by the app (and from Gmail).
     public func discard(_ which: String) throws -> String {
         try requireChanges()
         let target = try changeable(which)
@@ -224,13 +224,13 @@ extension MailDesk {
         var text: String
         switch target {
         case .waiting:
-            text = deleted ? "Brouillon \(name) supprimé (identifiant \(target.id)) : il n'était pas encore entré dans Polhub. "
-                : "Brouillon \(name) modifié (identifiant \(target.id)) : Polhub le prendra ainsi à son ouverture. "
+            text = deleted ? "Brouillon \(name) supprimé (identifiant \(target.id)) : il n'était pas encore entré dans hub. "
+                : "Brouillon \(name) modifié (identifiant \(target.id)) : hub le prendra ainsi à son ouverture. "
         case .draft:
-            text = "Demande déposée : Polhub \(deleted ? "supprime" : "modifie") \(name) (identifiant \(target.id)) dès qu'il est ouvert"
+            text = "Demande déposée : hub \(deleted ? "supprime" : "modifie") \(name) (identifiant \(target.id)) dès qu'il est ouvert"
                 + (deleted ? ", dans Gmail aussi. " : ". ")
                 + "Il refuse, et le dit à Paul, si le brouillon est programmé, en train de partir ou retouché par Paul entre-temps. "
-            if !deleted { text += "La version de l'agent reste dans Polhub, hors de Gmail, jusqu'à ce que Paul l'ait vue. " }
+            if !deleted { text += "La version de l'agent reste dans hub, hors de Gmail, jusqu'à ce que Paul l'ait vue. " }
         }
         if !files.isEmpty {
             text += "Fichiers joints en plus : " + files.map { "« \($0.filename) » (\(Self.size($0.size)))" }.joined(separator: ", ") + ". "

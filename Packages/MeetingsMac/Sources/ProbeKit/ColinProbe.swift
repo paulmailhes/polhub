@@ -20,7 +20,7 @@ public struct ColinMeasure: Codable, Sendable, Equatable {
     }
 }
 
-/// Step 0 of Colin (17/11): does the Claude Code of this Mac answer from Polhub as an API would? The connection, what
+/// Step 0 of Colin (17/11): does the Claude Code of this Mac answer from hub as an API would? The connection, what
 /// loads, the tools, a conversation with an interruption, the failures, the cost. Invented texts only, one process at
 /// a time, each one gone before the next begins. A Claude that is not connected, has reached its limit, does not
 /// answer, cannot start or loaded more than what was asked stops the probe at whatever launch it shows: nothing is
@@ -43,7 +43,7 @@ public struct ColinProbe: Probe {
     fileprivate let folderName: String?
 
     /// - Parameters:
-    ///   - helper: Polhub's command line, the server of the tools; `nil`: the tools are not measured.
+    ///   - helper: hub's command line, the server of the tools; `nil`: the tools are not measured.
     ///   - pings: how many launches in a row, the first included.
     ///   - pause: seconds between two of them.
     ///   - timeout: seconds a launch, or a turn of the conversation, may take before it is killed.
@@ -214,7 +214,7 @@ private struct Run {
     enum End: String { case complete, arretee, interrompue }
 
     typealias Texts = ColinProbeTexts
-    static let allowed = "mcp__polhub__projets"
+    static let allowed = "mcp__hub__projets"
     /// What the first launch may read, in tokens. Measured on 17/11 with Claude Code 2.1.304: 620 to 660 with
     /// nothing of the user's. It catches what is large (long instructions of the account, a memory); a file
     /// shorter than the margin would pass, and only the word of the planted file proves the folder's own.
@@ -414,7 +414,7 @@ private struct Run {
         // The tools: one allowed, which runs; one outside the profile, which must be refused.
         var server: String?
         if let helper = probe.helper {
-            let file = base.appending(path: "Polhub.sqlite")
+            let file = base.appending(path: AppPaths.databaseFileName)
             do {
                 let store = ProjectStore(try AppDatabase(path: file.path(percentEncoded: false)))
                 let project = try store.addProject(name: "Projet d'essai", status: .priorite2, at: Date())

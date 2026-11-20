@@ -345,7 +345,7 @@ struct ColinComposer: View {
                             return press.key == .return && !ComposerKeys.composing ? .handled : .ignored
                         }
                     }
-                // No « Dicter » for now (Paul, 18/11): Polhub's own dictation will come, on Whisper. VoiceInk writes here
+                // No « Dicter » for now (Paul, 18/11): hub's own dictation will come, on Whisper. VoiceInk writes here
                 // as anywhere else.
                 // The keys of the field, said in the bubbles: Échap stops, Return sends (lot 10, 20/11).
                 if thread.isAnswering {
@@ -390,7 +390,7 @@ struct ColinBarLine: View {
 }
 
 /// A round button of the bar, 28 points: filled with the accent when it is the one to press, quiet otherwise. The
-/// accent is Polhub's ink, its arrow the accent's opposite (design system v2, 19/11).
+/// accent is hub's ink, its arrow the accent's opposite (design system v2, 19/11).
 private struct RoundButton: View {
     let symbol: String
     /// What it does: the bubble and VoiceOver's name.

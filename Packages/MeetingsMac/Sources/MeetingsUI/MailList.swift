@@ -72,7 +72,7 @@ struct MailListView: View {
             }
         }
         // One bar (15/11): the copy is filtered as Paul types; Enter also asks Gmail, which reads the bodies. « Chercher » and
-        // what it finds, as every search of Polhub (lot 10, 20/11).
+        // what it finds, as every search of hub (lot 10, 20/11).
         .searchable(text: $mails.query, placement: .toolbar, prompt: "Chercher un mail")
         .onSubmit(of: .search) { Task { await mails.search(mails.query) } }
         .windowTitle("Mails", subtitle: subtitle)
@@ -348,7 +348,7 @@ struct MailEmptyState: Equatable {
             return MailEmptyState(title: "Aucun mail trouvé", systemImage: "magnifyingglass", detail: hidden?.detail, action: hidden?.action)
         }
         if folder.aside != nil, readingAside { return MailEmptyState(title: "Lecture de Gmail…", systemImage: folder.icon, detail: nil, action: nil) }
-        // A first reading fills the folders of threads; Polhub's drafts and the programmed mails do not wait for it.
+        // A first reading fills the folders of threads; hub's drafts and the programmed mails do not wait for it.
         if folder.aside == nil, reading, folder != .drafts, folder != .scheduled {
             return MailEmptyState(title: "Lecture de tes boîtes…", systemImage: folder.icon, detail: nil, action: nil)
         }
@@ -764,7 +764,7 @@ struct MailFileChips: View {
 }
 
 /// One file under a line: its icon (a wheel while it comes from Gmail), its name; a click previews it, or
-/// saves what Polhub never opens (AttachmentSafety).
+/// saves what hub never opens (AttachmentSafety).
 struct MailFileChip: View {
     let file: MailAttachment
     let opening: Bool
@@ -795,7 +795,7 @@ struct MailFileChip: View {
         .buttonStyle(.hover(.capsule))
         // What a click does, a verb first, and the whole name the chip cuts (lot 10, 20/11).
         .help(previews ? "Ouvrir l'aperçu de \(file.filename) · \(MailText.size(file.size))"
-            : "Enregistrer \(file.filename) · \(MailText.size(file.size)) : il ne s'ouvre pas dans Polhub")
+            : "Enregistrer \(file.filename) · \(MailText.size(file.size)) : il ne s'ouvre pas dans hub")
         .contextMenu {
             if previews { Button("Ouvrir l'aperçu", action: open) }
             Button("Enregistrer…", action: save)

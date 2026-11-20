@@ -3,7 +3,7 @@ import Persistence
 import Testing
 @testable import Inspiration
 
-/// Awwwards' site of the day, collected by Polhub (16/11), and a site added by hand: the og tags, the image made
+/// Awwwards' site of the day, collected by hub (16/11), and a site added by hand: the og tags, the image made
 /// light (else Awwwards' thumbnail), the address as the only key.
 @Suite struct WebsiteCollectionTests {
     let now = Date(timeIntervalSince1970: 1_794_816_000) // 16/11/2026

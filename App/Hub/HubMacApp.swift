@@ -18,7 +18,7 @@ struct HubMacApp: App {
     /// clock while open). It never opens by itself, and is never closed by hand: it closes as the focus leaves.
     var body: some Scene {
         MenuBarExtra {
-            // Polhub's own accent, ink, whatever the Mac's (design system v2, 19/11).
+            // hub's own accent, ink, whatever the Mac's (design system v2, 19/11).
             MenuBarPanel(context: delegate.coupDoeil)
                 .tint(Tint.control.color)
         } label: {
@@ -82,7 +82,7 @@ final class ProbeRunner: ObservableObject {
         task?.cancel()
     }
 
-    /// The app is going, by whatever way: the probe under way stops, every Claude Code that Polhub launched is
+    /// The app is going, by whatever way: the probe under way stops, every Claude Code that hub launched is
     /// asked to stop, then killed if it stays, and the probe is left a moment to end its own way (its last line,
     /// its folder removed). It returns once all are gone: three seconds at most, at once when nothing runs.
     func stopForExit() {

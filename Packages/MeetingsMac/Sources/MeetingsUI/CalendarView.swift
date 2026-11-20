@@ -143,7 +143,7 @@ struct CalendarView: View {
         guard let covered = CalendarWindow.covered(by: accounts),
               let end = calendar.date(byAdding: .day, value: days, to: weekStart), end > covered.to else { return nil }
         let last = Words.fullDate(covered.to, now: weekStart, calendar: calendar)
-        return "Polhub lit tes agendas jusqu'au \(last) : au-delà, regarde Google Agenda."
+        return "hub lit tes agendas jusqu'au \(last) : au-delà, regarde Google Agenda."
     }
 
     /// Accueil asked for an event: its week, and its card open.
@@ -164,13 +164,13 @@ struct CalendarView: View {
             // Without the key, a clear title, then what to do (lot 10, 20/11).
             Text(agenda.hasGoogleKey ? "Connecte tes agendas Google" : "Il manque la clé Google").font(.title2.bold())
             if agenda.hasGoogleKey {
-                Text(Words.typeset("Polhub lit tes rendez-vous, et crée ou modifie ceux que tu lui demandes : les invités deviennent des contacts, rangés dans les projets de leurs rendez-vous."))
+                Text(Words.typeset("hub lit tes rendez-vous, et crée ou modifie ceux que tu lui demandes : les invités deviennent des contacts, rangés dans les projets de leurs rendez-vous."))
                     .multilineTextAlignment(.center).foregroundStyle(.secondary).frame(maxWidth: 460)
                 // « Connecter » a Google account, never « Ajouter » (lot 10, 20/11).
                 Button("Connecter un compte Google…") { Task { await agenda.connect() } }
                     .buttonStyle(.primary).controlSize(.large)
             } else {
-                Text(Words.typeset("Lance « configurer-google.command », dans le dossier scripts de Polhub, puis reviens ici."))
+                Text(Words.typeset("Lance « configurer-google.command », dans le dossier scripts de hub, puis reviens ici."))
                     .multilineTextAlignment(.center).foregroundStyle(.secondary).frame(maxWidth: 460)
             }
             if let message = agenda.message { Text(message).font(.callout).foregroundStyle(.secondary) }
@@ -183,7 +183,7 @@ struct CalendarView: View {
     private var week: some View {
         VStack(spacing: 0) {
             dayHeader
-            // Past what Polhub reads of the agendas, the week says so (audit of 19/11).
+            // Past what hub reads of the agendas, the week says so (audit of 19/11).
             if let notice = Self.copyNotice(weekStart: weekStart, days: days.count, accounts: agenda.accounts) {
                 Label(notice, systemImage: "info.circle")
                     .font(.tag).foregroundStyle(.secondary)
@@ -464,7 +464,7 @@ struct EventPopover: View {
                     close()
                     router.open(meetingID: meetingID, at: nil)
                 } label: {
-                    // A meeting is what Polhub recorded: « Ouvrir la réunion » (lot 10, 20/11).
+                    // A meeting is what hub recorded: « Ouvrir la réunion » (lot 10, 20/11).
                     Label("Ouvrir la réunion", systemImage: "waveform").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.secondary)
@@ -516,7 +516,7 @@ struct EventPopover: View {
     private var reason: String? {
         switch event.projectOrigin {
         case .paul?: event.projectID == nil ? "Sorti de tout projet par toi." : "Rangé par toi."
-        // A meeting is what Polhub recorded (lot 10, 20/11).
+        // A meeting is what hub recorded (lot 10, 20/11).
         case .reunion?: "D'après la réunion."
         case .serie?: "D'après les autres rendez-vous de la série."
         case .invites?: "D'après les projets des invités."

@@ -56,7 +56,7 @@ import Testing
         let tools = try AppDatabase.forTools(path: path)
         let desk = ProjectDesk(projects: ProjectStore(tools), meetings: MeetingStore(tools), workingDirectory: nil)
         #expect { try desk.addAction("Atelier Nord", text: "Appeler Camille") } throws: { error in
-            "\(error)" == "Polhub doit être ouvert une fois : sa base n'a pas encore le journal des changements. Rien n'a été écrit."
+            "\(error)" == "hub doit être ouvert une fois : sa base n'a pas encore le journal des changements. Rien n'a été écrit."
         }
         #expect(try tools.writer.read { try Int.fetchOne($0, sql: "SELECT COUNT(*) FROM action") } == 0)
     }

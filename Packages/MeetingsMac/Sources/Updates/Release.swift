@@ -41,7 +41,7 @@ public struct Release: Equatable, Sendable {
 }
 
 public enum Releases {
-    /// The archive every release carries: hub-board's, then the one of the versions published as Polhub, the name before
+    /// The archive every release carries: hub-board's, then the one of the versions published as hub, the name before
     /// 20/11 (the bridge 0.57.1 included).
     public static let archiveNames = ["hub-board.zip", "Polhub.zip"]
     /// The name of the archive this version publishes and downloads.

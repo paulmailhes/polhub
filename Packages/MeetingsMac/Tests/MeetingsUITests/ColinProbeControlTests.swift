@@ -131,8 +131,8 @@ import Testing
             "limite-atteinte": "Terminé : ton compte Claude a atteint sa limite. Le relevé est enregistré.",
             "sans-reponse": "Terminé : Claude Code n'a pas répondu. Le relevé est enregistré.",
             "lancement-impossible": "Terminé : Claude Code n'a pas pu se lancer. Le relevé est enregistré.",
-            "isolation": "Terminé : Claude Code a chargé plus que ce que Polhub lui demande. Le relevé est enregistré.",
-            "isolation-inconnue": "Terminé : Polhub n'a pas pu vérifier ce que Claude Code a chargé. Le relevé est enregistré.",
+            "isolation": "Terminé : Claude Code a chargé plus que ce que hub lui demande. Le relevé est enregistré.",
+            "isolation-inconnue": "Terminé : hub n'a pas pu vérifier ce que Claude Code a chargé. Le relevé est enregistré.",
             "erreur": "Terminé : Claude Code a répondu par une erreur dès le premier lancement. Le relevé est enregistré.",
             "une-raison-inconnue": "Terminé : un point est à regarder. Le relevé est enregistré.",
         ]

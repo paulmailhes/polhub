@@ -3,7 +3,7 @@ import Foundation
 /// When each collection is due (16/11), as n8n ran them, with no timer here: the app asks.
 /// - Websites: every two hours from 8:00 to 22:00 (Awwwards publishes at a variable time).
 /// - Branding: at 9, 14 and 20 h.
-/// - A slot missed while the Mac slept or Polhub was closed is caught up once, at the next check (wake, launch,
+/// - A slot missed while the Mac slept or hub was closed is caught up once, at the next check (wake, launch,
 ///   the periodic timer), however many were missed.
 public struct CollectionSchedule: Sendable, Equatable {
     /// The hours of each job's slots, on the hour, local time.

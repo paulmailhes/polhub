@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import HubDesign
 
-/// Polhub's words (lot 10, 20/11): one way to write an hour, a day, a length, a count, a help bubble, a problem. The
+/// hub's words (lot 10, 20/11): one way to write an hour, a day, a length, a count, a help bubble, a problem. The
 /// examples are the ones the app's own functions were tested on (`Briefing`, `MailText`, `DurationText`, `ContactsModel`,
 /// `PanelModel`, `ClaudeAccountsText`), kept. Every date is made up.
 @Suite struct WordsTests {
@@ -231,7 +231,7 @@ import Testing
 
     // MARK: - Problems
 
-    /// An error of Polhub's own, as a module makes it speak French here.
+    /// An error of hub's own, as a module makes it speak French here.
     enum Expired: Error, LocalizedError {
         case token
         var failureReason: String? { "la connexion à ce compte a expiré" }
@@ -257,7 +257,7 @@ import Testing
         #expect(Words.reason(of: POSIXError(.ENOSPC)) == "le disque est plein")
         #expect(Words.reason(of: URLError(.timedOut)) == "le serveur n'a pas répondu à temps")
 
-        // What Polhub does not know: what failed, and « Réessaie. »; the remedy said by the caller wins.
+        // What hub does not know: what failed, and « Réessaie. »; the remedy said by the caller wins.
         let vous = NSError(domain: "WebKitErrorDomain", code: 102, userInfo: [NSLocalizedFailureReasonErrorKey: "Vous n'avez pas l'autorisation."])
         let unknown = Words.problem("La page n'a pas pu s'ouvrir", vous)
         #expect(unknown.reason == nil && unknown.sentence == "La page n'a pas pu s'ouvrir. Réessaie." && unknown.journal != nil)
@@ -265,7 +265,7 @@ import Testing
         #expect(Words.problem("Le fil n'a pas pu être rangé", Silent.crash).sentence == "Le fil n'a pas pu être rangé. Réessaie.")
         #expect(Words.problem("Le mail n'est pas parti", Silent.crash, remedy: "Il t'attend dans Brouillons.").sentence
                 == "Le mail n'est pas parti. Il t'attend dans Brouillons.")
-        #expect(Words.problem("Les projets ne s'ouvrent pas", remedy: "Quitte Polhub et rouvre-le.").sentence
-                == "Les projets ne s'ouvrent pas. Quitte Polhub et rouvre-le.")
+        #expect(Words.problem("Les projets ne s'ouvrent pas", remedy: "Quitte hub et rouvre-le.").sentence
+                == "Les projets ne s'ouvrent pas. Quitte hub et rouvre-le.")
     }
 }

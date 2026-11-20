@@ -12,7 +12,7 @@ public struct AgendaDesk: Sendable {
     static let defaultDays = 7
     static let maximumEvents = 200
     static let maximumGuests = 15
-    /// Polhub reads the agendas every 10 minutes while it runs: a copy older than this is said (review of 16/11).
+    /// hub reads the agendas every 10 minutes while it runs: a copy older than this is said (review of 16/11).
     static let staleCopy: TimeInterval = 3_600
 
     let calendar: CalendarStore
@@ -77,7 +77,7 @@ public struct AgendaDesk: Sendable {
         let unknown = gaps(first: first, end: end, accounts: accounts)
         var lines = [Self.reminder, "", "# \(title) (\(events.count) rendez-vous)"] + unknown
         guard !events.isEmpty else {
-            return (lines + [unknown.isEmpty ? "Aucun rendez-vous." : "Aucun rendez-vous dans la copie de Polhub."]).joined(separator: "\n")
+            return (lines + [unknown.isEmpty ? "Aucun rendez-vous." : "Aucun rendez-vous dans la copie de hub."]).joined(separator: "\n")
         }
         let projectNames = Dictionary(projectRows.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
         var shownDay: Date?
@@ -124,25 +124,25 @@ public struct AgendaDesk: Sendable {
     }
 
     /// What the copy does not know of these days (review of 16/11): the days past its window, an agenda never read, a
-    /// reading that failed or is old. Said, so that no answer reads as a free day Polhub knows nothing of.
+    /// reading that failed or is old. Said, so that no answer reads as a free day hub knows nothing of.
     func gaps(first: Date, end: Date, accounts: [GoogleAccountRow]) -> [String] {
-        guard !accounts.isEmpty else { return ["Aucun agenda Google n'est connecté à Polhub : il ne sait rien de ces jours."] }
+        guard !accounts.isEmpty else { return ["Aucun agenda Google n'est connecté à hub : il ne sait rien de ces jours."] }
         var lines: [String] = []
         if let covered = CalendarWindow.covered(by: accounts) {
-            let unknown = "Polhub ne sait pas ; demande à Paul, ou regarde Google Agenda."
-            if end > covered.to { lines.append("La copie de Polhub s'arrête au \(dayName(covered.to, year: true)) à \(time(covered.to)) : au-delà, \(unknown)") }
-            if first < covered.from { lines.append("La copie de Polhub commence au \(dayName(covered.from, year: true)) : avant, \(unknown)") }
+            let unknown = "hub ne sait pas ; demande à Paul, ou regarde Google Agenda."
+            if end > covered.to { lines.append("La copie de hub s'arrête au \(dayName(covered.to, year: true)) à \(time(covered.to)) : au-delà, \(unknown)") }
+            if first < covered.from { lines.append("La copie de hub commence au \(dayName(covered.from, year: true)) : avant, \(unknown)") }
         }
         for account in accounts {
             guard let read = account.lastSyncAt else {
-                lines.append("L'agenda \(account.email) n'a encore jamais été lu par Polhub : ses rendez-vous manquent.")
+                lines.append("L'agenda \(account.email) n'a encore jamais été lu par hub : ses rendez-vous manquent.")
                 continue
             }
             let copy = "\(dayName(read)) à \(time(read))"
             if let error = account.lastError.map(MailDesk.line), !error.isEmpty {
                 lines.append("L'agenda \(account.email) n'a pas pu être lu la dernière fois (\(String(error.prefix(120)))) : sa copie date du \(copy).")
             } else if now().timeIntervalSince(read) > Self.staleCopy {
-                lines.append("La copie de l'agenda \(account.email) date du \(copy) : ce qui a changé depuis n'y est pas (Polhub était peut-être fermé).")
+                lines.append("La copie de l'agenda \(account.email) date du \(copy) : ce qui a changé depuis n'y est pas (hub était peut-être fermé).")
             }
         }
         return lines
@@ -253,7 +253,7 @@ public struct AgendaDesk: Sendable {
         }
         if let minutes { guard (1...1_440).contains(minutes) else { throw ToolError("« duree » attend un nombre de minutes entre 1 et 1440, pas \(minutes).") } }
         let accounts = try calendar.accounts().map(\.email)
-        guard !accounts.isEmpty else { throw ToolError("Aucun agenda Google n'est connecté à Polhub.") }
+        guard !accounts.isEmpty else { throw ToolError("Aucun agenda Google n'est connecté à hub.") }
         var chosen: String?
         if let asked = account?.trimmingCharacters(in: .whitespaces).lowercased(), !asked.isEmpty {
             guard let match = accounts.first(where: { $0 == asked || $0.hasPrefix(asked + "@") || $0.hasSuffix("@" + asked) }) else {
@@ -267,7 +267,7 @@ public struct AgendaDesk: Sendable {
             filed = try projects.resolve(project)
         }
         guard made.count(since: now().addingTimeInterval(-3_600)) < Self.eventsPerHour else {
-            throw ToolError("Trois rendez-vous créés en moins d'une heure par cette session : Polhub n'en crée pas d'autre pour l'instant. "
+            throw ToolError("Trois rendez-vous créés en moins d'une heure par cette session : hub n'en crée pas d'autre pour l'instant. "
                             + "Rien n'a été créé. Si Paul en veut d'autres, il les crée lui-même, ou redemande dans une heure.")
         }
         let request = AgentEventRequest(title: name, start: begin, end: finish, minutes: minutes, meet: meet, account: chosen, notes: description,
@@ -282,15 +282,15 @@ public struct AgendaDesk: Sendable {
         }
         if result == nil {
             if files.withdraw(request.id) {
-                throw ToolError("Polhub n'a pas répondu : il doit être ouvert et en ligne. Rien n'a été créé ; redemande quand il le sera.")
+                throw ToolError("hub n'a pas répondu : il doit être ouvert et en ligne. Rien n'a été créé ; redemande quand il le sera.")
             }
             // The app took it meanwhile: its answer may be there now.
             result = files.result(request.id)
         }
         guard let result else {
-            throw ToolError("Polhub a pris la demande mais n'a pas encore répondu : regarde `agenda` dans un instant avant de redemander, pour ne pas créer le rendez-vous deux fois.")
+            throw ToolError("hub a pris la demande mais n'a pas encore répondu : regarde `agenda` dans un instant avant de redemander, pour ne pas créer le rendez-vous deux fois.")
         }
-        if let error = result.error { throw ToolError("Polhub n'a pas confirmé le rendez-vous : \(error).") }
+        if let error = result.error { throw ToolError("hub n'a pas confirmé le rendez-vous : \(error).") }
         made.add(now())
         let made = result.start ?? begin, over = result.end ?? finish ?? begin
         var answer = "Rendez-vous « \(result.title ?? name) » créé dans l'agenda \(result.account ?? chosen ?? "?") : \(dayName(made, year: true, weekday: true)), "
@@ -334,7 +334,7 @@ public struct AgendaDesk: Sendable {
             ?? formatter("yyyy-MM-dd HH:mm:ss", locale: "en_US_POSIX").date(from: text)
     }
 
-    /// « 2026-11-17T10:00:00+01:00 », « …Z »: a time zone given, which Polhub does not take (Paul's hour only).
+    /// « 2026-11-17T10:00:00+01:00 », « …Z »: a time zone given, which hub does not take (Paul's hour only).
     static func hasZone(_ text: String) -> Bool {
         text.trimmingCharacters(in: .whitespaces).range(of: #"\d:\d\d(:\d\d(\.\d+)?)?\s*(Z|[+-]\d\d:?\d\d)$"#, options: .regularExpression) != nil
     }

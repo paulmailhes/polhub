@@ -1,7 +1,7 @@
 import Foundation
 
 // The title an item shows (16/11). Moved here from the app's `InspirationBrowse` (16/11) so that the agents' tool
-// `inspiration` (`polhub mcp`, which never links the app's modules) shows the same title as the cards. Pure.
+// `inspiration` (`hub mcp`, which never links the app's modules) shows the same title as the cards. Pure.
 
 extension InspirationItemRow {
     /// A site's name without its page's words (« Adam Exemple - Home » → « Adam Exemple », « Home - ADA » → « ADA »),

@@ -20,8 +20,8 @@ import Testing
 
     /// Each question costs 0.02 more than the one before, as Claude Code counts its cost: from the process's start.
     static func answer(_ text: String, _ rank: Int) -> [ClaudeEvent] {
-        [.initialized(good), .textDelta("Trois "), .toolStarted(id: "t1", name: "mcp__polhub__mail"),
-         .assistant(text: "", tools: ["mcp__polhub__mail"], calls: [ClaudeToolCall(id: "t1", name: "mcp__polhub__mail", arguments: ["quel": "fil-1"])]),
+        [.initialized(good), .textDelta("Trois "), .toolStarted(id: "t1", name: "mcp__hub__mail"),
+         .assistant(text: "", tools: ["mcp__hub__mail"], calls: [ClaudeToolCall(id: "t1", name: "mcp__hub__mail", arguments: ["quel": "fil-1"])]),
          .toolResult(isError: false, text: "", outcomes: [ClaudeToolOutcome(id: "t1", isError: false)]),
          // Claude Code's result holds the last message alone: the text after the action.
          .textDelta("projets."), .result(ClaudeResult(durationMs: 900, costUSD: 0.01 + 0.02 * Double(rank - 1), text: "projets."))]
@@ -64,7 +64,7 @@ import Testing
         var done = called
         done.state = .done
         #expect(seen.events == [.starting, .ready, .delta("Trois "), .step(started), .step(called), .step(done), .delta("\n\nprojets."),
-                                .answered(ColinTurn(text: "Trois \n\nprojets.", costUSD: 0.03, interrupted: false, locked: false, tools: ["mcp__polhub__mail"],
+                                .answered(ColinTurn(text: "Trois \n\nprojets.", costUSD: 0.03, interrupted: false, locked: false, tools: ["mcp__hub__mail"],
                                                     steps: [done], durationMs: 900))])
     }
 
@@ -108,7 +108,7 @@ import Testing
 
     @Test func aWrongInitSendsNothingOfPaul() async throws {
         var changed = Self.good
-        changed.tools.append("mcp__polhub__journal")
+        changed.tools.append("mcp__hub__journal")
         let wrong = changed
         let launcher = FakeLauncher { _, _ in Self.session(warmUp: [.initialized(wrong), .result(ClaudeResult(text: "prêt"))]) }
         let (runner, seen) = runner(launcher)
@@ -148,7 +148,7 @@ import Testing
     @Test func aLockRefusalMakesTheNextQuestionFresh() async throws {
         let launcher = FakeLauncher { _, _ in
             Self.session { _, rank in
-                rank == 2 ? [.initialized(Self.good), .assistant(text: "", tools: ["mcp__polhub__brouillon"]),
+                rank == 2 ? [.initialized(Self.good), .assistant(text: "", tools: ["mcp__hub__brouillon"]),
                              .toolResult(isError: true, text: "\(ColinTool.lockMark) : après ce qu'il a lu…"),
                              .result(ClaudeResult(costUSD: 0.03, text: "Je ne peux pas l'écrire ici."))]
                     : Self.answer("", rank)
@@ -225,7 +225,7 @@ import Testing
     /// A turn stopped while a tool runs: nothing stays « en cours »; stopped by Paul is not a failure.
     @Test func aTurnEndsItsSteps() async throws {
         let launcher = FakeLauncher { _, _ in
-            Self.session({ _, _ in [.initialized(Self.good), .textDelta("Je "), .toolStarted(id: "t9", name: "mcp__polhub__mails")] }, onInterrupt: { id in
+            Self.session({ _, _ in [.initialized(Self.good), .textDelta("Je "), .toolStarted(id: "t9", name: "mcp__hub__mails")] }, onInterrupt: { id in
                 [.controlResponse(requestID: id, success: true), .other("user/interruption"),
                  .result(ClaudeResult(subtype: "error_during_execution", isError: true, costUSD: 0.02))]
             })
@@ -242,7 +242,7 @@ import Testing
     /// Final review (18/11): stopped before any word, the answer is empty — never what Claude Code says of its abort.
     @Test func aStopBeforeAnyWordKeepsNoDiagnostic() async throws {
         let launcher = FakeLauncher { _, _ in
-            Self.session({ _, _ in [.initialized(Self.good), .toolStarted(id: "t9", name: "mcp__polhub__mails")] }, onInterrupt: { id in
+            Self.session({ _, _ in [.initialized(Self.good), .toolStarted(id: "t9", name: "mcp__hub__mails")] }, onInterrupt: { id in
                 [.controlResponse(requestID: id, success: true),
                  .result(ClaudeResult(subtype: "error_during_execution", isError: true, costUSD: 0.02, text: "[ede_diagnostic] result_type=user"))]
             })
@@ -259,7 +259,7 @@ import Testing
     @Test func textAfterAnActionIsANewParagraph() async throws {
         let launcher = FakeLauncher { _, _ in
             Self.session { _, _ in
-                [.initialized(Self.good), .textDelta("Je regarde."), .toolStarted(id: "t1", name: "mcp__polhub__mails"),
+                [.initialized(Self.good), .textDelta("Je regarde."), .toolStarted(id: "t1", name: "mcp__hub__mails"),
                  .toolResult(isError: false, outcomes: [ClaudeToolOutcome(id: "t1", isError: false)]),
                  .textDelta("Trois fils."), .result(ClaudeResult(costUSD: 0.02, text: "Trois fils."))]
             }
@@ -275,7 +275,7 @@ import Testing
     @Test func aLastMessageNotStreamedIsKept() async throws {
         let launcher = FakeLauncher { _, _ in
             Self.session { _, _ in
-                [.initialized(Self.good), .textDelta("Je regarde."), .toolStarted(id: "t1", name: "mcp__polhub__mails"),
+                [.initialized(Self.good), .textDelta("Je regarde."), .toolStarted(id: "t1", name: "mcp__hub__mails"),
                  .toolResult(isError: false, outcomes: [ClaudeToolOutcome(id: "t1", isError: false)]),
                  .result(ClaudeResult(costUSD: 0.02, text: "Trois fils."))]
             }

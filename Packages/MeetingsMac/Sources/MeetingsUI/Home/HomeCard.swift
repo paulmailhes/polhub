@@ -2,7 +2,7 @@ import HubDesign
 import SwiftUI
 
 /// A card of « ta journée » (0.37.0, Paul: « mets-le dans des cartes, ça va rendre le truc beaucoup plus digeste et
-/// lisible »): calm, as Polhub's other cards — no glass under text —, its title in 17 points with its count in a pill,
+/// lisible »): calm, as hub's other cards — no glass under text —, its title in 17 points with its count in a pill,
 /// twenty points of air inside. One radius for every card (design system v2, 19/11): « Aujourd'hui » is no longer
 /// rounder than the others.
 struct HomeCard<Content: View>: View {

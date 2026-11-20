@@ -1,6 +1,6 @@
 import Foundation
 
-/// The tools of Colin's profile (`polhub mcp --colin`): what he reads, and the drafts (step 2, 18/11); the kanban when
+/// The tools of Colin's profile (`hub mcp --colin`): what he reads, and the drafts (step 2, 18/11); the kanban when
 /// the user asks — status, deadline, task, actions, journal (step 3, 18/11); a new project when he asks (19/11). The same list says what the server
 /// offers and what Claude Code may run.
 public enum ColinTool: String, CaseIterable, Sendable {
@@ -35,8 +35,8 @@ public enum ColinTool: String, CaseIterable, Sendable {
         }
     }
 
-    /// As Claude Code names a tool of the server `polhub`.
-    public var allowedName: String { "mcp__polhub__\(rawValue)" }
+    /// As Claude Code names a tool of the server `hub`.
+    public var allowedName: String { "mcp__hub__\(rawValue)" }
 
     public static var allowed: [String] { allCases.map(\.allowedName) }
 

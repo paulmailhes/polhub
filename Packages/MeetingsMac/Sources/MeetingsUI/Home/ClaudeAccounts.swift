@@ -109,7 +109,7 @@ enum ClaudeAccountsText {
     }
 }
 
-/// How a reading of Vigie went: said once in Polhub's log when it changes, never with the token.
+/// How a reading of Vigie went: said once in hub's log when it changes, never with the token.
 enum VigieReading: Equatable, Sendable {
     case read(Int)
     case noToken

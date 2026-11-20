@@ -7,7 +7,7 @@ import Persistence
 import HubDesign
 import HubLink
 
-/// What Polhub on the Mac answers Polhub on the iPhone (20/11): the same mails, folders, calendar, projects and
+/// What hub on the Mac answers hub on the iPhone (20/11): the same mails, folders, calendar, projects and
 /// meetings as the window, in JSON. Every request carries the token of a paired iPhone; read only in this version.
 @MainActor
 final class PhoneAPI {
@@ -17,7 +17,7 @@ final class PhoneAPI {
     let mails: MailLibrary?
     /// Colin's thread, the Accueil's (lot 3, 20/11).
     let colin: ColinThread?
-    /// The number on Polhub's icon (20/11), set by the app.
+    /// The number on hub's icon (20/11), set by the app.
     var badge: (@MainActor () -> Int)?
     let appVersion: String
     let now: () -> Date
@@ -243,7 +243,7 @@ final class PhoneAPI {
         return try send(draft.id)
     }
 
-    /// Sent as on the Mac; what stops it (no one to write to, a bad address) said in Polhub's words.
+    /// Sent as on the Mac; what stops it (no one to write to, a bad address) said in hub's words.
     func send(_ draftID: String) throws -> LinkSending {
         guard let mails else { throw LinkError("Les mails ne sont pas sur ce Mac.") }
         if let other = mails.sending, other.draftID != draftID { throw LinkError("Un autre mail part en ce moment : réessaie dans quelques secondes.") }

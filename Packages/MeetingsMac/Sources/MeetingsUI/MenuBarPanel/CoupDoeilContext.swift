@@ -18,7 +18,7 @@ public struct CoupDoeilActions {
     public var resumeDetection: @MainActor () -> Void
     /// The development build's switch: detection on or off.
     public var setDetection: @MainActor (Bool) -> Void
-    /// Polhub's window, in front, on what the router says.
+    /// hub's window, in front, on what the router says.
     public var showMainWindow: @MainActor () -> Void
     /// Réglages › Diagnostic, in the window. It shows what is known; it never runs a test by itself.
     public var showDiagnostic: @MainActor () -> Void
@@ -74,7 +74,7 @@ public final class CoupDoeilContext {
     public private(set) var projects: ProjectLibrary?
     /// For `ProjectLogo`: `MenuBarPanel` puts it in the environment (`\.projectLogos`).
     public private(set) var projectLogos: ProjectLogos?
-    /// The notifications Polhub sent (`inbox`, for `NotificationBell`); nil in the development build.
+    /// The notifications hub sent (`inbox`, for `NotificationBell`); nil in the development build.
     public private(set) var notifications: NotificationHub?
     /// Updates (`state`, `newer`, `autoInstall`, `installNow()`); nil in the development build.
     public private(set) var updates: UpdateService?
@@ -92,7 +92,7 @@ public final class CoupDoeilContext {
         }
     }
 
-    /// A meeting opened in Polhub's window (from its list, the panel or a notification): read once transcribed, its
+    /// A meeting opened in hub's window (from its list, the panel or a notification): read once transcribed, its
     /// summary leaves the hero.
     func opened(meeting id: UUID) {
         guard let library else { return }
@@ -118,7 +118,7 @@ public final class CoupDoeilContext {
 
     // MARK: - Opening the window
 
-    /// A place of the window, then the window in front. The panel closes on its own as Polhub comes forward; it is
+    /// A place of the window, then the window in front. The panel closes on its own as hub comes forward; it is
     /// never closed by hand.
     public func open(_ place: WindowRouter.Place) {
         if case .mail(nil) = place, let mails, mails.folder != .inbox {
@@ -129,7 +129,7 @@ public final class CoupDoeilContext {
         actions.showMainWindow()
     }
 
-    /// « Ouvrir Polhub »: Accueil, or Réunions without the agenda.
+    /// « Ouvrir hub »: Accueil, or Réunions without the agenda.
     public func openHome() {
         open(.section(agenda != nil ? .home : .meetings))
     }

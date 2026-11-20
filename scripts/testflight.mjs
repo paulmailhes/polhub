@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// TestFlight pour Polhub iPhone, par l'API d'App Store Connect (20/11/2026).
+// TestFlight pour hub iPhone, par l'API d'App Store Connect (20/11/2026).
 //   node scripts/testflight.mjs attendre   : attend que la fiche de l'app existe (Apple interdit de la créer par l'API) ;
 //   node scripts/testflight.mjs groupe     : crée le groupe interne « Paul », ouvert à toutes les versions, et y met le
 //                                            titulaire du compte : chaque version envoyée arrive seule sur son iPhone.

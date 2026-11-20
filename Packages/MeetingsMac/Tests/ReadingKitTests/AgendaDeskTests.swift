@@ -58,7 +58,7 @@ struct AgendaFixture {
         try calendar.applyGoogle(account: "paul@exemple.fr", changed: [point, lunch, fair, later, before], cancelled: [], at: now)
         try calendar.applyGoogle(account: "moi@gmail.com", changed: [copy, seminar], cancelled: [], at: now)
         try calendar.setProject(eventID: point.id, projectID: atelier.id, origin: .paul)
-        // Both agendas read a moment ago, as when Polhub runs.
+        // Both agendas read a moment ago, as when hub runs.
         for account in ["moi@gmail.com", "paul@exemple.fr"] { try calendar.recordSync(email: account, syncToken: nil, error: nil, at: now.addingTimeInterval(-300)) }
 
         // Camille's last meeting and last mail.
@@ -125,23 +125,23 @@ struct AgendaFixture {
     }
 
     /// The copy holds about six months back and two ahead of its last reading. Past it, or when a reading failed or is
-    /// old, the agent is told so: « Aucun rendez-vous » must never read as a free day Polhub knows nothing of (review
+    /// old, the agent is told so: « Aucun rendez-vous » must never read as a free day hub knows nothing of (review
     /// of 16/11).
     @Test func theAgendaSaysWhatItsCopyDoesNotKnow() throws {
         let fixture = try AgendaFixture()
         defer { try? FileManager.default.removeItem(at: fixture.root) }
         let desk = fixture.desk()
         let fresh = try desk.events(from: nil, to: nil, project: nil, text: nil)
-        #expect(!fresh.contains("Polhub ne sait pas") && !fresh.contains("date du"))
+        #expect(!fresh.contains("hub ne sait pas") && !fresh.contains("date du"))
         // Read at 8:55 on 16 November: the copy goes up to 15 January, 8:55.
         let february = try desk.events(from: "2027-02-01", to: nil, project: nil, text: nil)
-        #expect(february.contains("La copie de Polhub s'arrête au vendredi 15 janvier 2027") && february.contains("Polhub ne sait pas"))
+        #expect(february.contains("La copie de hub s'arrête au vendredi 15 janvier 2027") && february.contains("hub ne sait pas"))
         #expect(february.contains("Google Agenda") && !february.contains("\nAucun rendez-vous."))
         let january = try desk.events(from: "2027-01-10", to: "2027-01-20", project: nil, text: nil)
         #expect(january.contains("s'arrête au vendredi 15 janvier 2027"))
         let april = try desk.events(from: "2026-04-01", to: "2026-04-07", project: nil, text: nil)
-        #expect(april.contains("La copie de Polhub commence au") && april.contains("Polhub ne sait pas"))
-        #expect(!(try desk.events(from: "2026-12-01", to: nil, project: nil, text: nil)).contains("Polhub ne sait pas"))
+        #expect(april.contains("La copie de hub commence au") && april.contains("hub ne sait pas"))
+        #expect(!(try desk.events(from: "2026-12-01", to: nil, project: nil, text: nil)).contains("hub ne sait pas"))
         // A reading that failed, one three days old: said, with the date of the copy.
         let calendar = CalendarStore(fixture.database)
         try calendar.recordSync(email: "moi@gmail.com", syncToken: nil, error: "expired", at: fixture.now)
@@ -300,7 +300,7 @@ struct AgendaFixture {
         #expect(fixture.files.take().isEmpty)
     }
 
-    /// Polhub closed or offline: the agent is told, and the request is taken back so that it is never made later.
+    /// hub closed or offline: the agent is told, and the request is taken back so that it is never made later.
     @Test func noAnswerIsSaidAndTheRequestTakenBack() throws {
         let fixture = try AgendaFixture()
         defer { try? FileManager.default.removeItem(at: fixture.root) }
@@ -308,7 +308,7 @@ struct AgendaFixture {
             try fixture.desk().create(title: "Point", start: "2026-11-17 10:00", end: nil, minutes: nil, meet: false, account: nil, notes: "",
                                       project: nil, wait: 0.2)
         }
-        #expect(error?.description.contains("Polhub n'a pas répondu") == true && error?.description.contains("Rien n'a été créé") == true)
+        #expect(error?.description.contains("hub n'a pas répondu") == true && error?.description.contains("Rien n'a été créé") == true)
         #expect(fixture.files.take().isEmpty)
     }
 

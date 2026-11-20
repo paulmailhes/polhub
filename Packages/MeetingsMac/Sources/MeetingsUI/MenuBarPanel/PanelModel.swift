@@ -10,7 +10,7 @@ import Summarization
 import SwiftUI
 import Updates
 
-/// What « Coup d'œil » says (15/11), from what Polhub already holds in memory: the hero, its fixed order and its first
+/// What « Coup d'œil » says (15/11), from what hub already holds in memory: the hero, its fixed order and its first
 /// line, the two tiles' words, the lines « À régler », the mails to read, the footer's line. Pure: tested on made-up data, without a
 /// screen. Nothing here reads the base, the network or the clock: `now` comes from the view's timeline.
 enum PanelModel {
@@ -284,7 +284,7 @@ enum PanelModel {
         return nil
     }
 
-    /// A meeting opened in Polhub's window once transcribed: its summary is read, it leaves the hero. Opened while it
+    /// A meeting opened in hub's window once transcribed: its summary is read, it leaves the hero. Opened while it
     /// records or is transcribed, it still announces itself once ready.
     static func isRead(opening id: UUID, in meetings: Meetings) -> Bool {
         guard let row = meetings.rows.first(where: { $0.id == id }) else { return false }
@@ -467,7 +467,7 @@ enum PanelModel {
 
     // MARK: - « À régler »
 
-    /// A cause that keeps Polhub from working well, and what a click does.
+    /// A cause that keeps hub from working well, and what a click does.
     struct Issue: Equatable, Identifiable {
         enum Action: Equatable {
             /// Réglages › Diagnostic: it shows what is known, never runs a test by itself.
@@ -522,7 +522,7 @@ enum PanelModel {
                                     action: .installUpdate, help: "Réessayer au prochain moment calme"))
             } else if !updates.autoInstall, !underWay.contains(updates.state) {
                 // A sentence, its period; « désactivée », as the switch of Réglages (lot 10, 20/11: « coupée »).
-                issues.append(Issue(id: "update", title: "Polhub \(version) est disponible", detail: "L'installation automatique est désactivée.",
+                issues.append(Issue(id: "update", title: "hub \(version) est disponible", detail: "L'installation automatique est désactivée.",
                                     action: .installUpdate, help: "Installer au prochain moment calme"))
             }
         }
@@ -540,9 +540,9 @@ enum PanelModel {
     static func updateLine(_ updates: Updates?) -> String? {
         guard let updates, let version = updates.latest else { return nil }
         switch updates.state {
-        case .waitingForIdle: return "Polhub \(version) s'installera au calme"
-        case .downloading: return "Polhub \(version) se télécharge…"
-        case .installing: return "Polhub va se relancer en \(version)"
+        case .waitingForIdle: return "hub \(version) s'installera au calme"
+        case .downloading: return "hub \(version) se télécharge…"
+        case .installing: return "hub va se relancer en \(version)"
         default: return nil
         }
     }

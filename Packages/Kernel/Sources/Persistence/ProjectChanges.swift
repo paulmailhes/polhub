@@ -3,7 +3,7 @@ import Foundation
 import GRDB
 
 /// Who changed a project (step 3 of Colin, 18/11): Paul in the app, Colin (the agent of the Accueil), or an agent —
-/// a session's `polhub mcp`, of now or of before the journal.
+/// a session's `hub mcp`, of now or of before the journal.
 public enum ChangeAuthor: String, Codable, Sendable, CaseIterable {
     case paul, colin, agent
 }

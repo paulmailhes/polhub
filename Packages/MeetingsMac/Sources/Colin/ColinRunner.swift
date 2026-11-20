@@ -2,7 +2,7 @@ import Domain
 import Persistence
 import Foundation
 
-/// Where Colin's Claude Code runs (18/11): the binary, Polhub's tools server and its base, the account (`nil`: Claude
+/// Where Colin's Claude Code runs (18/11): the binary, hub's tools server and its base, the account (`nil`: Claude
 /// Code's own), and an empty working folder whose path names no one (the model is told it).
 public struct ColinSetup: Sendable {
     public var binary: URL
@@ -284,9 +284,10 @@ public actor ColinRunner {
         return head.isEmpty ? result : head + "\n\n" + result
     }
 
-    /// « mcp__polhub__mails » → « mails ».
+    /// « mcp__hub__mails » → « mails » ; « mcp__polhub__… », the server's name before 20/11, as well.
     static func short(_ name: String) -> String {
-        name.hasPrefix("mcp__polhub__") ? String(name.dropFirst("mcp__polhub__".count)) : name
+        for prefix in ["mcp__hub__", "mcp__polhub__"] where name.hasPrefix(prefix) { return String(name.dropFirst(prefix.count)) }
+        return name
     }
 
     /// Stopped for a reason that will go on: the process goes, the reason is said, nothing is tried again.

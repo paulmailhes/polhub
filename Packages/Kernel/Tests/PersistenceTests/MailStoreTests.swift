@@ -511,7 +511,7 @@ import Testing
         #expect(try contacts.contact(email: "camille@studio.exemple") == nil)
     }
 
-    /// Review of 15/11: a project written with an old status (an older `polhub mcp`, a row the migration left
+    /// Review of 15/11: a project written with an old status (an older `hub mcp`, a row the migration left
     /// in the bin) never breaks the mails' rules, nor the projects' reading.
     @Test func anOldStatusNeverBreaksTheRules() throws {
         let database = try AppDatabase.inMemory()

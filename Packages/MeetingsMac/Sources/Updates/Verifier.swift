@@ -12,8 +12,8 @@ public enum VerificationError: Error, Equatable, CustomStringConvertible {
     public var description: String {
         switch self {
         case .invalidSignature: "la signature de l'app téléchargée est invalide"
-        case .wrongTeam: "l'app téléchargée n'est pas signée par l'auteur de Polhub"
-        case .wrongIdentifier: "l'app téléchargée n'est pas Polhub"
+        case .wrongTeam: "l'app téléchargée n'est pas signée par l'auteur de hub"
+        case .wrongIdentifier: "l'app téléchargée n'est pas hub"
         case .wrongVersion: "l'app téléchargée n'a pas la version annoncée"
         case .unsafeArchive(let reason): "l'archive téléchargée est refusée (\(reason))"
         }
@@ -21,7 +21,7 @@ public enum VerificationError: Error, Equatable, CustomStringConvertible {
 }
 
 /// An update is installed only if Apple's own check says its app is signed with the author's Developer ID
-/// (team CQ43U6XX4Z), notarized, is Polhub, and has the announced version: a hacked GitHub account cannot get
+/// (team CQ43U6XX4Z), notarized, is hub, and has the announced version: a hacked GitHub account cannot get
 /// anything else installed (review, critical 1: no reading of `codesign`'s text).
 public enum Verifier {
     public static let teamID = "CQ43U6XX4Z"
@@ -70,7 +70,7 @@ public enum Verifier {
     }
 }
 
-/// The archive is looked at before it is opened (review, important 1): only `Polhub.app/…` paths, no
+/// The archive is looked at before it is opened (review, important 1): only `hub.app/…` (or `Polhub.app/…`, before 20/11) paths, no
 /// symbolic link (the app has none), no way out of the folder, a sane size.
 public enum ArchiveCheck {
     public static let maxUncompressed: Int64 = 1_000_000_000
@@ -136,7 +136,7 @@ public enum SwapScript {
     ///   harmless one, so that no test app is ever registered.
     /// - verify: the command that says, by its exit code, whether the app whose path follows is the author's
     ///   (`signatureCheck`); the tests pass their own.
-    /// - target: where the new version goes; `installed` itself, unless the app changes its name (20/11: Polhub.app
+    /// - target: where the new version goes; `installed` itself, unless the app changes its name (20/11: hub.app
     ///   becomes hub.app). Then the old app is kept aside and taken away, and comes back if the new one does not start.
     /// - start: the command that launches the new version, at `target`; `startOld`, the one that launches the installed
     ///   app again (`start` when the name does not change).
@@ -150,25 +150,25 @@ public enum SwapScript {
         let registration = register.map { "touch \(quote(path(target))); \($0) \(quote(path(target))) 2>/dev/null || true" } ?? "true"
         let new = quote(path(newApp)), app = quote(path(installed)), dest = quote(path(target))
         let parent = quote(path(installed.deletingLastPathComponent()))
-        let keep = quote(path(keepOld)), zip = quote(path(keepOld) + "/Polhub-precedente.zip"), signalFile = quote(path(signal))
+        let keep = quote(path(keepOld)), zip = quote(path(keepOld) + "/hub-board-precedente.zip"), signalFile = quote(path(signal))
         let failed = failedKey.map { "defaults write \(Verifier.bundleID) \($0) \(quote(version))" } ?? "true"
         // Only a copy of the installed app counts, by its path (20/11: the iPhone app in the simulator is called
-        // Polhub too, and the name alone stopped an update).
+        // hub too, and the name alone stopped an update).
         let copy = quote(pattern(path(installed) + "/Contents/MacOS/" + processName))
         let newCopy = quote(pattern(path(target) + "/Contents/MacOS/" + (newProcessName ?? processName)))
         // A renamed version left half-way is taken away: the old app is the one that stays.
         let dropTarget = renamed ? "rm -rf \(dest)" : "true"
         return """
         #!/bin/bash
-        # Polhub : échange de versions, écrit par l'app et lancé hors d'elle.
+        # hub : échange de versions, écrit par l'app et lancé hors d'elle.
         set -u
         mkdir -p \(quote(path(log.deletingLastPathComponent()))) 2>/dev/null
         exec >>\(quote(path(log))) 2>&1 || exec >/dev/null 2>&1
         say() { echo "$(date '+%Y-%m-%d %H:%M:%S') $*"; }
         verified() { \(verify) "$1" >/dev/null 2>&1; }
         # Nothing starts that the author did not sign: a copy changed after its check, or an old version replaced.
-        start_new() { if verified \(dest); then \(start); else say "l'app en place n'est pas signée par l'auteur de Polhub : elle n'est pas lancée"; fi; }
-        start_old() { if verified \(app); then \(startOld ?? start); else say "l'app en place n'est pas signée par l'auteur de Polhub : elle n'est pas lancée"; fi; }
+        start_new() { if verified \(dest); then \(start); else say "l'app en place n'est pas signée par l'auteur de hub : elle n'est pas lancée"; fi; }
+        start_old() { if verified \(app); then \(startOld ?? start); else say "l'app en place n'est pas signée par l'auteur de hub : elle n'est pas lancée"; fi; }
         restore() { rm -rf \(dest); rm -rf \(app); ditto -x -k \(zip) \(parent); }
         DONE=0
         # Whatever happens, Paul is never left without an app.
@@ -194,7 +194,7 @@ public enum SwapScript {
           restore; \(failed); DONE=1; start_old; exit 1
         fi
         if ! verified \(dest); then
-          say "la nouvelle version copiée n'est pas signée par l'auteur de Polhub : retour à l'ancienne version"
+          say "la nouvelle version copiée n'est pas signée par l'auteur de hub : retour à l'ancienne version"
           restore; \(failed); DONE=1; start_old; exit 1
         fi
         \(renamed ? "rm -rf \(app)" : "true")

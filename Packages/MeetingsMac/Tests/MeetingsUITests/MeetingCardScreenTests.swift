@@ -41,7 +41,7 @@ struct MeetingCardScreenTests {
         let states: [(String, HUDModel.Kind, String, String, String)] = [
             ("hud-reunion-detectee", .prompt, HUDText.promptTitle("Revue de maquettes"), "", ""),
             ("hud-message", .toast, "L'enregistrement continue", "Micro : Casque · Sortie : Haut-parleurs", ""),
-            ("hud-alerte", .alert, "Polhub ne lit plus les onglets de Dia", "Les réunions sont détectées par le micro seul.", "Diagnostic"),
+            ("hud-alerte", .alert, "hub ne lit plus les onglets de Dia", "Les réunions sont détectées par le micro seul.", "Diagnostic"),
         ]
         for dark in [false, true] {
             for (name, kind, title, subtitle, action) in states {

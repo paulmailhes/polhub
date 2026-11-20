@@ -142,7 +142,7 @@ final class Calls: @unchecked Sendable {
     static let loaded = ClaudeInit(version: "2.1.304", model: "claude-haiku-4-5", permissionMode: "dontAsk", apiKeySource: "none",
                                    builtinPlugins: 3, agents: ["claude", "Explore"])
     static let withServer = ClaudeInit(version: "2.1.304", model: "claude-opus-4-8", permissionMode: "dontAsk", apiKeySource: "none",
-                                       tools: ["mcp__polhub__projets", "mcp__polhub__journal"], servers: ["polhub": "connected"], builtinPlugins: 3)
+                                       tools: ["mcp__hub__projets", "mcp__hub__journal"], servers: ["hub": "connected"], builtinPlugins: 3)
     static let limit = ClaudeRateLimit(status: "allowed", type: "five_hour", fiveHour: 0.42, sevenDay: 0.11)
     static func done(_ cost: Double = 0.0002) -> ClaudeEvent {
         .result(ClaudeResult(subtype: "success", durationMs: 900, numTurns: 1, costUSD: cost, inputTokens: 900, outputTokens: 3, text: "ok " + secret))
@@ -155,8 +155,8 @@ final class Calls: @unchecked Sendable {
     }
 
     static func tools(denied: [String]) -> FakeSession {
-        FakeSession([.initialized(withServer), .assistant(text: secret, tools: ["mcp__polhub__projets"]), .toolResult(isError: false),
-                     .assistant(text: "", tools: ["mcp__polhub__journal"]), .toolResult(isError: true),
+        FakeSession([.initialized(withServer), .assistant(text: secret, tools: ["mcp__hub__projets"]), .toolResult(isError: false),
+                     .assistant(text: "", tools: ["mcp__hub__journal"]), .toolResult(isError: true),
                      .result(ClaudeResult(subtype: "success", numTurns: 3, costUSD: 0.001, inputTokens: 2_000, outputTokens: 40, denied: denied, text: "fini"))], code: 0)
     }
 
@@ -170,7 +170,7 @@ final class Calls: @unchecked Sendable {
         FakeSession(initFirst ? [.initialized(first)] : [], endsWhenClosed: endsWhenClosed, onSend: { _, turn in
             let late: [ClaudeEvent] = !initFirst && turn == 1 ? [.initialized(first)] : []
             switch turn {
-            case 2: return second ?? [.textDelta("Deux"), .assistant(text: secret, tools: ["mcp__polhub__projets"]), .toolResult(isError: false), done(0.03)]
+            case 2: return second ?? [.textDelta("Deux"), .assistant(text: secret, tools: ["mcp__hub__projets"]), .toolResult(isError: false), done(0.03)]
             case 3: return [.textDelta("1"), .other("stream_event/message_delta"), .other("un_message_inconnu")]
             default: return late + (turn == 1 ? extra : []) + [.textDelta("Bon"), .assistant(text: secret, tools: []), done(Double(turn) * 0.01)]
             }
@@ -206,7 +206,7 @@ final class Calls: @unchecked Sendable {
             if let session = override(command, index) { return session }
             if command.configDirectory?.lastPathComponent == "compte-vide" { return notConnected() }
             guard let prompt = command.prompt else { return conversation() }
-            if prompt.hasPrefix("Appelle l'outil projets") { return tools(denied: ["mcp__polhub__journal"]) }
+            if prompt.hasPrefix("Appelle l'outil projets") { return tools(denied: ["mcp__hub__journal"]) }
             // The first launch asks for the word of the folder's instructions; the others only « ok ».
             if prompt == "Réponds seulement : ok" || prompt == ColinProbeTexts.memoryRequest { return ping() }
             return FakeSession([.initialized(loaded), done(0.05)], code: 0)
@@ -393,7 +393,7 @@ final class Calls: @unchecked Sendable {
         let index = try #require(launcher.started.firstIndex { $0.prompt == nil })
         #expect(launcher.all[index].sent.count == 4)
         #expect(launcher.started[index].model == "opus")
-        #expect(launcher.started[index].allowedTools == ["mcp__polhub__projets"])
+        #expect(launcher.started[index].allowedTools == ["mcp__hub__projets"])
         #expect(launcher.started[index].mcpConfig?.contains("/Applications/Essai.app/Contents/Helpers/polhub") == true)
     }
 
@@ -995,7 +995,7 @@ final class Calls: @unchecked Sendable {
         let path = "/Users/essai-de-sonde/quelque/part", address = "quelquun@exemple.fr", arn = "arn:aws:bedrock:eu-west-1:123456789012:model/x"
         let odd = ClaudeInit(version: path, model: arn, permissionMode: path, apiKeySource: address, builtinPlugins: 3)
         let oddServer = ClaudeInit(version: path, model: arn, permissionMode: path, apiKeySource: address,
-                                   tools: ["mcp__polhub__projets", "mcp__polhub__journal"], servers: ["polhub": "connected"], builtinPlugins: 3)
+                                   tools: ["mcp__hub__projets", "mcp__hub__journal"], servers: ["hub": "connected"], builtinPlugins: 3)
         let launcher = Self.healthy { command, index in
             if command.configDirectory?.lastPathComponent == "compte-vide" {
                 return FakeSession([.result(ClaudeResult(subtype: path, isError: true, text: "Please run /login"))], code: 1)
@@ -1004,7 +1004,7 @@ final class Calls: @unchecked Sendable {
                 return Self.conversation(first: oddServer, interrupted: path, extra: [.other(path), .other(address)])
             }
             if prompt.hasPrefix("Appelle l'outil projets") {
-                return FakeSession([.initialized(oddServer), .assistant(text: "", tools: ["mcp__polhub__projets"]),
+                return FakeSession([.initialized(oddServer), .assistant(text: "", tools: ["mcp__hub__projets"]),
                                     .result(ClaudeResult(subtype: "success", denied: [path, address]))], code: 0)
             }
             if index == 0 || prompt == "Réponds seulement : ok" {
@@ -1131,7 +1131,7 @@ final class Calls: @unchecked Sendable {
     @Test func aToolOutsideTheProfileMustBeDenied() async throws {
         let denied = try await run(probe(Self.healthy(), binary: binary, helper: helper)).measures
         #expect(step("outils", denied)?.ok == true)
-        #expect(step("outils", denied)?.labels["refuses"] == "mcp__polhub__journal")
+        #expect(step("outils", denied)?.labels["refuses"] == "mcp__hub__journal")
         #expect(step("outils", denied)?.numbers["refus"] == 1)
         #expect(step("outils", denied)?.numbers["serveurs"] == 1)
         #expect(step("outils", denied)?.numbers["journalEcrit"] == 0)
@@ -1269,7 +1269,7 @@ final class Calls: @unchecked Sendable {
 
     @Test func theProbeIsInTheRegistryWithItsTitle() async {
         #expect(ProbeID.colin.rawValue == "colin")
-        #expect(ProbeID.colin.title == "Colin : Claude Code depuis Polhub")
+        #expect(ProbeID.colin.title == "Colin : Claude Code depuis hub")
         #expect(await ProbeRegistry.make(.colin) != nil)
     }
 

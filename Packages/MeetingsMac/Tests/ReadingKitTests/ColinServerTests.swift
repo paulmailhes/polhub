@@ -4,7 +4,7 @@ import Persistence
 import Testing
 @testable import ReadingKit
 
-/// Colin's profile of the server (`polhub mcp --colin`, 18/11): his tools and nothing else, his drafts in
+/// Colin's profile of the server (`hub mcp --colin`, 18/11): his tools and nothing else, his drafts in
 /// plain text, the kanban only through its status, deadline, task, actions and journal, and texts that name no one. The profile of the conversations of Claude Code does not change.
 @Suite struct ColinServerTests {
     func server(_ fixture: MailDeskFixture, profile: MCPServer.Profile = .colin, writes: WriteCounter = WriteCounter()) throws -> MCPServer {

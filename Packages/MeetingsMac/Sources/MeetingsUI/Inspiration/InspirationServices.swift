@@ -8,7 +8,7 @@ import Persistence
 
 /// The collection, as the pages see it: async closures the app injects.
 public struct InspirationServices: Sendable {
-    /// Adds a site by its address: Polhub reads its title, its description and its image. Returns the item's id
+    /// Adds a site by its address: hub reads its title, its description and its image. Returns the item's id
     /// (the one already there when the site was known).
     public var addSite: @Sendable (URL) async throws -> UUID
     /// Adds a mock-up from its folder on the Mac (its preview made by Quick Look). Returns the item's id.

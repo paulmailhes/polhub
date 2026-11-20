@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// The colors of the design system v2 (plan of 19/11): one color, one meaning. Polhub has its own accent, ink, whatever
+/// The colors of the design system v2 (plan of 19/11): one color, one meaning. hub has its own accent, ink, whatever
 /// accent the Mac is given (Paul's choice of 19/11): the orange no longer says « send », « selected », « a link » and
 /// « late » at once. Each value is the one text reads in, at 4.5:1 at least on a window and on a card, in light and in
 /// dark (`TintTests`); a dot or a fill may use it too.
@@ -28,7 +28,7 @@ public enum Tint {
 
     /// What a color says.
     public enum Role: String, CaseIterable, Sendable {
-        /// Polhub's own: the primary button, the selection, the focus.
+        /// hub's own: the primary button, the selection, the focus.
         case accent
         /// Late: a deadline passed, a reply waited for too long.
         case late

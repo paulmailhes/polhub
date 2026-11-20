@@ -23,7 +23,7 @@ public enum InspirationAddError: Error, Equatable, Sendable, CustomStringConvert
 /// - `collectWebsites`: Awwwards' site of the day, its OpenGraph tags and image (else Awwwards' thumbnail);
 /// - `collectBranding`: the ten latest posts of each LinkedIn page followed, each new one completed by its public
 ///   embed page (text, links, up to five still images);
-/// - `addSite` and `addMockup`: by hand, from Polhub's pages.
+/// - `addSite` and `addMockup`: by hand, from hub's pages.
 ///
 /// No timer here: the app calls these when `CollectionSchedule` says a collection is due. Requests go one at a
 /// time, with a short pause between two LinkedIn pages; a login wall, a 999 or a 429 skips that page until the next
@@ -387,7 +387,7 @@ public actor InspirationCollector {
     // MARK: - Imported images
 
     /// The sites imported with their image known only by its address (a Web Clipper note): downloaded and made
-    /// light as a collected one's, each address once while Polhub runs, whether it came or not (review of 16/11:
+    /// light as a collected one's, each address once while hub runs, whether it came or not (review of 16/11:
     /// those cards stayed grey for good). Returns how many sites got their image.
     public func completeImages(now: Date = Date()) async -> Int {
         guard let items = try? store.allItems(kind: .website) else { return 0 }

@@ -14,7 +14,7 @@ struct PhoneSettingsScreen: View {
             Form {
                 Section("Mac") {
                     LabeledContent("Adresse", value: session.connection?.address.host() ?? "—")
-                    LabeledContent("Polhub sur le Mac", value: session.status?.appVersion ?? "—")
+                    LabeledContent("hub sur le Mac", value: session.status?.appVersion ?? "—")
                     LabeledContent("Cet iPhone", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—")
                 }
                 Section {

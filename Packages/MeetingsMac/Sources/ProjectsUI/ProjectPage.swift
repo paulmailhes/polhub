@@ -632,7 +632,7 @@ struct SiteField: View {
             }
         }
         // One line, without a period (lot 10, 20/11): « (deviné) » and the ✕'s bubble say the rest.
-        .help("Le site du client, d'où Polhub prend son logo")
+        .help("Le site du client, d'où hub prend son logo")
     }
 
     private func save() {

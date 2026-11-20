@@ -180,7 +180,7 @@ import Testing
         #expect(slots.map(\.columns) == [2, 2, 1, 2])
     }
 
-    /// Audit of 19/11: a week past what Polhub reads of the agendas says so, as the agents are told (`AgendaDesk.gaps`): an
+    /// Audit of 19/11: a week past what hub reads of the agendas says so, as the agents are told (`AgendaDesk.gaps`): an
     /// empty week there is not a free one.
     @Test func aWeekPastTheCopySaysSo() throws {
         let read = Date(timeIntervalSince1970: 1_794_562_920)

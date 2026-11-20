@@ -93,7 +93,7 @@ struct ScheduleMenu: View {
 /// « Choisir une date et une heure… »: the day on a calendar, the hour beside; five minutes from now at least.
 struct SchedulePicker: View {
     /// What a programmed mail needs, written once: under the picker and over « Programmés » (lot 10, 20/11).
-    static let note = "Le Mac doit être allumé et Polhub ouvert à l'heure prévue. Sinon le mail part à ton retour."
+    static let note = "Le Mac doit être allumé et hub ouvert à l'heure prévue. Sinon le mail part à ton retour."
 
     @State private var date: Date
     private let earliest: Date

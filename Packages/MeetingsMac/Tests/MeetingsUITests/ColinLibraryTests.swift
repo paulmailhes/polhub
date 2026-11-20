@@ -673,7 +673,7 @@ import Testing
         #expect(world.colin.briefingMails.map(\.id) == [key("b")])
     }
 
-    /// Paul is back before the mailboxes were read again (the Mac just woke, Polhub just opened): what they bring a
+    /// Paul is back before the mailboxes were read again (the Mac just woke, hub just opened): what they bring a
     /// few seconds later was there while he was away, and enters the point. Once they and the calendars were read
     /// again, the point no longer moves.
     @Test func whatTheMailboxesBringAfterAReturnEntersThePoint() async throws {
@@ -769,7 +769,7 @@ import Testing
         #expect(world.colin.briefingAt == back)
     }
 
-    /// Polhub is quit and opened again (an update): the point is prepared again at once, with the same « since ».
+    /// hub is quit and opened again (an update): the point is prepared again at once, with the same « since ».
     @Test func aRelaunchPreparesThePointAgain() async throws {
         let clock = Clock()
         let defaults = try #require(UserDefaults(suiteName: "colin-\(UUID().uuidString)"))

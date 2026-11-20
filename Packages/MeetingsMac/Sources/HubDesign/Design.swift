@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-// Polhub's design system (14/11): the rules are in docs/design-system.md. Glass belongs to the navigation
+// hub's design system (14/11): the rules are in docs/design-system.md. Glass belongs to the navigation
 // layer and to floating controls; content sits on calm, continuous rounded surfaces.
 
 /// Spacing, on a 4-point grid.

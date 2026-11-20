@@ -185,7 +185,7 @@ public enum LogoImage {
     }
 }
 
-/// Asks a site for its icon; `nil` when it has none Polhub takes.
+/// Asks a site for its icon; `nil` when it has none hub takes.
 public protocol LogoFetching: Sendable {
     func logo(for domain: String) async -> Data?
 }

@@ -92,7 +92,7 @@ struct ContactsView: View {
                 Text("Ils arrivent seuls de tes agendas, et d'un clic depuis un mail ou un rendez-vous.")
             }
         } else if sections.isEmpty {
-            // Polhub's words, no longer the system's (« vous ») (lot 10, 20/11): what was searched, what is searched in, and
+            // hub's words, no longer the system's (« vous ») (lot 10, 20/11): what was searched, what is searched in, and
             // the gesture that empties the search. The typography laid around what Paul typed, never inside it.
             ContentUnavailableView {
                 Label(Words.typeset("Aucun résultat pour « ") + query + Words.typeset(" »"), systemImage: "magnifyingglass")
@@ -574,7 +574,7 @@ struct ContactPage: View {
                 if let owner {
                     addressRefused = "Cette adresse est déjà celle de « \(owner.name) »."
                 } else {
-                    // What failed, why when Polhub knows it, what to do; the system's text to the journal (lot 10, 20/11).
+                    // What failed, why when hub knows it, what to do; the system's text to the journal (lot 10, 20/11).
                     let problem = Words.problem("Cette adresse n'a pas pu être enregistrée", error)
                     addressRefused = problem.sentence
                     agenda.database.journal(problem)

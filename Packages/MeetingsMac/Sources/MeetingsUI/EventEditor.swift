@@ -26,7 +26,7 @@ struct EventEditor: View {
     @State private var dismissed = false
     @FocusState private var guestFocused: Bool
     @State private var saving = false
-    /// What did not work, Polhub's sentence (`Words.problem`), never the system's text (lot 10, 20/11).
+    /// What did not work, hub's sentence (`Words.problem`), never the system's text (lot 10, 20/11).
     @State private var failure: String?
     @State private var confirmingDelete = false
     /// What the event was, and what Google holds, read before changing it (review of 14/11).
@@ -169,7 +169,7 @@ struct EventEditor: View {
 
     private var footer: some View {
         VStack(alignment: .leading, spacing: Space.s) {
-            // A failure: said by `ErrorLine` (design system v2, 19/11), in Polhub's words (lot 10, 20/11).
+            // A failure: said by `ErrorLine` (design system v2, 19/11), in hub's words (lot 10, 20/11).
             if let failure {
                 ErrorLine(failure)
                     .fixedSize(horizontal: false, vertical: true)
@@ -266,7 +266,7 @@ struct EventEditor: View {
                 if editing == nil { lastAccount = account }
                 dismiss()
             } catch {
-                // Polhub's sentence on screen, the system's text in the journal (lot 10, 20/11).
+                // hub's sentence on screen, the system's text in the journal (lot 10, 20/11).
                 let problem = Words.problem(editing == nil ? "Le rendez-vous n'a pas pu être créé" : "Le rendez-vous n'a pas pu être enregistré",
                                             error)
                 failure = problem.sentence
@@ -284,7 +284,7 @@ struct EventEditor: View {
                 try await agenda.delete(editing)
                 dismiss()
             } catch {
-                // Polhub's sentence on screen, the system's text in the journal (lot 10, 20/11).
+                // hub's sentence on screen, the system's text in the journal (lot 10, 20/11).
                 let problem = Words.problem("Le rendez-vous n'a pas pu être supprimé", error)
                 failure = problem.sentence
                 agenda.database.journal(problem)

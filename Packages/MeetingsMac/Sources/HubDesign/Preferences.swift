@@ -83,11 +83,11 @@ public enum CardSize: String, CaseIterable, Identifiable, Sendable {
     public var logoSize: CGFloat { 36 }
 }
 
-/// Every setting of Polhub, its key and its default: the views read them through `@AppStorage(Preferences.Key…)`,
+/// Every setting of hub, its key and its default: the views read them through `@AppStorage(Preferences.Key…)`,
 /// the rest through this. New features add theirs here, and a row in Réglages (14/11).
 public struct Preferences: @unchecked Sendable {
     public enum Key {
-        /// Whether the relaunch agent was on, noted at each launch (0.57.1): the version that changes its name (Polhub.app
+        /// Whether the relaunch agent was on, noted at each launch (0.57.1): the version that changes its name (hub.app
         /// → hub.app, 20/11) registers it again from its new place.
         public static let relaunchHint = "relanceActive"
         public static let cardSize = "projets.tailleDesCartes"
@@ -118,8 +118,8 @@ public struct Preferences: @unchecked Sendable {
         public static let mailNotices = "notifications.mails"
         /// Only the mails filed in a project are told (step « Ranger »).
         public static let mailNoticesProjects = "notifications.mails.projets"
-        /// The senders Paul left from Polhub, with the day (shown in « Abonnements »).
-        /// What the agents read: `tout`, or `projets` (read by `polhub mcp` from the app's preferences).
+        /// The senders Paul left from hub, with the day (shown in « Abonnements »).
+        /// What the agents read: `tout`, or `projets` (read by `hub mcp` from the app's preferences).
         public static let mailAgentsScope = "mails.agents.portee"
         /// The new mails whose mailbox Paul has not chosen yet.
         public static let mailUnconfirmed = "mails.boiteAChoisir"
@@ -192,7 +192,7 @@ public struct Preferences: @unchecked Sendable {
     }
 
     public var cardSize: CardSize { CardSize(stored: defaults.string(forKey: Key.cardSize)) }
-    /// Polhub asks each client's site for its icon; off, the projects keep their initials.
+    /// hub asks each client's site for its icon; off, the projects keep their initials.
     public var projectLogos: Bool { flag(Key.projectLogos) }
     /// `nil`: the last one used.
     public var defaultAccount: String? { defaults.string(forKey: Key.defaultAccount).flatMap { $0.isEmpty ? nil : $0 } }
@@ -233,7 +233,7 @@ public struct Preferences: @unchecked Sendable {
     public var colinSilentDays: Int { choice(Key.colinSilentDays, among: Default.colinSilentChoices, or: Default.colinSilentDays) }
     /// The minutes before a Meet in the menu bar (Paul, 15/11: on by default).
     public var menuBarMeetMinutes: Bool { flag(Key.menuBarMeetMinutes) }
-    /// Polhub collects the new sites and posts by itself (on by default; never in the development build, which
+    /// hub collects the new sites and posts by itself (on by default; never in the development build, which
     /// the scheduler decides).
     public var inspirationAutoCollect: Bool { flag(Key.inspirationAutoCollect) }
     /// Apple's on-device model proposes the categories of a new item (on by default).

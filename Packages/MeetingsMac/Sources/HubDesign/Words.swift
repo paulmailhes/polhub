@@ -1,6 +1,6 @@
 import Foundation
 
-/// Polhub's words (lot 10, 20/11): the one place where an hour, a day, a length, a count, a help bubble and a problem
+/// hub's words (lot 10, 20/11): the one place where an hour, a day, a length, a count, a help bubble and a problem
 /// are written, so that each says the same thing the same way everywhere. The language is fixed here, once: French,
 /// whatever the Mac's. The rules are in docs/design-system.md, « Les mots ». Pure: tested on made-up dates, no screen.
 ///
@@ -370,7 +370,7 @@ public enum Words {
         public let reason: String?
         /// What to do, a sentence: « Réessaie. »
         public let remedy: String
-        /// What failed and the system's own text, for the journal; `nil` for Polhub's own errors, already in French.
+        /// What failed and the system's own text, for the journal; `nil` for hub's own errors, already in French.
         public let journal: String?
 
         /// « Le fil n'a pas pu être rangé : pas de connexion à Internet. Vérifie la connexion du Mac, puis réessaie. »
@@ -385,7 +385,7 @@ public enum Words {
     }
 
     /// The problem of a gesture that failed: `failed` says what did not work, without a period (« Le fil n'a pas pu être
-    /// rangé »); `error` gives the reason, in Paul's words when Polhub knows it; `remedy`, what to do, when it is not
+    /// rangé »); `error` gives the reason, in Paul's words when hub knows it; `remedy`, what to do, when it is not
     /// « Réessaie. ».
     public static func problem(_ failed: String, _ error: (any Error)? = nil, remedy: String? = nil) -> Problem {
         let failed = failed.hasSuffix(".") ? String(failed.dropLast()) : failed
@@ -396,12 +396,12 @@ public enum Words {
     }
 
     /// Why an error happened, in Paul's words: a fragment to follow « : » (« pas de connexion à Internet »), or `nil`
-    /// when Polhub does not know it — the system's own text is never one.
+    /// when hub does not know it — the system's own text is never one.
     public static func reason(of error: any Error) -> String? {
         cause(of: error).reason
     }
 
-    /// What Polhub knows of an error: the network and the files by their codes; Polhub's own errors by `LocalizedError`
+    /// What hub knows of an error: the network and the files by their codes; hub's own errors by `LocalizedError`
     /// (`failureReason`, else `errorDescription`, and `recoverySuggestion`), which they adopt to speak French here.
     static func cause(of error: any Error) -> (reason: String?, remedy: String?, own: Bool) {
         if let network = error as? URLError {
@@ -423,7 +423,7 @@ public enum Words {
             switch file.code {
             case .fileNoSuchFile, .fileReadNoSuchFile: return ("le fichier est introuvable", nil, false)
             case .fileWriteOutOfSpace: return ("le disque est plein", "Libère de la place sur le disque, puis réessaie.", false)
-            case .fileReadNoPermission, .fileWriteNoPermission: return ("Polhub n'a pas le droit d'y accéder", nil, false)
+            case .fileReadNoPermission, .fileWriteNoPermission: return ("hub n'a pas le droit d'y accéder", nil, false)
             case .fileWriteFileExists: return ("un fichier du même nom existe déjà", nil, false)
             case .fileWriteVolumeReadOnly: return ("le disque est en lecture seule", nil, false)
             case .fileReadCorruptFile: return ("le fichier est abîmé", nil, false)
@@ -433,14 +433,14 @@ public enum Words {
         if let posix = error as? POSIXError {
             switch posix.code {
             case .ENOSPC: return ("le disque est plein", "Libère de la place sur le disque, puis réessaie.", false)
-            case .EACCES, .EPERM: return ("Polhub n'a pas le droit d'y accéder", nil, false)
+            case .EACCES, .EPERM: return ("hub n'a pas le droit d'y accéder", nil, false)
             case .ENOENT: return ("le fichier est introuvable", nil, false)
             case .ETIMEDOUT: return ("le serveur n'a pas répondu à temps", "Réessaie dans un moment.", false)
             case .ENETDOWN, .ENETUNREACH, .ENOTCONN: return ("pas de connexion à Internet", "Vérifie la connexion du Mac, puis réessaie.", false)
             default: return (nil, nil, false)
             }
         }
-        // Another of the system's errors: its words are the system's (English, or « vous »), never Polhub's.
+        // Another of the system's errors: its words are the system's (English, or « vous »), never hub's.
         if type(of: error) is NSError.Type { return (nil, nil, false) }
         if let own = error as? LocalizedError, let reason = own.failureReason ?? own.errorDescription, !reason.isEmpty {
             return (reason, own.recoverySuggestion, true)

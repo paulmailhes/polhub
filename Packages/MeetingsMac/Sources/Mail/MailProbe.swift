@@ -308,7 +308,7 @@ public struct MailProbe: Sendable {
 /// The one write step 0 makes, on a test mail Paul sent himself: is the trash reached on the seen messages only,
 /// and does undoing bring the mail back to the inbox?
 public struct MailTrashEssay: Codable, Sendable, Equatable {
-    public static let subject = "Polhub essai"
+    public static let subject = "hub essai"
 
     public var found = false
     public var trashed = false

@@ -3,7 +3,7 @@ import Foundation
 import GoogleKit
 import Persistence
 
-/// An event as Paul fills it in Polhub's editor (14/11).
+/// An event as Paul fills it in hub's editor (14/11).
 public struct EventDraft: Equatable, Sendable {
     public var title: String
     public var start: Date
@@ -44,7 +44,7 @@ public struct EventDraft: Equatable, Sendable {
     }
 }
 
-/// What Polhub reads from Google before changing an event: its description and Google's own list of guests
+/// What hub reads from Google before changing an event: its description and Google's own list of guests
 /// (optional ones, comments, « +N »), kept as Google wrote it.
 public struct EventDetails: Equatable, Sendable {
     public var notes: String
@@ -57,7 +57,7 @@ public struct EventDetails: Equatable, Sendable {
     }
 }
 
-/// Polhub writes to the primary calendar of the event's account; Google sends the invitations.
+/// hub writes to the primary calendar of the event's account; Google sends the invitations.
 public enum CalendarWrite {
     static let base = "https://www.googleapis.com/calendar/v3/calendars/primary/events"
 

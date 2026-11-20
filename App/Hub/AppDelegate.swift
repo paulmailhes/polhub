@@ -42,7 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private(set) lazy var colinProbe = ColinProbeControl(
         isQuiet: { [weak self] in !(await self?.recordingOrTranscribing() ?? false) },
         start: { [weak self] account, onFinish in
-            guard let self else { return "Polhub se ferme." }
+            guard let self else { return "hub se ferme." }
             guard self.runner.running == nil else { return "Une autre sonde tourne déjà." }
             // One Claude Code of Colin's at a time (18/11).
             guard self.colinThread?.isAnswering != true else { return "Colin répond : relance la sonde dans un instant." }
@@ -66,10 +66,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     /// Calendars, contacts and the loop of 13/11.
     private var agenda: AgendaLibrary?
     private var mails: MailLibrary?
-    /// Polhub on the iPhone (20/11): Réglages › iPhone, and the server on the loopback when Paul switched it on.
+    /// hub on the iPhone (20/11): Réglages › iPhone, and the server on the loopback when Paul switched it on.
     private var phone: PhoneAccess?
 
-    /// The number on Polhub's icon (Paul, 20/11): the unread mails of the main tab and what Polhub told that was not
+    /// The number on hub's icon (Paul, 20/11): the unread mails of the main tab and what hub told that was not
     /// seen yet, in the Dock, and on the iPhone's icon with each notification or alone when it changes.
     private func watchBadge(_ hub: NotificationHub) {
         let count: @MainActor () -> Int = { [weak self] in
@@ -124,7 +124,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var meetingCardsLook = Date.distantPast
     private var notificationTimer: Timer?
     private var startup: StartupControl?
-    /// Step 2: the transcriptions, run by `polhub-calcul` outside meetings.
+    /// Step 2: the transcriptions, run by `hub-calcul` outside meetings.
     private var transcription: TranscriptionQueue?
     /// The meetings' summaries, after their transcription (14/11).
     private var summaries: SummaryQueue?
@@ -138,7 +138,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var diagnostic: DiagnosticModel?
     private var externalChanges: ExternalChangeSignal.Listener?
     private var checklistObserver: AnyCancellable?
-    /// The number on Polhub's icon, in the Dock and on the iPhone (20/11).
+    /// The number on hub's icon, in the Dock and on the iPhone (20/11).
     private var badgeObserver: AnyCancellable?
     private var terminationSource: DispatchSourceSignal?
     private var guideObserver: AnyCancellable?
@@ -172,7 +172,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let probe: String?
     }
 
-    /// Set before launch ends: a click on a notification may be what opened Polhub (14/11).
+    /// Set before launch ends: a click on a notification may be what opened hub (14/11).
     func applicationWillFinishLaunching(_ notification: Notification) {
         UNUserNotificationCenter.current().delegate = self
     }
@@ -257,16 +257,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             let database = try AppDatabase(path: paths.database.path)
             self.database = database
             store = MeetingStore(database)
-            // A session wrote through `polhub mcp`: the views fetch again (13/11).
+            // A session wrote through `hub mcp`: the views fetch again (13/11).
             externalChanges = ExternalChangeSignal.listen(queue: .main) { try? database.notifyExternalChanges() }
         } catch AppDatabaseError.newerBase {
             // Not a crash: a plain exit, which the relaunch agent leaves alone, instead of the same alert every
-            // ten seconds (correctifs, 15/11). Its sentence is Polhub's own, in French (lot 10, 20/11).
+            // ten seconds (correctifs, 15/11). Its sentence is hub's own, in French (lot 10, 20/11).
             Self.alertThenExit(AppDatabaseError.newerBase.errorDescription ?? "", code: 0)
         } catch {
             // What did not work, in French, then what to do; the system's own text goes to the log, the base is not
-            // there for the journal (lot 10, 20/11). Polhub quits after the alert: reopening it is the gesture.
-            let problem = Words.problem("La base des réunions ne s'ouvre pas", error, remedy: "Rouvre Polhub.")
+            // there for the journal (lot 10, 20/11). hub quits after the alert: reopening it is the gesture.
+            let problem = Words.problem("La base des réunions ne s'ouvre pas", error, remedy: "Rouvre hub.")
             if let journal = problem.journal { NSLog("%@", journal) }
             Self.alertThenExit(problem.sentence)
         }
@@ -457,7 +457,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         // What waits for Paul's click and « Le point » (18/11): rules alone, no model, nothing leaves the Mac.
         colin = ColinLibrary(agenda: agenda, mails: mails)
         // Colin's bar (18/11): the Claude Code of this Mac, on the account of Réglages › Colin (empty: Claude Code's own),
-        // with Polhub's tools in Colin's profile, on this build's own base. Nothing is launched before Paul asks.
+        // with hub's tools in Colin's profile, on this build's own base. Nothing is launched before Paul asks.
         let base = paths.database
         let runner = ColinRunner(launcher: LiveClaudeLauncher(), setup: {
             guard let binary = ClaudeBinary.find(), let helper = ColinProbe.embeddedHelper() else { return nil }
@@ -474,7 +474,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                                       return min(uptime, ColinProbeControl.systemSinceWake() ?? uptime)
                                   },
                                   newDrafts: { [weak mails] in Set(mails?.drafts.filter { $0.origin == .agent }.map(\.id) ?? []) })
-        // Polhub on the iPhone (20/11): mails, agenda, projects, meetings and Colin's thread. The development build listens one
+        // hub on the iPhone (20/11): mails, agenda, projects, meetings and Colin's thread. The development build listens one
         // port further, so both can run.
         let phone = PhoneAccess(database: database, agenda: agenda, mails: mails, colin: colinThread,
                                 appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0",
@@ -483,7 +483,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                                 cloud: Self.carriesICloud ? ICloudDrive() : nil)
         self.phone = phone
         Task { await phone.resume() }
-        // Polhub comes back in front on the Accueil: Paul is there.
+        // hub comes back in front on the Accueil: Paul is there.
         presenceObserver = NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.accueilMayBeSeen() }
         }
@@ -510,7 +510,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let library = InspirationLibrary(database: database, paths: paths)
         inspiration = library
         let runLog = CollectionRunLog()
-        // The vocabularies the menus read: Polhub's copy (the vault's, brought while there was one), else the bundled.
+        // The vocabularies the menus read: hub's copy (the vault's, brought while there was one), else the bundled.
         let tagger = InspirationTagger(database: database, paths: paths)
         let collector = InspirationCollector(database: database, paths: paths, runLog: runLog)
         let isDevelopment = isDevelopment
@@ -563,7 +563,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                                      }
                                  },
                                  handsOver: LaunchContext.current == .user)
-        // What it notifies is also kept in Polhub's own list, read by the bell of the sidebar (15/11).
+        // What it notifies is also kept in hub's own list, read by the bell of the sidebar (15/11).
         let hub = NotificationHub(agenda: agenda, inbox: NotificationInbox(file: paths.notifications))
         notifications = hub
         agenda.notifications = hub
@@ -610,7 +610,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
     // MARK: - Notifications
 
-    /// Once a second: the card before a Meet shows, changes or goes. No card for the meeting Polhub records or
+    /// Once a second: the card before a Meet shows, changes or goes. No card for the meeting hub records or
     /// offers to record: Paul is in it.
     private func updateMeetingCards(now: Date) {
         guard let meetingCards, let agenda, now.timeIntervalSince(meetingCardsLook) >= 1 else { return }
@@ -620,14 +620,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                             meetingCode: model.meetingUnderWay ? model.meetCode : nil)
     }
 
-    /// Shown even when Polhub is in front.
+    /// Shown even when hub is in front.
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
                                             withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         completionHandler([.banner, .list, .sound])
     }
 
     /// A click: « Rejoindre » joins the Meet with the event's account; otherwise the event, the meeting or the
-    /// thread opens. The same as a click in Polhub's own list (`perform`, 15/11).
+    /// thread opens. The same as a click in hub's own list (`perform`, 15/11).
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                             withCompletionHandler completionHandler: @escaping () -> Void) {
         let info = response.notification.request.content.userInfo
@@ -707,7 +707,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         ]
     }
 
-    /// The Accueil is before Paul: Polhub in front, its window shown, on the Accueil. « Le point » is prepared when
+    /// The Accueil is before Paul: hub in front, its window shown, on the Accueil. « Le point » is prepared when
     /// he is back (the first time of a day, or three hours later).
     /// Paul leaves the Accueil: its window showed it, and something else takes his eyes. His absence starts now.
     private func accueilLeft() {
@@ -720,7 +720,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         colin?.seen()
     }
 
-    /// The app is going, by whatever way: the probe under way stops, and every Claude Code that Polhub launched
+    /// The app is going, by whatever way: the probe under way stops, and every Claude Code that hub launched
     /// with it.
     func stopClaude() {
         runner.stopForExit()
@@ -820,18 +820,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                     DiagnosticView(model: diagnostic, colin: probe) { [weak self] in self?.showProbeWindow() }
                 }
             }
-            // Every logo of a project reads it there; without it, initials (15/11). Polhub's own accent, ink, whatever
+            // Every logo of a project reads it there; without it, initials (15/11). hub's own accent, ink, whatever
             // the Mac's (design system v2, 19/11).
             let host = NSHostingController(rootView: view.environment(\.projectLogos, projectLogos).tint(Tint.control.color))
             // Each page's title and toolbar go to the window (14/11).
             host.sceneBridgingOptions = [.title, .toolbars]
             let window = NSWindow(contentViewController: host)
-            window.title = "Polhub"
+            window.title = "hub"
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
             window.setContentSize(NSSize(width: 1_180, height: 720))
             window.isReleasedWhenClosed = false
             window.delegate = self
-            window.setFrameAutosaveName("Polhub.main")
+            window.setFrameAutosaveName("hub.main")
             window.center()
             mainWindow = window
             router.clearHistory()
@@ -904,7 +904,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                 if !on { return RelaunchAgent.disable() }
                 if let problem = RelaunchAgent.enable() { return problem }
                 return LaunchContext.current == .user
-                    ? "Relance activée : Polhub passe sous la garde de macOS. Cette fenêtre va se fermer ; rouvre-la par l'icône de la barre des menus."
+                    ? "Relance activée : hub passe sous la garde de macOS. Cette fenêtre va se fermer ; rouvre-la par l'icône de la barre des menus."
                     : "Relance activée."
             }
         )
@@ -948,7 +948,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         false
     }
 
-    /// ⌘Q, « Quitter Polhub », a logout: during a recording, or with a mail about to leave, Paul is asked first (audit
+    /// ⌘Q, « Quitter hub », a logout: during a recording, or with a mail about to leave, Paul is asked first (audit
     /// of 19/11). An update quits by itself, only when all is quiet, and never comes here.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let question = QuitGuard.question(status: model.status, sending: mails?.isSending ?? false) else { return .terminateNow }
@@ -981,11 +981,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
     /// `code` 0 for a stop the relaunch agent must not undo (it relaunches only after a failure).
     static func alertThenExit(_ text: String, code: Int32 = 2) -> Never {
-        FileHandle.standardError.write(Data("Polhub : \(text)\n".utf8))
+        FileHandle.standardError.write(Data("hub : \(text)\n".utf8))
         // In a script there is nobody to click: the alert is only shown in a real session.
         if ProcessInfo.processInfo.environment["HUB_NO_ALERT"] == nil {
             let alert = NSAlert()
-            alert.messageText = "Polhub : problème au démarrage"
+            alert.messageText = "hub : problème au démarrage"
             alert.informativeText = text
             NSApp.activate()
             alert.runModal()
@@ -995,9 +995,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
     func showProbeWindow() {
         if probeWindow == nil {
-            // Polhub's own accent, ink, as in the main window (design system v2, 19/11).
+            // hub's own accent, ink, as in the main window (design system v2, 19/11).
             let window = NSWindow(contentViewController: NSHostingController(rootView: ProbeWindow(runner: runner).tint(Tint.control.color)))
-            window.title = "Sondes — Polhub"
+            window.title = "Sondes — hub"
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             window.isReleasedWhenClosed = false
             window.delegate = self

@@ -74,7 +74,7 @@ struct ControlsTintProbeTests {
     }
 }
 
-/// The system's buttons' heights, size by size, to match Polhub's own roles to them (lot 3, 19/11).
+/// The system's buttons' heights, size by size, to match hub's own roles to them (lot 3, 19/11).
 @MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["HUB_SONDE_TEINTE"] != nil))
 struct ButtonHeightsProbeTests {
     @Test func theHeights() {

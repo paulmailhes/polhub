@@ -13,9 +13,9 @@ enum MailSettingsText {
     /// Security audit of 19/11, M6: the scope is kept in the app's preferences, which any session with a terminal can write.
     static let agentsHelp = "Une préférence, pas une barrière : une session qui a un terminal peut la changer."
     /// Colin is « en marche », never « allumé »; no word of the code (« la copie », the tools' names) (lot 10, 20/11).
-    static let agentsDetail = "Tes agents Claude Code, et Colin quand il est en marche, lisent tes mails par Polhub, hors spam et corbeille. Ce qu'ils lisent part chez Anthropic. Ils ne peuvent rien envoyer : leurs brouillons t'attendent ici, marqués « préparé par un agent »."
+    static let agentsDetail = "Tes agents Claude Code, et Colin quand il est en marche, lisent tes mails par hub, hors spam et corbeille. Ce qu'ils lisent part chez Anthropic. Ils ne peuvent rien envoyer : leurs brouillons t'attendent ici, marqués « préparé par un agent »."
 
-    /// How Polhub sorts the mails, beside what it remembered of Paul's choices: the « ⓘ » of « Ce que Polhub a retenu ».
+    /// How hub sorts the mails, beside what it remembered of Paul's choices: the « ⓘ » of « Ce que hub a retenu ».
     static var rules: String {
         "La première règle qui répond l'emporte :\n"
             + MailSortingSections.steps.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n")
@@ -27,7 +27,7 @@ enum MailSettingsText {
 }
 
 /// Réglages › Mails (Paul, 15/11: « plus de réglages, des trucs plus fins ») : la liste, la lecture, l'envoi, les agents,
-/// et ce que Polhub a retenu. Les choix suivent ceux de Gmail, sous ses noms.
+/// et ce que hub a retenu. Les choix suivent ceux de Gmail, sous ses noms.
 struct MailSettingsPane: View {
     let mails: MailLibrary?
     @AppStorage(Preferences.Key.mailDensity) private var density = MailDensity.defaut.rawValue
@@ -88,7 +88,7 @@ struct MailSettingsPane: View {
     }
 }
 
-/// Ce que Polhub a retenu de tes choix, expéditeur par expéditeur : chacun s'oublie d'un clic (Paul, 15/11 : « voir un peu
+/// Ce que hub a retenu de tes choix, expéditeur par expéditeur : chacun s'oublie d'un clic (Paul, 15/11 : « voir un peu
 /// comment c'est trié ») ; comment il trie, derrière « ⓘ » (lot 7, 19/11 : plus une section de documentation).
 struct MailSortingSections: View {
     @ObservedObject var mails: MailLibrary
@@ -114,7 +114,7 @@ struct MailSortingSections: View {
         Section {
             let remembered = mails.senders.values.filter { $0.tab != nil || $0.filing != nil || $0.images }.sorted { $0.address < $1.address }
             if remembered.isEmpty {
-                Text("Rien pour l'instant. Quand tu ranges un mail ou que tu affiches toujours ses images, Polhub retient son expéditeur ici.")
+                Text("Rien pour l'instant. Quand tu ranges un mail ou que tu affiches toujours ses images, hub retient son expéditeur ici.")
                     .foregroundStyle(.secondary)
             }
             ForEach(remembered, id: \.address) { row in
@@ -131,7 +131,7 @@ struct MailSortingSections: View {
             }
         } header: {
             HStack(spacing: Space.xs) {
-                Text("Ce que Polhub a retenu")
+                Text("Ce que hub a retenu")
                 InfoBubble(MailSettingsText.rules)
             }
         }

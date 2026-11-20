@@ -5,7 +5,7 @@ import SwiftUI
 /// The three round buttons of « Coup d'œil », as Control Center's toggles: a circle of glass, filled with its color
 /// when it is « on », its name under it. Enregistrer only starts a recording, from rest: a meeting is answered and
 /// stopped in the hero, so Arrêter is never there twice (« Tuiles allégées », Paul, 16/11). Suspendre becomes Reprendre,
-/// lit in Polhub's ink as the hero's Reprendre (design system v2, 19/11), while detection is paused. A gesture leaves
+/// lit in hub's ink as the hero's Reprendre (design system v2, 19/11), while detection is paused. A gesture leaves
 /// the panel open; the hero follows.
 struct PanelButtons: View {
     let context: CoupDoeilContext
@@ -43,7 +43,7 @@ struct PanelButtons: View {
                 context.actions.setDetection(!app.detectionOn)
             }
         } else if app.pausedUntil != nil {
-            // Lit in Polhub's ink, as the hero's Reprendre above it: one action, one color (design system v2, 19/11). A verb
+            // Lit in hub's ink, as the hero's Reprendre above it: one action, one color (design system v2, 19/11). A verb
             // and its object (lot 10, 20/11: « Détection suspendue jusqu'à 16:30 : la reprendre »; the hero says until when).
             RoundToggle(title: "Reprendre", systemImage: "play.fill", lit: true, tint: Tint.accent, help: "Reprendre la détection") {
                 context.actions.resumeDetection()
@@ -56,7 +56,7 @@ struct PanelButtons: View {
     }
 }
 
-/// A round toggle: 44 points of glass, its color when on (Polhub's ink unless told otherwise, design system v2, 19/11),
+/// A round toggle: 44 points of glass, its color when on (hub's ink unless told otherwise, design system v2, 19/11),
 /// its name in 12 points under it.
 struct RoundToggle: View {
     let title: String
@@ -146,7 +146,7 @@ extension EnvironmentValues {
 
 // MARK: - The footer
 
-/// The footer, fixed: « Ouvrir Polhub », the notifications' bell, Réglages and « ⋯ » (Contacts, Diagnostic…, Quitter);
+/// The footer, fixed: « Ouvrir hub », the notifications' bell, Réglages and « ⋯ » (Contacts, Diagnostic…, Quitter);
 /// above them, a grey line while a version waits for a quiet moment.
 struct PanelFooter: View {
     let context: CoupDoeilContext
@@ -164,7 +164,7 @@ struct PanelFooter: View {
             }
             HStack(alignment: .center, spacing: 2) {
                 Button { context.openHome() } label: {
-                    Text("Ouvrir Polhub")
+                    Text("Ouvrir hub")
                         .font(.rowBody.weight(.medium))
                         .padding(.horizontal, Space.s)
                         .padding(.vertical, 7)
@@ -172,7 +172,7 @@ struct PanelFooter: View {
                 .buttonStyle(.hover(.capsule))
                 .foregroundStyle(.primary)
                 .padding(.leading, -Space.s)
-                // Where it goes and its key, as the tiles' (lot 10, 20/11: « Ouvrir la fenêtre de Polhub » said the label
+                // Where it goes and its key, as the tiles' (lot 10, 20/11: « Ouvrir la fenêtre de hub » said the label
                 // again): the Accueil (⌘1), or Réunions without the agenda (`CoupDoeilContext.openHome`).
                 .help(context.agenda != nil
                       ? Words.help("Ouvrir l'Accueil", shortcuts: SidebarItem.home.shortcut.map { [Words.Shortcut.command("\($0)")] } ?? [])
@@ -197,7 +197,7 @@ struct PanelFooter: View {
                     Button("Ouvrir le Diagnostic") { context.actions.showDiagnostic() }
                     Divider()
                     // No key: quitting must never cut a meeting by mistake.
-                    Button("Quitter Polhub") { context.actions.quit() }
+                    Button("Quitter hub") { context.actions.quit() }
                 } label: {
                     Image(systemName: "ellipsis")
                         .font(.system(size: 15, weight: .semibold))

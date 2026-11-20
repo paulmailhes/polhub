@@ -2,15 +2,15 @@ import Foundation
 import Persistence
 import ReadingKit
 
-/// `polhub`: Paul's meetings for the terminal, read-only, and for Claude Code the meetings and the projects
-/// (`polhub mcp`, whose project tools write).
+/// `hub`: Paul's meetings for the terminal, read-only, and for Claude Code the meetings and the projects
+/// (`hub mcp`, whose project tools write).
 let usage = """
 Usage :
-  polhub reunions [--depuis AAAA-MM-JJ] [--limite N]
-  polhub reunion <numéro | début d'id | morceau du titre> [--page N]
-  polhub chercher <texte> [--limite N]
-  polhub mcp            (serveur MCP sur l'entrée et la sortie standard)
-Options : --base <chemin de Polhub.sqlite> ; --colin (avec mcp : le profil de Colin)
+  hub reunions [--depuis AAAA-MM-JJ] [--limite N]
+  hub reunion <numéro | début d'id | morceau du titre> [--page N]
+  hub chercher <texte> [--limite N]
+  hub mcp            (serveur MCP sur l'entrée et la sortie standard)
+Options : --base <chemin de la base> ; --colin (avec mcp : le profil de Colin)
 """
 
 // `--base` and `--colin` (Colin's profile, which the app fixes in the command it launches, 18/11).
@@ -37,7 +37,7 @@ guard FileManager.default.fileExists(atPath: basePath) else { fail("La base des 
 let database: AppDatabase
 do { database = try AppDatabase.forReading(path: basePath) } catch { fail("La base ne s'ouvre pas : \(error)") }
 guard (try? database.isAtStep2()) == true else {
-    fail("La base des réunions n'est pas encore à jour : la dernière version de Polhub doit être ouverte une fois.")
+    fail("La base des réunions n'est pas encore à jour : la dernière version de hub doit être ouverte une fois.")
 }
 let reader = MeetingReader(meetings: MeetingStore(database), transcripts: TranscriptStore(database))
 

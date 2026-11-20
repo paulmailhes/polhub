@@ -14,7 +14,7 @@ public struct MenuBarLabel: Equatable, Sendable {
         case recording
         /// Not sure yet (the prompt's 10 s, a presumed end): the circle in outline.
         case listening
-        /// The app's columns: filled while Polhub watches for meetings, in outline when it does not; the badge when a
+        /// The app's columns: filled while hub watches for meetings, in outline when it does not; the badge when a
         /// recording is at risk.
         case columns(MenuBarGlyph.Style, badge: Bool)
     }
@@ -107,7 +107,7 @@ public struct MenuBarLabel: Equatable, Sendable {
         return image
     }
 
-    /// One line that says what Polhub does now: « Enregistrement », as « Coup d'œil » says it, the clock and the hour by
+    /// One line that says what hub does now: « Enregistrement », as « Coup d'œil » says it, the clock and the hour by
     /// `Words` (lot 10, 20/11).
     public static func statusLine(_ status: RecorderStatus, now: Date) -> String {
         switch status {

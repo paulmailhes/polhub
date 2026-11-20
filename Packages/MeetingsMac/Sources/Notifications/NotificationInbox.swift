@@ -2,10 +2,10 @@ import Combine
 import Foundation
 import HubDesign
 
-// Polhub's own list of the notifications it sent (Paul, 15/11: « un système de notification dans l'outil »): every
+// hub's own list of the notifications it sent (Paul, 15/11: « un système de notification dans l'outil »): every
 // notification macOS showed is kept here too, in a small file outside the base, so Paul finds it again in the app.
 
-/// The part of Polhub a notification belongs to: its color and symbol in the list.
+/// The part of hub a notification belongs to: its color and symbol in the list.
 public enum NoticeSection: String, Sendable {
     case calendar, meetings, mails, polhub
     /// The Accueil: what Colin says (18/11).
@@ -24,7 +24,7 @@ extension PlannedNotice.Kind {
     }
 }
 
-/// What a click on a notification opens, the same from macOS's center and from Polhub's list.
+/// What a click on a notification opens, the same from macOS's center and from hub's list.
 public enum NoticeAction: Equatable, Sendable {
     /// The Meet, with the event's account.
     case join(meetCode: String, account: String)
@@ -62,7 +62,7 @@ public enum NoticeAction: Equatable, Sendable {
     }
 }
 
-/// One notification as Polhub's list keeps it: what macOS showed, and what a click opens.
+/// One notification as hub's list keeps it: what macOS showed, and what a click opens.
 public struct InboxNotice: Codable, Equatable, Identifiable, Sendable {
     public var id: UUID
     /// Shared by the repeats of one kind for one event, meeting or thread: the list keeps one card for them.
@@ -120,7 +120,7 @@ public struct InboxNotice: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
-/// The notifications Polhub sent, newest first: kept 30 days, at most 100, the repeats of one thread or one event
+/// The notifications hub sent, newest first: kept 30 days, at most 100, the repeats of one thread or one event
 /// collapsed into one card. Saved in a small JSON file (no migration of the base); `nil` keeps them in memory.
 @MainActor
 public final class NotificationInbox: ObservableObject {
@@ -203,10 +203,10 @@ public final class NotificationInbox: ObservableObject {
     }
 }
 
-/// The list as the panel shows it: by day (« Aujourd'hui », « Hier »…), and a burst of one part of Polhub (several
+/// The list as the panel shows it: by day (« Aujourd'hui », « Hier »…), and a burst of one part of hub (several
 /// notifications a few minutes apart) stacked into one group, as in macOS's Notification Center.
 public enum NoticeFeed {
-    /// Two notifications of one part of Polhub this close stack together.
+    /// Two notifications of one part of hub this close stack together.
     public static let burstGap: TimeInterval = 10 * 60
 
     public struct Group: Identifiable, Equatable, Sendable {

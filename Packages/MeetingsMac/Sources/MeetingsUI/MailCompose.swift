@@ -439,7 +439,7 @@ extension View {
     }
 }
 
-/// The drafts: Polhub's, then those Gmail holds from elsewhere, on the list's lines and its grid (lot 6, 19/11). A click
+/// The drafts: hub's, then those Gmail holds from elsewhere, on the list's lines and its grid (lot 6, 19/11). A click
 /// takes one up.
 struct MailDraftListView: View {
     @ObservedObject var mails: MailLibrary
@@ -472,7 +472,7 @@ struct MailDraftListView: View {
                             MailDraftLine(account: message.account, color: stripes ? mails.color(for: message.account) : nil,
                                           people: message.to.map { $0.name ?? $0.email }, subject: message.subject, extract: message.snippet, date: message.date,
                                           error: nil, density: density) { mails.resume(message, router: router) }
-                                .help("Reprendre ce brouillon dans Polhub")
+                                .help("Reprendre ce brouillon dans hub")
                         }
                     }
                 }

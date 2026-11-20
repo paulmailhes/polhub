@@ -94,8 +94,8 @@ public final class InspirationLibrary: ObservableObject {
         return nil
     }
 
-    /// The categories' vocabulary of a kind: Polhub's copy of the vault's (brought by the import while there was a
-    /// vault), else the one shipped with Polhub.
+    /// The categories' vocabulary of a kind: hub's copy of the vault's (brought by the import while there was a
+    /// vault), else the one shipped with hub.
     public func vocabulary(_ kind: InspirationKind) -> InspirationVocabulary {
         if let vocabulary = vocabularies[kind] { return vocabulary }
         let vocabulary = InspirationVocabulary.load(kind, paths: paths)
@@ -337,13 +337,13 @@ public final class InspirationLibrary: ObservableObject {
         }
     }
 
-    /// What went wrong, in French (lot 10, 20/11): what failed, why when Polhub knows it, then what to do
-    /// (`Words.problem`), the system's own text kept for the journal of Réglages, never shown. Polhub's own errors
+    /// What went wrong, in French (lot 10, 20/11): what failed, why when hub knows it, then what to do
+    /// (`Words.problem`), the system's own text kept for the journal of Réglages, never shown. hub's own errors
     /// already say it in a sentence of their own (« Pas de connexion à Internet : réessaie plus tard. »), shown as is.
     func text(_ error: any Error, failed: String) -> String {
         let problem = Words.problem(failed, error)
         database.journal(problem)
-        // `journal` is empty for Polhub's own errors only.
+        // `journal` is empty for hub's own errors only.
         if problem.journal == nil, let own = (error as? LocalizedError)?.errorDescription, !own.isEmpty { return own }
         return problem.sentence
     }

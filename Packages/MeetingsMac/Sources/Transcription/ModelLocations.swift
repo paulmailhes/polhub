@@ -1,4 +1,5 @@
 import Foundation
+import Observability
 
 /// Where the models are: downloaded once, with Paul's agreement (13/11/2026), and never by the app. The
 /// production and development versions share them.
@@ -10,7 +11,7 @@ public struct ModelLocations: Sendable {
     }
 
     public static var standard: ModelLocations {
-        ModelLocations(root: URL.applicationSupportDirectory.appending(path: "Polhub/Models", directoryHint: .isDirectory))
+        ModelLocations(root: AppFolders.support(dev: false).appending(path: "Models", directoryHint: .isDirectory))
     }
 
     /// WhisperKit's large-v3-turbo (`argmaxinc/whisperkit-coreml`).

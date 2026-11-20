@@ -37,9 +37,9 @@ import Testing
 
     @Test func aConversationReadsItsMessagesOnTheStandardInput() {
         let arguments = ClaudeCommand(model: "opus", systemPrompt: "x", mcpConfig: "{}",
-                                      allowedTools: ["mcp__polhub__projets", "mcp__polhub__contexte"]).arguments
+                                      allowedTools: ["mcp__hub__projets", "mcp__hub__contexte"]).arguments
         #expect(Array(arguments.prefix(7)) == ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages"])
-        #expect(value(after: "--allowedTools", in: arguments) == "mcp__polhub__projets,mcp__polhub__contexte")
+        #expect(value(after: "--allowedTools", in: arguments) == "mcp__hub__projets,mcp__hub__contexte")
         #expect(value(after: "--mcp-config", in: arguments) == "{}")
         #expect(value(after: "--tools", in: arguments) == "")
         #expect(!arguments.contains("--max-turns"))
@@ -113,14 +113,14 @@ import Testing
     @Test func theServerConfigNamesTheHelperAndItsBase() {
         let json = ClaudeCommand.mcpConfig(helper: URL(fileURLWithPath: "/Applications/Polhub.app/Contents/Helpers/polhub"),
                                            base: URL(fileURLWithPath: "/tmp/essai/Polhub.sqlite"))
-        #expect(json == #"{"mcpServers":{"polhub":{"args":["mcp","--base","/tmp/essai/Polhub.sqlite"],"command":"/Applications/Polhub.app/Contents/Helpers/polhub","type":"stdio"}}}"#)
+        #expect(json == #"{"mcpServers":{"hub":{"args":["mcp","--base","/tmp/essai/Polhub.sqlite"],"command":"/Applications/Polhub.app/Contents/Helpers/polhub","type":"stdio"}}}"#)
     }
 
     @Test func colinsServerIsLaunchedWithItsProfile() throws {
         let json = ClaudeCommand.mcpConfig(helper: URL(fileURLWithPath: "/Applications/Polhub.app/Contents/Helpers/polhub"),
                                            base: URL(fileURLWithPath: "/tmp/essai/Polhub.sqlite"), colin: true)
         let object = try #require(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
-        let server = try #require((object["mcpServers"] as? [String: Any])?["polhub"] as? [String: Any])
+        let server = try #require((object["mcpServers"] as? [String: Any])?["hub"] as? [String: Any])
         #expect(server["args"] as? [String] == ["mcp", "--base", "/tmp/essai/Polhub.sqlite", "--colin"])
     }
 

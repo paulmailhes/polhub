@@ -345,7 +345,7 @@ public final class CaptureEngine: @unchecked Sendable {
             }
 
             step = "tap"
-            let tap = try ProcessTap(target: target, name: "Polhub (autres)")
+            let tap = try ProcessTap(target: target, name: "hub (autres)")
             self.tap = tap
             let tapFormat = try? tap.format()
             let rewriteStatus = tap.rewriteDescription()

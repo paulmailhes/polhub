@@ -1,6 +1,6 @@
 import Foundation
 
-/// The commands embedded in `Polhub.app/Contents/Helpers/` have no Info.plist of their own: their
+/// The commands embedded in `hub.app/Contents/Helpers/` have no Info.plist of their own: their
 /// version is the app's.
 public enum HelperVersion {
     /// `nil` when the helper does not sit in an app's `Contents/Helpers/`.

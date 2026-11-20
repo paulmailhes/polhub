@@ -8,14 +8,14 @@ import Testing
 
 @Suite struct LaunchArgumentsTests {
     @Test func parsesProbeArguments() {
-        #expect(LaunchArguments.parse(["Polhub", "--probe", "tabs", "--seconds", "30", "--variant", "whose", "--quit"])
+        #expect(LaunchArguments.parse(["hub", "--probe", "tabs", "--seconds", "30", "--variant", "whose", "--quit"])
                 == ProbeRequest(probe: .tabs, seconds: 30, variant: "whose", quitWhenDone: true))
-        #expect(LaunchArguments.parse(["Polhub", "--probe", "mic-holders"])
+        #expect(LaunchArguments.parse(["hub", "--probe", "mic-holders"])
                 == ProbeRequest(probe: .micHolders, seconds: 60, variant: nil, quitWhenDone: false))
-        #expect(LaunchArguments.parse(["Polhub", "--probe", "inconnue"]) == nil)
+        #expect(LaunchArguments.parse(["hub", "--probe", "inconnue"]) == nil)
         // The probe of Colin starts from its button only: a command line would skip its guards.
-        #expect(LaunchArguments.parse(["Polhub", "--probe", "colin", "--variant", "/tmp/compte"]) == nil)
-        #expect(LaunchArguments.parse(["Polhub"]) == nil)
+        #expect(LaunchArguments.parse(["hub", "--probe", "colin", "--variant", "/tmp/compte"]) == nil)
+        #expect(LaunchArguments.parse(["hub"]) == nil)
     }
 
     @Test func everyProbeHasAFrenchTitle() {

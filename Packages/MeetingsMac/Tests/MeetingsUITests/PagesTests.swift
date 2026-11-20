@@ -20,7 +20,7 @@ import Testing
         for problem in [missing, damaged, other] {
             #expect(!problem.sentence.contains("meeting.json") && problem.details != problem.sentence)
         }
-        // Nothing recorded at all: Polhub's sentence says it all, no « Détails ».
+        // Nothing recorded at all: hub's sentence says it all, no « Détails ».
         #expect(AudioProblem.silent.sentence == "Aucun son enregistré pour cette réunion." && AudioProblem.silent.details == nil)
     }
 

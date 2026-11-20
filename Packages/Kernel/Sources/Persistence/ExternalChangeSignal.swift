@@ -1,7 +1,7 @@
 import Foundation
 import notify
 
-/// « The base changed »: posted by `polhub mcp` after a write, heard by the app, which then refreshes its
+/// « The base changed »: posted by `hub mcp` after a write, heard by the app, which then refreshes its
 /// views (`AppDatabase.notifyExternalChanges`). A Darwin notification: no payload, no network.
 public enum ExternalChangeSignal {
     public static let name = "fr.paulmailhes.polhub.base-modifiee"

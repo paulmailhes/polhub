@@ -6,7 +6,7 @@ import Persistence
 import HubDesign
 import SwiftUI
 
-/// What Polhub keeps of a project's site and logo, in `Logos/sites.json`, outside the base (15/11).
+/// What hub keeps of a project's site and logo, in `Logos/sites.json`, outside the base (15/11).
 public struct SiteEntry: Codable, Equatable, Sendable {
     public enum Source: String, Codable, Sendable {
         /// Guessed from the contacts: kept to show it, guessed again when they change.
@@ -26,7 +26,7 @@ public struct SiteEntry: Codable, Equatable, Sendable {
     }
 }
 
-/// The site a project's logo comes from, and whether Polhub guessed it.
+/// The site a project's logo comes from, and whether hub guessed it.
 public struct ProjectSite: Equatable, Sendable {
     public let domain: String
     public let guessed: Bool
@@ -46,7 +46,7 @@ struct LogoAttempt: Codable, Equatable, Sendable {
 
 /// The projects' logos (15/11): Paul's own image, else the icon of the project's site, asked lazily, the first time
 /// a logo shows, never for a project Terminé, never with « Logos des sites des clients » off. Files in
-/// `Application Support/Polhub/Logos`: `<domain>.png`, `<project>.png` (Paul's images), `sites.json`, `essais.json`.
+/// `Application Support/hub-board/Logos`: `<domain>.png`, `<project>.png` (Paul's images), `sites.json`, `essais.json`.
 @MainActor
 public final class ProjectLogos: ObservableObject {
     /// Paul's choices, and the guesses shown.

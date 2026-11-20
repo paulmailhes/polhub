@@ -7,7 +7,7 @@ import SwiftUI
 import Testing
 @testable import MeetingsUI
 
-/// Polhub's notification center (15/11), with made-up notifications: `HUB_LIVE=1 HUB_SNAPSHOTS=<dossier> swift test
+/// hub's notification center (15/11), with made-up notifications: `HUB_LIVE=1 HUB_SNAPSHOTS=<dossier> swift test
 /// --filter NotificationCenterScreenTests`. Live, the bell's real popover is captured too, glass included.
 @MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"] != nil))
 struct NotificationCenterScreenTests {
@@ -48,7 +48,7 @@ struct NotificationCenterScreenTests {
                now.addingTimeInterval(-26 * 60))
         record(NotificationPlan.summaryNotice(meetingID: UUID(), title: "Cadrage de la refonte du site", now: now), now.addingTimeInterval(-12 * 60))
         record(PlannedNotice(id: "u1", fireDate: now, title: "Réunion non enregistrée",
-                             body: "« Point hebdo — Atelier Nord » a commencé et Polhub ne l'enregistre pas. Rejoindre ?", eventID: event,
+                             body: "« Point hebdo — Atelier Nord » a commencé et hub ne l'enregistre pas. Rejoindre ?", eventID: event,
                              meetCode: "abc-defg-hij", account: "moi@exemple.fr", kind: .unrecorded), now.addingTimeInterval(-40))
         return inbox
     }

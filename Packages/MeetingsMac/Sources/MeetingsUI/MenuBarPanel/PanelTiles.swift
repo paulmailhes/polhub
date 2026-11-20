@@ -3,7 +3,7 @@ import SwiftUI
 
 /// The two tiles of « Coup d'œil », side by side, always in the same place: Calendrier and Mails. « Tuiles allégées »
 /// (Paul, 16/11): Réunions said again what the hero says, Projets gave a count nobody acts on; they left. Their words
-/// change with the moment (`PanelModel.Tile`); a click opens the page and Polhub's window.
+/// change with the moment (`PanelModel.Tile`); a click opens the page and hub's window.
 struct PanelTiles: View {
     let context: CoupDoeilContext
     let calendar: PanelModel.Tile

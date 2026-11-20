@@ -3,7 +3,7 @@ import Foundation
 import GoogleKit
 import Persistence
 
-/// The events the agents ask for (`rendez_vous`, Paul's item 5, 16/11). `polhub mcp` has no network: it leaves a
+/// The events the agents ask for (`rendez_vous`, Paul's item 5, 16/11). `hub mcp` has no network: it leaves a
 /// request (`AgentEventFiles`) and the app makes the event with the editor's own code (`CalendarWrite.insertRequest`),
 /// in the agenda asked or Paul's default one, never with a guest (Google then invites nobody), marked « préparé par
 /// un agent » in its description. Each request is answered, made or refused with its reason. The development build
@@ -27,17 +27,17 @@ public struct AgentEventMaker: Sendable {
     }
 
     /// The last line of the description of an event an agent made.
-    public static let mark = "— Préparé par un agent dans Polhub."
+    public static let mark = "— Préparé par un agent dans hub."
 
     struct Refusal: Error, CustomStringConvertible {
         let description: String
         init(_ description: String) { self.description = description }
     }
 
-    /// Google took the request, but Polhub could not confirm the event: it may exist (review of 16/11).
+    /// Google took the request, but hub could not confirm the event: it may exist (review of 16/11).
     struct Unsure: Error, CustomStringConvertible {
         let reason: String
-        var description: String { "\(reason) : le rendez-vous a peut-être été créé ; Polhub relit l'agenda, regarde `agenda` dans une minute avant de redemander" }
+        var description: String { "\(reason) : le rendez-vous a peut-être été créé ; hub relit l'agenda, regarde `agenda` dans une minute avant de redemander" }
     }
 
     /// One pass: the events made, and whether one may have been made unseen (the app then reads the agendas again).
@@ -96,7 +96,7 @@ public struct AgentEventMaker: Sendable {
     }
 
     func make(_ request: AgentEventRequest) async throws -> CalendarEventRow {
-        guard flavor == .prod else { throw Refusal("la version de développement de Polhub n'écrit jamais dans un vrai agenda") }
+        guard flavor == .prod else { throw Refusal("la version de développement de hub n'écrit jamais dans un vrai agenda") }
         guard now().timeIntervalSince(request.createdAt) <= AgentEventFiles.maximumAge else {
             throw Refusal("demande trop ancienne : l'agent n'attendait plus la réponse")
         }
@@ -121,7 +121,7 @@ public struct AgentEventMaker: Sendable {
             try store.applyGoogle(account: account, changed: [read], cancelled: [], at: now())
             event = read
         } catch {
-            throw Unsure(reason: "Google a reçu la demande, mais Polhub n'a pas pu lire sa réponse (\(error))")
+            throw Unsure(reason: "Google a reçu la demande, mais hub n'a pas pu lire sa réponse (\(error))")
         }
         // Filed as Paul's own gesture: he asked for it, and the loop never moves it. The event is made whatever becomes
         // of its filing: the answer says so.
@@ -135,7 +135,7 @@ public struct AgentEventMaker: Sendable {
     static func reason(_ error: URLError) -> any Error & CustomStringConvertible {
         switch error.code {
         case .notConnectedToInternet, .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed, .dataNotAllowed, .internationalRoamingOff:
-            Refusal("Polhub est hors ligne : Google n'a pas pu être joint")
+            Refusal("hub est hors ligne : Google n'a pas pu être joint")
         default:
             Unsure(reason: "la connexion à Google s'est coupée")
         }
@@ -144,9 +144,9 @@ public struct AgentEventMaker: Sendable {
     /// The agenda asked, if it is one of Paul's; else the default one, the last used, a work agenda rather than the
     /// personal one, the first (as the editor chooses).
     func agenda(_ asked: String?, among accounts: [String]) throws -> String {
-        guard !accounts.isEmpty else { throw Refusal("aucun agenda Google n'est connecté à Polhub") }
+        guard !accounts.isEmpty else { throw Refusal("aucun agenda Google n'est connecté à hub") }
         if let asked = asked?.trimmingCharacters(in: .whitespaces).lowercased(), !asked.isEmpty {
-            guard accounts.contains(asked) else { throw Refusal("« \(asked) » n'est pas un agenda connecté à Polhub (\(accounts.joined(separator: ", ")))") }
+            guard accounts.contains(asked) else { throw Refusal("« \(asked) » n'est pas un agenda connecté à hub (\(accounts.joined(separator: ", ")))") }
             return asked
         }
         let settings = settings()

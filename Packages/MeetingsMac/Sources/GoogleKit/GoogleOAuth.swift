@@ -29,7 +29,7 @@ public enum GoogleError: Error, Equatable, CustomStringConvertible {
         case .noKey: "la clé Google n'est pas encore en place (scripts/configurer-google.command)"
         case .badKey: "la clé Google n'est pas une clé « application de bureau »"
         case .refused("admin_policy_enforced"):
-            "l'administrateur de ce compte bloque Polhub : il doit l'approuver dans la console d'administration Google (Sécurité › Commandes des API)"
+            "l'administrateur de ce compte bloque hub : il doit l'approuver dans la console d'administration Google (Sécurité › Commandes des API)"
         case .refused("access_denied"): "l'autorisation a été refusée ou annulée ; rien n'a changé"
         case .refused(let reason): "Google a refusé la connexion (\(reason))"
         case .badAnswer: "réponse de Google illisible"
@@ -90,7 +90,7 @@ extension GoogleError: LocalizedError {
         switch self {
         case .noKey: "la clé Google n'est pas encore en place"
         case .badKey: "la clé Google n'est pas une clé « application de bureau »"
-        case .refused("admin_policy_enforced"): "l'administrateur de ce compte bloque Polhub"
+        case .refused("admin_policy_enforced"): "l'administrateur de ce compte bloque hub"
         case .refused("access_denied"): "l'autorisation a été refusée ou annulée"
         case .refused(let reason): "Google a refusé la connexion (\(reason))"
         case .badAnswer: "la réponse de Google est illisible"
@@ -110,7 +110,7 @@ extension GoogleError: LocalizedError {
     /// `nil`: « Réessaie. ».
     public var recoverySuggestion: String? {
         switch self {
-        case .noKey: "Lance « configurer-google.command », dans le dossier scripts de Polhub."
+        case .noKey: "Lance « configurer-google.command », dans le dossier scripts de hub."
         case .badKey: "Crée une clé « application de bureau » dans la console Google."
         case .refused("admin_policy_enforced"): "Il doit l'approuver dans la console d'administration Google (Sécurité › Commandes des API)."
         case .refused("access_denied"): "Rien n'a changé."
@@ -119,13 +119,13 @@ extension GoogleError: LocalizedError {
         case .missingScope(.gmailModify): "Autorise les mails dans Réglages › Comptes Google."
         case .notOrganizer: "Demande à l'organisateur de le modifier."
         case .rateLimited: "Réessaie dans un instant."
-        case .readOnlyBuild: "Fais-le dans Polhub installé."
+        case .readOnlyBuild: "Fais-le dans hub installé."
         case .badAnswer, .http, .timeout, .notFound: nil
         }
     }
 }
 
-/// The key of the « Polhub » Google project, a desktop app: never in the repository, never shown. The file gives the
+/// The key of the « hub » Google project, a desktop app: never in the repository, never shown. The file gives the
 /// client's identifier and secret only; where the browser and the tokens go is written here (audit of 19/11): a
 /// program that rewrites the file cannot send a refresh token to its own server, nor open a consent page of its own.
 public struct GoogleClientConfig: Sendable {
@@ -185,7 +185,7 @@ public struct GoogleTokens: Sendable {
     public var scope: String? = nil
 }
 
-/// What Polhub asks an account for: its calendar, its mails (14/11).
+/// What hub asks an account for: its calendar, its mails (14/11).
 public enum GoogleScope: String, Sendable, CaseIterable, Hashable {
     /// Events in read and write.
     case calendarEvents = "https://www.googleapis.com/auth/calendar.events"
@@ -194,7 +194,7 @@ public enum GoogleScope: String, Sendable, CaseIterable, Hashable {
 }
 
 public enum GoogleOAuth {
-    /// Events in read and write (14/11: Paul creates and changes his events from Polhub).
+    /// Events in read and write (14/11: Paul creates and changes his events from hub).
     public static let scopes = scopeText([.calendarEvents])
     static let writeScope = GoogleScope.calendarEvents.rawValue
 
@@ -293,7 +293,7 @@ public enum GoogleOAuth {
 public enum GoogleHTTP {
     public typealias Fetch = @Sendable (URLRequest) async throws -> (Data, Int)
 
-    /// Polhub's own session for Google: no cache and no cookie. `URLSession.shared` wrote Gmail's answers (a mail's
+    /// hub's own session for Google: no cache and no cookie. `URLSession.shared` wrote Gmail's answers (a mail's
     /// body, a spam's) to `Caches/fr.paulmailhes.polhub/Cache.db` and `fsCachedData` (security review of wave B).
     public static let session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
@@ -355,8 +355,8 @@ public final class LoopbackReceiver: @unchecked Sendable {
             let text = String(decoding: data ?? Data(), as: UTF8.self)
             let line = text.components(separatedBy: "\r\n").first ?? ""
             let page = """
-            <!doctype html><html lang="fr"><meta charset="utf-8"><title>Polhub</title>
-            <body style="font: 16px -apple-system; padding: 48px">Polhub est connecté à ce compte Google. Tu peux fermer cet onglet.</body></html>
+            <!doctype html><html lang="fr"><meta charset="utf-8"><title>hub</title>
+            <body style="font: 16px -apple-system; padding: 48px">hub est connecté à ce compte Google. Tu peux fermer cet onglet.</body></html>
             """
             let response = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: \(page.utf8.count)\r\nConnection: close\r\n\r\n\(page)"
             connection.send(content: Data(response.utf8), completion: .contentProcessed { _ in connection.cancel() })
@@ -411,7 +411,7 @@ public protocol TokenVault: Sendable {
     func remove(for email: String)
 }
 
-/// The login Keychain: one item per account, readable only by Polhub.
+/// The login Keychain: one item per account, readable only by hub.
 public struct KeychainVault: TokenVault {
     public static let service = "fr.paulmailhes.polhub.google"
 

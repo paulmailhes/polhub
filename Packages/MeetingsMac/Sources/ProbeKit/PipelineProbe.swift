@@ -29,7 +29,7 @@ public struct PipelineProbe: Probe {
         let paths = AppPaths(root: directory, logs: directory)
         let store: MeetingStore
         do {
-            store = MeetingStore(try AppDatabase(path: directory.appending(path: "Polhub.sqlite").path))
+            store = MeetingStore(try AppDatabase(path: directory.appending(path: AppPaths.databaseFileName).path))
         } catch {
             await note("base", "\(error)")
             return

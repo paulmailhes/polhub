@@ -139,7 +139,7 @@ struct ProjectScreen: View {
     }
 }
 
-/// Réunions: what Polhub recorded, newest first; a meeting's summary and its dialogue (lot 4, 20/11).
+/// Réunions: what hub recorded, newest first; a meeting's summary and its dialogue (lot 4, 20/11).
 struct MeetingsScreen: View {
     @Environment(PhoneSession.self) private var session
     @State private var meetings: [LinkMeeting] = []
@@ -242,7 +242,7 @@ struct MeetingScreen: View {
     }
 }
 
-/// A markdown text as Polhub writes it (a summary, Colin's answer): its titles, its lists, its bold words.
+/// A markdown text as hub writes it (a summary, Colin's answer): its titles, its lists, its bold words.
 struct MarkdownBlock: View {
     let text: String
 

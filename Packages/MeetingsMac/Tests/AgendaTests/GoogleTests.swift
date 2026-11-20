@@ -42,7 +42,7 @@ import Testing
         let url = GoogleOAuth.authorizationURL(config: config, redirect: URL(string: "http://127.0.0.1:53682")!, challenge: "c", state: "s")
         let items = Dictionary(uniqueKeysWithValues: (URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []).map { ($0.name, $0.value ?? "") })
         #expect(items["client_id"] == config.clientID && items["redirect_uri"] == "http://127.0.0.1:53682")
-        // 14/11: Paul creates and changes his events from Polhub.
+        // 14/11: Paul creates and changes his events from hub.
         #expect(items["scope"] == "openid email https://www.googleapis.com/auth/calendar.events")
         #expect(items["access_type"] == "offline" && items["prompt"] == "consent")
         #expect(items["code_challenge"] == "c" && items["code_challenge_method"] == "S256" && items["state"] == "s")
@@ -80,7 +80,7 @@ import Testing
         async let line = receiver.nextRequestLine(timeout: 5)
         let (data, _) = try await URLSession.shared.data(from: URL(string: "\(receiver.redirect.absoluteString)/?state=s&code=c")!)
         #expect(try await line.contains("code=c"))
-        #expect(String(decoding: data, as: UTF8.self).contains("Polhub"))
+        #expect(String(decoding: data, as: UTF8.self).contains("hub"))
     }
 }
 
@@ -147,7 +147,7 @@ import Testing
         let old = #"{"items":[{"id":"e1","status":"confirmed","summary":"Ancien titre","start":{"dateTime":"2026-11-20T10:00:00Z"},"end":{"dateTime":"2026-11-20T10:30:00Z"}}]}"#
         try await CalendarSync(fetch: { _ in (Data(old.utf8), 200) }).sync(account: "moi@exemple.fr", accessToken: "a1", store: calendar, now: now)
         let later = now.addingTimeInterval(600)
-        // The next sync reads Google; meanwhile Paul renames e1 and creates e9 from Polhub.
+        // The next sync reads Google; meanwhile Paul renames e1 and creates e9 from hub.
         let sync = CalendarSync(fetch: { _ in
             var renamed = CalendarEventRow(account: "moi@exemple.fr", eventID: "e1", title: "Nouveau titre", startAt: now, endAt: now, updatedAt: now)
             renamed.startAt = ISO8601DateFormatter().date(from: "2026-11-20T10:00:00Z")!

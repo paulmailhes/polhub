@@ -152,7 +152,7 @@ struct RichTextEditor: NSViewRepresentable {
         }
     }
 
-    /// A first click in the editor places the caret even when Polhub is not in front. The wheel goes to the page
+    /// A first click in the editor places the caret even when hub is not in front. The wheel goes to the page
     /// around it: the editor grows with its text and has nothing to scroll (Paul, 17/11: « je ne peux plus scroll »).
     final class EditorWebView: WKWebView {
         override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }

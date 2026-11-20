@@ -3,40 +3,40 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Polhub — Règles de confidentialité</title>
+<title>hub-board — Règles de confidentialité</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <main>
-  <p><a href="index.html">← Polhub</a></p>
+  <p><a href="index.html">← hub-board</a></p>
   <h1>Règles de confidentialité</h1>
   <p class="meta">En vigueur le 18 novembre 2026.</p>
 
-  <p>Polhub est une application macOS installée sur l'ordinateur de son utilisateur. Elle n'a pas de serveur :
-  l'éditeur de Polhub ne reçoit, ne voit et ne stocke aucune donnée de ses utilisateurs.</p>
+  <p>hub est une application macOS installée sur l'ordinateur de son utilisateur. Elle n'a pas de serveur :
+  l'éditeur de hub ne reçoit, ne voit et ne stocke aucune donnée de ses utilisateurs.</p>
 
   <h2>Données Google utilisées</h2>
-  <p>Quand l'utilisateur connecte un compte Google, Polhub demande ces autorisations :</p>
+  <p>Quand l'utilisateur connecte un compte Google, hub demande ces autorisations :</p>
   <ul>
     <li><code>openid</code> et <code>email</code> : l'adresse du compte, pour savoir quel compte est connecté ;</li>
     <li><code>calendar.events</code> : les rendez-vous de l'agenda principal (titre, horaires, lieu, lien Google
     Meet, organisateur, invités et leurs réponses), en lecture, et en écriture pour ceux que l'utilisateur crée,
-    modifie ou supprime dans Polhub, ou qu'il demande à un assistant qu'il a branché (voir plus bas) ;</li>
+    modifie ou supprime dans hub, ou qu'il demande à un assistant qu'il a branché (voir plus bas) ;</li>
     <li><code>gmail.modify</code>, seulement si l'utilisateur clique « Autoriser les mails » pour ce compte : les
-    messages de cette boîte (en-têtes, contenu, pièces jointes), pour les lire et les afficher dans Polhub ; pour
+    messages de cette boîte (en-têtes, contenu, pièces jointes), pour les lire et les afficher dans hub ; pour
     les marquer, les archiver, les mettre à la corbeille ou les signaler comme spam quand l'utilisateur le fait
     lui-même ; pour enregistrer ses brouillons et envoyer les messages qu'il écrit, quand il clique « Envoyer » ;
     pour lire le nom et la signature de la boîte, posés sous ses messages comme dans Gmail. Jamais de suppression
     définitive. L'agenda fonctionne sans cette autorisation.</li>
   </ul>
-  <p>Polhub crée, modifie ou supprime un rendez-vous quand l'utilisateur le fait dans l'application ; Google
+  <p>hub crée, modifie ou supprime un rendez-vous quand l'utilisateur le fait dans l'application ; Google
   envoie alors les invitations comme d'habitude. Il crée aussi un rendez-vous quand l'utilisateur le demande à
   un assistant qu'il a branché, sans aucun invité (voir « Assistants branchés par l'utilisateur ») ; il ne
   modifie ni ne supprime jamais un rendez-vous pour un assistant. De même, il n'archive et ne met un message
-  à la corbeille que sur un geste de l'utilisateur. Polhub ne touche à rien d'autre dans le compte Google.</p>
-  <p>Sur les boîtes autorisées, Polhub lit les messages pour les afficher, et en garde une copie sur le Mac. Cette
+  à la corbeille que sur un geste de l'utilisateur. hub ne touche à rien d'autre dans le compte Google.</p>
+  <p>Sur les boîtes autorisées, hub lit les messages pour les afficher, et en garde une copie sur le Mac. Cette
   copie suit Gmail : ce qui disparaît là-bas disparaît ici. Un brouillon est enregistré sur le Mac, puis dans Gmail,
-  pour que l'utilisateur le retrouve sur ses autres appareils. Polhub n'envoie un message que lorsque l'utilisateur
+  pour que l'utilisateur le retrouve sur ses autres appareils. hub n'envoie un message que lorsque l'utilisateur
   clique « Envoyer », et lui laisse dix secondes pour annuler.</p>
 
   <h2>Usage</h2>
@@ -52,7 +52,7 @@
     Mac de l'utilisateur. Les messages des boîtes autorisées y sont copiés aussi ; leur contenu et les pièces
     jointes que l'utilisateur ouvre sont rangés en fichiers à côté de cette base, sur le même Mac.</li>
     <li>Le jeton d'accès au compte Google est conservé dans le Trousseau de macOS. Il n'est jamais écrit ailleurs.
-    Polhub ne lit ni ne copie la connexion de Claude Code.</li>
+    hub ne lit ni ne copie la connexion de Claude Code.</li>
     <li>Rien n'est envoyé à un serveur de l'éditeur ni à un tiers. Les seules connexions réseau vont aux services de
     Google, pour lire les agendas et les boîtes autorisées et y écrire ce que l'utilisateur fait lui-même ou
     demande à un assistant qu'il a branché, à
@@ -60,10 +60,10 @@
     qu'une nouvelle version de l'application existe (sans aucune donnée de l'utilisateur), et, quand l'utilisateur a
     allumé Colin, à Anthropic, par le programme Claude Code de son Mac (voir « Colin »).</li>
     <li>Première exception : afficher les images distantes d'un message contacte le serveur de son expéditeur, qui
-    voit alors l'adresse IP du Mac et l'heure d'ouverture. Polhub ne les charge que pour les expéditeurs que
+    voit alors l'adresse IP du Mac et l'heure d'ouverture. hub ne les charge que pour les expéditeurs que
     l'utilisateur connaît (ses contacts, les personnes à qui il a écrit) quand Gmail confirme l'origine du message,
     ou quand l'utilisateur le demande. Un clic sur un lien d'un message ouvre le navigateur de l'utilisateur.</li>
-    <li>Seconde exception : quand l'utilisateur demande à se désabonner d'une liste de diffusion, Polhub suit ce que
+    <li>Seconde exception : quand l'utilisateur demande à se désabonner d'une liste de diffusion, hub suit ce que
     l'expéditeur indique dans son message. Il envoie la demande de désabonnement à l'adresse de l'expéditeur, sans
     cookie ni autre donnée, si le message est authentifié par Gmail. Sinon, il prépare un mail de désinscription que
     l'utilisateur envoie lui-même, ou il ouvre la page de l'expéditeur dans le navigateur. Le domaine concerné est
@@ -71,24 +71,24 @@
   </ul>
 
   <h2>Assistants branchés par l'utilisateur</h2>
-  <p>Polhub propose un serveur local (protocole MCP) que l'utilisateur peut brancher lui-même sur un assistant
+  <p>hub propose un serveur local (protocole MCP) que l'utilisateur peut brancher lui-même sur un assistant
   d'intelligence artificielle installé sur son Mac, comme Claude Code. Dans ce cas, et seulement à la demande de
   l'utilisateur, cet assistant peut lire les projets, les contacts, les rendez-vous et la copie locale des mails
-  de Polhub (hors spam et corbeille, ou seulement les mails rangés dans un projet si l'utilisateur le choisit), et
+  de hub (hors spam et corbeille, ou seulement les mails rangés dans un projet si l'utilisateur le choisit), et
   les transmettre au service de son éditeur selon les conditions de cet assistant. En dehors de Colin, quand
-  l'utilisateur l'a allumé (voir plus bas), Polhub ne le fait jamais de lui-même.</p>
+  l'utilisateur l'a allumé (voir plus bas), hub ne le fait jamais de lui-même.</p>
   <p>Un assistant peut aussi préparer un brouillon de mail, et y joindre des fichiers du Mac que l'utilisateur lui
-  désigne. Le serveur de Polhub qu'il utilise n'a ni accès au réseau ni jeton Google : le brouillon est déposé dans
-  Polhub, marqué « préparé par un agent ». Il ne devient un
+  désigne. Le serveur de hub qu'il utilise n'a ni accès au réseau ni jeton Google : le brouillon est déposé dans
+  hub, marqué « préparé par un agent ». Il ne devient un
   brouillon Gmail que lorsque l'utilisateur le modifie, et seul l'utilisateur peut l'envoyer.</p>
   <p>À la demande de l'utilisateur, un assistant peut aussi demander un rendez-vous. Ce même serveur, toujours sans
-  réseau, laisse la demande à l'application Polhub, qui crée le rendez-vous dans l'agenda Google choisi, marqué
+  réseau, laisse la demande à l'application hub, qui crée le rendez-vous dans l'agenda Google choisi, marqué
   « préparé par un agent » dans sa description. Il n'y a jamais d'invité : un assistant ne peut inviter
   personne.</p>
 
   <h2>Colin</h2>
-  <p>Colin est l'agent de l'Accueil de Polhub. Il est à l'arrêt tant que l'utilisateur ne l'allume pas, dans
-  Réglages › Colin. Allumé, il répond à ce que l'utilisateur lui écrit : Polhub lance alors le programme Claude Code
+  <p>Colin est l'agent de l'Accueil de hub. Il est à l'arrêt tant que l'utilisateur ne l'allume pas, dans
+  Réglages › Colin. Allumé, il répond à ce que l'utilisateur lui écrit : hub lance alors le programme Claude Code
   que l'utilisateur a installé et connecté sur son Mac, qui transmet à Anthropic, selon les conditions du compte
   Claude de l'utilisateur, le message de l'utilisateur, le texte « Ce que Colin sait » qu'il a écrit, leurs
   derniers échanges, les lignes de l'Accueil, et ce que Colin lit pour répondre par le même serveur local, sans
@@ -100,7 +100,7 @@
   ces textes servent ou non à améliorer les modèles d'Anthropic dépend du réglage du compte Claude de l'utilisateur ;
   les règles d'utilisation des données de Google demandent qu'ils ne servent pas à entraîner un modèle.</p>
   <p>Si l'application Vigie est installée sur le même Mac, l'Accueil affiche l'usage de chaque compte Claude (la part
-  de la semaine et des cinq heures consommée) : Polhub le lit chez Vigie, sur ce Mac, avec un jeton de lecture seule
+  de la semaine et des cinq heures consommée) : hub le lit chez Vigie, sur ce Mac, avec un jeton de lecture seule
   que Vigie lui réserve. Rien de cette lecture ne quitte la machine.</p>
 
   <h2>Partage</h2>
@@ -113,7 +113,7 @@
 
   <h2>Contrôle et suppression</h2>
   <ul>
-    <li>Dans Polhub, « Déconnecter ce compte » retire le jeton du Trousseau et efface les rendez-vous et les
+    <li>Dans hub, « Déconnecter ce compte » retire le jeton du Trousseau et efface les rendez-vous et les
     messages de ce compte.</li>
     <li>L'accès peut aussi être révoqué à tout moment depuis la page
     <a href="https://myaccount.google.com/permissions">Applications tierces</a> du compte Google.</li>
@@ -121,7 +121,7 @@
   </ul>
 
   <h2>Contact</h2>
-  <p>Questions et demandes : <a href="https://github.com/paulmailhes/polhub/issues">github.com/paulmailhes/polhub/issues</a>.</p>
+  <p>Questions et demandes : <a href="https://github.com/paulmailhes/hub-board/issues">github.com/paulmailhes/hub-board/issues</a>.</p>
 </main>
 </body>
 </html>

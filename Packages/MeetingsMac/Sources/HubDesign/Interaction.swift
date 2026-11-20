@@ -1,6 +1,6 @@
 import SwiftUI
 
-// Polhub's interaction layer (15/11): everything clickable answers the pointer and the press, and nothing moves
+// hub's interaction layer (15/11): everything clickable answers the pointer and the press, and nothing moves
 // in the layout when it does. The rules are in docs/design-system.md, « L'interaction ». `.hoverEffect` does not
 // exist on macOS: every hover here comes from `onHover`.
 

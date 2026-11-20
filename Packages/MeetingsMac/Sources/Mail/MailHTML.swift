@@ -130,7 +130,7 @@ public enum MailHTML {
       // keeping its hue. Images stay as they are, and so does what sits on a background image.
       function darken() {
         if (body.getAttribute('data-dark') !== '1') return;
-        // Only the mail's own tags count: Polhub's page says « dark » in its head, the mail sits in the body.
+        // Only the mail's own tags count: hub's page says « dark » in its head, the mail sits in the body.
         var own = body.querySelector('meta[name="color-scheme"][content*="dark"],meta[name="supported-color-schemes"][content*="dark"]');
         var styles = body.querySelectorAll('style');
         for (var i = 0; i < styles.length && !own; i++) if (/prefers-color-scheme\s*:\s*dark/i.test(styles[i].textContent)) own = styles[i];

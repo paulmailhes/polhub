@@ -1,7 +1,7 @@
 import HubLink
 import SwiftUI
 
-/// Polhub on the iPhone (20/11): Paul's mails, calendar, projects and meetings, read from his Mac by his Tailscale
+/// hub on the iPhone (20/11): Paul's mails, calendar, projects and meetings, read from his Mac by his Tailscale
 /// network. The QR code of Réglages › iPhone on the Mac pairs it.
 @main
 struct HubPhoneApp: App {
@@ -114,9 +114,9 @@ struct PairingScreen: View {
         VStack(spacing: 24) {
             Spacer()
             Image(systemName: "laptopcomputer.and.iphone").font(.system(size: 56)).foregroundStyle(.secondary)
-            Text("Relie Polhub à ton Mac").font(.title2.weight(.semibold))
+            Text("Relie hub à ton Mac").font(.title2.weight(.semibold))
             VStack(alignment: .leading, spacing: 12) {
-                Label("Sur le Mac, ouvre Polhub › Réglages › iPhone, puis « Relier un iPhone ».", systemImage: "1.circle")
+                Label("Sur le Mac, ouvre hub › Réglages › iPhone, puis « Relier un iPhone ».", systemImage: "1.circle")
                 Label("Scanne le code avec l'appareil photo de cet iPhone.", systemImage: "2.circle")
             }
             .padding(.horizontal)

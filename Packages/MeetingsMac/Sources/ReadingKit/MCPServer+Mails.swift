@@ -8,7 +8,7 @@ extension MCPServer {
     static var mailFilingTools: [[String: Any]] { [
         [
             "name": fileThreadTool, "title": "Ranger un fil",
-            "description": "Range un fil dans une case, comme le clic de Paul sur sa case, quand Paul le demande : un projet, Perso, Newsletters, Paiements ou Services, ou « aucun » pour lui retirer sa case. Dans Polhub seulement : rien ne change dans Gmail, rien n'est archivé ni supprimé, et les prochains mails de l'expéditeur ne suivent pas. La réponse nomme le fil et sa nouvelle case.",
+            "description": "Range un fil dans une case, comme le clic de Paul sur sa case, quand Paul le demande : un projet, Perso, Newsletters, Paiements ou Services, ou « aucun » pour lui retirer sa case. Dans hub seulement : rien ne change dans Gmail, rien n'est archivé ni supprimé, et les prochains mails de l'expéditeur ne suivent pas. La réponse nomme le fil et sa nouvelle case.",
             "inputSchema": ["type": "object", "required": ["quel", "projet"], "properties": [
                 "quel": ["type": "string", "description": "L'identifiant du fil donné par `mails` (entre crochets), ou des mots de son objet."],
                 "projet": ["type": "string", "description": "Le nom du projet (outil `projets`, casse et accents ignorés), ou « Perso », « Newsletters », « Paiements », « Services », ou « aucun »."],
@@ -20,16 +20,16 @@ extension MCPServer {
     /// `brouillon`'s two parameters of 16/11, added to its schema in `mailTools`.
     static var draftFileProperties: [String: Any] { [
         "fichiers": ["type": "array", "items": ["type": "string"],
-                     "description": "Seulement quand Paul l'a demandé : les fichiers du Mac à joindre, par leur chemin complet (/Users/…). 10 au plus, 25 Mo en tout ; jamais un fichier caché (un worktree de Claude Code, <projet>/.claude/worktrees/…, est permis), un trousseau, un fichier de la Bibliothèque (~/Library, sauf iCloud Drive et les Drive de ~/Library/CloudStorage) ni une pièce jointe gardée par Polhub (Paul la joint depuis le fil). Polhub les copie : le brouillon garde ce qui a été joint."],
+                     "description": "Seulement quand Paul l'a demandé : les fichiers du Mac à joindre, par leur chemin complet (/Users/…). 10 au plus, 25 Mo en tout ; jamais un fichier caché (un worktree de Claude Code, <projet>/.claude/worktrees/…, est permis), un trousseau, un fichier de la Bibliothèque (~/Library, sauf iCloud Drive et les Drive de ~/Library/CloudStorage) ni une pièce jointe gardée par hub (Paul la joint depuis le fil). hub les copie : le brouillon garde ce qui a été joint."],
         "format": ["type": "string", "enum": ["texte", "markdown"],
-                   "description": "« texte » (par défaut) ou « markdown » : **gras**, *italique*, listes « - » et « 1. », liens [texte](https://…), paragraphes. Rien d'autre (ni titre, ni image, ni HTML) : Polhub fait le mail mis en forme lui-même."],
+                   "description": "« texte » (par défaut) ou « markdown » : **gras**, *italique*, listes « - » et « 1. », liens [texte](https://…), paragraphes. Rien d'autre (ni titre, ni image, ni HTML) : hub fait le mail mis en forme lui-même."],
     ] }
 
     /// `brouillon`'s parameters of 17/11: a draft the agents prepared, changed or deleted by its identifier.
     static var draftChangeProperties: [String: Any] { [
         "identifiant": ["type": "string",
                         "description": "Pour changer un brouillon déjà préparé par un agent, au lieu d'en déposer un autre : son identifiant (donné par cet outil quand il l'a déposé, ou par `mails` avec « brouillons »). Seul ce qui est donné change : « texte » (en entier, et « format »), « objet », « a », « cc » ; les « fichiers » s'ajoutent. Si Paul l'a retouché, relis-le d'abord (`mails` avec « brouillons ») et repars de son texte. Jamais un brouillon écrit par Paul."],
-        "supprimer": ["type": "boolean", "description": "Avec « identifiant » : supprime ce brouillon (dans Polhub et dans Gmail), quand Paul le demande."],
+        "supprimer": ["type": "boolean", "description": "Avec « identifiant » : supprime ce brouillon (dans hub et dans Gmail), quand Paul le demande."],
     ] }
 
     /// `brouillon`: a reply or a new mail, its files and its format; or, by its identifier, a change or a deletion.
@@ -43,7 +43,7 @@ extension MCPServer {
         case nil: format = nil
         case "texte", "text", "plain": format = .plain
         case "markdown": format = .markdown
-        case let other?: throw ToolError("« format » attend « texte » ou « markdown », pas « \(other) ». Pas de HTML : Polhub fait le mail mis en forme lui-même.")
+        case let other?: throw ToolError("« format » attend « texte » ou « markdown », pas « \(other) ». Pas de HTML : hub fait le mail mis en forme lui-même.")
         }
         if let which = Self.text(arguments["identifiant"]) {
             let ignored = ["quel", "tous", "boite"].filter { arguments[$0] != nil }

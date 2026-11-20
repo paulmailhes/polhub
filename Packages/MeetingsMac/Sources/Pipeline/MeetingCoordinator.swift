@@ -307,10 +307,10 @@ public final class MeetingCoordinator {
             // During a meeting the recording does not need the tabs: a pop-up would only alarm.
             if current != nil {
                 tabsAlertPending = true
-                journal(.alert, "Polhub ne lit plus les onglets de Dia (la réunion en cours s'enregistre normalement).")
+                journal(.alert, "hub ne lit plus les onglets de Dia (la réunion en cours s'enregistre normalement).")
             } else {
                 presenter?.show(.tabsUnreadable)
-                journal(.alert, "Polhub ne lit plus les onglets de Dia : les réunions sont détectées par le micro seul.")
+                journal(.alert, "hub ne lit plus les onglets de Dia : les réunions sont détectées par le micro seul.")
             }
 
         case .alert(.tabsReadableAgain):
@@ -353,7 +353,7 @@ public final class MeetingCoordinator {
         do {
             recorder = try recorders.make(folder: folder, mode: source)
         } catch {
-            // Polhub's words on the screen, the system's text in the journal (lot 10, 20/11).
+            // hub's words on the screen, the system's text in the journal (lot 10, 20/11).
             presenter?.show(.trackFailed(Words.problem("L'enregistrement ne démarre pas", error).sentence))
             journal(.alert, "L'enregistrement de « \(row.title) » n'a pas démarré : \(error.localizedDescription)")
             return

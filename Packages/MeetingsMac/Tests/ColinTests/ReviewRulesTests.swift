@@ -208,7 +208,7 @@ import Testing
 
     @Test func aMessageThatCameWhilePaulClickedBringsTheLineBack() {
         // Paul sets aside what he sees: Marc's mail of four days ago. Marc had written again an hour before the
-        // click, and Polhub only read it after: that message is newer than what Paul saw.
+        // click, and hub only read it after: that message is newer than what Paul saw.
         let seen = thread([sent(10), received(Self.marc, 4)])
         let aside = ColinDismissalRow(kind: "reply", subject: seen.id, reason: .notNeeded, createdAt: now, lastMessageAt: ago(4))
         #expect(replies([seen], dismissed: [aside]).isEmpty)
@@ -510,7 +510,7 @@ import Testing
                                             thresholds: thresholds, calendar: calendar).count == 1)
     }
 
-    /// A reply begun in Gmail, on the phone or the web, is a draft too: Polhub knows it as a message of Gmail's.
+    /// A reply begun in Gmail, on the phone or the web, is a draft too: hub knows it as a message of Gmail's.
     @Test func aDraftBegunInGmailIsTheirLineToo() {
         let (threads, messages) = marcWaits
         func gmail(_ to: String, daysAgo: Double) -> MailMessageRow {

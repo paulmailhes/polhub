@@ -91,7 +91,7 @@ import Testing
     var states: [ItemState] = []
 }
 
-/// Lot 10 (20/11): a problem's screen says Polhub's words; the system's own go to the journal of Réglages.
+/// Lot 10 (20/11): a problem's screen says hub's words; the system's own go to the journal of Réglages.
 @Suite struct ProblemJournalTests {
     @Test func theSystemsWordsGoToTheJournal() throws {
         let database = try AppDatabase.inMemory()

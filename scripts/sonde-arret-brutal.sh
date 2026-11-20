@@ -6,10 +6,10 @@
 set -u
 
 N="${1:-50}"
-BIN="build/Polhub.app/Contents/MacOS/Polhub"
+BIN="build/hub.app/Contents/MacOS/hub"
 [ -x "$BIN" ] || { echo "Introuvable : $BIN (lancer « make app »)"; exit 1; }
 
-ROOT="$HOME/Library/Application Support/Polhub/Mesures"
+ROOT="$HOME/Library/Application Support/hub-board/Mesures"
 losses=()
 
 for i in $(seq 1 "$N"); do

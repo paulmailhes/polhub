@@ -7,9 +7,9 @@
 # Efface les dossiers de traces qu'il a lui-même créés.
 set -u
 
-BIN="build/Polhub.app/Contents/MacOS/Polhub"
+BIN="build/hub.app/Contents/MacOS/hub"
 [ -x "$BIN" ] || { echo "Introuvable : $BIN (lancer « make app »)"; exit 1; }
-ROOT="$HOME/Library/Application Support/Polhub/Mesures"
+ROOT="$HOME/Library/Application Support/hub-board/Mesures"
 JOURNAL="$ROOT/lancements.jsonl"
 export HUB_NO_ALERT=1
 failures=0

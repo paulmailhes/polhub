@@ -97,7 +97,7 @@ struct PairingCode: View {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(link.absoluteString, forType: .string)
                     }
-                    .help("Copier le lien, à coller dans Polhub sur l'iPhone")
+                    .help("Copier le lien, à coller dans hub sur l'iPhone")
                     Button("Fermer", action: done)
                 }
                 Text(PhoneSettingsText.paste).font(.meta).foregroundStyle(.secondary)
@@ -141,13 +141,13 @@ enum PhoneSettingsText {
     static func copied(_ date: Date, now: Date = Date()) -> String { "Dernière copie \(Words.ago(date, now: now))" }
 
     static let accessHelp = "Ton iPhone lit tes mails, ton agenda, tes projets et tes réunions quand le Mac est allumé."
-    static let accessDetail = "Par ton réseau Tailscale seulement : Polhub n'écoute que sur ce Mac, et Tailscale le publie pour tes appareils. Un iPhone doit être relié par le code de cette page pour lire quoi que ce soit."
+    static let accessDetail = "Par ton réseau Tailscale seulement : hub n'écoute que sur ce Mac, et Tailscale le publie pour tes appareils. Un iPhone doit être relié par le code de cette page pour lire quoi que ce soit."
     static let addressHelp = "L'adresse de ce Mac sur Tailscale, que l'iPhone appelle."
-    static let serveHelp = "Tailscale ne publie pas encore Polhub : colle cette commande dans le Terminal, une seule fois."
+    static let serveHelp = "Tailscale ne publie pas encore hub : colle cette commande dans le Terminal, une seule fois."
     static let notificationsHelp = "Les nouveaux mails, les rendez-vous qui arrivent, les rappels et les comptes rendus, sur l'iPhone aussi, quand le Mac est allumé."
     static let noKey = "La clé de notifications d'Apple manque : rien n'arrive sur l'iPhone."
-    static let scan = "Scanne ce code avec l'appareil photo de ton iPhone : il ouvre Polhub et le relie à ce Mac."
-    static let paste = "Ou « Copier le lien », puis sur l'iPhone, dans Polhub : « Coller le lien du code »."
+    static let scan = "Scanne ce code avec l'appareil photo de ton iPhone : il ouvre hub et le relie à ce Mac."
+    static let paste = "Ou « Copier le lien », puis sur l'iPhone, dans hub : « Coller le lien du code »."
 
     /// « Relié le 20 nov. · vu il y a 4 min », « En attente du code ».
     static func seen(_ device: PhoneDevice, now: Date = Date()) -> String {

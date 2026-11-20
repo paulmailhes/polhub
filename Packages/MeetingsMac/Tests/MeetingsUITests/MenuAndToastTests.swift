@@ -23,7 +23,7 @@ import Testing
         #expect(MenuBarLabel.make(status: recording, now: now, minutesToMeet: 8, danger: true) == MenuBarLabel(icon: .recording, text: "12:34"))
     }
 
-    // « Coup d'œil » (15/11): filled, Polhub watches for meetings; in outline, it does not.
+    // « Coup d'œil » (15/11): filled, hub watches for meetings; in outline, it does not.
     @Test func atRestTheColumnsAreFilled() {
         let now = Date(timeIntervalSince1970: 10_000)
         #expect(MenuBarLabel.make(status: .idle, now: now) == MenuBarLabel(icon: .columns(.filled, badge: false), text: nil))
@@ -118,7 +118,7 @@ import Testing
     }
 
     /// The HUD as tall as its words (lot 9, 20/11): in the panel's 15 and 13 points, a prompt keeps its 76 points, and a
-    /// long alert takes two lines for its title and two for its explanation instead of « Polhub ne lit plus les… ».
+    /// long alert takes two lines for its title and two for its explanation instead of « hub ne lit plus les… ».
     @Test func theHUDIsAsTallAsItsWords() {
         _ = NSApplication.shared
         func size(_ kind: HUDModel.Kind, _ title: String, _ subtitle: String, action: String? = nil) -> CGSize {
@@ -148,7 +148,7 @@ import Testing
     }
 }
 
-/// The menu bar's own icon: the three columns of Polhub's icon (Paul, 14/11), filled at rest, in outline when Polhub
+/// The menu bar's own icon: the three columns of hub's icon (Paul, 14/11), filled at rest, in outline when hub
 /// does not watch, with a cut-out badge when a recording is at risk (« Coup d'œil », 15/11).
 @MainActor @Suite struct MenuBarGlyphTests {
     @Test func theColumnsAreATemplateImageOfTheMenuBarsHeight() throws {

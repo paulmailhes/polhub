@@ -470,7 +470,7 @@ public struct MailStore: Sendable {
         try writer.read { try $0.columns(in: MailAgentDraftRow.databaseTableName).contains { $0.name == "format" } }
     }
 
-    /// An agent's draft, dropped by `polhub mcp`.
+    /// An agent's draft, dropped by `hub mcp`.
     /// The base knows the changes of an agent's draft (17/11): the app of 0.31 opened once.
     public func agentDraftsChange() throws -> Bool {
         try writer.read { try $0.columns(in: MailAgentDraftRow.databaseTableName).contains { $0.name == "replaces" } }
@@ -741,7 +741,7 @@ public struct MailStore: Sendable {
         }
     }
 
-    /// The drafts Gmail holds that Polhub did not make (written on the phone, in Gmail web). One whose thread went to
+    /// The drafts Gmail holds that hub did not make (written on the phone, in Gmail web). One whose thread went to
     /// the trash or the spam is no draft to take up: Gmail no longer lists it among the drafts (wave B review).
     public func gmailOnlyDrafts() throws -> [MailMessageRow] {
         try writer.read { db in

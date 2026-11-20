@@ -27,7 +27,7 @@ public struct ColinDismissalRow: Codable, FetchableRecord, PersistableRecord, Eq
     public var projectID: UUID?
     public var createdAt: Date
     /// The date of the last message Paul had before him when he set the line aside: a message that reached Gmail
-    /// before his click and Polhub after it is newer than what he saw, and brings the line back.
+    /// before his click and hub after it is newer than what he saw, and brings the line back.
     public var lastMessageAt: Date?
     /// How many times in a row this line was set aside as « Elle a répondu ailleurs ».
     public var times: Int

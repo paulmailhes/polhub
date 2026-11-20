@@ -53,9 +53,9 @@ struct SettingsScreenTests {
         try mailStore.remember(address: "camille@studio-exemple.fr", tab: .some("personnes"), images: true, at: Date())
 
         let meetings = MeetingStore(database)
-        try meetings.addJournal(JournalEntry(createdAt: Date().addingTimeInterval(-7_200), kind: .info, message: "Polhub est passé de 0.41.0 à 0.42.0."))
+        try meetings.addJournal(JournalEntry(createdAt: Date().addingTimeInterval(-7_200), kind: .info, message: "hub est passé de 0.41.0 à 0.42.0."))
         try meetings.addJournal(JournalEntry(createdAt: Date().addingTimeInterval(-3_600), kind: .missed,
-                                             message: "Réunion « Point hebdo » manquée : Polhub n'était pas ouvert."))
+                                             message: "Réunion « Point hebdo » manquée : hub n'était pas ouvert."))
         try meetings.addJournal(JournalEntry(createdAt: Date().addingTimeInterval(-600), kind: .alert,
                                              message: "Une autorisation manque depuis la mise à jour de macOS ou de Dia : ouvre le Diagnostic."))
         let library = MeetingLibrary(store: meetings)

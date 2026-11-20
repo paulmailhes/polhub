@@ -1,11 +1,11 @@
 import Foundation
 import Persistence
 
-/// What a received file may be called and whether Polhub may open it itself.
+/// What a received file may be called and whether hub may open it itself.
 public enum AttachmentSafety {
     /// A name safe to write on disk: no folder, no hidden file, no control character. 120 characters at most, the
     /// extension kept; a name cleaned once stays as it is (review of 16/11: the app takes up an agent's file only under
-    /// a name Polhub would write).
+    /// a name hub would write).
     public static func cleanName(_ name: String) -> String {
         let last = name.replacingOccurrences(of: "\\", with: "/").split(separator: "/").last.map(String.init) ?? ""
         let safe = trimmed(String(last.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) && $0 != ":" }))
@@ -123,7 +123,7 @@ public struct MailFiles: Sendable {
         return root.appending(path: "brouillons", directoryHint: .isDirectory).appending(path: name, directoryHint: .isDirectory)
     }
 
-    /// A draft's file, only if its name is one Polhub would have written and it stays in the draft's folder.
+    /// A draft's file, only if its name is one hub would have written and it stays in the draft's folder.
     public func draftFile(_ file: MailDraftFile, of draft: MailDraftRow) throws -> URL {
         let folder = draftFolder(draft)
         guard file.filename == AttachmentSafety.cleanName(file.filename) else { throw AttachmentSafety.Refusal.badName(file.filename) }
@@ -157,7 +157,7 @@ public struct MailFiles: Sendable {
         // macOS treats the file as coming from a mail: it warns before opening what could run.
         var values = URLResourceValues()
         values.quarantineProperties = [kLSQuarantineTypeKey as String: kLSQuarantineTypeEmailAttachment as String,
-                                       kLSQuarantineAgentNameKey as String: "Polhub"]
+                                       kLSQuarantineAgentNameKey as String: "hub"]
         var target = url
         try? target.setResourceValues(values)
     }
@@ -181,8 +181,8 @@ public struct MailFiles: Sendable {
 
 // MARK: - The agents' requests for a file (16/11)
 
-/// An attachment an agent asked for (`polhub mcp`, which has no network): the app downloads it, then removes the
-/// request. Paul, 16/11: « Polhub ne sait pas lire les fichiers joints ».
+/// An attachment an agent asked for (`hub mcp`, which has no network): the app downloads it, then removes the
+/// request. Paul, 16/11: « hub ne sait pas lire les fichiers joints ».
 public struct MailFileRequest: Codable, Equatable, Sendable {
     public var account: String
     public var messageID: String
@@ -236,14 +236,14 @@ extension MailFiles {
 
     var agentsFolder: URL { root.appending(path: Self.agentsName, directoryHint: .isDirectory) }
 
-    /// The files an agent joined to a drop, copied by `polhub mcp` until the app makes the drop a draft: one folder per
+    /// The files an agent joined to a drop, copied by `hub mcp` until the app makes the drop a draft: one folder per
     /// drop, named by its id, as the drafts' (an id that is not a UUID cannot leave `agents`).
     public func agentFolder(id: String) -> URL {
         let name = UUID(uuidString: id).map { $0.uuidString.lowercased() } ?? "invalide-" + String(id.filter { $0.isLetter || $0.isNumber }.prefix(40))
         return agentsFolder.appending(path: name, directoryHint: .isDirectory)
     }
 
-    /// A file of a drop, only if its name is one Polhub would have written and it stays in the drop's folder: a row
+    /// A file of a drop, only if its name is one hub would have written and it stays in the drop's folder: a row
     /// written by hand never reaches another file of the Mac.
     public func agentFile(_ file: MailDraftFile, of drop: MailAgentDraftRow) throws -> URL {
         let folder = agentFolder(id: drop.id)

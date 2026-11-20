@@ -383,7 +383,7 @@ public final class ColinThread: ObservableObject {
         return lines.filter { $0.who == .colin || $0.rows.contains { card.contains($0.field) } }
     }
 
-    /// What a step was about, as Polhub's own base says it (the Accueil's pass, 18/11): a thread by its subject and
+    /// What a step was about, as hub's own base says it (the Accueil's pass, 18/11): a thread by its subject and
     /// its person, and its project; else the project named. Never what the tool gave back.
     public func subject(_ step: ColinStep) -> StepSubject {
         if let known = subjects[step.id] { return known }
@@ -475,7 +475,8 @@ public final class ColinThread: ObservableObject {
 
     /// What Colin is doing, by his last tool.
     public static func phrase(for tool: String?) -> String {
-        switch tool.map({ $0.replacingOccurrences(of: "mcp__polhub__", with: "") }) {
+        // The server is « hub » since 20/11, « polhub » in the steps written before.
+        switch tool.map({ $0.replacingOccurrences(of: "mcp__hub__", with: "").replacingOccurrences(of: "mcp__polhub__", with: "") }) {
         case "projets", "contexte", "actions": "Colin regarde tes projets…"
         case "mails", "mail": "Colin lit tes mails…"
         case "reunions", "reunion", "chercher": "Colin lit tes réunions…"
@@ -496,7 +497,7 @@ public final class ColinThread: ObservableObject {
             return "Limite atteinte · reprend à " + Words.time(resetsAt, calendar: calendar)
         case .launch: return "Claude Code n'a pas pu se lancer."
         case .noAnswer: return "Claude Code n'a pas répondu."
-        case .isolation: return "Claude Code a chargé plus que ce que Polhub lui demande : Colin s'est arrêté."
+        case .isolation: return "Claude Code a chargé plus que ce que hub lui demande : Colin s'est arrêté."
         }
     }
 

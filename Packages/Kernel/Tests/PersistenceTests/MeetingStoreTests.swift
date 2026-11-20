@@ -81,7 +81,7 @@ import Testing
         #expect(try store.memorySampleCount() == 1)
     }
 
-    /// The folders' names, whether the app has moved them yet (hub-board, 20/11) or not (Polhub).
+    /// The folders' names, whether the app has moved them yet (hub-board, 20/11) or not (hub).
     @Test func theDevFlavorNeverTouchesTheRealData() {
         let dev = AppPaths.standard(.dev), prod = AppPaths.standard(.prod)
         #expect(["hub-board-dev", "Polhub-dev"].contains(dev.root.lastPathComponent))

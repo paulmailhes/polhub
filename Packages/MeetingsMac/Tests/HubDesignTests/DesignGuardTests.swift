@@ -12,7 +12,7 @@ import Testing
     }
 
     static let rules = [
-        // Polhub's accent is its own, ink: never the Mac's (lot 3).
+        // hub's accent is its own, ink: never the Mac's (lot 3).
         Rule(name: "l'accent du Mac", pattern: #"accentColor|controlAccentColor"#, ceiling: 0),
         Rule(name: "un rayon déprécié (Radius.small, Radius.hero)", pattern: #"Radius\.(small|hero)\b"#, ceiling: 0),
         Rule(name: "un rayon écrit à la main", pattern: #"cornerRadius:\s*[0-9]"#, ceiling: 0),

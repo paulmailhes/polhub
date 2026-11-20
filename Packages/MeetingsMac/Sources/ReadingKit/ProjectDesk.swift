@@ -2,7 +2,7 @@ import Domain
 import Foundation
 import Persistence
 
-/// The projects as text, and the writes a session may make: what the project tools of `polhub mcp` answer. Same
+/// The projects as text, and the writes a session may make: what the project tools of `hub mcp` answer. Same
 /// vocabulary as the `obsidian` server they replace (13/11). Since 16/11, the status, due date and task of the
 /// moment change too, when Paul asks (`update`), and an action can be reworded or removed (`editAction`); a
 /// project is created (`create`), its client, notes and contacts change (`update`).
@@ -17,7 +17,7 @@ public struct ProjectDesk: Sendable {
     let reader: MeetingReader
     /// The session's folder: a project whose code folder contains it is the default project.
     let workingDirectory: String?
-    /// The folder of Polhub's data, beside the base (`AppPaths.root`): where Inspiration's images are read.
+    /// The folder of hub's data, beside the base (`AppPaths.root`): where Inspiration's images are read.
     let dataRoot: URL?
     let now: @Sendable () -> Date
     let timeZone: TimeZone

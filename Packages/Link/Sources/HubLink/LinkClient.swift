@@ -26,7 +26,7 @@ public enum LinkFailure: Error, Equatable, Sendable {
         switch self {
         case .unreachable: "Le Mac ne répond pas : il dort, il est éteint, ou Tailscale est coupé sur l'iPhone."
         case .notPaired(let text), .refused(let text): text
-        case .unreadable: "Le Mac a répondu dans une autre langue : mets à jour Polhub sur le Mac et sur l'iPhone."
+        case .unreadable: "Le Mac a répondu dans une autre langue : mets à jour hub sur le Mac et sur l'iPhone."
         }
     }
 }

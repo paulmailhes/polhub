@@ -1,14 +1,14 @@
 #!/bin/zsh
-# Polhub : la clé Google qui lui permet de lire tes agendas et d'y créer tes rendez-vous, une seule fois.
-# Si la clé est déjà en place, il ne reste que les deux gestes qui ouvrent Gmail à Polhub (14/11).
+# hub : la clé Google qui lui permet de lire tes agendas et d'y créer tes rendez-vous, une seule fois.
+# Si la clé est déjà en place, il ne reste que les deux gestes qui ouvrent Gmail à hub (14/11).
 # Ouvre chaque page de la console Google au bon endroit, puis range tout seul le fichier téléchargé dans
-# ~/Library/Application Support/Polhub/google-client.json (jamais affiché, jamais dans le dépôt).
+# ~/Library/Application Support/hub-board/google-client.json (jamais affiché, jamais dans le dépôt).
 # Le projet est publié « en production » : les connexions tiennent, sans rien refaire tous les 7 jours.
 
-DEST="$HOME/Library/Application Support/Polhub/google-client.json"
+DEST="$HOME/Library/Application Support/hub-board/google-client.json"
 etape() { print; print -P "%B── Étape $1/8 — $2%b"; }
 attendre() { read "?   Entrée quand c'est fait… "; }
-# Les deux gestes qui ouvrent Gmail à Polhub : l'API, puis le champ d'application.
+# Les deux gestes qui ouvrent Gmail à hub : l'API, puis le champ d'application.
 mails() {
   print; print -P "%B── Mails $1 — Activer l'API Gmail%b"
   print "   « Activer »."
@@ -20,20 +20,20 @@ mails() {
 }
 
 clear
-print -P "%BPolhub — clé Google pour lire tes agendas%b"
+print -P "%Bhub-board — clé Google pour lire tes agendas%b"
 print "Connecte-toi à la console Google avec ton compte perso. Chaque page s'ouvre toute seule."
-print -P "%BÀ chaque étape, vérifie en haut de la page que le projet choisi est bien « Polhub ».%b"
+print -P "%BÀ chaque étape, vérifie en haut de la page que le projet choisi est bien « hub-board ».%b"
 
 if [[ -f "$DEST" ]]; then
   print; print "La clé est déjà en place. Il reste deux gestes pour les mails."
   mails "1/2" "2/2"
-  print; print -P "%BC'est fait.%b Dans Polhub : Réglages › Comptes Google › « Autoriser les mails », sur chaque compte."
-  print "Sur l'avertissement de Google : « Paramètres avancés » → « Accéder à Polhub » → coche les mails et l'agenda."
+  print; print -P "%BC'est fait.%b Dans hub : Réglages › Comptes Google › « Autoriser les mails », sur chaque compte."
+  print "Sur l'avertissement de Google : « Paramètres avancés » → « Accéder à hub-board » → coche les mails et l'agenda."
   read "?Entrée pour fermer… "; exit 0
 fi
 
 etape 1 "Créer le projet"
-print "   Nom du projet : Polhub → Créer. Attends qu'il soit créé, puis choisis-le en haut de la page."
+print "   Nom du projet : hub-board → Créer. Attends qu'il soit créé, puis choisis-le en haut de la page."
 open "https://console.cloud.google.com/projectcreate"; attendre
 
 etape 2 "Activer l'API Google Agenda"
@@ -43,14 +43,14 @@ open "https://console.cloud.google.com/apis/library/calendar-json.googleapis.com
 mails "(étape 3/8)" "(étape 4/8)"
 
 etape 5 "L'écran de consentement"
-print "   « Commencer » → nom de l'application : Polhub → ton e-mail → Audience : Externe → ton e-mail"
+print "   « Commencer » → nom de l'application : hub-board → ton e-mail → Audience : Externe → ton e-mail"
 print "   → accepter le règlement → Créer."
 open "https://console.cloud.google.com/auth/overview"; attendre
 
 etape 6 "L'identité de l'application (Google l'exige pour publier)"
-print "   Page d'accueil de l'application :       https://paulmailhes.github.io/polhub/"
-print "   Règles de confidentialité :             https://paulmailhes.github.io/polhub/confidentialite.html"
-print "   Conditions d'utilisation :              https://paulmailhes.github.io/polhub/conditions.html"
+print "   Page d'accueil de l'application :       https://paulmailhes.github.io/hub-board/"
+print "   Règles de confidentialité :             https://paulmailhes.github.io/hub-board/confidentialite.html"
+print "   Conditions d'utilisation :              https://paulmailhes.github.io/hub-board/conditions.html"
 print "   Domaines autorisés → « Ajouter un domaine » : paulmailhes.github.io"
 print "   → Enregistrer."
 open "https://console.cloud.google.com/auth/branding"; attendre
@@ -58,11 +58,11 @@ open "https://console.cloud.google.com/auth/branding"; attendre
 etape 7 "Publier l'application (pour que les connexions tiennent)"
 print "   « Publier l'application » → Confirmer. Le statut doit devenir « En production »."
 print "   À la première connexion, Google dira « application non validée » (normal, sans validation),"
-print "   et il suffira de cliquer « Paramètres avancés » puis « Accéder à Polhub »."
+print "   et il suffira de cliquer « Paramètres avancés » puis « Accéder à hub-board »."
 open "https://console.cloud.google.com/auth/audience"; attendre
 
 etape 8 "Créer la clé"
-print "   Type d'application : Application de bureau → nom : Polhub → Créer → « Télécharger le fichier JSON »."
+print "   Type d'application : Application de bureau → nom : hub-board → Créer → « Télécharger le fichier JSON »."
 debut=$(date +%s)
 open "https://console.cloud.google.com/auth/clients/create"
 print "   J'attends le fichier dans Téléchargements… (Ctrl+C pour arrêter)"
@@ -77,5 +77,5 @@ if ! /usr/bin/python3 -I -c 'import json,sys; c=json.load(open(sys.argv[1])); as
 fi
 mkdir -p "${DEST:h}"
 mv "$f" "$DEST" && chmod 600 "$DEST"
-print; print -P "%BC'est fait.%b La clé est rangée. Dans Polhub : Réglages › Comptes Google › Ajouter un compte Google."
+print; print -P "%BC'est fait.%b La clé est rangée. Dans hub : Réglages › Comptes Google › Ajouter un compte Google."
 read "?Entrée pour fermer… "

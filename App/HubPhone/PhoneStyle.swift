@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The colors of Polhub on the iPhone (Paul, 20/11: « trop monotone, il faut de la couleur pour hiérarchiser »): each
+/// The colors of hub on the iPhone (Paul, 20/11: « trop monotone, il faut de la couleur pour hiérarchiser »): each
 /// tab has the color of its family on the Mac, a person their color, a project its own, a status its dot.
 enum PhoneStyle {
     // The Mac's palette (HubDesign `Palette`).

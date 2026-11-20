@@ -1,7 +1,7 @@
 import AppKit
 import ProjectsUI
 
-/// The window's keys (lot 4, 19/11): Polhub is an agent, without a menu bar of its own, so its key monitor reads them
+/// The window's keys (lot 4, 19/11): hub is an agent, without a menu bar of its own, so its key monitor reads them
 /// (`NavigationInput`) and they act here. The same as in « Coup d'œil »: ⌘1 to ⌘7 for the sidebar's rows, ⌘, for
 /// Réglages, ⌘N for the page's « + »; and ⌘F for the page's search, the back and forth of the history.
 @MainActor

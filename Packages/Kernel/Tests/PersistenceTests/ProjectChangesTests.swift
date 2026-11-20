@@ -5,7 +5,7 @@ import Testing
 @testable import Persistence
 
 /// Step 3 of Colin (18/11): the base keeps the journal of the changes of a project itself, with who made them — Paul,
-/// Colin, or an agent (a session's `polhub mcp`, of now or of before) — so that what an agent changed can be undone.
+/// Colin, or an agent (a session's `hub mcp`, of now or of before) — so that what an agent changed can be undone.
 @Suite(.timeLimit(.minutes(1))) struct ProjectChangesTests {
     let now = Date(timeIntervalSince1970: 1_794_992_400)   // Wednesday 18/11/2026, 10:00 in Paris
 

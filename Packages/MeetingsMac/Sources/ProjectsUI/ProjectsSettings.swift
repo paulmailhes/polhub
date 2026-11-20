@@ -3,7 +3,7 @@ import SwiftUI
 
 /// The words of Réglages › Projets (lot 7, 19/11): one line under the logos' switch, the detail behind « ⓘ ».
 enum ProjectsSettingsText {
-    static let logosHelp = "Polhub demande son icône au site de chaque client ; coupé, les initiales."
+    static let logosHelp = "hub demande son icône au site de chaque client ; coupé, les initiales."
     // Fifteen words at most a sentence (lot 10, 20/11).
     static let logosDetail = "Sans autre service : le site voit l'adresse IP du Mac, comme lors d'une visite. Une image déposée sur le logo d'un projet reste toujours."
 }

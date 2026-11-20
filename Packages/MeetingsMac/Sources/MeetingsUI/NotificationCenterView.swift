@@ -2,12 +2,12 @@ import Notifications
 import HubDesign
 import SwiftUI
 
-// Polhub's notification center (Paul, 15/11: « un système de notification dans l'outil »): a bell with the count of
-// what is new, and a panel that lists what Polhub notified, as macOS's Notification Center does. The panel floats
+// hub's notification center (Paul, 15/11: « un système de notification dans l'outil »): a bell with the count of
+// what is new, and a panel that lists what hub notified, as macOS's Notification Center does. The panel floats
 // (a popover, in glass); its cards are calm surfaces.
 
 extension WindowRouter {
-    /// What a click on a notification opens, from macOS's center or from Polhub's list (15/11): the Meet with the
+    /// What a click on a notification opens, from macOS's center or from hub's list (15/11): the Meet with the
     /// event's account (in Dia, no window), the meeting, the event, the thread or the mails' folder. `false` when the
     /// window has nothing to show.
     @discardableResult
@@ -39,7 +39,7 @@ extension WindowRouter {
 }
 
 extension NoticeSection {
-    /// The section of the sidebar it belongs to: its name, symbol and color (the test has none: Polhub's own).
+    /// The section of the sidebar it belongs to: its name, symbol and color (the test has none: hub's own).
     var item: SidebarItem? {
         switch self {
         case .calendar: .calendar
@@ -50,7 +50,7 @@ extension NoticeSection {
         }
     }
 
-    var title: String { item?.title ?? "Polhub" }
+    var title: String { item?.title ?? "hub" }
     /// Its icon, the sidebar's (Phosphor), as on « Coup d'œil »'s tiles (lot 9, 20/11: an SF Symbol on a gradient square
     /// before, an app's icon of iOS).
     var appIcon: AppIcon { item?.appIcon ?? .bell }
@@ -132,7 +132,7 @@ public struct NotificationBell: View {
         }
     }
 
-    /// The bell and its count: what is new, in Polhub's ink, its figure the ink's opposite; the red says only « late »
+    /// The bell and its count: what is new, in hub's ink, its figure the ink's opposite; the red says only « late »
     /// and « recording » (design system v2, 19/11).
     private func label(_ count: Int, size: CGFloat) -> some View {
         AppIconImage(.bell, size: size)
@@ -155,7 +155,7 @@ public struct NotificationBell: View {
 
 // MARK: - The panel
 
-/// The notifications Polhub sent, by day, the newest on top: a click opens what one is about, its × (or a swipe)
+/// The notifications hub sent, by day, the newest on top: a click opens what one is about, its × (or a swipe)
 /// lets it go, « Tout effacer » empties the list. Opening it marks everything seen; the dots stay while it is open.
 public struct NotificationPanel: View {
     @ObservedObject var inbox: NotificationInbox
@@ -199,7 +199,7 @@ public struct NotificationPanel: View {
             inbox.markAllSeen()
         }
         .onDisappear { inbox.markAllSeen() }
-        // The popover's root: Polhub's accent, ink, whatever the Mac's (design system v2, 19/11).
+        // The popover's root: hub's accent, ink, whatever the Mac's (design system v2, 19/11).
         .tint(Tint.control.color)
     }
 
@@ -231,7 +231,7 @@ public struct NotificationPanel: View {
                 .foregroundStyle(.tertiary)
                 .padding(.bottom, Space.xs)
             Text("Aucune notification").font(.rowTitle.weight(.semibold)).foregroundStyle(.secondary)
-            Text("Les rappels, les comptes rendus et les mails que Polhub t'envoie s'affichent ici.")
+            Text("Les rappels, les comptes rendus et les mails que hub t'envoie s'affichent ici.")
                 .font(.meta)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -356,7 +356,7 @@ struct NoticeCard: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
         HStack(alignment: .top, spacing: Space.xs) {
-            // What is new, in Polhub's ink, as the bell's count (design system v2, 19/11), 8 from the card's edge (lot 9,
+            // What is new, in hub's ink, as the bell's count (design system v2, 19/11), 8 from the card's edge (lot 9,
             // 20/11: 4 before).
             Circle()
                 .fill(Tint.accent)
@@ -378,7 +378,7 @@ struct NoticeCard: View {
                             .foregroundStyle(.secondary)
                             .fixedSize()
                     }
-                    // French typography on Polhub's own sentences (« a commencé. Rejoindre ? »), never on a mail's subject
+                    // French typography on hub's own sentences (« a commencé. Rejoindre ? »), never on a mail's subject
                     // (`Words.typeset`, lot 10, 20/11).
                     Text(notice.kind == .mail ? notice.body : Words.typeset(notice.body))
                         .font(.rowBody)

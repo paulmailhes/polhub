@@ -56,7 +56,7 @@ import Testing
         #expect(model.alerts.isEmpty && !model.recordingsAtRisk)
     }
 
-    /// A summary put away stays away once Polhub restarts; the list keeps only the latest ones.
+    /// A summary put away stays away once hub restarts; the list keeps only the latest ones.
     @Test func aSummaryPutAwayStaysAwayAfterARestart() throws {
         let defaults = try #require(UserDefaults(suiteName: "polhub.tests.\(UUID().uuidString)"))
         let first = UUID()
@@ -201,7 +201,7 @@ import Testing
         #expect(router.section == .settings && router.settingsPane == .accounts)
         context.open(.section(.projects))
         #expect(router.section == .projects)
-        // Without the agenda, « Ouvrir Polhub » opens Réunions.
+        // Without the agenda, « Ouvrir hub » opens Réunions.
         context.openHome()
         #expect(router.section == .meetings && shown.count == 6)
         #expect(!context.isReady)

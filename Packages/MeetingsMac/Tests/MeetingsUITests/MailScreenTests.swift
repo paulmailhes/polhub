@@ -594,7 +594,7 @@ struct MailScreenTests {
         router.mailSelection = nil
     }
 
-    /// 16/11: a draft an agent formatted and joined a file to, as the app adopts it (its HTML made by Polhub from the
+    /// 16/11: a draft an agent formatted and joined a file to, as the app adopts it (its HTML made by hub from the
     /// agent's markdown, its plain version shown whole), in the compose view.
     @Test func anAgentsFormattedDraft() async throws {
         let output = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"]), isDirectory: true)

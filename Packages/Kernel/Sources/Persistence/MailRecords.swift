@@ -335,7 +335,7 @@ public struct MailAgentDraftRow: Codable, Equatable, Identifiable, Sendable, Fet
     public var subject: String
     public var body: String
     public var createdAt: Date
-    /// The files Paul asked the agent to join (16/11), copied by `polhub mcp` into the drop's own folder
+    /// The files Paul asked the agent to join (16/11), copied by `hub mcp` into the drop's own folder
     /// (`MailFiles.agentFolder`); the app moves them into the draft's.
     public var files: [MailDraftFile]
     public var format: Format
@@ -393,7 +393,7 @@ public struct MailDraftRow: Codable, Equatable, Identifiable, Sendable, Fetchabl
         case new, reply, replyAll, forward
     }
 
-    /// Who wrote it: Paul in Polhub, Paul elsewhere (a draft found in Gmail), or an agent (step « Agents »).
+    /// Who wrote it: Paul in hub, Paul elsewhere (a draft found in Gmail), or an agent (step « Agents »).
     public enum Origin: String, Codable, Sendable {
         case paul, gmail, agent
     }
@@ -437,7 +437,7 @@ public struct MailDraftRow: Codable, Equatable, Identifiable, Sendable, Fetchabl
     public var agentVersionAt: Date?
 
     /// What happened to Gmail's copy of a draft (review of 14/11): sent or deleted elsewhere, or changed on
-    /// another device. Polhub never makes it again nor overwrites it on its own.
+    /// another device. hub never makes it again nor overwrites it on its own.
     public enum Conflict: String, Codable, Sendable, Error, CustomStringConvertible {
         case absent, modifie
 
