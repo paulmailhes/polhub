@@ -65,7 +65,8 @@ struct ProjectPage: View {
                         side.frame(width: 320)
                     }
                 } else {
-                    VStack(alignment: .leading, spacing: Space.xl) {
+                    // Sixteen points between two cards, as everywhere (lot 8, 19/11).
+                    VStack(alignment: .leading, spacing: PageMetrics.cardGap) {
                         main
                         side
                     }
@@ -141,7 +142,8 @@ struct ProjectPage: View {
                             Button(status.title) { draft.status = status }
                         }
                     } label: {
-                        Chip(draft.status.title, systemImage: "circle.fill", tint: ProjectViews.statusColor(draft.status))
+                        // Neutral with its dot, « Terminé » in the color of what is done (lot 8, 19/11).
+                        StatusChip(status: draft.status)
                     }
                     .menuStyle(.button)
                     .buttonStyle(.hover(.capsule))
@@ -209,7 +211,7 @@ struct ProjectPage: View {
     // MARK: - Main column
 
     private var main: some View {
-        VStack(alignment: .leading, spacing: Space.xl) {
+        VStack(alignment: .leading, spacing: PageMetrics.cardGap) {
             notesCard
             actionsCard
             journalCard
@@ -394,7 +396,7 @@ struct ProjectPage: View {
     // MARK: - Side column
 
     private var side: some View {
-        VStack(alignment: .leading, spacing: Space.xl) {
+        VStack(alignment: .leading, spacing: PageMetrics.cardGap) {
             Card {
                 SectionTitle("Infos", systemImage: "info.circle")
                 LabeledContent("Client") {

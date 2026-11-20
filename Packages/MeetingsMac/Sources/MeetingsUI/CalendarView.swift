@@ -48,9 +48,22 @@ struct CalendarView: View {
     @State private var selectedDay: Date?
     /// The editor of an event, new or existing (14/11).
     @State private var editor: EditorRequest?
+    /// Where the hours' grid is scrolled.
+    @State private var gridPosition = ScrollPosition(edge: .top)
 
     static let hourHeight: CGFloat = 48
     static let gutter: CGFloat = 52
+    /// The room above midnight's line, at the top of the grid.
+    static let gridTop: CGFloat = Space.s
+    /// How far an hour's label rises over its line, so that its middle sits on it.
+    static let labelRise: CGFloat = 6
+
+    /// Where the grid opens, for the hour of Réglages › Calendrier: a margin above that hour's label, so that it is read
+    /// whole (lot 8, 19/11: the grid opened on the line itself, and « 08 h » was cut in half at the top).
+    static func openingOffset(hour: Int) -> CGFloat {
+        let line = gridTop + CGFloat(min(max(0, hour), 23)) * hourHeight
+        return max(0, line - labelRise - Space.s)
+    }
     static let locale = Locale(identifier: "fr_FR")
     static var calendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
@@ -177,24 +190,24 @@ struct CalendarView: View {
             }
             allDayRow
             Divider()
-            ScrollViewReader { scroll in
-                ScrollView {
+            ScrollView {
+                HStack(alignment: .top, spacing: 0) {
+                    hourLabels
                     HStack(alignment: .top, spacing: 0) {
-                        hourLabels
-                        HStack(alignment: .top, spacing: 0) {
-                            ForEach(days, id: \.self) { day in dayColumn(day) }
-                        }
-                        // Under the events: the hours and the days, one pixel each (19/11).
-                        .background { WeekGridLines(days: days.count, hourHeight: Self.hourHeight) }
+                        ForEach(days, id: \.self) { day in dayColumn(day) }
                     }
-                    .padding(.top, 8)
+                    // Under the events: the hours and the days, one pixel each (19/11).
+                    .background { WeekGridLines(days: days.count, hourHeight: Self.hourHeight) }
                 }
-                // The hour of Réglages › Calendrier at the top of the grid, once it is laid out (14/11: an anchor
-                // put that hour at the same fraction of the screen, not at its top).
-                .task(id: dayStartHour) {
-                    try? await Task.sleep(for: .milliseconds(80))
-                    scroll.scrollTo(min(max(0, dayStartHour), 23), anchor: .top)
-                }
+                .padding(.top, Self.gridTop)
+            }
+            .scrollPosition($gridPosition)
+            // The hour of Réglages › Calendrier near the top of the grid, its label whole, once it is laid out (14/11: an
+            // anchor put that hour at the same fraction of the screen; lot 8, 19/11: the hour's view at the top cut its
+            // label, which rises over the line).
+            .task(id: dayStartHour) {
+                try? await Task.sleep(for: .milliseconds(80))
+                gridPosition.scrollTo(y: Self.openingOffset(hour: dayStartHour))
             }
         }
     }
@@ -217,7 +230,7 @@ struct CalendarView: View {
                 .frame(maxWidth: .infinity)
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, Space.s)
     }
 
     private var allDayRow: some View {
@@ -247,7 +260,7 @@ struct CalendarView: View {
                 .padding(.horizontal, 2)
             }
         }
-        .padding(.bottom, 4)
+        .padding(.bottom, Space.xs)
     }
 
     private var hourLabels: some View {
@@ -255,10 +268,9 @@ struct CalendarView: View {
             ForEach(0..<24, id: \.self) { hour in
                 Text(hour == 0 ? "" : String(format: "%02d h", hour))
                     .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
-                    .frame(width: Self.gutter - 8, height: Self.hourHeight, alignment: .topTrailing)
-                    .offset(y: -6)
-                    .padding(.trailing, 8)
-                    .id(hour)
+                    .frame(width: Self.gutter - Space.s, height: Self.hourHeight, alignment: .topTrailing)
+                    .offset(y: -Self.labelRise)
+                    .padding(.trailing, Space.s)
             }
         }
     }
@@ -346,8 +358,8 @@ struct CalendarView: View {
                     .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
             }
         }
-        .padding(.leading, 8)
-        .padding(.trailing, 4)
+        .padding(.leading, Space.s)
+        .padding(.trailing, Space.xs)
         .padding(.vertical, 3)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .foregroundStyle(.primary)

@@ -48,7 +48,8 @@ struct SummaryCard: View {
             }
             if !actions.isEmpty { actionList }
         }
-        .padding(Space.xl)
+        // The margin of every card (lot 8, 19/11: 24 here, 16 on the other pages).
+        .padding(PageMetrics.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .cardSurface()
         .animation(Motion.gentle, value: summary)
@@ -159,7 +160,7 @@ struct SummaryCard: View {
                     ForEach(Array(sections.decisions.enumerated()), id: \.offset) { _, decision in
                         HStack(alignment: .firstTextBaseline, spacing: Space.s) {
                             // Decor, in grey: a color keeps one meaning (design system v2, 19/11).
-                            Image(systemName: "checkmark.seal.fill").font(.system(size: 12)).foregroundStyle(.secondary)
+                            Image(systemName: "checkmark.seal.fill").font(.tag).foregroundStyle(.secondary)
                             Text(decision).font(.rowBody).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                         }
                     }

@@ -119,6 +119,34 @@ import Testing
         #expect(ProjectViews.nextEventLabel(date(30, hour: 9), now: today, calendar: paris) == "RDV le 30 nov.")
     }
 
+    /// Lot 8 (19/11), « teinte allégée » (Paul's choice): the project's color on its card at half its strength (13 % in
+    /// light, 22 % in dark, before), the columns without a tint of their own.
+    @Test func theBoardsTintIsLighter() {
+        #expect(ProjectViews.cardTint(dark: false) == 0.065 && ProjectViews.cardTint(dark: true) == 0.11)
+        // A column has no ground at rest; under a card being dragged, the ground of what is chosen, never its status.
+        #expect(ProjectViews.columnFill(targeted: false) == nil && ProjectViews.columnFill(targeted: true) != nil)
+    }
+
+    /// Lot 8 (19/11): every text of a card in the text's own color; what a fact means (late, today) is on its icon only.
+    @Test func aCardSaysItsFactsInTheTextsColor() {
+        let facts = ProjectViews.cardFacts(nextEvent: date(14, hour: 9), due: date(12, hour: 0), lastMeeting: date(12), now: today, calendar: paris)
+        #expect(facts.map(\.text) == ["RDV demain à 09:00", "En retard de 1 j", "Réunion hier"])
+        #expect(facts.map(\.icon) == ["calendar.badge.clock", "flag", "waveform"])
+        #expect(facts.map(\.role) == [nil, .late, nil])
+        #expect(facts.map(\.strong) == [true, true, false])
+        #expect(ProjectViews.cardFacts(nextEvent: nil, due: date(13, hour: 0), lastMeeting: nil, now: today, calendar: paris)
+                == [ProjectViews.CardFact(text: "Échéance aujourd'hui", icon: "flag", role: .attention, strong: true)])
+        // A due date further away is quiet: grey, no color.
+        #expect(ProjectViews.cardFacts(nextEvent: nil, due: date(20, hour: 0), lastMeeting: nil, now: today, calendar: paris)
+                == [ProjectViews.CardFact(text: "Échéance dans 7 j", icon: "flag", role: nil, strong: false)])
+        #expect(ProjectViews.cardFacts(nextEvent: nil, due: nil, lastMeeting: nil, now: today, calendar: paris).isEmpty)
+    }
+
+    /// Lot 8 (19/11): a status is a neutral capsule with its dot; « Terminé » alone takes a color, the one of what is done.
+    @Test func aStatusIsNeutralSaveTerminé() {
+        #expect(ProjectStatus.allCases.map(ProjectViews.statusRole) == [nil, nil, nil, .done])
+    }
+
     @Test func theTableShowsTheMostRecentActivityFirst() {
         let rows = ProjectViews.table([project("Vieux", .enPause, activity: date(1)), project("Sans", .enPause),
                                        project("Récent", .enPause, activity: date(12))])

@@ -33,7 +33,8 @@ struct MeetingDetailView: View {
     @State private var player: MeetingPlayer?
     @State private var file: MeetingFile?
     @State private var microphones: [String] = []
-    @State private var loadError: String?
+    /// Why the audio does not play, in French (lot 8, 19/11).
+    @State private var audioProblem: AudioProblem?
     @State private var confirmingDelete = false
     @State private var showingDetails = false
     @State private var lines: [UtteranceRow] = []
@@ -57,11 +58,11 @@ struct MeetingDetailView: View {
                     summaryCard
                     transcript(scroll)
                 }
-                .padding(.horizontal, PageMetrics.horizontal)
-                .padding(.top, Space.xl)
+                // A page's top and bottom, and the reading column of a mail, in the middle (lot 8, 19/11: it sat on the
+                // left, 24 points down, while a thread is centered and a page starts 16 points under the toolbar).
+                .padding(.top, PageMetrics.top)
                 .padding(.bottom, PageMetrics.bottom)
-                .frame(maxWidth: PageMetrics.readingWidth, alignment: .leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .readingColumn()
             }
         }
         .safeAreaInset(edge: .bottom) { playerBar }
@@ -109,7 +110,8 @@ struct MeetingDetailView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: Space.m) {
-            Text(row.title).font(.title.bold()).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+            // The large title of an object open, 26 points, as a project's (lot 8, 19/11).
+            Text(row.title).font(.largeTitle.weight(.bold)).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
             FlowLayout(spacing: Space.s) {
                 // The date leads to its event, when one carries the meeting (lot 4, 19/11).
                 if let event = agenda.flatMap({ Self.event(of: row.id, in: $0.shown) }) {
@@ -241,8 +243,9 @@ struct MeetingDetailView: View {
             // Being recorded: its own red; a meeting that does not play: said by `ErrorLine` (design system v2, 19/11).
             Label("Enregistrement en cours. La réunion se réécoute dès qu'elle est terminée.", systemImage: "record.circle")
                 .foregroundStyle(Tint.recording)
-        } else if let loadError {
-            ErrorLine(loadError)
+        } else if let audioProblem {
+            // In French, the system's text under « Détails » (lot 8, 19/11).
+            AudioProblemLine(problem: audioProblem)
         }
         if let status = TranscriptModel.status(job, meeting: row, meetingActive: meetingActive) {
             VStack(alignment: .leading, spacing: Space.m) {
@@ -267,8 +270,12 @@ struct MeetingDetailView: View {
     @ViewBuilder
     private var playerBar: some View {
         if let player {
+            // On the edges of the reading column, as the bar of a reply under a thread (lot 8, 19/11): it was centered on
+            // the page while the text sat on the left.
             FloatingBar { PlayerView(player: player) }
-                .frame(maxWidth: 760)
+                .padding(.horizontal, PageMetrics.horizontal - Space.xl)
+                .frame(maxWidth: PageMetrics.readingWidth)
+                .frame(maxWidth: .infinity)
         } else if row.audioPurgedAt != nil, row.source != .imported {
             FloatingBar {
                 Label("L'audio a été effacé (30 jours après la transcription).", systemImage: "trash")
@@ -368,12 +375,12 @@ struct MeetingDetailView: View {
                 untilNanos: meeting.endNanos
             )
             guard !pieces.isEmpty else {
-                loadError = "Aucun son enregistré pour cette réunion."
+                audioProblem = .silent
                 return
             }
             player = try await MeetingPlayer(pieces: pieces)
         } catch {
-            loadError = "La réunion ne se lit pas : \(error.localizedDescription)"
+            audioProblem = AudioProblem(error)
         }
     }
 
@@ -401,6 +408,83 @@ struct MeetingDetailView: View {
         case .userStopped: "arrêtée à la main"
         case .interrupted: "interrompue (l'app s'était arrêtée)"
         case .nextMeeting: "une autre réunion a commencé"
+        }
+    }
+}
+
+/// Why a meeting's audio does not play, in French (lot 8, 19/11): Polhub's sentence for Paul, the system's own text
+/// (English, a file's name) kept for « Détails ». It replaces « La réunion ne se lit pas : » and the system's text.
+struct AudioProblem: Equatable {
+    let sentence: String
+    /// What the system said, under « Détails »; none when Polhub's sentence says it all.
+    let details: String?
+
+    /// Nothing was recorded for the meeting.
+    static let silent = AudioProblem(sentence: "Aucun son enregistré pour cette réunion.", details: nil)
+
+    init(sentence: String, details: String?) {
+        self.sentence = sentence
+        self.details = details
+    }
+
+    /// An error met while reading the meeting's folder or its audio.
+    init(_ error: Error) {
+        let sentence = switch Self.kind(of: error) {
+        case .missing: "L'audio de cette réunion est introuvable : son dossier est incomplet."
+        case .damaged: "L'audio de cette réunion ne se lit pas : un de ses fichiers est abîmé."
+        case .other: "L'audio de cette réunion ne se lit pas."
+        }
+        self.init(sentence: sentence, details: error.localizedDescription)
+    }
+
+    enum Kind { case missing, damaged, other }
+
+    /// A file that is not there, one that does not read, or anything else (the player).
+    static func kind(of error: Error) -> Kind {
+        if error is DecodingError { return .damaged }
+        let error = error as NSError
+        switch (error.domain, error.code) {
+        case (NSCocoaErrorDomain, NSFileNoSuchFileError), (NSCocoaErrorDomain, NSFileReadNoSuchFileError), (NSPOSIXErrorDomain, Int(ENOENT)):
+            return .missing
+        case (NSCocoaErrorDomain, NSFileReadCorruptFileError), (NSCocoaErrorDomain, NSFileReadInapplicableStringEncodingError),
+             (NSCocoaErrorDomain, NSFileReadUnknownStringEncodingError):
+            return .damaged
+        default:
+            return .other
+        }
+    }
+}
+
+/// A problem of a meeting's audio in one line, by `ErrorLine`, and the system's text under « Détails » (lot 8, 19/11).
+struct AudioProblemLine: View {
+    let problem: AudioProblem
+    @State private var open: Bool
+
+    /// `open`: « Détails » already unfolded (the captures).
+    init(problem: AudioProblem, open: Bool = false) {
+        self.problem = problem
+        _open = State(initialValue: open)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.xs) {
+            HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+                ErrorLine(problem.sentence).fixedSize(horizontal: false, vertical: true)
+                if problem.details != nil {
+                    TextButton(open ? "Masquer les détails" : "Détails", quiet: true) {
+                        withAnimation(Motion.standard) { open.toggle() }
+                    }
+                    .fixedSize()
+                }
+            }
+            if open, let details = problem.details {
+                Text(details)
+                    .font(.meta)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .transition(.opacity)
+            }
         }
     }
 }

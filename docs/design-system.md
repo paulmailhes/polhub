@@ -78,13 +78,15 @@ Le lot 4 (19/11) a posé ces règles ; le code navigue par les méthodes du rout
 | Espacements (`Space`) | 4, 8, 12, 16, 24, 32 |
 | Rayons (`Radius`), toujours `style: .continuous` | 8 (`control` : ce qui se clique, une ligne, un champ, une puce), 12 (`inner` : dans une carte), 16 (`card` : une carte, un panneau), et la capsule |
 | Page (`PageMetrics`) | largeur 1 080 (lecture : 860), marges 28, haut 16, bas 40 |
+| Carte (`PageMetrics.cardPadding`, `.cardGap`) | 20 points de marge dans toute carte, 16 entre deux cartes, 24 entre l'en-tête d'une page et ses cartes (lot 8, 19/11) |
 
 ## La typographie
 
 | Rôle | Style |
 |---|---|
 | Titre de page | `.largeTitle`, gras (`PageHeader`) |
-| Titre d'un fil ou d'une fiche ouverte | `.title`, gras |
+| Titre d'un objet ouvert : un projet, une réunion, un contact, une fiche d'Inspiration | `.largeTitle`, gras, 26 points (lot 8, 19/11) ; une page sans objet ouvert n'a que son titre de fenêtre |
+| Titre d'un fil | `.title`, gras (lot 6) |
 | Titre de carte ou de partie | `.headline` (`SectionTitle`) |
 | Texte | `.body` |
 | Ligne d'une liste : première ligne (qui, quoi) | `.rowTitle` (15 pt) |
@@ -208,7 +210,11 @@ ne va jamais seule : toujours un mot ou un symbole avec elle.
   (`ErrorLine`) ; jamais une phrase colorée.
 - **Les couleurs d'identité** (un compte Google, un projet, une section) ne colorent que des points, des traits, des
   monogrammes, les blocs du calendrier et les cartes du Kanban ; jamais un bouton ni un texte. Une seule palette
-  (`Palette`) ; une seule source pour un projet, `ProjectViews.tint(_:)`.
+  (`Palette`) ; une seule source pour un projet, `ProjectViews.tint(_:)`. Une pastille qui nomme un projet ou un
+  statut est neutre, sa couleur dans son point (`Chip(_:dot:)`, lot 8, 19/11).
+- **Un statut de projet** : une pastille neutre et son point (Priorité 2, Priorité 1, En pause) ; seul « Terminé » prend
+  une couleur de sens, celle de ce qui est fait, avec sa coche (`StatusChip`, `ProjectViews.statusRole`). « Priorité 2 »
+  en orange se lisait « à vérifier ».
 - Chaque **section** garde sa couleur dans la barre latérale et dans Réglages : Accueil sarcelle, Projets bleu,
   Réunions violet, Calendrier orange, Mails rose, Contacts vert, Inspiration jaune, Réglages gris.
 - Les surfaces : `Surface.fill` (une carte), `.raised` (au survol, un cran plus haut), `.selected` (ce qui est
@@ -220,11 +226,12 @@ ne va jamais seule : toujours un mot ou un symbole avec elle.
 |---|---|
 | `Page { }` | Une page qui défile, à la bonne largeur et aux bonnes marges |
 | `PageHeader("Titre", subtitle:)` | Le titre d'une page qui en a besoin (la page d'un projet) |
-| `Card { }` | Une surface de contenu ; `.cardSurface()` pour une vue existante |
+| `Card { }` | Une surface de contenu, 20 points de marge (`PageMetrics.cardPadding`) ; `.cardSurface()` pour une vue existante |
 | `Banner(.attention, "Titre", detail:, systemImage:) { boutons }` | Un bandeau d'information : seule l'icône porte la couleur (`.information`, `.attention`, `.late`, `.done`, `.agent`) ; `systemImage` dit de quoi il parle (la corbeille, un spam, une image) à la couleur du ton ; ses boutons passent sous le texte quand la place manque, jamais écrasés |
 | `ErrorLine("Phrase")` | Un problème en une ligne : l'icône d'attention dans sa couleur, la phrase dans celle du texte |
 | `SectionTitle("Titre", systemImage:, count:) { trailing }` | Le titre d'une carte ou d'une partie |
-| `Chip("Texte", systemImage:, tint:)` | Un statut, une date, une étiquette |
+| `Chip("Texte", systemImage:, tint:, dot:)` | Un statut, une date, une étiquette ; `dot:` met une couleur d'identité dans un point, le texte reste neutre |
+| `AudioProblemLine(problem:)` (module `MeetingsUI`) | L'audio d'une réunion qui ne se lit pas : la phrase de Polhub par `ErrorLine`, le texte du système sous « Détails » (`AudioProblem`, lot 8) |
 | `Avatar(initiales, size:)` | Une personne |
 | `ColorDot(couleur)` | Un compte, un statut, un projet |
 | `FloatingBar { }` | Des commandes flottantes en bas d'une page, en verre |
@@ -535,8 +542,9 @@ puis nourries par la collecte et ses ajouts. La logique vit à part, testée san
 - **Les images** ne sont jamais décodées entières pour une carte : une vignette ImageIO aux pixels de la carte, faite
   hors du fil principal et gardée en mémoire (256 Mo au plus, `InspirationThumbnails`) ; l'image se pose en
   surimpression, si bien qu'elle ne change jamais la taille de sa carte.
-- **Une fiche ouverte** prend la place de la grille, avec un chevron de retour (comme un projet) : grande image (les
-  images d'un post côte à côte, à leurs proportions), les liens en boutons `.glass` (« Ouvrir le site », « Voir sur
+- **Une fiche ouverte** prend la place de la grille, avec un chevron de retour (comme un projet) : son titre en 26 points
+  (lot 8), grande image (les
+  images d'un post côte à côte, à leurs proportions), les liens en boutons secondaires (« Ouvrir le site », « Voir sur
   LinkedIn », « Ouvrir le dossier » : le Finder si le dossier est sur le Mac, sinon son lien Nextcloud), les autres
   liens du post, le texte (860 points au plus), polices et client, puis les catégories : un clic sur une famille ouvre
   le vocabulaire, chaque valeur cochée ou non. Corrigées par Paul, elles sont à lui : ni la collecte ni l'IA n'y
@@ -546,6 +554,31 @@ puis nourries par la collecte et ses ajouts. La logique vit à part, testée san
 - **Réglages › Inspiration** : les pages LinkedIn (nom, lien, couleur ; ajouter, modifier, ne plus suivre) avec leur
   dernière lecture en clair ; « Collecte automatique » et l'état de chaque lieu lu ; « Catégories par l'IA d'Apple ».
   L'import du coffre est parti avec le coffre (16/11).
+
+## Les pages : Projets, Réunions, Calendrier, Contacts
+
+Lot 8 du plan d'affinage (19/11). Une page sans objet ouvert n'a que son titre de fenêtre (le mot de la barre
+latérale) ; un objet ouvert (un projet, une réunion, un contact, une fiche) a son titre en 26 points gras, ses cartes à
+20 points de marge et 16 entre elles.
+
+- **Le Kanban, « teinte allégée »** (choix de Paul du 19/11) : une carte garde la couleur de son projet, à moitié
+  (6,5 % en clair, 11 % en sombre, `ProjectViews.cardTint`), avec sa bande à gauche et son logo ; son contour est celui
+  de toute carte. **Tous ses textes sont à la couleur du texte** : le nom, la tâche du moment, le prochain rendez-vous en
+  semi-gras, l'échéance lointaine et la dernière réunion en gris ; « En retard de 2 j » et « Échéance aujourd'hui » en
+  semi-gras, leur couleur (retard, attention) sur leur drapeau seulement (`ProjectViews.cardFacts`). **Les colonnes
+  n'ont plus de fond** : leur statut est dans le point de leur titre ; sous une carte qu'on glisse, le fond de ce qui
+  est choisi (`ProjectViews.columnFill`).
+- **Les statuts** (Liste, page d'un projet) : une pastille neutre et son point ; « Terminé » à la couleur de ce qui est
+  fait, avec sa coche (`StatusChip`).
+- **Une réunion** se lit dans la colonne de lecture d'un fil, au milieu (`readingColumn()`), à 16 points sous la barre ;
+  le lecteur flotte sur les bords de cette colonne ; les tours de parole sont au bord de la page, sous
+  « Transcription ». **L'audio qui ne se lit pas le dit en français**, en une ligne (`AudioProblemLine`) :
+  « L'audio de cette réunion est introuvable : son dossier est incomplet. », « … ne se lit pas : un de ses fichiers est
+  abîmé. », « … ne se lit pas. » ; le texte du système (anglais, nom de fichier) attend sous « Détails ».
+- **Le Calendrier** s'ouvre sur l'heure de Réglages › Calendrier avec de l'air au-dessus de son étiquette, qui monte de
+  6 points sur sa ligne : « 08 h » se lit entier (`CalendarView.openingOffset`).
+- **Contacts** : sans contact choisi, « Choisis un contact dans la liste. » ; les projets d'une personne en pastilles
+  neutres avec leur point, comme « Dans « P » » dans la bulle d'un rendez-vous.
 
 ## Les réglages
 
@@ -591,6 +624,7 @@ POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter CoupDoeilScreen
 POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter InspirationScreenTests  # Inspiration, données inventées
 POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter HomeScreenTests         # l'Accueil, données inventées
 POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter SettingsScreenTests     # Réglages, chaque page, clair et sombre
+POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter PagesScreenTests        # Projets, Réunions, Calendrier, Contacts, Inspiration
 ```
 
 Une suite à la fois : lancées ensemble, les captures ont laissé des corps de mails vides (19/11).

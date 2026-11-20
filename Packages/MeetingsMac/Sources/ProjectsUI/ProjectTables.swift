@@ -30,7 +30,8 @@ struct ProjectListView: View {
             }
             .width(min: 180, ideal: 260)
             TableColumn("Statut", value: \.statusRank) { row in
-                Chip(row.project.status.title, tint: ProjectViews.statusColor(row.project.status))
+                // Neutral with its dot, « Terminé » in the color of what is done (lot 8, 19/11).
+                StatusChip(status: row.project.status)
             }
             .width(min: 100, ideal: 120)
             TableColumn("Client", value: \.clientSort) { row in Text(row.project.client ?? "").foregroundStyle(.secondary) }

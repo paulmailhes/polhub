@@ -3,6 +3,26 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.45.0 — 20 novembre 2026
+
+**Projets, Réunions, Calendrier, Contacts, Inspiration : un Kanban lisible, des erreurs en français, des en-têtes
+cohérents.**
+
+- **Le Kanban en teinte allégée** : chaque carte garde la couleur de son projet, deux fois plus légère, et tous ses
+  textes sont en noir. Le retard et l'échéance du jour ne colorent plus que leur petit drapeau. Les colonnes n'ont plus
+  de fond teinté.
+- **Les statuts** (Liste, page d'un projet) : des pastilles neutres avec leur point de couleur ; seul « Terminé » est en
+  vert, avec sa coche. « Priorité 2 » en orange se lisait comme un avertissement.
+- **Une réunion dont l'audio ne se lit pas le dit en français** : « L'audio de cette réunion est introuvable : son
+  dossier est incomplet. », au lieu d'un texte du système en anglais. Le texte d'origine reste derrière « Détails ».
+- **Des en-têtes cohérents** : une réunion, un contact et une fiche d'Inspiration ont leur titre en grand, comme un
+  projet. Une réunion se lit au milieu de la page, comme un fil de mails, et ses tours de parole commencent au bord
+  de la page.
+- **Le Calendrier** s'ouvre sur l'heure réglée sans la couper : « 08 h » se lit en entier.
+- **Des cartes identiques** : vingt points d'air dans chaque carte (projet, contact, compte rendu), seize entre deux.
+- **Contacts** : les projets d'une personne en pastilles neutres avec leur point ; sans contact choisi, la page dit
+  « Choisis un contact dans la liste. ». Dans la bulle d'un rendez-vous, « Dans « Projet » » prend le même dessin.
+
 ## 0.44.0 — 20 novembre 2026
 
 **Réglages : les familles dans l'ordre de la barre latérale, une ligne d'aide par réglage.**

@@ -44,10 +44,9 @@ struct ColumnView: View {
     private var size: CardSize { ProjectViews.cardSize(column.status, chosen: CardSize(stored: sizeName)) }
 
     var body: some View {
-        let color = ProjectViews.statusColor(column.status)
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: Space.s) {
-                ColorDot(color, size: 10)
+                ColorDot(ProjectViews.statusColor(column.status), size: 10)
                 Text(column.title).font(.headline)
                 Text("\(column.projects.count)").font(.meta.monospacedDigit()).foregroundStyle(.secondary)
                 Spacer(minLength: 0)
@@ -86,8 +85,13 @@ struct ColumnView: View {
         .padding(Space.m)
         .frame(width: width)
         .frame(maxHeight: .infinity, alignment: .top)
-        // A panel: the card's radius (design system v2, 19/11). Its tint waits for the Kanban's own lot.
-        .background(color.opacity(targeted ? 0.12 : 0.04), in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        // No tint of its status any more (lot 8, 19/11, « teinte allégée »): no ground at rest, the ground of what is chosen
+        // under a card being dragged.
+        .background {
+            if let fill = ProjectViews.columnFill(targeted: targeted) {
+                RoundedRectangle(cornerRadius: Radius.card, style: .continuous).fill(fill)
+            }
+        }
         .animation(Motion.quick, value: targeted)
         .dropDestination(for: String.self) { items, _ in
             drop(items, before: nil)
@@ -102,9 +106,10 @@ struct ColumnView: View {
     }
 }
 
-/// One project on the board, in its color: its logo and name; normal cards then show the next thing to do, the
-/// most visible line (Paul, 15/11: « c'est le truc principal »), and in words the next meeting, the due date and
-/// the last meeting. The client is left out: Paul knows it.
+/// One project on the board, in its color, lightly (lot 8, 19/11, « teinte allégée »): its logo and name; normal cards
+/// then show the next thing to do, the most visible line (Paul, 15/11: « c'est le truc principal »), and in words the
+/// next meeting, the due date and the last meeting. The client is left out: Paul knows it. Every text in the text's own
+/// color; the project's color is in its ground, its stripe and its logo.
 struct ProjectCard: View {
     let project: ProjectRow
     let size: CardSize
@@ -121,7 +126,7 @@ struct ProjectCard: View {
             HStack(alignment: .center, spacing: Space.m) {
                 ProjectLogo(project, size: size.logoSize)
                 Text(project.name)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.rowTitle.weight(.semibold))
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
@@ -129,7 +134,7 @@ struct ProjectCard: View {
             if !size.isCompact {
                 if let todo = project.todo, !todo.isEmpty {
                     HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-                        Image(systemName: "arrow.right.circle.fill").foregroundStyle(tint)
+                        Image(systemName: "arrow.right.circle.fill").foregroundStyle(.secondary)
                         Text(todo).font(.rowTitle.weight(.medium)).lineLimit(3).fixedSize(horizontal: false, vertical: true)
                     }
                     .padding(.horizontal, Space.m).padding(.vertical, Space.s + 2)
@@ -146,45 +151,35 @@ struct ProjectCard: View {
         .background {
             ZStack(alignment: .leading) {
                 Color(nsColor: .windowBackgroundColor)
-                tint.opacity(scheme == .dark ? 0.22 : 0.13)
+                tint.opacity(ProjectViews.cardTint(dark: scheme == .dark))
                 // The stronger stripe of its color, along the left edge.
                 tint.frame(width: 4)
             }
             .clipShape(shape)
         }
-        .overlay(shape.strokeBorder(tint.opacity(0.18)))
+        // Its edge is the one of every card, drawn by `cardHover` (lot 8, 19/11: no more tinted outline over it).
         .cardHover(radius: Self.radius)
         .contentShape(shape)
         .accessibilityElement(children: .combine)
     }
 
-    /// The next meeting, the due date and the last meeting, one per line, in words.
+    /// The next meeting, the due date and the last meeting, one per line, in words; late and today on their flag only.
     @ViewBuilder
     private var facts: some View {
-        let now = Date()
-        let due = ProjectViews.dueLabel(project.dueDate, today: now)
-        if nextEvent != nil || due != nil || lastMeeting != nil {
-            VStack(alignment: .leading, spacing: Space.xs + 2) {
-                if let nextEvent {
-                    fact(ProjectViews.nextEventLabel(nextEvent, now: now), icon: "calendar.badge.clock", tint: Color(hex: Palette.blue), strong: true)
-                }
-                if let due {
-                    fact(due, icon: "flag", tint: ProjectViews.dueTint(due), strong: ProjectViews.dueTint(due) != nil)
-                }
-                if let lastMeeting {
-                    fact(ProjectViews.meetingLabel(lastMeeting, now: now), icon: "waveform", tint: nil, strong: false)
+        let facts = ProjectViews.cardFacts(nextEvent: nextEvent, due: project.dueDate, lastMeeting: lastMeeting, now: Date())
+        if !facts.isEmpty {
+            VStack(alignment: .leading, spacing: Space.s) {
+                ForEach(facts, id: \.icon) { fact in
+                    Label {
+                        Text(fact.text).font(.meta.weight(fact.strong ? .semibold : .regular)).lineLimit(1)
+                            .foregroundStyle(fact.strong ? Color.primary : Color.secondary)
+                    } icon: {
+                        Image(systemName: fact.icon).font(.meta).frame(width: 16)
+                            .foregroundStyle(fact.role?.color ?? Color.secondary)
+                    }
                 }
             }
         }
-    }
-
-    private func fact(_ text: String, icon: String, tint: Color?, strong: Bool) -> some View {
-        Label {
-            Text(text).font(.meta.weight(strong ? .semibold : .regular)).lineLimit(1)
-        } icon: {
-            Image(systemName: icon).font(.meta).frame(width: 16)
-        }
-        .foregroundStyle(tint ?? Color.secondary)
     }
 }
 
