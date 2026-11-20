@@ -13,7 +13,9 @@ import Transcription
 setenv("HF_HUB_OFFLINE", "1", 1)
 guard getppid() != 1 else { exit(0) }
 let parentWatch = DispatchSource.makeProcessSource(identifier: getppid(), eventMask: .exit, queue: .global())
-parentWatch.setEventHandler { exit(0) }
+// Sendable: run on a queue of its own, never the main actor's (a closure of the main actor stopped hub-dictee with a
+// trap instead of leaving, 20/11).
+parentWatch.setEventHandler { @Sendable in exit(0) }
 parentWatch.resume()
 
 let output = FileHandle.standardOutput
@@ -181,13 +183,15 @@ do {
 // A first second of silence: the model is compiled and warm before the first press.
 _ = try? await engine.dictate([Float](repeating: 0, count: 16_000), language: "fr", prompt: "", long: false)
 let ear = Ear(engine: engine)
-let microphone = AVAudioEngine()
+nonisolated(unsafe) var microphone = AVAudioEngine()
+/// The microphone set on `microphone`; nil: the system's.
+nonisolated(unsafe) var microphoneUID: String?
 nonisolated(unsafe) var partials: Task<Void, Never>?
 emit(.ready)
 
-/// The microphone Paul chose, or the system's: set before each dictation, the engine stopped.
-func use(microphone uid: String?) {
-    guard var device = uid.flatMap(Devices.device(uid:)) ?? Devices.defaultInput() else { return }
+/// The microphone Paul chose, on an engine that has not run yet; when it is not connected, the system's.
+func use(microphone uid: String) {
+    guard var device = Devices.device(uid: uid) else { return }
     microphone.inputNode.withAudioUnit { (unit: borrowing AudioUnit?) in
         guard let unit = copy unit else { return }
         _ = AudioUnitSetProperty(unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0, &device,
@@ -196,11 +200,20 @@ func use(microphone uid: String?) {
 }
 
 func startListening(_ options: DictationListening) {
-    use(microphone: options.microphone)
+    // The same engine while the microphone stays the same: it opens at once, as in 0.62.0. A new one when it changes: an
+    // engine whose microphone changed keeps the old format, and macOS refuses to open it (-10868, or a « format
+    // mismatch » that stops the helper); a new engine each time loses the second dictation (measured 20/11 on 0.63.0).
+    // The system's microphone is never set.
+    if options.microphone != microphoneUID {
+        microphone = AVAudioEngine()
+        microphoneUID = options.microphone
+        if let uid = options.microphone { use(microphone: uid) }
+    }
     let input = microphone.inputNode
+    // The format of the microphone in use, read once it is chosen.
+    let format = input.outputFormat(forBus: 0)
     input.removeTap(onBus: 0)
-    // The format of the microphone in use: another one may have been chosen since the last dictation.
-    input.installTap(onBus: 0, bufferSize: 4_096, format: nil) { buffer, _ in
+    input.installTap(onBus: 0, bufferSize: 4_096, format: format) { buffer, _ in
         let chunk = convert(buffer)
         Task { await ear.append(chunk) }
     }

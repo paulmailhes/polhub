@@ -161,8 +161,7 @@ import Persistence
             working[id] = nil
             fileProblem = reason
         case .failed(let reason):
-            phase = .failed(reason)
-            pill?.hide()
+            failed(reason)
         }
     }
 
@@ -290,6 +289,25 @@ import Persistence
                 guard self?.phase != .listening else { return }
                 self?.pill?.hide()
             }
+        }
+    }
+
+    /// A failure during a dictation (the microphone that does not open): said in the window, the Mac's sound given back,
+    /// and the Dictée ready for the next one — the helper is still there. Before it is loaded, it is the Dictée's state.
+    private func failed(_ reason: String) {
+        guard phase == .listening || phase == .writing else {
+            phase = .failed(reason)
+            pill?.hide()
+            return
+        }
+        if phase == .listening { sound.stopped(finished: false) }
+        silence = nil
+        gesture = KeyGesture(mode: Self.mode)
+        phase = .ready
+        notice = Words.typeset(reason)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
+            guard self?.phase != .listening else { return }
+            self?.pill?.hide()
         }
     }
 

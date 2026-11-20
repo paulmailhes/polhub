@@ -3,6 +3,15 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.63.1 — 20 novembre 2026
+
+**La Dictée remarche.**
+
+- En 0.63.0, le micro ne s'ouvrait plus : hub le réglait avant chaque dictée, même quand c'était celui du système, et
+  macOS refusait. Le micro du système est de nouveau laissé tel quel, comme en 0.62.0.
+- Un micro qui ne s'ouvre pas ne bloque plus la Dictée jusqu'au relancement : la fenêtre le dit, le son du Mac et la
+  musique reviennent, et la dictée suivante marche.
+
 ## 0.63.0 — 20 novembre 2026
 
 **Dictée : une page en cartes, et tous les réglages que tu as choisis.**
