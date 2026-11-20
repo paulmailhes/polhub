@@ -63,6 +63,12 @@ if (ordre === "attendre") {
   const gens = await asc("/v1/users?limit=50&fields[users]=username,roles");
   const titulaire = gens.corps?.data?.find((u) => u.attributes.roles?.includes("ACCOUNT_HOLDER")) ?? gens.corps?.data?.[0];
   if (!titulaire) throw new Error("Aucun utilisateur trouvé dans App Store Connect.");
+  // Already there (a second version): nothing to add.
+  const membres = await asc(`/v1/betaGroups/${groupe.id}/betaTesters?limit=200&fields[betaTesters]=email`);
+  if (membres.corps?.data?.some((t) => t.attributes.email?.toLowerCase() === titulaire.attributes.username?.toLowerCase())) {
+    console.log("Groupe TestFlight « Paul » prêt : chaque version arrive seule sur l'iPhone.");
+    process.exit(0);
+  }
   const ajout = await asc("/v1/betaTesters", "POST", { data: { type: "betaTesters",
     attributes: { email: titulaire.attributes.username },
     relationships: { betaGroups: { data: [{ type: "betaGroups", id: groupe.id }] } } } });
