@@ -64,11 +64,14 @@ public struct LinkThread: Codable, Sendable, Hashable, Identifiable {
     public var unread: Bool
     public var messages: Int
     public var hasFiles: Bool
-    /// The project it is filed in, by name.
+    /// The project it is filed in, by name, and its color (`#RRGGBB`).
     public var project: String?
+    public var projectColor: String?
+    /// The address of who wrote last, for the color of the line's initial.
+    public var sender: String?
 
     public init(id: String, account: String, subject: String, people: String, snippet: String, date: Date, unread: Bool, messages: Int,
-                hasFiles: Bool, project: String?) {
+                hasFiles: Bool, project: String?, projectColor: String? = nil, sender: String? = nil) {
         self.id = id
         self.account = account
         self.subject = subject
@@ -79,6 +82,8 @@ public struct LinkThread: Codable, Sendable, Hashable, Identifiable {
         self.messages = messages
         self.hasFiles = hasFiles
         self.project = project
+        self.projectColor = projectColor
+        self.sender = sender
     }
 }
 
@@ -428,4 +433,11 @@ public struct LinkColin: Codable, Sendable, Equatable {
         self.messages = messages
         self.changes = changes
     }
+}
+
+/// Where Apple's push service reaches this iPhone, in hexadecimal.
+public struct LinkPushToken: Codable, Sendable, Equatable {
+    public var token: String
+
+    public init(token: String) { self.token = token }
 }

@@ -38,11 +38,15 @@ public enum LinkDemo {
             return try? encoder.encode([
                 LinkEvent(id: "e1", title: "Point Studio Nord", start: at(0, 9, 30), end: at(0, 10), allDay: false, account: "moi@exemple.fr",
                           color: "#3B82F6", meet: URL(string: "https://meet.google.com/abc-defg-hij"), location: nil, project: "Studio Nord"),
+                LinkEvent(id: "e5", title: "Appel Jules", start: at(0, 9, 45), end: at(0, 10, 30), allDay: false, account: "perso@exemple.fr",
+                          color: "#22A06B", meet: nil, location: nil, project: nil),
+                LinkEvent(id: "e6", title: "Atelier branding", start: at(1, 10, 0), end: at(1, 11, 30), allDay: false, account: "moi@exemple.fr",
+                          color: "#3B82F6", meet: URL(string: "https://meet.google.com/xyz-abcd-efg"), location: nil, project: "Studio Nord"),
                 LinkEvent(id: "e2", title: "Revue de maquettes", start: at(0, 14), end: at(0, 15), allDay: false, account: "moi@exemple.fr",
                           color: "#3B82F6", meet: nil, location: "Atelier", project: "Site vitrine"),
                 LinkEvent(id: "e3", title: "Déjeuner avec Jules", start: at(1, 12, 30), end: at(1, 14), allDay: false, account: "perso@exemple.fr",
                           color: "#22A06B", meet: nil, location: "Le Comptoir", project: nil),
-                LinkEvent(id: "e4", title: "Livraison Maison Leroy", start: at(2, 0), end: at(3, 0), allDay: true, account: "moi@exemple.fr",
+                LinkEvent(id: "e4", title: "Livraison Maison Leroy", start: at(1, 0), end: at(2, 0), allDay: true, account: "moi@exemple.fr",
                           color: "#3B82F6", meet: nil, location: nil, project: "Maison Leroy"),
             ])
         case LinkAPI.Path.projects:
@@ -94,16 +98,16 @@ public enum LinkDemo {
         [
             LinkThread(id: "moi@exemple.fr|a", account: "moi@exemple.fr", subject: "Maquette v2 du site", people: "Camille, moi",
                        snippet: "Parfait. J'ai aussi corrigé la page contact.", date: at(0, 8, 31), unread: true, messages: 3, hasFiles: true,
-                       project: "Site vitrine"),
+                       project: "Site vitrine", projectColor: "#3B82F6", sender: "camille.martin@exemple-studio.fr"),
             LinkThread(id: "moi@exemple.fr|b", account: "moi@exemple.fr", subject: "Devis signé", people: "Jules Durand",
                        snippet: "Le client a signé, on peut lancer.", date: at(0, 7, 12), unread: true, messages: 1, hasFiles: false,
-                       project: "Maison Leroy"),
+                       project: "Maison Leroy", projectColor: "#F97316", sender: "jules@exemple.fr"),
             LinkThread(id: "moi@exemple.fr|c", account: "moi@exemple.fr", subject: "Photos du week-end", people: "Nina Roche",
                        snippet: "Je t'envoie les photos de dimanche, elles sont superbes.", date: at(-1, 20, 4), unread: false, messages: 2,
-                       hasFiles: true, project: nil),
+                       hasFiles: true, project: nil, sender: "nina@exemple.fr"),
             LinkThread(id: "moi@exemple.fr|d", account: "moi@exemple.fr", subject: "Planning de mars", people: "Jules Durand",
                        snippet: "Voici le planning mis à jour pour mars.", date: at(-3, 10, 0), unread: false, messages: 4, hasFiles: false,
-                       project: "Studio Nord"),
+                       project: "Studio Nord", projectColor: "#8B5CF6", sender: "jules@exemple.fr"),
         ]
     }
 

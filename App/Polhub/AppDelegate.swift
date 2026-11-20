@@ -517,6 +517,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let hub = NotificationHub(agenda: agenda, inbox: NotificationInbox(file: paths.notifications))
         notifications = hub
         agenda.notifications = hub
+        // The iPhone gets what the Mac notifies, and the reminders at their time (20/11).
+        if let phone {
+            hub.phone = { [weak phone] notice in await phone?.notify(notice) }
+            hub.phoneReminders = { [weak phone] plan in phone?.plan(plan) }
+        }
         // The new mails of the main tab (14/11).
         mails?.onArrival = { arrived in Task { await hub.mailsArrived(arrived) } }
         mails?.onSendFailed = { subject, thread in Task { await hub.mailNotSent(subject: subject, threadKey: thread) } }

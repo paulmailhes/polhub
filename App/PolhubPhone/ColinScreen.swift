@@ -40,8 +40,13 @@ struct ColinScreen: View {
                 SettingsButton()
                 ToolbarItem(placement: .principal) {
                     HStack(spacing: 6) {
+                        Image(systemName: "sparkles").foregroundStyle(PhoneStyle.colin)
                         Text("Colin").font(.headline)
-                        if let state = thread?.state { Text(state).font(.subheadline).foregroundStyle(.secondary) }
+                        if let state = thread?.state {
+                            Circle().fill(state == "en panne" ? PhoneStyle.red : (state == "prêt" || state == "répond…" ? PhoneStyle.colin : .gray))
+                                .frame(width: 7, height: 7)
+                            Text(state).font(.subheadline).foregroundStyle(.secondary)
+                        }
                     }
                 }
             }
@@ -122,7 +127,7 @@ struct ColinBubble: View {
                 Spacer(minLength: 48)
                 Text(message.text)
                     .padding(.horizontal, 14).padding(.vertical, 10)
-                    .background(Color.secondary.opacity(0.15), in: RoundedRectangle(cornerRadius: 18))
+                    .background(PhoneStyle.colin.opacity(0.14), in: RoundedRectangle(cornerRadius: 18))
             }
         } else {
             VStack(alignment: .leading, spacing: 4) {
@@ -142,7 +147,7 @@ struct ChangeCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(change.created ? "Nouveau projet" : "Projet modifié").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            Text(change.created ? "Nouveau projet" : "Projet modifié").font(.caption.weight(.semibold)).foregroundStyle(PhoneStyle.colin)
             Text(change.project).font(.headline)
             if let note = change.note { Text(note).font(.footnote).foregroundStyle(.secondary) }
             ForEach(Array(change.fields.enumerated()), id: \.offset) { _, field in
@@ -159,6 +164,7 @@ struct ChangeCard: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
+        .background(PhoneStyle.colin.opacity(0.07), in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(PhoneStyle.colin.opacity(0.25), lineWidth: 1))
     }
 }

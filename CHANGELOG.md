@@ -3,6 +3,17 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.53.0 — 20 novembre 2026
+
+**Les notifications de Polhub arrivent sur l'iPhone.**
+
+- Ce que le Mac notifie (nouveaux mails, nouveaux rendez-vous, comptes rendus prêts, mail non envoyé, brouillons de Colin)
+  part aussi sur l'iPhone, par le service de notifications d'Apple, quand le Mac est allumé. Les nouveaux mails arrivent
+  sur l'iPhone même quand le Mac les tait.
+- Les rappels avant un rendez-vous partent à leur heure.
+- Réglages › iPhone : « Notifications sur l'iPhone », et une ligne si la clé d'Apple manque.
+- Sur l'iPhone, toucher la notification d'un mail ouvre son fil.
+
 ## 0.52.1 — 20 novembre 2026
 
 - Réglages › iPhone trouve seul l'adresse du Mac sur Tailscale : celle que `tailscale serve` publie. Lancée depuis Polhub,

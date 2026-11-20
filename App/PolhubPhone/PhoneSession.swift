@@ -80,6 +80,17 @@ final class PhoneSession {
         status = try? await fetch(LinkStatus.self, LinkAPI.Path.status).value
     }
 
+    // MARK: - Notifications (20/11)
+
+    /// What a touched notification opens: the tabs and the mails follow it, then clear it.
+    var opening: Opening?
+
+    /// The push token, given to the Mac, which sends the notifications.
+    func givePushToken(_ token: String) async {
+        guard !demo else { return }
+        _ = try? await post(LinkStatus.self, LinkAPI.Path.push, body: LinkPushToken(token: token))
+    }
+
     // MARK: - Writing (lot 3, 20/11)
 
     /// The mail leaving from the Mac, while it can be called back: the pill at the bottom.

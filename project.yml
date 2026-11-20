@@ -211,6 +211,7 @@ targets:
       - path: App/PolhubPhone
         excludes:
           - "*.plist"
+          - "*.entitlements"
       - path: App/Polhub/AppIcon.icon
     dependencies:
       - package: Link
@@ -224,6 +225,8 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: App/PolhubPhone/Info.plist
+        # The notifications (20/11): Apple's push service, production (TestFlight).
+        CODE_SIGN_ENTITLEMENTS: App/PolhubPhone/PolhubPhone.entitlements
         MARKETING_VERSION: "1.0.0"
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: CQ43U6XX4Z

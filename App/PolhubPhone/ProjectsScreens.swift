@@ -17,9 +17,16 @@ struct ProjectsScreen: View {
                 ForEach(Self.columns, id: \.0) { status, title in
                     let shown = projects.filter { $0.status == status }
                     if !shown.isEmpty, status != "terminé" || showsDone {
-                        Section(title) {
+                        Section {
                             ForEach(shown) { project in
                                 NavigationLink(value: project) { ProjectRow(project: project) }
+                                    .listRowBackground(Color(hex: project.color ?? "#8E8E93").opacity(0.07))
+                            }
+                        } header: {
+                            Label {
+                                Text(title)
+                            } icon: {
+                                Circle().fill(PhoneStyle.status(status)).frame(width: 9, height: 9)
                             }
                         }
                     }
@@ -54,9 +61,10 @@ struct ProjectRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Circle().fill(Color(hex: project.color ?? "#8E8E93")).frame(width: 9, height: 9).padding(.top, 6)
+            RoundedRectangle(cornerRadius: 2).fill(Color(hex: project.color ?? "#8E8E93")).frame(width: 4, height: 36)
             VStack(alignment: .leading, spacing: 2) {
-                Text(project.name).fontWeight(.medium)
+                Text(project.name).fontWeight(.semibold)
+                if let client = project.client { Text(client).font(.footnote).foregroundStyle(.secondary) }
                 if let task = project.task, !task.isEmpty { Text(task).font(.subheadline).foregroundStyle(.secondary).lineLimit(2) }
                 if let due = project.due { DueLine(due: due) }
             }
@@ -142,11 +150,17 @@ struct MeetingsScreen: View {
         NavigationStack {
             List(meetings) { meeting in
                 NavigationLink(value: meeting) {
+                    HStack(spacing: 12) {
+                        Image(systemName: meeting.hasSummary ? "text.document" : "waveform")
+                            .foregroundStyle(PhoneStyle.meetings)
+                            .frame(width: 34, height: 34)
+                            .background(PhoneStyle.meetings.opacity(0.14), in: RoundedRectangle(cornerRadius: 9))
                     VStack(alignment: .leading, spacing: 2) {
                         Text(meeting.title).fontWeight(.medium)
                         Text(([LinkWords.listDate(meeting.start)] + [meeting.seconds.map(LinkWords.duration), meeting.project].compactMap { $0 })
                             .joined(separator: " · "))
                             .font(.footnote).foregroundStyle(.secondary)
+                    }
                     }
                 }
             }

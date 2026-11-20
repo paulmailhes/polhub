@@ -52,6 +52,13 @@ struct MailsScreen: View {
             .refreshable { await load() }
             .task(id: folder) { await load() }
             .sheet(isPresented: $composing) { ComposeSheet(reply: nil) }
+            // A touched notification of a mail opens its thread.
+            .onChange(of: session.opening, initial: true) { _, opening in
+                guard case .thread(let key)? = opening else { return }
+                path = [LinkThread(id: key, account: "", subject: "", people: "", snippet: "", date: Date(), unread: false, messages: 1,
+                                   hasFiles: false, project: nil)]
+                session.opening = nil
+            }
         }
     }
 
@@ -75,6 +82,19 @@ struct ThreadRow: View {
     let thread: LinkThread
 
     var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            ZStack(alignment: .topLeading) {
+                Initial(name: thread.people, address: thread.sender)
+                if thread.unread {
+                    Circle().fill(PhoneStyle.unread).frame(width: 10, height: 10)
+                        .overlay(Circle().stroke(Color(uiColor: .systemBackground), lineWidth: 2)).offset(x: -3, y: -3)
+                }
+            }
+            content
+        }
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline) {
                 // « Camille, moi », the count lighter, as on the Mac.
@@ -82,14 +102,11 @@ struct ThreadRow: View {
                     + Text(thread.messages > 1 ? " \(thread.messages)" : "").foregroundStyle(.secondary))
                     .lineLimit(1)
                 Spacer()
-                Text(LinkWords.listDate(thread.date)).font(.footnote).foregroundStyle(thread.unread ? .primary : .secondary)
+                Text(LinkWords.listDate(thread.date)).font(.footnote).foregroundStyle(thread.unread ? PhoneStyle.unread : .secondary)
             }
             Text(thread.subject).font(.subheadline).fontWeight(thread.unread ? .semibold : .regular).lineLimit(1)
             HStack(spacing: 6) {
-                if let project = thread.project {
-                    Text(project).font(.caption.weight(.medium)).padding(.horizontal, 6).padding(.vertical, 1)
-                        .background(Color.secondary.opacity(0.15), in: Capsule())
-                }
+                if let project = thread.project { ProjectChip(name: project, color: thread.projectColor) }
                 Text(thread.snippet).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
                 if thread.hasFiles { Image(systemName: "paperclip").font(.caption).foregroundStyle(.secondary) }
             }
@@ -113,8 +130,11 @@ struct ThreadScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text(thread.subject).font(.title2.weight(.semibold))
-                if let project = thread.project { Text(project).font(.subheadline).foregroundStyle(.secondary) }
+                // Opened from a notification, the thread is known by its key only until the Mac answers.
+                Text(detail?.thread.subject ?? thread.subject).font(.title2.weight(.semibold))
+                if let project = detail?.thread.project ?? thread.project {
+                    ProjectChip(name: project, color: detail?.thread.projectColor ?? thread.projectColor)
+                }
                 if let detail {
                     ForEach(Array(detail.messages.enumerated()), id: \.element.id) { index, message in
                         MessageView(message: message, open: index >= detail.messages.count - 1) { file in
@@ -178,7 +198,8 @@ struct MessageView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button { withAnimation { open.toggle() } } label: {
-                HStack(alignment: .firstTextBaseline) {
+                HStack(alignment: .top, spacing: 10) {
+                    Initial(name: message.from?.shown ?? "?", address: message.from?.email, size: 32)
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 4) {
                             Text(message.from?.shown ?? "Inconnu").fontWeight(.semibold)

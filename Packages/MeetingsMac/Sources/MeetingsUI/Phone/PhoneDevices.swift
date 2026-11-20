@@ -10,6 +10,8 @@ public struct PhoneDevice: Codable, Equatable, Sendable, Identifiable {
     public var pairedAt: Date
     /// Its last request; nil while the QR code waits to be scanned.
     public var lastSeenAt: Date?
+    /// Where Apple's push service reaches it (20/11); nil until it allowed the notifications.
+    public var pushToken: String?
 }
 
 /// The iPhones paired with this Mac, in its preferences. A QR code not scanned within ten minutes is forgotten.
@@ -55,6 +57,16 @@ public final class PhoneDevices: @unchecked Sendable {
                 save(devices)
             }
             return devices[index]
+        }
+    }
+
+    /// The iPhone's push token, given by the iPhone, or forgotten (nil) when Apple no longer knows it.
+    public func setPushToken(_ token: String?, for id: UUID) {
+        lock.withLock {
+            var devices = stored()
+            guard let index = devices.firstIndex(where: { $0.id == id }), devices[index].pushToken != token else { return }
+            devices[index].pushToken = token
+            save(devices)
         }
     }
 

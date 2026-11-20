@@ -5,6 +5,7 @@ import SwiftUI
 /// network. The QR code of Réglages › iPhone on the Mac pairs it.
 @main
 struct PolhubPhoneApp: App {
+    @UIApplicationDelegateAdaptor(PhoneAppDelegate.self) private var delegate
     @State private var session = PhoneSession()
     @State private var pairingProblem: String?
 
@@ -22,6 +23,12 @@ struct PolhubPhoneApp: App {
             // The QR code of the Mac opens here.
             .onOpenURL { url in
                 Task { pairingProblem = await session.pair(with: url) }
+            }
+            // Paired: the notifications are asked once, and their token goes to the Mac at each launch.
+            .task(id: session.connection?.token) {
+                delegate.session = session
+                guard session.connection != nil, !session.demo else { return }
+                await PhoneAppDelegate.ask()
             }
         }
     }
@@ -41,13 +48,24 @@ struct RootTabs: View {
 
     var body: some View {
         TabView(selection: $tab) {
-            Tab("Mails", systemImage: "envelope", value: 0) { MailsScreen() }
+            // Each tab on the color of its family on the Mac (Paul, 20/11: more color).
+            Tab("Mails", systemImage: "envelope", value: 0) { MailsScreen().tint(PhoneStyle.mails) }
             Tab("Calendrier", systemImage: "calendar", value: 1) { CalendarScreen() }
-            Tab("Colin", systemImage: "sparkles", value: 2) { ColinScreen() }
-            Tab("Projets", systemImage: "square.grid.2x2", value: 3) { ProjectsScreen() }
-            Tab("Réunions", systemImage: "waveform", value: 4) { MeetingsScreen() }
+            Tab("Colin", systemImage: "sparkles", value: 2) { ColinScreen().tint(PhoneStyle.colin) }
+            Tab("Projets", systemImage: "square.grid.2x2", value: 3) { ProjectsScreen().tint(PhoneStyle.projects) }
+            Tab("Réunions", systemImage: "waveform", value: 4) { MeetingsScreen().tint(PhoneStyle.meetings) }
         }
         .overlay(alignment: .bottom) { SendingPill().animation(.snappy, value: session.sending?.draftID) }
+        // A touched notification: its tab.
+        .onChange(of: session.opening) { _, opening in
+            switch opening {
+            case .thread?: tab = 0
+            case .calendar?:
+                tab = 1
+                session.opening = nil
+            case nil: break
+            }
+        }
         .environment(\.openSettings, OpenSettings { settings = true })
         .sheet(isPresented: $settings) { PhoneSettingsScreen() }
     }

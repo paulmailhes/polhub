@@ -33,10 +33,15 @@ public final class NotificationHub: ObservableObject {
         self.inbox = inbox
     }
 
-    /// The one door of the notifications shown now: macOS shows it, the list keeps it.
+    /// The iPhone (20/11): what the Mac notifies, and the reminders, at their time.
+    public var phone: ((PlannedNotice) async -> Void)?
+    public var phoneReminders: (([PlannedNotice]) -> Void)?
+
+    /// The one door of the notifications shown now: macOS shows it, the list keeps it, the iPhone gets it.
     private func deliver(_ notice: PlannedNotice) async {
         await client.deliverNow(notice, sound: settings().sound)
         inbox?.record(notice, at: notice.fireDate)
+        await phone?(notice)
     }
 
     /// The reminders whose time came since the last look go to the list, at the time macOS showed them.
@@ -62,6 +67,7 @@ public final class NotificationHub: ObservableObject {
         if settings.reminders { recordDueReminders(now: now) }
         scheduled = plan
         await ReminderSync.apply(plan, to: client, sound: settings.sound)
+        phoneReminders?(plan)
     }
 
     /// After a reading: the events that appeared (`before`: Google's ids), then the reminders.
@@ -124,7 +130,12 @@ public final class NotificationHub: ObservableObject {
 
     /// New mails of the main tab, as the mail engine heard them (14/11).
     public func mailsArrived(_ mails: [(threadKey: String, sender: String, subject: String)]) async {
-        guard settings().mailNotices, !mails.isEmpty else { return }
+        guard !mails.isEmpty else { return }
+        // The iPhone hears of them even when the Mac keeps quiet about mails (20/11).
+        guard settings().mailNotices else {
+            for notice in NotificationPlan.mailNotices(mails, now: Date()) { await phone?(notice) }
+            return
+        }
         for notice in NotificationPlan.mailNotices(mails, now: Date()) { await deliver(notice) }
     }
 

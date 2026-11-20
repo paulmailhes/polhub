@@ -43,7 +43,7 @@ final class PhoneAPI {
             return Self.error(Self.notPaired, status: 401)
         }
         do {
-            if request.method == Self.write { return try await written(request) }
+            if request.method == Self.write { return try await written(request, device: device) }
             guard request.method == Self.read else { return Self.error("Cette demande n'existe pas.", status: 405) }
             switch request.path {
             case LinkAPI.Path.status:
@@ -113,10 +113,11 @@ final class PhoneAPI {
     }
 
     func link(_ thread: MailThreadRow) -> LinkThread {
-        let project: String? = if case .project(let id)? = mails?.filing(of: thread)?.filing { mails?.project(id)?.name } else { nil }
+        let project: ProjectRow? = if case .project(let id)? = mails?.filing(of: thread)?.filing { mails?.project(id) } else { nil }
         return LinkThread(id: thread.id, account: thread.account, subject: thread.subject.isEmpty ? Words.noSubject : thread.subject,
                           people: MailText.names(thread, mine: mails?.mine ?? []), snippet: thread.snippet, date: thread.lastMessageAt,
-                          unread: thread.unread, messages: thread.messageCount, hasFiles: thread.hasAttachment, project: project)
+                          unread: thread.unread, messages: thread.messageCount, hasFiles: thread.hasAttachment, project: project?.name,
+                          projectColor: project?.color, sender: thread.lastSender ?? thread.senders.last?.email)
     }
 
     /// A thread whole, its bodies as the Mac shows them (made safe, without remote images); read once opened, as on the
@@ -153,7 +154,7 @@ final class PhoneAPI {
     // MARK: - Writing (lot 3, 20/11)
 
     /// What a POST asks: a reply, a new mail, a call back, a question for Colin, a change undone.
-    func written(_ request: HTTPRequest) async throws -> HTTPResponse {
+    func written(_ request: HTTPRequest, device: PhoneDevice) async throws -> HTTPResponse {
         func body<Value: Decodable>(_ type: Value.Type) throws -> Value {
             guard let value = try? LinkAPI.decoder.decode(type, from: request.body) else { throw LinkError("Cette demande est illisible.") }
             return value
@@ -176,6 +177,12 @@ final class PhoneAPI {
             colin.draft = text
             colin.send()
             return try Self.json(try colinThread())
+        case LinkAPI.Path.push:
+            let push = try body(LinkPushToken.self)
+            let token = push.token.filter(\.isHexDigit)
+            guard token.count >= 32 else { throw LinkError("Ce jeton de notifications est illisible.") }
+            devices.setPushToken(token, for: device.id)
+            return try Self.json(LinkStatus(appVersion: appVersion, device: device.name))
         case LinkAPI.Path.colinUndo:
             let undo = try body(LinkUndo.self)
             guard let colin, let line = colin.changes.first(where: { $0.id == undo.id }) else { throw LinkError("Ce changement n'existe plus.") }

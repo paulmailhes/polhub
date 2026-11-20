@@ -1,5 +1,6 @@
 import Foundation
 import LocalServer
+import Notifications
 import Persistence
 import PolhubDesign
 import PolhubLink
@@ -10,6 +11,8 @@ import PolhubLink
 @MainActor
 public final class PhoneAccess: ObservableObject {
     static let enabledKey = "iphone.acces"
+    /// The notifications on the iPhone (20/11), on unless switched off.
+    static let notificationsKey = "iphone.notifications"
     static let addressKey = "iphone.adresse"
     /// The command that publishes the server on the tailnet, once, by Paul: the Tailscale app's own command line, which
     /// the Terminal does not know by its short name (measured on 20/11).
@@ -46,6 +49,29 @@ public final class PhoneAccess: ObservableObject {
 
     let store: PhoneDevices
     let api: PhoneAPI
+    let push: PhonePush
+
+    public var notifies: Bool {
+        get { defaults.object(forKey: Self.notificationsKey) as? Bool ?? true }
+        set {
+            objectWillChange.send()
+            defaults.set(newValue, forKey: Self.notificationsKey)
+        }
+    }
+
+    /// Whether the push key is found: without it, nothing reaches the iPhone.
+    public var hasPushKey: Bool { push.key != nil }
+
+    /// What the Mac notifies, on the iPhone too.
+    public func notify(_ notice: PlannedNotice) async {
+        guard enabled, notifies else { return }
+        await push.send(notice)
+    }
+
+    /// The reminders before the events, at their time.
+    public func plan(_ reminders: [PlannedNotice]) {
+        push.plan(enabled && notifies ? reminders : [])
+    }
     private let defaults: UserDefaults
     private var server: HTTPServer?
     private let port: UInt16
@@ -56,6 +82,7 @@ public final class PhoneAccess: ObservableObject {
         self.port = port
         store = PhoneDevices(defaults: defaults)
         api = PhoneAPI(devices: store, database: database, agenda: agenda, mails: mails, colin: colin, appVersion: appVersion)
+        push = PhonePush(devices: store, defaults: defaults)
         address = defaults.string(forKey: Self.addressKey) ?? ""
         devices = store.all
     }

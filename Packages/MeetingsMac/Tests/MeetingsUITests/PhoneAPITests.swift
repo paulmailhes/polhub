@@ -1,6 +1,8 @@
 import Domain
 import Foundation
+import CryptoKit
 import LocalServer
+import Notifications
 import Mail
 import Persistence
 import PolhubLink
@@ -163,6 +165,35 @@ import Testing
         // Without Colin on this Mac, a question says so.
         let question = try await post(LinkAPI.Path.colin, LinkQuestion(text: "Où on en est ?"))
         #expect(question.status == 409)
+    }
+
+    /// 20/11: the iPhone gives its push token; a notice goes to Apple with what to open on a touch.
+    @Test func theIPhonesPushTokenIsKeptAndANoticeSaysItsThread() async throws {
+        let (api, token, _) = try api()
+        let hex = String(repeating: "ab", count: 32)
+        let answer = await api.respond(HTTPRequest(method: "POST", path: LinkAPI.Path.push, headers: ["authorization": LinkAPI.bearer(token)],
+                                                   body: try LinkAPI.encoder.encode(LinkPushToken(token: hex))))
+        #expect(answer.status == 200 && api.devices.all.first?.pushToken == hex)
+        let notice = PlannedNotice(id: "mail|moi@exemple.fr|a|1", fireDate: Date(), title: "Camille Martin", body: "Maquette v2 du site",
+                                   eventID: nil, meetCode: nil, account: nil, threadKey: "moi@exemple.fr|a", kind: .mail)
+        let payload = try #require(try JSONSerialization.jsonObject(with: PhonePush.payload(notice)) as? [String: Any])
+        #expect(payload["fil"] as? String == "moi@exemple.fr|a")
+        #expect(((payload["aps"] as? [String: Any])?["alert"] as? [String: String])?["title"] == "Camille Martin")
+    }
+
+    @Test func theProviderTokenIsSignedByTheKey() throws {
+        let key = P256.Signing.PrivateKey()
+        let jwt = PhonePush.jwt(keyID: "ABC123", team: "TEAM", key: key, now: Date(timeIntervalSince1970: 1_790_000_000))
+        let parts = jwt.split(separator: ".").map(String.init)
+        #expect(parts.count == 3)
+        func data(_ text: String) -> Data? {
+            var base = text.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+            while base.count % 4 != 0 { base += "=" }
+            return Data(base64Encoded: base)
+        }
+        let signature = try P256.Signing.ECDSASignature(rawRepresentation: try #require(data(parts[2])))
+        #expect(key.publicKey.isValidSignature(signature, for: Data("\(parts[0]).\(parts[1])".utf8)))
+        #expect(String(decoding: try #require(data(parts[1])), as: UTF8.self) == #"{"iss":"TEAM","iat":1790000000}"#)
     }
 
     @Test func theAddressMustBeHTTPS() {

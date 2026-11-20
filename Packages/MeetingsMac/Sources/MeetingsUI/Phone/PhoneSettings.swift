@@ -36,6 +36,12 @@ struct PhoneSettingsPane: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                Section {
+                    SettingRow("Notifications sur l'iPhone", help: PhoneSettingsText.notificationsHelp,
+                               problem: access.hasPushKey ? nil : PhoneSettingsText.noKey) {
+                        Toggle("Notifications sur l'iPhone", isOn: Binding(get: { access.notifies }, set: { access.notifies = $0 }))
+                    }
+                }
                 Section("iPhone reliés") {
                     ForEach(access.devices) { device in
                         HStack {
@@ -114,6 +120,8 @@ enum PhoneSettingsText {
     static let accessDetail = "Par ton réseau Tailscale seulement : Polhub n'écoute que sur ce Mac, et Tailscale le publie pour tes appareils. Un iPhone doit être relié par le code de cette page pour lire quoi que ce soit."
     static let addressHelp = "L'adresse de ce Mac sur Tailscale, que l'iPhone appelle."
     static let serveHelp = "Tailscale ne publie pas encore Polhub : colle cette commande dans le Terminal, une seule fois."
+    static let notificationsHelp = "Les nouveaux mails, les rendez-vous qui arrivent, les rappels et les comptes rendus, sur l'iPhone aussi, quand le Mac est allumé."
+    static let noKey = "La clé de notifications d'Apple manque : rien n'arrive sur l'iPhone."
     static let scan = "Scanne ce code avec l'appareil photo de ton iPhone : il ouvre Polhub et le relie à ce Mac."
     static let paste = "Ou « Copier le lien », puis sur l'iPhone, dans Polhub : « Coller le lien du code »."
 
