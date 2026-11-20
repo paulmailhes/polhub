@@ -201,6 +201,8 @@ targets:
         product: ReadingKit
       - package: Kernel
         product: Persistence
+      - package: Kernel
+        product: Domain
     settings:
       base:
         PRODUCT_NAME: hub

@@ -1,3 +1,4 @@
+import Domain
 import Foundation
 import Persistence
 import ReadingKit
@@ -61,10 +62,13 @@ do {
         print(try reader.search(arguments.dropFirst().joined(separator: " "), limit: limit))
     case "mcp":
         let helper = Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments[0])
+        // Only the tools of the add-ons installed in the app (20/11); without its settings, all of them.
+        let installed = AddOnStore.app.installed
         // The project tools write (13/11): the base opens for writing, never migrated, and the app is told.
         var desk: ProjectDesk?
         // What it writes in a project is signed (step 3 of Colin, 18/11): Colin's, or an agent's.
-        if let tools = try? AppDatabase.forTools(path: basePath, author: options.colin ? .colin : .agent), (try? tools.hasProjects()) == true {
+        if installed.contains(.projects), let tools = try? AppDatabase.forTools(path: basePath, author: options.colin ? .colin : .agent),
+           (try? tools.hasProjects()) == true {
             desk = ProjectDesk(projects: ProjectStore(tools), meetings: MeetingStore(tools),
                                // Colin works in an empty folder: no project is guessed from it, none of its path is said.
                                workingDirectory: options.colin ? nil : FileManager.default.currentDirectoryPath,
@@ -72,12 +76,12 @@ do {
         }
         // The mails (step « Agents »): the copy, read; drafts dropped for the app. No network here.
         var mails: MailDesk?
-        if let tools = try? AppDatabase.forTools(path: basePath), (try? MailStore(tools).acceptsAgentDrafts()) == true {
+        if installed.contains(.mails), let tools = try? AppDatabase.forTools(path: basePath), (try? MailStore(tools).acceptsAgentDrafts()) == true {
             mails = MailDesk(database: tools, root: URL(fileURLWithPath: basePath).deletingLastPathComponent(), scope: .current(), projects: desk)
         }
         // The agenda and the contacts (16/11): the copy, read; an event asked of the app, which alone speaks to Google.
         var agenda: AgendaDesk?
-        if desk != nil, let tools = try? AppDatabase.forTools(path: basePath) {
+        if installed.contains(.calendar), desk != nil, let tools = try? AppDatabase.forTools(path: basePath) {
             agenda = AgendaDesk(database: tools, root: URL(fileURLWithPath: basePath).deletingLastPathComponent(), projects: desk, mailScope: .current())
         }
         // Colin reads the conversations of Claude Code (20/11): the agents' sessions read their files themselves.

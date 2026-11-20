@@ -143,6 +143,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var terminationSource: DispatchSourceSignal?
     private var guideObserver: AnyCancellable?
 
+    /// The add-ons installed (20/11), settled at launch: what is not installed is never made.
+    private(set) var addOns = Set(AddOn.allCases)
     // The meetings.
     private(set) var store: MeetingStore?
     /// The folders, moved under the name hub-board at the first launch that has it (20/11), before anything opens the base.
@@ -252,6 +254,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     // MARK: - Meetings
 
     private func startMeetings() {
+        // The add-ons installed (20/11), before the base is opened: a base already there has them all, a new one none.
+        let addOnStore = AddOnStore(defaults: .standard)
+        addOnStore.settle(baseExists: FileManager.default.fileExists(atPath: paths.database.path(percentEncoded: false)))
+        addOns = addOnStore.installed
         let store: MeetingStore
         do {
             let database = try AppDatabase(path: paths.database.path)
@@ -272,10 +278,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         }
         self.store = store
         library = MeetingLibrary(store: store)
-        projects = ProjectLibrary(store: ProjectStore(store.database), meetings: store)
+        projects = addOns.contains(.projects) ? ProjectLibrary(store: ProjectStore(store.database), meetings: store) : nil
         projectLogos = ProjectLogos(folder: paths.logos, database: store.database)
         startAgenda(database: store.database)
-        startInspiration(database: store.database)
+        // Nothing installed yet (a new Mac): the window opens on Réglages › Add-ons, « Choisis tes add-ons ».
+        if addOns.isEmpty {
+            router.section = .settings
+            router.settingsPane = .addOns
+            DispatchQueue.main.async { [weak self] in self?.showMainWindow() }
+        }
+        if addOns.contains(.inspiration) { startInspiration(database: store.database) }
         // Before the diagnostic, which may open the window: the window takes the update service as it is
         // when it opens, and Réglages › Mises à jour needs it (13/11).
         startUpdates(store: store)
@@ -285,25 +297,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let day = Date().formatted(.iso8601.year().month().day().dateSeparator(.omitted))
         detectionLog = try? TraceWriter(fileURL: paths.logs.appending(path: "detection-\(day).jsonl"))
 
-        let paths = paths
-        let coordinator = MeetingCoordinator(
-            store: store, paths: paths, recorders: LiveRecorderFactory(), presenter: presenter,
-            detector: MeetingDetector(config: Self.detectorConfig, neverCodes: (try? store.neverCodes()) ?? []),
-            clock: ContinuousTime.seconds, now: Date.init,
-            availableBytes: { DiskGuard.availableBytes(at: paths.root) },
-            deviceName: DeviceNames.name(forUID:), log: detectionLog,
-            canResume: { row in
-                RecoveryPolicy.canResume(lastWrite: RecoveryPolicy.lastWrite(of: row, paths: paths), bootTime: RecoveryPolicy.bootTime(), now: Date())
-            },
-            lastWrite: { row in RecoveryPolicy.lastWrite(of: row, paths: paths) },
-            eventTitle: { [database = store.database] code, date in AgendaLibrary.eventTitle(in: database, code: code, at: date) }
-        )
-        self.coordinator = coordinator
-        try? coordinator.recoverAfterLaunch()
-        startTranscription(store: store)
-
-        // The development version never detects on its own: it must not record a meeting twice.
-        if !isDevelopment { setDetection(true) }
+        // Réunions (20/11): the detection, the recording, the transcriptions and the summaries only when installed.
+        if addOns.contains(.meetings) { startRecording(store: store, presenter: presenter) }
 
         let sampler = MemorySampler(store: store)
         sampler.start()
@@ -327,6 +322,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         coupDoeil.attach(library: library, agenda: agenda, mails: mails, projects: projects, projectLogos: projectLogos,
                          notifications: notifications, updates: updates)
         countColinRulesOnce()
+    }
+
+    /// Réunions (20/11): the coordinator that detects and records the Meets, then the transcriptions and the summaries.
+    private func startRecording(store: MeetingStore, presenter: HUDPresenter) {
+        let paths = paths
+        let coordinator = MeetingCoordinator(
+            store: store, paths: paths, recorders: LiveRecorderFactory(), presenter: presenter,
+            detector: MeetingDetector(config: Self.detectorConfig, neverCodes: (try? store.neverCodes()) ?? []),
+            clock: ContinuousTime.seconds, now: Date.init,
+            availableBytes: { DiskGuard.availableBytes(at: paths.root) },
+            deviceName: DeviceNames.name(forUID:), log: detectionLog,
+            canResume: { row in
+                RecoveryPolicy.canResume(lastWrite: RecoveryPolicy.lastWrite(of: row, paths: paths), bootTime: RecoveryPolicy.bootTime(), now: Date())
+            },
+            lastWrite: { row in RecoveryPolicy.lastWrite(of: row, paths: paths) },
+            eventTitle: { [database = store.database] code, date in AgendaLibrary.eventTitle(in: database, code: code, at: date) }
+        )
+        self.coordinator = coordinator
+        try? coordinator.recoverAfterLaunch()
+        startTranscription(store: store)
+
+        // The development version never detects on its own: it must not record a meeting twice.
+        if !isDevelopment { setDetection(true) }
     }
 
     /// Colin's rules, counted on Paul's own mails before the Accueil shows them (18/11): once per version, a minute
@@ -445,44 +463,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     /// The window opens on Accueil; the calendars are read at launch, then every 10 minutes, and the loop
     /// links guests, events, meetings and projects after each reading (13/11).
     private func startAgenda(database: AppDatabase) {
-        let agenda = AgendaLibrary(database: database)
+        // Calendrier, Mails and Colin follow their add-ons (20/11); the Google accounts live with the agenda.
+        let agenda = addOns.contains(.calendar) ? AgendaLibrary(database: database) : nil
         self.agenda = agenda
-        // The events the agents ask for (`rendez_vous`, 16/11), at their signal and at launch.
-        agenda.startAgentEvents(root: paths.root)
-        // The mails (14/11): the mailboxes that granted them are followed from the launch, window open or not.
-        // The programmed sends live in the Keychain (wave B); the development build never touches it.
-        let mails = MailLibrary(agenda: agenda, root: paths.root, schedules: .keychain)
-        self.mails = mails
-        mails.start()
-        // What waits for Paul's click and « Le point » (18/11): rules alone, no model, nothing leaves the Mac.
-        colin = ColinLibrary(agenda: agenda, mails: mails)
-        // Colin's bar (18/11): the Claude Code of this Mac, on the account of Réglages › Colin (empty: Claude Code's own),
-        // with hub's tools in Colin's profile, on this build's own base. Nothing is launched before Paul asks.
-        let base = paths.database
-        let runner = ColinRunner(launcher: LiveClaudeLauncher(), setup: {
-            guard let binary = ClaudeBinary.find(), let helper = ColinProbe.embeddedHelper() else { return nil }
-            let account = ClaudeCommand.account(folder: UserDefaults.standard.string(forKey: Preferences.Key.colinAccount),
-                                                home: FileManager.default.homeDirectoryForCurrentUser)
-            // An empty folder whose path names no one: the model is told where it works.
-            return ColinSetup(binary: binary, helper: helper, base: base, account: account,
-                              work: FileManager.default.temporaryDirectory.appending(path: "colin-travail", directoryHint: .isDirectory))
-        })
-        colinThread = ColinThread(database: database, runner: runner, review: { [weak self] in ColinThread.sentences(of: self?.colin?.review ?? []) },
-                                  isBusy: { [weak self] in await self?.colinMustWait() ?? true },
-                                  sinceWake: {
-                                      let uptime = ProcessInfo.processInfo.systemUptime
-                                      return min(uptime, ColinProbeControl.systemSinceWake() ?? uptime)
-                                  },
-                                  newDrafts: { [weak mails] in Set(mails?.drafts.filter { $0.origin == .agent }.map(\.id) ?? []) })
+        if let agenda {
+            // The events the agents ask for (`rendez_vous`, 16/11), at their signal and at launch.
+            agenda.startAgentEvents(root: paths.root)
+            // The mails (14/11): the mailboxes that granted them are followed from the launch, window open or not.
+            // The programmed sends live in the Keychain (wave B); the development build never touches it.
+            if addOns.contains(.mails) {
+                let mails = MailLibrary(agenda: agenda, root: paths.root, schedules: .keychain)
+                self.mails = mails
+                mails.start()
+            }
+            if addOns.contains(.colin), let mails { startColin(database: database, agenda: agenda, mails: mails) }
+        }
         // hub on the iPhone (20/11): mails, agenda, projects, meetings and Colin's thread. The development build listens one
         // port further, so both can run.
-        let phone = PhoneAccess(database: database, agenda: agenda, mails: mails, colin: colinThread,
-                                appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0",
-                                port: isDevelopment ? LinkAPI.port + 1 : LinkAPI.port,
-                                // The copy in iCloud (20/11): only a build that carries iCloud's rights asks CloudKit.
-                                cloud: Self.carriesICloud ? ICloudDrive() : nil)
-        self.phone = phone
-        Task { await phone.resume() }
+        if addOns.contains(.iphone) {
+            let phone = PhoneAccess(database: database, agenda: agenda, mails: mails, colin: colinThread,
+                                    appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0",
+                                    port: isDevelopment ? LinkAPI.port + 1 : LinkAPI.port,
+                                    // The copy in iCloud (20/11): only a build that carries iCloud's rights asks CloudKit.
+                                    cloud: Self.carriesICloud ? ICloudDrive() : nil,
+                                    addOns: { [addOns] in addOns })
+            self.phone = phone
+            Task { await phone.resume() }
+        }
+        guard let agenda else { return }
         // hub comes back in front on the Accueil: Paul is there.
         presenceObserver = NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.accueilMayBeSeen() }
@@ -499,6 +507,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             Task { @MainActor in await agenda.syncAll() }
         }
         startNotifications(agenda: agenda)
+    }
+
+    /// Colin (18/11): what waits for Paul's click and « Le point », rules alone; his bar, the Claude Code of this Mac on the
+    /// account of Réglages › Colin, with hub's tools in Colin's profile, on this build's own base. Nothing is launched
+    /// before Paul asks.
+    private func startColin(database: AppDatabase, agenda: AgendaLibrary, mails: MailLibrary) {
+        colin = ColinLibrary(agenda: agenda, mails: mails)
+        let base = paths.database
+        let runner = ColinRunner(launcher: LiveClaudeLauncher(), setup: {
+            guard let binary = ClaudeBinary.find(), let helper = ColinProbe.embeddedHelper() else { return nil }
+            let account = ClaudeCommand.account(folder: UserDefaults.standard.string(forKey: Preferences.Key.colinAccount),
+                                                home: FileManager.default.homeDirectoryForCurrentUser)
+            // An empty folder whose path names no one: the model is told where it works.
+            return ColinSetup(binary: binary, helper: helper, base: base, account: account,
+                              work: FileManager.default.temporaryDirectory.appending(path: "colin-travail", directoryHint: .isDirectory))
+        })
+        colinThread = ColinThread(database: database, runner: runner, review: { [weak self] in ColinThread.sentences(of: self?.colin?.review ?? []) },
+                                  isBusy: { [weak self] in await self?.colinMustWait() ?? true },
+                                  sinceWake: {
+                                      let uptime = ProcessInfo.processInfo.systemUptime
+                                      return min(uptime, ColinProbeControl.systemSinceWake() ?? uptime)
+                                  },
+                                  newDrafts: { [weak mails] in Set(mails.map { $0.drafts.filter { $0.origin == .agent }.map(\.id) } ?? []) })
     }
 
     /// « Inspiration » (16/11): the pages follow the base; the collection runs at its slots (Awwwards every two
@@ -815,7 +846,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             let diagnostic = diagnostic
             let probe = colinProbe
             let view = MainWindowView(library: library, projects: projects, agenda: agenda, mails: mails, colin: colin, thread: colinThread, colinProbe: colinProbe, claudeAccounts: claudeAccounts, inspiration: inspiration,
-                                      updates: updates, notifications: notifications, startup: startup, phone: phone, router: router, paths: paths) {
+                                      updates: updates, notifications: notifications, startup: startup, phone: phone, addOns: addOns, router: router, paths: paths) {
                 if let diagnostic {
                     DiagnosticView(model: diagnostic, colin: probe) { [weak self] in self?.showProbeWindow() }
                 }

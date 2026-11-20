@@ -9,8 +9,12 @@ public struct LinkStatus: Codable, Sendable, Equatable {
     public var device: String
     /// The number on hub's icon (20/11): the unread mails and what hub told that was not seen yet.
     public var badge: Int?
+    /// The add-ons installed on the Mac (20/11, their identifiers): the iPhone shows their tabs only. Absent from a Mac
+    /// before 0.59.0: every tab.
+    public var addOns: [String]?
 
-    public init(version: Int = LinkAPI.version, appVersion: String, device: String, badge: Int? = nil) {
+    public init(version: Int = LinkAPI.version, appVersion: String, device: String, badge: Int? = nil, addOns: [String]? = nil) {
+        self.addOns = addOns
         self.version = version
         self.appVersion = appVersion
         self.device = device

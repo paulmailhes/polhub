@@ -84,6 +84,20 @@ import Testing
         #expect(world.cloud.lastCopy != nil && world.cloud.problem == nil)
     }
 
+    /// 20/11 : la copie ne garde que ce que les add-ons installés montrent.
+    @Test func theCopySkipsWhatIsNotInstalled() async throws {
+        let database = try AppDatabase.inMemory()
+        let defaults = try #require(UserDefaults(suiteName: "icloud-\(UUID().uuidString)"))
+        _ = try ProjectStore(database).addProject(name: "Site vitrine", status: .priorite2, at: Date())
+        let api = PhoneAPI(devices: PhoneDevices(defaults: defaults), database: database, agenda: nil, mails: nil, appVersion: "0.59.0",
+                           addOns: { [.meetings] })
+        let drive = MemoryDrive()
+        await PhoneCloud(api: api, drive: drive, defaults: defaults).copy()
+        let keys = Set(drive.stored.keys)
+        #expect(keys.contains(LinkAPI.Path.meetings) && keys.contains(LinkAPI.Path.status))
+        #expect(!keys.contains(LinkAPI.Path.projects) && !keys.contains(LinkAPI.Path.events) && !keys.contains(LinkAPI.Path.colin))
+    }
+
     @Test func anUnchangedAnswerIsNotWrittenAgain() async throws {
         let world = try world()
         let store = ProjectStore(world.database)

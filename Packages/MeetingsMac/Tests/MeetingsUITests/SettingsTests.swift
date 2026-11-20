@@ -14,13 +14,24 @@ import Testing
     /// Notifications, Mises à jour, Général.
     @Test func theFamiliesFollowTheSidebar() {
         let all = SettingsPane.families(hasAgenda: true, hasProjects: true, hasMails: true, hasInspiration: true)
-        #expect(all == [[.colin, .projects, .meetings, .calendar, .mails, .inspiration], [.accounts, .iphone, .notifications, .updates, .general]])
-        #expect(all[0].map(\.section) == SidebarItem.visible(hasProjects: true, hasAgenda: true, hasMails: true, hasInspiration: true))
+        #expect(all == [[.addOns], [.colin, .projects, .meetings, .calendar, .mails, .inspiration], [.accounts, .iphone, .notifications, .updates, .general]])
+        #expect(all[1].map(\.section) == SidebarItem.visible(hasProjects: true, hasAgenda: true, hasMails: true, hasInspiration: true))
         #expect(SettingsPane.families(hasAgenda: true, hasProjects: true)
-            == [[.projects, .meetings, .calendar], [.accounts, .iphone, .notifications, .updates, .general]])
-        #expect(SettingsPane.families(hasAgenda: false, hasProjects: false) == [[.meetings], [.iphone, .notifications, .updates, .general]])
+            == [[.addOns], [.projects, .meetings, .calendar], [.accounts, .iphone, .notifications, .updates, .general]])
+        #expect(SettingsPane.families(hasAgenda: false, hasProjects: false) == [[.addOns], [.meetings], [.iphone, .notifications, .updates, .general]])
         // Paul finds a family by its color: none shared within a group.
         for group in all { #expect(Set(group.map(\.tint)).count == group.count) }
+    }
+
+    /// 20/11 : Réglages › Add-ons d'abord, seule ; sans Colin ni iPhone installés, leurs familles partent, et sans
+    /// Réunions, sa section.
+    @Test func addOnsComeFirstAndTheFamiliesFollowThem() {
+        #expect(SettingsPane.addOns.title == "Add-ons")
+        let some = SettingsPane.families(hasAgenda: true, hasProjects: true, hasMails: true, hasInspiration: true,
+                                         hasMeetings: false, hasColin: false, hasPhone: false)
+        #expect(some == [[.addOns], [.projects, .calendar, .mails, .inspiration], [.accounts, .notifications, .updates, .general]])
+        #expect(!SidebarItem.visible(hasProjects: true, hasAgenda: true, hasMails: true, hasInspiration: true, hasMeetings: false).contains(.meetings))
+        #expect(SidebarItem.visible(hasProjects: false, hasAgenda: false, hasMeetings: false).isEmpty)
     }
 
     /// Diagnostic and Journal are no families any more: two lines of Général, which says so.

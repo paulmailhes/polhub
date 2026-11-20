@@ -12,6 +12,9 @@ import HubLink
 @MainActor
 final class PhoneAPI {
     let devices: PhoneDevices
+    /// The add-ons installed on the Mac (20/11): the status says them, the copy in iCloud follows them.
+    let addOns: @Sendable () -> Set<AddOn>
+    var addOnNames: [String] { AddOn.allCases.filter(addOns().contains).map(\.rawValue) }
     let database: AppDatabase
     let agenda: AgendaLibrary?
     let mails: MailLibrary?
@@ -23,7 +26,8 @@ final class PhoneAPI {
     let now: () -> Date
 
     init(devices: PhoneDevices, database: AppDatabase, agenda: AgendaLibrary?, mails: MailLibrary?, colin: ColinThread? = nil, appVersion: String,
-         now: @escaping () -> Date = Date.init) {
+         now: @escaping () -> Date = Date.init, addOns: @escaping @Sendable () -> Set<AddOn> = { Set(AddOn.allCases) }) {
+        self.addOns = addOns
         self.devices = devices
         self.database = database
         self.agenda = agenda
@@ -49,7 +53,7 @@ final class PhoneAPI {
             guard request.method == Self.read else { return Self.error("Cette demande n'existe pas.", status: 405) }
             switch request.path {
             case LinkAPI.Path.status:
-                return try Self.json(LinkStatus(appVersion: appVersion, device: device.name, badge: badge?()))
+                return try Self.json(LinkStatus(appVersion: appVersion, device: device.name, badge: badge?(), addOns: addOnNames))
             case LinkAPI.Path.folders:
                 return try Self.json(try folders())
             case LinkAPI.Path.threads:
@@ -192,13 +196,13 @@ final class PhoneAPI {
             guard let kind else { throw LinkError("Ce geste n'existe pas.") }
             guard let mails, let row = try mails.store.thread(gesture.thread) else { throw LinkError("Ce fil n'existe plus.") }
             mails.perform(kind, on: row, undoable: false)
-            return try Self.json(LinkStatus(appVersion: appVersion, device: device.name, badge: badge?()))
+            return try Self.json(LinkStatus(appVersion: appVersion, device: device.name, badge: badge?(), addOns: addOnNames))
         case LinkAPI.Path.push:
             let push = try body(LinkPushToken.self)
             let token = push.token.filter(\.isHexDigit)
             guard token.count >= 32 else { throw LinkError("Ce jeton de notifications est illisible.") }
             devices.setPushToken(token, for: device.id)
-            return try Self.json(LinkStatus(appVersion: appVersion, device: device.name, badge: badge?()))
+            return try Self.json(LinkStatus(appVersion: appVersion, device: device.name, badge: badge?(), addOns: addOnNames))
         case LinkAPI.Path.colinUndo:
             let undo = try body(LinkUndo.self)
             guard let colin, let line = colin.changes.first(where: { $0.id == undo.id }) else { throw LinkError("Ce changement n'existe plus.") }

@@ -57,6 +57,17 @@ import Testing
         return await api.respond(HTTPRequest(method: "GET", path: path, query: query, headers: headers))
     }
 
+    /// 20/11 : le statut dit les add-ons installés du Mac ; l'iPhone n'en montre que les onglets.
+    @Test func theStatusSaysTheAddOns() async throws {
+        let database = try AppDatabase.inMemory()
+        let devices = PhoneDevices(defaults: try defaults())
+        let (_, token) = devices.pair()
+        let api = PhoneAPI(devices: devices, database: database, agenda: nil, mails: nil, appVersion: "0.59.0", addOns: { [.meetings] })
+        let answer = await get(api, LinkAPI.Path.status, token: token)
+        let status = try LinkAPI.decoder.decode(LinkStatus.self, from: answer.body)
+        #expect(status.addOns == ["reunions"])
+    }
+
     @Test func nothingIsReadWithoutAPairedToken() async throws {
         let (api, _, _) = try api()
         for token in [nil, "inconnu"] {
@@ -70,7 +81,7 @@ import Testing
         let (api, token, _) = try api()
         let answer = await get(api, LinkAPI.Path.status, token: token)
         #expect(answer.status == 200)
-        #expect(try LinkAPI.decoder.decode(LinkStatus.self, from: answer.body) == LinkStatus(appVersion: "0.51.0", device: "iPhone"))
+        #expect(try LinkAPI.decoder.decode(LinkStatus.self, from: answer.body) == LinkStatus(appVersion: "0.51.0", device: "iPhone", addOns: AddOn.allCases.map(\.rawValue)))
         #expect(await get(api, "/v1/inconnu", token: token).status == 404)
         #expect(await api.respond(HTTPRequest(method: "DELETE", path: LinkAPI.Path.status, headers: ["authorization": LinkAPI.bearer(token)])).status == 405)
     }

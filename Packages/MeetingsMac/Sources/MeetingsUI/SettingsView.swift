@@ -1,5 +1,6 @@
 import AppKit
 import Agenda
+import Domain
 import Notifications
 import HubDesign
 import ProjectsUI
@@ -25,14 +26,18 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
     let colinProbe: ColinProbeControl?
     /// Réglages › iPhone (20/11).
     let phone: PhoneAccess?
+    /// The add-ons installed (20/11): the families of Réunions and Colin follow theirs.
+    let addOns: Set<AddOn>
     let diagnostic: Diagnostic
     let journal: Journal
 
     init(router: WindowRouter, updates: UpdateService?, projects: ProjectLibrary?, agenda: AgendaLibrary? = nil, mails: MailLibrary? = nil,
          inspiration: InspirationLibrary? = nil, library: MeetingLibrary,
          notifications: NotificationHub? = nil, startup: StartupControl? = nil, colinThread: ColinThread? = nil, colinProbe: ColinProbeControl? = nil,
-         phone: PhoneAccess? = nil, @ViewBuilder diagnostic: () -> Diagnostic, @ViewBuilder journal: () -> Journal) {
+         phone: PhoneAccess? = nil, addOns: Set<AddOn> = Set(AddOn.allCases), @ViewBuilder diagnostic: () -> Diagnostic,
+         @ViewBuilder journal: () -> Journal) {
         self.phone = phone
+        self.addOns = addOns
         self.colinThread = colinThread
         self.colinProbe = colinProbe
         self.notifications = notifications
@@ -77,7 +82,8 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
     private var families: some View {
         Form {
             ForEach(Array(SettingsPane.families(hasAgenda: agenda != nil, hasProjects: projects != nil, hasMails: hasMails,
-                                                             hasInspiration: inspiration != nil).enumerated()), id: \.offset) { _, group in
+                                                hasInspiration: inspiration != nil, hasMeetings: addOns.contains(.meetings),
+                                                hasColin: addOns.contains(.colin), hasPhone: phone != nil).enumerated()), id: \.offset) { _, group in
                 Section {
                     ForEach(group, id: \.self) { pane in
                         Button { router.settingsPane = pane } label: { SettingsRow(pane: pane) }
@@ -94,6 +100,9 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
     @ViewBuilder
     private func content(_ pane: SettingsPane) -> some View {
         switch pane {
+        case .addOns:
+            // The page comes with the next step of the add-ons (0.59.0, task 4).
+            EmptyView()
         case .general:
             GeneralSettingsPane(startup: startup) { router.settingsPane = $0 }
         case .notifications:

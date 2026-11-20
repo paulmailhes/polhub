@@ -68,9 +68,11 @@ public enum SidebarItem: String, Hashable, Sendable {
     /// The work, in the sidebar's list; Réglages sits apart, at the bottom (Paul, 14/11). Accueil, Calendrier and
     /// Contacts need the agenda (13/11). « Inspiration » on one row, after Mails; Contacts at the bottom, with Réglages
     /// (lot 4, 19/11: « Mails court »).
-    static func visible(hasProjects: Bool, hasAgenda: Bool, hasMails: Bool = false, hasInspiration: Bool = false) -> [SidebarItem] {
-        [hasAgenda ? .home : nil, hasProjects ? .projects : nil, .meetings, hasAgenda ? .calendar : nil, hasMails ? .mails : nil,
-         hasInspiration ? .inspiration : nil].compactMap { $0 }
+    /// Réunions only when its add-on is installed (20/11).
+    static func visible(hasProjects: Bool, hasAgenda: Bool, hasMails: Bool = false, hasInspiration: Bool = false,
+                        hasMeetings: Bool = true) -> [SidebarItem] {
+        [hasAgenda ? .home : nil, hasProjects ? .projects : nil, hasMeetings ? .meetings : nil, hasAgenda ? .calendar : nil,
+         hasMails ? .mails : nil, hasInspiration ? .inspiration : nil].compactMap { $0 }
     }
 
     /// The rows at the bottom of the sidebar, apart from the work (lot 4, 19/11): Contacts, then Réglages.
@@ -97,10 +99,11 @@ public enum SidebarItem: String, Hashable, Sendable {
 /// The families of Réglages, entered one by one, as in Apple's settings (Paul, 14/11). Every new feature puts
 /// its settings in its family.
 public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
-    case general, notifications, accounts, iphone, calendar, mails, colin, projects, meetings, inspiration, updates, diagnostic, journal
+    case addOns, general, notifications, accounts, iphone, calendar, mails, colin, projects, meetings, inspiration, updates, diagnostic, journal
 
     public var title: String {
         switch self {
+        case .addOns: "Add-ons"
         case .general: "Général"
         case .notifications: "Notifications"
         case .accounts: "Comptes Google"
@@ -119,6 +122,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
 
     var icon: String {
         switch self {
+        case .addOns: "puzzlepiece.extension.fill"
         case .general: "gearshape.fill"
         case .notifications: "bell.badge.fill"
         case .accounts: "person.crop.circle.fill"
@@ -137,6 +141,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
 
     var tint: String {
         switch self {
+        case .addOns: Palette.blue
         case .general: Palette.gray
         case .notifications: Palette.red
         case .accounts: Palette.teal
@@ -158,6 +163,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
     /// in a sentence, « hub », never « l'app »).
     var subtitle: String {
         switch self {
+        case .addOns: "Ce que hub sait faire, à installer ou à retirer"
         case .general: "Ouverture à la session, barre des menus, diagnostic, journal"
         case .notifications: "Rappels de rendez-vous, nouveaux rendez-vous, comptes rendus"
         case .accounts: "Comptes, couleurs, accès à l'agenda et aux mails"
@@ -177,11 +183,14 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
     /// The sidebar's sections, in its order from the top (lot 7, 19/11), then the whole app's: Comptes Google,
     /// Notifications, Mises à jour, Général. Colin's family is the Accueil's, and comes with the mails: what he signals is
     /// read in them. Diagnostic and Journal are lines of Général, no families.
-    static func families(hasAgenda: Bool, hasProjects: Bool, hasMails: Bool = false, hasInspiration: Bool = false) -> [[SettingsPane]] {
-        let work = SidebarItem.visible(hasProjects: hasProjects, hasAgenda: hasAgenda, hasMails: hasMails, hasInspiration: hasInspiration)
+    /// Add-ons first, alone (20/11): what hub can do. Colin's and the iPhone's families follow their add-ons.
+    static func families(hasAgenda: Bool, hasProjects: Bool, hasMails: Bool = false, hasInspiration: Bool = false,
+                         hasMeetings: Bool = true, hasColin: Bool = true, hasPhone: Bool = true) -> [[SettingsPane]] {
+        let work = SidebarItem.visible(hasProjects: hasProjects, hasAgenda: hasAgenda, hasMails: hasMails, hasInspiration: hasInspiration,
+                                       hasMeetings: hasMeetings)
             .compactMap { section in allCases.first { $0.section == section } }
-            .filter { $0 != .colin || hasMails }
-        return [work, [hasAgenda ? .accounts : nil, .iphone, .notifications, .updates, .general].compactMap { $0 }]
+            .filter { $0 != .colin || (hasMails && hasColin) }
+        return [[.addOns], work, [hasAgenda ? .accounts : nil, hasPhone ? .iphone : nil, .notifications, .updates, .general].compactMap { $0 }]
     }
 
     /// The section of the sidebar a family is about (lot 7, 19/11): Colin's is the Accueil, where he lives.
@@ -193,7 +202,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .calendar: .calendar
         case .mails: .mails
         case .inspiration: .inspiration
-        case .general, .notifications, .accounts, .iphone, .updates, .diagnostic, .journal: nil
+        case .addOns, .general, .notifications, .accounts, .iphone, .updates, .diagnostic, .journal: nil
         }
     }
 
@@ -665,6 +674,8 @@ public struct MainWindowView<Diagnostic: View>: View {
     let startup: StartupControl?
     /// Réglages › iPhone (20/11): the app's own; none in a window made without it.
     let phone: PhoneAccess?
+    /// The add-ons installed (20/11): Réunions shows in the sidebar only with its own.
+    let addOns: Set<AddOn>
     @ObservedObject var router: WindowRouter
     let paths: AppPaths
     let diagnostic: Diagnostic
@@ -673,9 +684,11 @@ public struct MainWindowView<Diagnostic: View>: View {
     public init(
         library: MeetingLibrary, projects: ProjectLibrary? = nil, agenda: AgendaLibrary? = nil, mails: MailLibrary? = nil, colin: ColinLibrary? = nil,
         thread: ColinThread? = nil, colinProbe: ColinProbeControl? = nil, claudeAccounts: ClaudeAccountsModel? = nil, inspiration: InspirationLibrary? = nil, updates: UpdateService? = nil, notifications: NotificationHub? = nil,
-        startup: StartupControl? = nil, phone: PhoneAccess? = nil, router: WindowRouter, paths: AppPaths, @ViewBuilder diagnostic: () -> Diagnostic
+        startup: StartupControl? = nil, phone: PhoneAccess? = nil, addOns: Set<AddOn> = Set(AddOn.allCases), router: WindowRouter, paths: AppPaths,
+        @ViewBuilder diagnostic: () -> Diagnostic
     ) {
         self.phone = phone
+        self.addOns = addOns
         self.notifications = notifications
         self.startup = startup
         self.library = library
@@ -683,7 +696,8 @@ public struct MainWindowView<Diagnostic: View>: View {
         self.agenda = agenda
         self.mails = mails
         // The app keeps its own; a window made without one (a capture, a test) gets one for its Accueil.
-        self.colin = colin ?? agenda.map { ColinLibrary(agenda: $0, mails: mails) }
+        // Only when Colin is installed (20/11).
+        self.colin = colin ?? (addOns.contains(.colin) ? agenda.map { ColinLibrary(agenda: $0, mails: mails) } : nil)
         self.thread = thread
         self.colinProbe = colinProbe
         self.claudeAccounts = claudeAccounts
@@ -698,7 +712,7 @@ public struct MainWindowView<Diagnostic: View>: View {
         NavigationSplitView(columnVisibility: $columns) {
             Sidebar(router: router, library: library, agenda: agenda, mails: mails,
                     items: SidebarItem.visible(hasProjects: projects != nil, hasAgenda: agenda != nil, hasMails: mails != nil,
-                                               hasInspiration: inspiration != nil),
+                                               hasInspiration: inspiration != nil, hasMeetings: addOns.contains(.meetings)),
                     footer: SidebarItem.footer(hasAgenda: agenda != nil))
                 // One width, always: a sidebar free to resize changed size from one section to the next (Paul, 15/11).
                 .navigationSplitViewColumnWidth(Self.sidebarWidth)
@@ -794,7 +808,7 @@ public struct MainWindowView<Diagnostic: View>: View {
             case .settings:
                 SettingsPage(router: router, updates: updates, projects: projects, agenda: agenda, mails: mails, inspiration: inspiration,
                              library: library, notifications: notifications, startup: startup, colinThread: thread, colinProbe: colinProbe,
-                             phone: phone) {
+                             phone: phone, addOns: addOns) {
                     diagnostic
                 } journal: {
                     JournalView(entries: library.journal)

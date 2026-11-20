@@ -88,7 +88,7 @@ import Testing
     /// families follow the sidebar, and Colin's is the Accueil's.
     @Test func reglagesHasAColinFamilyWithTheMails() {
         let families = SettingsPane.families(hasAgenda: true, hasProjects: true, hasMails: true)
-        #expect(families[0] == [.colin, .projects, .meetings, .calendar, .mails])
+        #expect(families[1] == [.colin, .projects, .meetings, .calendar, .mails])
         #expect(SettingsPane.colin.title == "Colin")
         #expect(SettingsPane.colin.subtitle == "Marche, ce qu'il sait, ce qu'il signale")
         #expect(SettingsPane.colin.icon == "sparkles")
@@ -103,8 +103,8 @@ import Testing
     /// then the whole app's; Diagnostic and Journal are lines of Général.
     @Test func reglagesListsItsFamilies() {
         let families = SettingsPane.families(hasAgenda: true, hasProjects: true)
-        #expect(families.map { $0.map(\.title) } == [["Projets", "Réunions", "Calendrier"], ["Comptes Google", "iPhone", "Notifications", "Mises à jour", "Général"]])
-        #expect(SettingsPane.families(hasAgenda: false, hasProjects: false).map { $0.map(\.title) } == [["Réunions"], ["iPhone", "Notifications", "Mises à jour", "Général"]])
+        #expect(families.map { $0.map(\.title) } == [["Add-ons"], ["Projets", "Réunions", "Calendrier"], ["Comptes Google", "iPhone", "Notifications", "Mises à jour", "Général"]])
+        #expect(SettingsPane.families(hasAgenda: false, hasProjects: false).map { $0.map(\.title) } == [["Add-ons"], ["Réunions"], ["iPhone", "Notifications", "Mises à jour", "Général"]])
     }
 
     @Test func openingTheDiagnosticEntersItsFamily() {

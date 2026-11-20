@@ -58,14 +58,20 @@ struct RootTabs: View {
         return ["-calendrier", "-colin", "-projets", "-reunions"].firstIndex { arguments.contains($0) }.map { $0 + 1 } ?? 0
     }
 
+    /// An add-on of the Mac, by its identifier: shown when the Mac says it is installed, always for a Mac before 0.59.0.
+    private func shows(_ addOn: String) -> Bool {
+        session.status?.addOns.map { $0.contains(addOn) } ?? true
+    }
+
     var body: some View {
         TabView(selection: $tab) {
             // Each tab on the color of its family on the Mac (Paul, 20/11: more color).
-            Tab("Mails", systemImage: "envelope", value: 0) { MailsScreen().tint(PhoneStyle.mails) }
-            Tab("Calendrier", systemImage: "calendar", value: 1) { CalendarScreen() }
-            Tab("Colin", systemImage: "sparkles", value: 2) { ColinScreen().tint(PhoneStyle.colin) }
-            Tab("Projets", systemImage: "square.grid.2x2", value: 3) { ProjectsScreen().tint(PhoneStyle.projects) }
-            Tab("Réunions", systemImage: "waveform", value: 4) { MeetingsScreen().tint(PhoneStyle.meetings) }
+            // Only the add-ons installed on the Mac (20/11).
+            if shows("mails") { Tab("Mails", systemImage: "envelope", value: 0) { MailsScreen().tint(PhoneStyle.mails) } }
+            if shows("calendrier") { Tab("Calendrier", systemImage: "calendar", value: 1) { CalendarScreen() } }
+            if shows("colin") { Tab("Colin", systemImage: "sparkles", value: 2) { ColinScreen().tint(PhoneStyle.colin) } }
+            if shows("projets") { Tab("Projets", systemImage: "square.grid.2x2", value: 3) { ProjectsScreen().tint(PhoneStyle.projects) } }
+            if shows("reunions") { Tab("Réunions", systemImage: "waveform", value: 4) { MeetingsScreen().tint(PhoneStyle.meetings) } }
         }
         .overlay(alignment: .bottom) { SendingPill().animation(.snappy, value: session.sending?.draftID) }
         // A touched notification: its tab.

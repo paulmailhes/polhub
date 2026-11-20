@@ -1,3 +1,4 @@
+import Domain
 import AppKit
 import CryptoKit
 import Foundation
@@ -148,13 +149,15 @@ import HubLink
         func put(_ key: String, _ value: (some Encodable)?) {
             if let value, let data = try? LinkAPI.encoder.encode(value) { plan.answers[key] = data }
         }
-        put(LinkAPI.Path.status, LinkStatus(appVersion: api.appVersion, device: "iCloud", badge: api.badge?()))
-        let projects = try? api.projects()
+        // What is not installed on the Mac is not copied (20/11).
+        let installed = api.addOns()
+        put(LinkAPI.Path.status, LinkStatus(appVersion: api.appVersion, device: "iCloud", badge: api.badge?(), addOns: api.addOnNames))
+        let projects = installed.contains(.projects) ? try? api.projects() : nil
         put(LinkAPI.Path.projects, projects)
         for project in projects ?? [] {
             put(LinkAPI.key(LinkAPI.Path.project, query: ["id": project.id.uuidString]), try? api.project(project.id.uuidString))
         }
-        let meetings = try? api.meetings(limit: Self.meetingCount)
+        let meetings = installed.contains(.meetings) ? try? api.meetings(limit: Self.meetingCount) : nil
         put(LinkAPI.Path.meetings, meetings)
         let copied = defaults.dictionary(forKey: Self.meetingsKey) as? [String: String] ?? [:]
         let hashes = defaults.dictionary(forKey: Self.hashesKey) as? [String: String] ?? [:]
@@ -172,9 +175,11 @@ import HubLink
         // A wide agenda: the iPhone cuts its two days in it.
         let calendar = Words.calendar
         let today = calendar.startOfDay(for: now())
-        put(LinkAPI.Path.events, try? api.events(from: calendar.date(byAdding: .day, value: -7, to: today),
-                                                  to: calendar.date(byAdding: .day, value: 45, to: today)))
-        put(LinkAPI.Path.colin, try? api.colinThread())
+        if installed.contains(.calendar) {
+            put(LinkAPI.Path.events, try? api.events(from: calendar.date(byAdding: .day, value: -7, to: today),
+                                                      to: calendar.date(byAdding: .day, value: 45, to: today)))
+        }
+        if installed.contains(.colin) { put(LinkAPI.Path.colin, try? api.colinThread()) }
         return plan
     }
 

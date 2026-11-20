@@ -1,3 +1,4 @@
+import Domain
 import Foundation
 import LocalServer
 import Notifications
@@ -98,11 +99,13 @@ public final class PhoneAccess: ObservableObject {
     /// - cloud: the user's iCloud (20/11), for the copy the iPhone reads with the Mac off; none in a build without
     ///   iCloud's rights, and in the tests.
     public init(database: AppDatabase, agenda: AgendaLibrary?, mails: MailLibrary?, colin: ColinThread? = nil, appVersion: String,
-                defaults: UserDefaults = .standard, port: UInt16 = LinkAPI.port, cloud: (any CloudDrive)? = nil) {
+                defaults: UserDefaults = .standard, port: UInt16 = LinkAPI.port, cloud: (any CloudDrive)? = nil,
+                addOns: @escaping @Sendable () -> Set<AddOn> = { Set(AddOn.allCases) }) {
         self.defaults = defaults
         self.port = port
         store = PhoneDevices(defaults: defaults)
-        api = PhoneAPI(devices: store, database: database, agenda: agenda, mails: mails, colin: colin, appVersion: appVersion)
+        api = PhoneAPI(devices: store, database: database, agenda: agenda, mails: mails, colin: colin, appVersion: appVersion,
+                       addOns: addOns)
         push = PhonePush(devices: store, defaults: defaults)
         self.cloud = PhoneCloud(api: api, drive: cloud, defaults: defaults)
         address = defaults.string(forKey: Self.addressKey) ?? ""

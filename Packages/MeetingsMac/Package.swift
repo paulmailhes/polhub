@@ -111,7 +111,7 @@ let package = Package(
             .product(name: "Domain", package: "Kernel"),
             .product(name: "Persistence", package: "Kernel"),
         ]),
-        .executableTarget(name: "HubCLI", dependencies: ["ReadingKit", .product(name: "Persistence", package: "Kernel")]),
+        .executableTarget(name: "HubCLI", dependencies: ["ReadingKit", .product(name: "Persistence", package: "Kernel"), .product(name: "Domain", package: "Kernel")]),
         .target(name: "MeetingDetection", dependencies: ["AudioCapture", .product(name: "Domain", package: "Kernel"), .product(name: "Observability", package: "Kernel")]),
         .target(name: "MeetingsUI", dependencies: [
             "Recording",
