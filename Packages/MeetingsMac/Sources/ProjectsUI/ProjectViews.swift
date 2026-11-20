@@ -24,8 +24,61 @@ public enum ProjectViews {
         }
     }
 
+    /// The dot of a status, in its column's head and in its capsule. « Terminé » in the color of what is done (lot 8, 19/11).
     public static func statusColor(_ status: ProjectStatus) -> Color {
-        Color(hex: statusHex(status))
+        statusRole(status)?.color ?? Color(hex: statusHex(status))
+    }
+
+    /// What a status says by its color (lot 8, 19/11): only « Terminé », done; the others are a place on the board, their
+    /// capsule neutral with its dot — « Priorité 2 » in orange read as « à vérifier ».
+    public static func statusRole(_ status: ProjectStatus) -> Tint.Role? {
+        status == .termine ? .done : nil
+    }
+
+    /// How much of its project's color a card of the board takes (lot 8, 19/11, « teinte allégée », Paul's choice): half
+    /// of what it had, 13 % in light and 22 % in dark.
+    public static func cardTint(dark: Bool) -> Double {
+        dark ? 0.11 : 0.065
+    }
+
+    /// The ground of a column (lot 8, 19/11): none at rest, the columns no longer take their status's tint; under a card
+    /// being dragged, the ground of what is chosen.
+    public static func columnFill(targeted: Bool) -> Color? {
+        targeted ? Surface.selected : nil
+    }
+
+    /// One line of a card under its next step: its words, its icon, and what its color says (lot 8, 19/11).
+    public struct CardFact: Equatable, Sendable {
+        public let text: String
+        public let icon: String
+        /// The color of what the fact means, on its icon only: every text of a card is in the text's own color.
+        public let role: Tint.Role?
+        /// Semibold, in the text's color; otherwise grey.
+        public let strong: Bool
+
+        public init(text: String, icon: String, role: Tint.Role?, strong: Bool) {
+            self.text = text
+            self.icon = icon
+            self.role = role
+            self.strong = strong
+        }
+    }
+
+    /// The next meeting, the due date and the last meeting of a card, one per line, in words (15/11); late and today on
+    /// their flag's color, the rest grey but the next meeting (lot 8, 19/11).
+    public static func cardFacts(nextEvent: Date?, due: Date?, lastMeeting: Date?, now: Date, calendar: Calendar = .current) -> [CardFact] {
+        var facts: [CardFact] = []
+        if let nextEvent {
+            facts.append(CardFact(text: nextEventLabel(nextEvent, now: now, calendar: calendar), icon: "calendar.badge.clock", role: nil, strong: true))
+        }
+        if let label = dueLabel(due, today: now, calendar: calendar) {
+            let role = dueRole(label)
+            facts.append(CardFact(text: label, icon: "flag", role: role, strong: role != nil))
+        }
+        if let lastMeeting {
+            facts.append(CardFact(text: meetingLabel(lastMeeting, now: now, calendar: calendar), icon: "waveform", role: nil, strong: false))
+        }
+        return facts
     }
 
     /// The colors a project without one of its own takes, by its identifier: neither red (late) nor grey.
@@ -252,6 +305,20 @@ public enum ProjectViews {
         let digits = value.hasPrefix("#") ? String(value.dropFirst()) : value
         guard digits.count == 6, digits.allSatisfy(\.isHexDigit) else { return nil }
         return "#" + digits.uppercased()
+    }
+}
+
+/// A project's status in its capsule (lot 8, 19/11): neutral, with its dot; « Terminé » in the color of what is done,
+/// with its check. In the list and in a project's page.
+struct StatusChip: View {
+    let status: ProjectStatus
+
+    var body: some View {
+        if let role = ProjectViews.statusRole(status) {
+            Chip(status.title, systemImage: "checkmark", tint: role.color)
+        } else {
+            Chip(status.title, dot: ProjectViews.statusColor(status))
+        }
     }
 }
 

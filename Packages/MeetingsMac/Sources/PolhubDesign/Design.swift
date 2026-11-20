@@ -63,6 +63,11 @@ public enum PageMetrics {
     public static let horizontal: CGFloat = 28
     public static let top: CGFloat = 16
     public static let bottom: CGFloat = 40
+    /// Inside every card, the Accueil's twenty points (design system v2; lot 8, 19/11: the pages' cards had 16, a
+    /// meeting's summary 24).
+    public static let cardPadding: CGFloat = 20
+    /// Between two cards of a page (design system v2; lot 8, 19/11); 24 stays between a page's header and its cards.
+    public static let cardGap: CGFloat = Space.l
 }
 
 /// Content surfaces: a hint of the text color over the window, so they read in light and dark alike.
@@ -189,7 +194,7 @@ public struct Card<Content: View>: View {
     let padding: CGFloat
     let content: Content
 
-    public init(padding: CGFloat = Space.l, @ViewBuilder content: () -> Content) {
+    public init(padding: CGFloat = PageMetrics.cardPadding, @ViewBuilder content: () -> Content) {
         self.padding = padding
         self.content = content()
     }
@@ -243,16 +248,21 @@ public struct Chip: View {
     let text: String
     let systemImage: String?
     let tint: Color?
+    let dot: Color?
     @Environment(\.self) private var environment
 
-    public init(_ text: String, systemImage: String? = nil, tint: Color? = nil) {
+    /// `dot`: a color of identity (a status, a project) before the text, which stays neutral (lot 8, 19/11): an identity
+    /// never colors a text.
+    public init(_ text: String, systemImage: String? = nil, tint: Color? = nil, dot: Color? = nil) {
         self.text = text
         self.systemImage = systemImage
         self.tint = tint
+        self.dot = dot
     }
 
     public var body: some View {
         HStack(spacing: Space.xs) {
+            if let dot { ColorDot(dot, size: 8) }
             if let systemImage { Image(systemName: systemImage) }
             Text(text).lineLimit(1)
         }
