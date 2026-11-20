@@ -260,8 +260,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         addOnStore.settle(baseExists: FileManager.default.fileExists(atPath: paths.database.path(percentEncoded: false)))
         addOns = addOnStore.installed
         // Réglages › Add-ons (20/11): installing or removing relaunches hub, never during a meeting.
+        // The model of Réunions, downloaded when it is installed and missing, taken away when it is removed.
+        // The models are shared by the installed and the development versions (13/11): their standard place.
+        let models = ModelSetup()
         let control = AddOnControl(store: addOnStore, isBusy: { [weak self] in !(await self?.isQuiet() ?? false) },
-                                   relaunch: { [weak self] in self?.relaunchForAddOns() })
+                                   relaunch: { [weak self] in self?.relaunchForAddOns() },
+                                   prepare: { addOn in addOn == .meetings ? await models.prepare() : nil },
+                                   cleanUp: { addOn in if addOn == .meetings { models.remove() } })
+        models.control = control
         control.claudeFound = ClaudeBinary.find() != nil
         addOnControl = control
         let store: MeetingStore
