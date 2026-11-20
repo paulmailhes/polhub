@@ -4,7 +4,10 @@ import Foundation
 /// the user asks — status, deadline, task, actions, journal (step 3, 18/11); a new project when he asks (19/11). The same list says what the server
 /// offers and what Claude Code may run.
 public enum ColinTool: String, CaseIterable, Sendable {
-    case projets, contexte, actions, reunions, reunion, chercher, mails, mail, agenda, contacts, brouillon
+    case projets, contexte, actions, reunions, reunion, chercher, mails, mail, agenda, contacts
+    /// The conversations of Claude Code on the Mac, read only (20/11).
+    case conversations, conversation
+    case brouillon
     case projet, action, fait, journal
     /// A project created when the user asks (19/11).
     case nouveau_projet

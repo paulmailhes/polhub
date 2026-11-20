@@ -80,7 +80,9 @@ do {
         if desk != nil, let tools = try? AppDatabase.forTools(path: basePath) {
             agenda = AgendaDesk(database: tools, root: URL(fileURLWithPath: basePath).deletingLastPathComponent(), projects: desk, mailScope: .current())
         }
-        let server = MCPServer(reader: reader, desk: desk, mails: mails, agenda: agenda, version: HelperVersion.read(helper: helper) ?? "0.0.0",
+        // Colin reads the conversations of Claude Code (20/11): the agents' sessions read their files themselves.
+        let server = MCPServer(reader: reader, desk: desk, mails: mails, agenda: agenda,
+                               conversations: options.colin ? ConversationReader.standard() : nil, version: HelperVersion.read(helper: helper) ?? "0.0.0",
                                profile: options.colin ? .colin : .agents, onWrite: { ExternalChangeSignal.post() })
         while let line = readLine(strippingNewline: true) {
             guard !line.trimmingCharacters(in: .whitespaces).isEmpty, let answer = server.handle(line) else { continue }

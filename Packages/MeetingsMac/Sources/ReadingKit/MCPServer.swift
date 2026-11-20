@@ -78,6 +78,8 @@ public struct MCPServer: Sendable {
     let mails: MailDesk?
     /// The agenda and the contacts (16/11, `MCPServer+Agenda`).
     let agenda: AgendaDesk?
+    /// The conversations of Claude Code on this Mac, for Colin only (20/11, `ConversationReader`).
+    let conversations: ConversationReader?
     /// Called after a write: `polhub mcp` tells the app (`ExternalChangeSignal`).
     let onWrite: @Sendable () -> Void
     /// The version of Polhub the server belongs to (see `HelperVersion`).
@@ -87,12 +89,14 @@ public struct MCPServer: Sendable {
     /// Colin's lock: what he read of a third party, for the life of this process (one context of his).
     let guardian: ColinGuard?
 
-    public init(reader: MeetingReader, desk: ProjectDesk? = nil, mails: MailDesk? = nil, agenda: AgendaDesk? = nil, version: String = "0.0.0",
+    public init(reader: MeetingReader, desk: ProjectDesk? = nil, mails: MailDesk? = nil, agenda: AgendaDesk? = nil,
+                conversations: ConversationReader? = nil, version: String = "0.0.0",
                 profile: Profile = .agents, onWrite: @escaping @Sendable () -> Void = {}) {
         self.reader = reader
         self.desk = desk
         self.mails = mails
         self.agenda = agenda
+        self.conversations = conversations
         self.version = version
         self.profile = profile
         guardian = profile == .colin ? ColinGuard() : nil
@@ -354,6 +358,7 @@ public struct MCPServer: Sendable {
         let projectName = Self.text(arguments["projet"])
         if let mails, ["mails", "mail", "brouillon", Self.fileThreadTool].contains(name) { return try callMail(name, arguments, mails: mails, project: projectName) }
         if let answer = try callAgenda(name, arguments) { return answer }
+        if profile == .colin, let answer = try callConversation(name, arguments) { return answer }
         switch name {
         case "reunions":
             if let desk, let projectName { return try desk.meetings(projectName) }

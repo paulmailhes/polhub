@@ -3,6 +3,18 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.54.0 — 20 novembre 2026
+
+**Colin lit tes conversations Claude Code.**
+
+- Deux nouveaux outils pour Colin, en lecture seule : `conversations` (la liste, la plus récente d'abord, celles d'un
+  projet ou qui contiennent des mots) et `conversation` (une conversation page par page, la plus récente d'abord).
+- Il n'en voit que tes messages et les réponses de Claude : ni les outils, ni les pensées, ni les sous-agents, ni les
+  textes du système. Les clés et jetons qui ont une forme connue sont masqués.
+- Une conversation compte comme une lecture d'un tiers pour son verrou : ses brouillons restent dans le projet du
+  dossier de la conversation.
+- Même une conversation de 800 Mo se lit en quelques secondes.
+
 ## 0.53.1 — 20 novembre 2026
 
 - Une mise à jour ne laisse plus jamais le Mac sans Polhub. Elle prenait pour une autre copie de Polhub tout programme du

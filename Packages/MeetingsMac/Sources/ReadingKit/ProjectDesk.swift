@@ -477,15 +477,20 @@ public struct ProjectDesk: Sendable {
 
     func folderProject() throws -> ProjectRow {
         guard let workingDirectory else { throw ToolError("Précise « projet » : le nom d'un projet (outil `projets`).") }
-        let here = Self.normalized(workingDirectory)
+        guard let project = try project(forFolder: workingDirectory) else {
+            throw ToolError("Le dossier \(workingDirectory) n'est lié à aucun projet : précise « projet » (outil `projets`).")
+        }
+        return project
+    }
+
+    /// The project whose code folder holds this one, the closest; none when no project's does.
+    func project(forFolder path: String) throws -> ProjectRow? {
+        let here = Self.normalized(path)
         let linked = try projects.projects().compactMap { project -> (ProjectRow, String)? in
             guard let folder = Self.folderPath(project.codeFolder).map(Self.normalized) else { return nil }
             return here == folder || here.hasPrefix(folder + "/") ? (project, folder) : nil
         }
-        guard let best = linked.max(by: { $0.1.count < $1.1.count }) else {
-            throw ToolError("Le dossier \(workingDirectory) n'est lié à aucun projet : précise « projet » (outil `projets`).")
-        }
-        return best.0
+        return linked.max(by: { $0.1.count < $1.1.count })?.0
     }
 
     // MARK: - Pieces

@@ -4,7 +4,7 @@ import Persistence
 import Testing
 @testable import ReadingKit
 
-/// Colin's profile of the server (`polhub mcp --colin`, 18/11): his fifteen tools and nothing else, his drafts in
+/// Colin's profile of the server (`polhub mcp --colin`, 18/11): his tools and nothing else, his drafts in
 /// plain text, the kanban only through its status, deadline, task, actions and journal, and texts that name no one. The profile of the conversations of Claude Code does not change.
 @Suite struct ColinServerTests {
     func server(_ fixture: MailDeskFixture, profile: MCPServer.Profile = .colin, writes: WriteCounter = WriteCounter()) throws -> MCPServer {
@@ -30,11 +30,11 @@ import Testing
         return try answer(server, line)
     }
 
-    @Test func colinIsOfferedHisSixteenTools() throws {
+    @Test func colinIsOfferedHisEighteenTools() throws {
         let fixture = try MailDeskFixture()
         defer { try? FileManager.default.removeItem(at: fixture.root) }
         let names = try tools(server(fixture)).compactMap { $0["name"] as? String }
-        #expect(names == ColinTool.allCases.map(\.rawValue) && names.count == 16)
+        #expect(names == ColinTool.allCases.map(\.rawValue) && names.count == 18)
         let writing = try tools(server(fixture)).filter { ($0["annotations"] as? [String: Any])?["readOnlyHint"] as? Bool == false }
         #expect(writing.compactMap { $0["name"] as? String } == ["brouillon", "projet", "action", "fait", "journal", "nouveau_projet"])
     }
