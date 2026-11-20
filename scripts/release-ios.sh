@@ -20,8 +20,9 @@ fail() { echo "$*" >&2; echo "Rien n'est envoyé." >&2; exit 1; }
 [ -f "$APPSTORE_KEY_PATH" ] || fail "La clé $APPSTORE_KEY_PATH n'existe pas."
 [ -z "$(git status --porcelain)" ] || fail "Des changements ne sont pas commités."
 
-AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$APPSTORE_KEY_PATH" -authenticationKeyID "$APPSTORE_KEY_ID"
-      -authenticationKeyIssuerID "$APPSTORE_ISSUER_ID")
+# The archive signs with Xcode's Apple account, as the export does (20/11): iCloud must be enabled on the app's identifier,
+# which the App Manager API key may not do. The key still serves the TestFlight group (scripts/testflight.mjs).
+AUTH=(-allowProvisioningUpdates)
 BUILD="$(date +%Y%m%d%H%M)"
 OUT="$ROOT/build/ios"
 rm -rf "$OUT" && mkdir -p "$OUT" dist
