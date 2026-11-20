@@ -625,6 +625,10 @@ public final class AppDatabase: Sendable {
         migrator.registerMigration("v21", foreignKeyChecks: .immediate) { db in
             try db.execute(sql: ProjectChangeSchema.created)
         }
+        // The Dictée (20/11): its history and its memory.
+        migrator.registerMigration("v22", foreignKeyChecks: .immediate) { db in
+            try DictationSchema.create(db)
+        }
         return migrator
     }
 }
