@@ -676,6 +676,7 @@ public struct MainWindowView<Diagnostic: View>: View {
     let phone: PhoneAccess?
     /// The add-ons installed (20/11): Réunions shows in the sidebar only with its own.
     let addOns: Set<AddOn>
+    let addOnControl: AddOnControl?
     @ObservedObject var router: WindowRouter
     let paths: AppPaths
     let diagnostic: Diagnostic
@@ -684,11 +685,13 @@ public struct MainWindowView<Diagnostic: View>: View {
     public init(
         library: MeetingLibrary, projects: ProjectLibrary? = nil, agenda: AgendaLibrary? = nil, mails: MailLibrary? = nil, colin: ColinLibrary? = nil,
         thread: ColinThread? = nil, colinProbe: ColinProbeControl? = nil, claudeAccounts: ClaudeAccountsModel? = nil, inspiration: InspirationLibrary? = nil, updates: UpdateService? = nil, notifications: NotificationHub? = nil,
-        startup: StartupControl? = nil, phone: PhoneAccess? = nil, addOns: Set<AddOn> = Set(AddOn.allCases), router: WindowRouter, paths: AppPaths,
+        startup: StartupControl? = nil, phone: PhoneAccess? = nil, addOns: Set<AddOn> = Set(AddOn.allCases), addOnControl: AddOnControl? = nil,
+        router: WindowRouter, paths: AppPaths,
         @ViewBuilder diagnostic: () -> Diagnostic
     ) {
         self.phone = phone
         self.addOns = addOns
+        self.addOnControl = addOnControl
         self.notifications = notifications
         self.startup = startup
         self.library = library
@@ -808,7 +811,7 @@ public struct MainWindowView<Diagnostic: View>: View {
             case .settings:
                 SettingsPage(router: router, updates: updates, projects: projects, agenda: agenda, mails: mails, inspiration: inspiration,
                              library: library, notifications: notifications, startup: startup, colinThread: thread, colinProbe: colinProbe,
-                             phone: phone, addOns: addOns) {
+                             phone: phone, addOns: addOns, addOnControl: addOnControl) {
                     diagnostic
                 } journal: {
                     JournalView(entries: library.journal)

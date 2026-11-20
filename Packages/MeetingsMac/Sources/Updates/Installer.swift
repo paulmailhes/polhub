@@ -114,27 +114,11 @@ public struct Installer: Sendable {
         let file = newApp.deletingLastPathComponent().appending(path: "echange.sh")
         try script.write(to: file, atomically: true, encoding: .utf8)
 
-        var attributes: posix_spawnattr_t?
-        posix_spawnattr_init(&attributes)
-        defer { posix_spawnattr_destroy(&attributes) }
-        var all = sigset_t(), none = sigset_t()
-        sigfillset(&all)
-        sigemptyset(&none)
-        posix_spawnattr_setsigdefault(&attributes, &all)
-        posix_spawnattr_setsigmask(&attributes, &none)
-        posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETSID | POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK | POSIX_SPAWN_CLOEXEC_DEFAULT))
-        var actions: posix_spawn_file_actions_t?
-        posix_spawn_file_actions_init(&actions)
-        defer { posix_spawn_file_actions_destroy(&actions) }
-        for descriptor: Int32 in [0, 1, 2] {
-            posix_spawn_file_actions_addopen(&actions, descriptor, "/dev/null", descriptor == 0 ? O_RDONLY : O_WRONLY, 0)
+        do {
+            try DetachedShell.run(["/bin/bash", file.path(percentEncoded: false)])
+        } catch let DetachedShell.Failure.spawn(reason) {
+            throw InstallError.launch(reason)
         }
-        var pid: pid_t = 0
-        let arguments = ["/bin/bash", file.path(percentEncoded: false)]
-        var argv = arguments.map { strdup($0) } + [nil]
-        defer { argv.forEach { free($0) } }
-        let status = posix_spawn(&pid, "/bin/bash", &actions, &attributes, &argv, environ)
-        guard status == 0 else { throw InstallError.launch(String(cString: strerror(status))) }
     }
 
     /// Runs a tool; standard output and error together.
@@ -187,5 +171,41 @@ extension Installer.InstallError: LocalizedError {
         case .launch: "l'installation ne démarre pas"
         case .tooBig, .noApp, .refused: description
         }
+    }
+}
+
+/// A command started in a session of its own, with default signal handling and nothing inherited from the app: it lives
+/// on once the app has quit, even when launchd ends the app's process group (the update's swap, an add-on's relaunch).
+public enum DetachedShell {
+    public enum Failure: Error { case spawn(String) }
+
+    public static func run(_ arguments: [String]) throws {
+        var attributes: posix_spawnattr_t?
+        posix_spawnattr_init(&attributes)
+        defer { posix_spawnattr_destroy(&attributes) }
+        var all = sigset_t(), none = sigset_t()
+        sigfillset(&all)
+        sigemptyset(&none)
+        posix_spawnattr_setsigdefault(&attributes, &all)
+        posix_spawnattr_setsigmask(&attributes, &none)
+        posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETSID | POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK | POSIX_SPAWN_CLOEXEC_DEFAULT))
+        var actions: posix_spawn_file_actions_t?
+        posix_spawn_file_actions_init(&actions)
+        defer { posix_spawn_file_actions_destroy(&actions) }
+        for descriptor: Int32 in [0, 1, 2] {
+            posix_spawn_file_actions_addopen(&actions, descriptor, "/dev/null", descriptor == 0 ? O_RDONLY : O_WRONLY, 0)
+        }
+        var pid: pid_t = 0
+        var argv = arguments.map { strdup($0) } + [nil]
+        defer { argv.forEach { free($0) } }
+        let status = posix_spawn(&pid, arguments[0], &actions, &attributes, &argv, environ)
+        guard status == 0 else { throw Failure.spawn(String(cString: strerror(status))) }
+    }
+
+    /// hub quits, then starts again once it is gone: by its relaunch agent when it has one, else by its bundle.
+    public static func relaunch(pid: Int32 = getpid(), bundle: URL = Bundle.main.bundleURL) throws {
+        let script = "while kill -0 \(pid) 2>/dev/null; do sleep 0.2; done; "
+            + "launchctl kickstart gui/\(getuid())/\(Installer.agent) 2>/dev/null || open \(SwapScript.quote(SwapScript.path(bundle)))"
+        try run(["/bin/sh", "-c", script])
     }
 }

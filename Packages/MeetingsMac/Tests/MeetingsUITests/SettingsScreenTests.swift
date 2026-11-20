@@ -91,9 +91,16 @@ struct SettingsScreenTests {
         _ = phone.store.device(for: seen)
         await phone.pair()
 
+        // Réglages › Add-ons (20/11): Colin and the iPhone not installed, Claude Code missing for Colin.
+        let addOnStore = AddOnStore(defaults: try #require(UserDefaults(suiteName: "reglages-addons-\(UUID().uuidString)")))
+        addOnStore.save(Set(AddOn.allCases).subtracting([.colin, .iphone]))
+        let addOnControl = AddOnControl(store: addOnStore, isBusy: { false }, relaunch: {})
+        addOnControl.claudeFound = false
+
         func window(_ startup: StartupControl) -> some View {
             MainWindowView(library: library, projects: projects, agenda: agenda, mails: mails, thread: thread, colinProbe: probe,
-                           inspiration: inspiration, updates: updates, startup: startup, phone: phone, router: router, paths: world.paths) {
+                           inspiration: inspiration, updates: updates, startup: startup, phone: phone, addOnControl: addOnControl,
+                           router: router, paths: world.paths) {
                 DiagnosticView(model: model, colin: probe) {}
             }
             .environment(\.projectLogos, logos)

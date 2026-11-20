@@ -145,6 +145,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
     /// The add-ons installed (20/11), settled at launch: what is not installed is never made.
     private(set) var addOns = Set(AddOn.allCases)
+    private var addOnControl: AddOnControl?
     // The meetings.
     private(set) var store: MeetingStore?
     /// The folders, moved under the name hub-board at the first launch that has it (20/11), before anything opens the base.
@@ -258,6 +259,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let addOnStore = AddOnStore(defaults: .standard)
         addOnStore.settle(baseExists: FileManager.default.fileExists(atPath: paths.database.path(percentEncoded: false)))
         addOns = addOnStore.installed
+        // Réglages › Add-ons (20/11): installing or removing relaunches hub, never during a meeting.
+        let control = AddOnControl(store: addOnStore, isBusy: { [weak self] in !(await self?.isQuiet() ?? false) },
+                                   relaunch: { [weak self] in self?.relaunchForAddOns() })
+        control.claudeFound = ClaudeBinary.find() != nil
+        addOnControl = control
         let store: MeetingStore
         do {
             let database = try AppDatabase(path: paths.database.path)
@@ -322,6 +328,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         coupDoeil.attach(library: library, agenda: agenda, mails: mails, projects: projects, projectLogos: projectLogos,
                          notifications: notifications, updates: updates)
         countColinRulesOnce()
+    }
+
+    /// An add-on installed or removed (20/11): hub quits, then starts again, making only what is installed.
+    private func relaunchForAddOns() {
+        do {
+            try DetachedShell.relaunch()
+        } catch {
+            // The system's text to the log, by `Words.problem` (lot 10, 20/11).
+            if let journal = Words.problem("La relance pour les add-ons n'a pas pu partir", error).journal { NSLog("%@", journal) }
+            return
+        }
+        NSApp.terminate(nil)
     }
 
     /// Réunions (20/11): the coordinator that detects and records the Meets, then the transcriptions and the summaries.
@@ -846,7 +864,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             let diagnostic = diagnostic
             let probe = colinProbe
             let view = MainWindowView(library: library, projects: projects, agenda: agenda, mails: mails, colin: colin, thread: colinThread, colinProbe: colinProbe, claudeAccounts: claudeAccounts, inspiration: inspiration,
-                                      updates: updates, notifications: notifications, startup: startup, phone: phone, addOns: addOns, router: router, paths: paths) {
+                                      updates: updates, notifications: notifications, startup: startup, phone: phone, addOns: addOns, addOnControl: addOnControl, router: router, paths: paths) {
                 if let diagnostic {
                     DiagnosticView(model: diagnostic, colin: probe) { [weak self] in self?.showProbeWindow() }
                 }
