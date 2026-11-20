@@ -50,4 +50,5 @@ cat >"$OUT/export.plist" <<PLIST
 PLIST
 xcodebuild -exportArchive -archivePath "$OUT/Polhub.xcarchive" -exportOptionsPlist "$OUT/export.plist" -exportPath "$OUT/export" \
   "${AUTH[@]}" >"$OUT/export.log" 2>&1 || { grep -E 'error:' "$OUT/export.log" | head -20 >&2; fail "L'envoi a échoué ($OUT/export.log)."; }
+node scripts/testflight.mjs groupe || echo "Le groupe TestFlight n'a pas pu être préparé : la version est envoyée quand même." >&2
 echo "Envoyée : Polhub iPhone $VERSION ($BUILD). TestFlight la donne à l'iPhone une fois traitée par Apple (quelques minutes)."
