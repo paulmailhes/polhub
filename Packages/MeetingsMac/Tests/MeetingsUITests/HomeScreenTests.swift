@@ -131,7 +131,7 @@ struct HomeScreenTests {
         let colin = ColinLibrary(agenda: agenda, mails: mails, defaults: suite, settle: .milliseconds(30))
         colin.seen()
         try await waitUntil { colin.briefingAt != nil && colin.review.count == 4 && colin.briefingChanges.count == 2 }
-        #expect(colin.briefing.last?.hasSuffix("2 projets ont bougé.") == true)
+        #expect(colin.briefing.last?.text.hasSuffix("2 projets ont bougé.") == true)
         let router = WindowRouter()
         router.section = .home
         let window = MainWindowView(library: library, projects: ProjectLibrary(store: projects, meetings: meetingStore), agenda: agenda, mails: mails, colin: colin,

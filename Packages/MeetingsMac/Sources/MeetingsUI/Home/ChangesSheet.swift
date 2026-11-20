@@ -14,7 +14,7 @@ struct ChangesSheet: View {
 
     /// « Depuis hier 19:40 : 3 projets ont bougé. »
     private var title: String {
-        colin.briefing.first { $0.hasPrefix("Depuis ") } ?? "Le point"
+        colin.briefing.first { $0.kind == .since }?.sentence ?? "Le point"
     }
 
     var body: some View {

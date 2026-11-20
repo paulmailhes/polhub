@@ -1538,9 +1538,11 @@ public final class MailLibrary: ObservableObject {
         case .sent(let entry, let at):
             // On time, as in Gmail: no notification.
             guard at.timeIntervalSince(entry.sendAt) > 5 * 60 else { return ("Mail programmé envoyé : « \(entry.subject) ».", nil) }
-            // The day too when it left the day after (« au lieu d'hier 23:00 »).
-            let planned = calendar.isDate(entry.sendAt, inSameDayAs: at) ? "de \(MailText.clock(entry.sendAt, calendar: calendar))"
-                : { let words = MailText.scheduled(entry.sendAt, now: at, calendar: calendar); return words.hasPrefix("hier") ? "d'\(words)" : "de \(words)" }()
+            // The day too when it left the day after (« au lieu d'hier 23:00 »): « d' » by the day it was planned for, never
+            // by the first word said of it (lot 10, 20/11).
+            let away = Words.days(from: at, to: entry.sendAt, calendar: calendar)
+            let planned = (away == -1 ? "d'" : "de ")
+                + (away == 0 ? MailText.clock(entry.sendAt, calendar: calendar) : MailText.scheduled(entry.sendAt, now: at, calendar: calendar))
             let late = "Parti à \(MailText.clock(at, calendar: calendar)) au lieu \(planned)"
             return ("« \(entry.subject) » : \(late.prefix(1).lowercased() + late.dropFirst()).",
                     MailScheduleNotice(title: "« \(entry.subject) »", body: "\(late) : \(lateReason(entry)).",

@@ -50,32 +50,63 @@ public enum Briefing {
         Set(lines.filter { $0.who != .paul && $0.undoneAt == nil }.map(\.projectID)).count
     }
 
+    /// A sentence of « Le point » (lot 10, 20/11): what it speaks of, then what it says. The Accueil finds a line by its
+    /// kind and shows its label and its text apart, never by cutting the sentence or reading its first word.
+    public struct Line: Equatable, Sendable {
+        public enum Kind: Equatable, Sendable {
+            /// The meetings left this week: always there.
+            case week
+            /// The projects to deliver.
+            case due
+            /// The projects where it is Paul's turn.
+            case yours
+            /// What came since Paul last came.
+            case since
+        }
+
+        public let kind: Kind
+        /// What it speaks of: « Cette semaine », « À livrer », « À toi de jouer », « Depuis hier 19:40 ».
+        public let label: String
+        /// What it says, a sentence's end: « aucun rendez-vous. », « 1 mail de client, 2 projets ont bougé. ».
+        public let text: String
+
+        public init(_ kind: Kind, label: String, text: String) {
+            self.kind = kind
+            self.label = label
+            self.text = text
+        }
+
+        /// The whole sentence: « Cette semaine : aucun rendez-vous. ».
+        public var sentence: String { "\(label) : \(text)" }
+    }
+
     /// The sentences, four at most: the week always, the others only when they have something to say. `moved`: the
     /// projects that moved without Paul since he last came.
     public static func lines(week: (count: Int, next: CalendarEventRow?), due: [ProjectRow], yours: [ProjectRow], clientMails: Int, moved: Int = 0,
-                             since: Date?, now: Date, calendar: Calendar) -> [String] {
-        var lines: [String] = []
+                             since: Date?, now: Date, calendar: Calendar) -> [Line] {
+        var lines: [Line] = []
         if week.count == 0 {
-            lines.append("Cette semaine : aucun rendez-vous.")
+            lines.append(Line(.week, label: "Cette semaine", text: "aucun rendez-vous."))
         } else if let next = week.next {
             let when = dayLabel(next.startAt, now: now, calendar: calendar)
-            lines.append(week.count == 1 ? "Cette semaine : 1 rendez-vous, \(when)." : "Cette semaine : \(week.count) rendez-vous, le prochain \(when).")
+            lines.append(Line(.week, label: "Cette semaine", text: week.count == 1 ? "1 rendez-vous, \(when)." : "\(week.count) rendez-vous, le prochain \(when)."))
         } else {
-            lines.append("Cette semaine : \(week.count) rendez-vous.")
+            lines.append(Line(.week, label: "Cette semaine", text: "\(week.count) rendez-vous."))
         }
         if !due.isEmpty {
             let named = due.prefix(3).map { project in "\(project.name) \(dueLabel(project.dueDate ?? now, now: now, calendar: calendar))" }
             let others = due.count - named.count
-            lines.append("À livrer : " + named.joined(separator: ", ") + (others > 0 ? " et \(others) \(others == 1 ? "autre" : "autres")" : "") + ".")
+            lines.append(Line(.due, label: "À livrer",
+                              text: named.joined(separator: ", ") + (others > 0 ? " et \(others) \(others == 1 ? "autre" : "autres")" : "") + "."))
         }
         if !yours.isEmpty {
-            lines.append(yours.count <= 3 ? "À toi de jouer : " + yours.map(\.name).joined(separator: ", ") + "." : "À toi de jouer : \(yours.count) projets.")
+            lines.append(Line(.yours, label: "À toi de jouer", text: yours.count <= 3 ? yours.map(\.name).joined(separator: ", ") + "." : "\(yours.count) projets."))
         }
         if let since, clientMails > 0 || moved > 0 {
             var said: [String] = []
             if clientMails > 0 { said.append("\(clientMails) \(clientMails == 1 ? "mail de client" : "mails de clients")") }
             if moved > 0 { said.append(moved == 1 ? "1 projet a bougé" : "\(moved) projets ont bougé") }
-            lines.append("Depuis \(sinceLabel(since, now: now, calendar: calendar)) : " + said.joined(separator: ", ") + ".")
+            lines.append(Line(.since, label: "Depuis \(sinceLabel(since, now: now, calendar: calendar))", text: said.joined(separator: ", ") + "."))
         }
         return lines
     }

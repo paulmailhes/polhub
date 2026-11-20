@@ -4,20 +4,6 @@ import SwiftUI
 
 /// The words of « Le point ».
 enum BriefingText {
-    /// A sentence of the point: what it speaks of, then what it says.
-    struct Part: Equatable {
-        var label: String?
-        var text: String
-    }
-
-    /// « Cette semaine : aucun rendez-vous. » → « Cette semaine », « Aucun rendez-vous. ». The colon that ends the
-    /// label has a space on each side: the one of an hour (« 19:40 ») has none.
-    static func parts(_ sentence: String) -> Part {
-        guard let cut = sentence.range(of: " : ") else { return Part(label: nil, text: sentence) }
-        let text = String(sentence[cut.upperBound...])
-        return Part(label: String(sentence[..<cut.lowerBound]), text: text.prefix(1).uppercased() + text.dropFirst())
-    }
-
     /// « Mercredi 18 novembre ».
     static func today(_ date: Date, calendar: Calendar) -> String {
         let formatter = DateFormatter()
@@ -30,13 +16,13 @@ enum BriefingText {
     }
 
     /// The line under the date (lot 5, 19/11): what came since Paul last came, on one line — « Depuis hier 19:40 · 1 mail
-    /// de client, 2 projets ont bougé ». Nothing when nothing came.
-    static func since(_ sentences: [String]) -> String? {
-        guard let sentence = sentences.first(where: { $0.hasPrefix("Depuis ") }) else { return nil }
-        let part = parts(sentence)
-        var text = part.text.prefix(1).lowercased() + part.text.dropFirst()
+    /// de client, 2 projets ont bougé ». Nothing when nothing came. Found by its kind, its label and text apart (lot 10,
+    /// 20/11: by its first word, and cut at its « : »).
+    static func since(_ lines: [Briefing.Line]) -> String? {
+        guard let line = lines.first(where: { $0.kind == .since }) else { return nil }
+        var text = line.text
         if text.hasSuffix(".") { text.removeLast() }
-        return part.label.map { "\($0) · \(text)" } ?? text
+        return "\(line.label) · \(text)"
     }
 
     /// When « Le point » was prepared, under the pointer (lot 5, 19/11): « Le point · aujourd'hui 18:55 ».
@@ -71,7 +57,7 @@ struct HomeSectionHeader: View {
 /// since Paul last came, « Voir › » right after it; when « Le point » was prepared is said under the pointer. The date
 /// shows always, the line only when something came. What is due and the meetings are said by the cards under it.
 struct DayHeader: View {
-    let sentences: [String]
+    let sentences: [Briefing.Line]
     let preparedAt: Date?
     var calendar: Calendar = CalendarView.calendar
     /// What moved without Paul, to see: « Voir › » at the end of the line.

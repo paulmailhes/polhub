@@ -101,6 +101,25 @@ struct MailUndoBar: View {
     }
 }
 
+/// A row of a message's details (lot 10, 20/11): what it says, its title beside it.
+enum MessageDetail: Hashable, CaseIterable {
+    case from, to, cc, date, mailbox, sender
+
+    var title: String {
+        switch self {
+        case .from: "De"
+        case .to: "À"
+        case .cc: "Cc"
+        case .date: "Date"
+        case .mailbox: "Boîte"
+        case .sender: "Expéditeur"
+        }
+    }
+
+    /// The rows of people, each a contact to click.
+    var listsPeople: Bool { self == .to || self == .cc }
+}
+
 enum MailText {
     static let locale = Locale(identifier: "fr_FR")
 
@@ -888,25 +907,26 @@ struct MailMessageView: View {
         .onHover { hoveringHeader = $0 }
     }
 
-    private var detailRows: [(String, String)] {
-        var rows: [(String, String)] = []
-        if let from = message.sender { rows.append(("De", from.name.map { "\($0) <\(from.email)>" } ?? from.email)) }
-        if !message.to.isEmpty { rows.append(("À", message.to.map(\.email).joined(separator: ", "))) }
-        if !message.cc.isEmpty { rows.append(("Cc", message.cc.map(\.email).joined(separator: ", "))) }
-        rows.append(("Date", message.date.formatted(.dateTime.weekday(.wide).day().month(.wide).year().hour().minute().locale(MailText.locale))))
-        rows.append(("Boîte", message.account))
-        rows.append(("Expéditeur", message.authenticated ? "vérifié par Gmail" : "non vérifié par Gmail"))
+    private var detailRows: [(field: MessageDetail, value: String)] {
+        var rows: [(field: MessageDetail, value: String)] = []
+        if let from = message.sender { rows.append((.from, from.name.map { "\($0) <\(from.email)>" } ?? from.email)) }
+        if !message.to.isEmpty { rows.append((.to, message.to.map(\.email).joined(separator: ", "))) }
+        if !message.cc.isEmpty { rows.append((.cc, message.cc.map(\.email).joined(separator: ", "))) }
+        rows.append((.date, message.date.formatted(.dateTime.weekday(.wide).day().month(.wide).year().hour().minute().locale(MailText.locale))))
+        rows.append((.mailbox, message.account))
+        rows.append((.sender, message.authenticated ? "vérifié par Gmail" : "non vérifié par Gmail"))
         return rows
     }
 
     private var detailGrid: some View {
         Grid(alignment: .leading, horizontalSpacing: Space.m, verticalSpacing: 4) {
-            ForEach(detailRows, id: \.0) { title, value in
+            ForEach(detailRows, id: \.field) { field, value in
                 GridRow {
-                    Text(title).foregroundStyle(.secondary).gridColumnAlignment(.trailing)
-                    // Who is a contact, and a click for the small menu of each (15/11).
-                    if (title == "À" || title == "Cc") && aside == nil {
-                        MessagePeople(people: title == "À" ? message.to : message.cc, mine: mine, project: projectID, mails: mails)
+                    Text(field.title).foregroundStyle(.secondary).gridColumnAlignment(.trailing)
+                    // Who is a contact, and a click for the small menu of each (15/11); found by the row's field, never by
+                    // its title (lot 10, 20/11).
+                    if field.listsPeople && aside == nil {
+                        MessagePeople(people: field == .to ? message.to : message.cc, mine: mine, project: projectID, mails: mails)
                     } else {
                         Text(value).textSelection(.enabled)
                     }

@@ -252,8 +252,8 @@ public final class AgendaLibrary: ObservableObject {
     /// The calendar's name for a recording that starts: the event of the same Meet code at that time (14/11).
     public nonisolated static func eventTitle(in database: AppDatabase, code: String?, at date: Date) -> String? {
         guard let code, let events = try? CalendarStore(database).events(meetCode: code) else { return nil }
-        // An untitled event leaves the tab's title (review of 14/11).
-        return Linker.event(forCode: code, at: date, among: events).map(\.title).flatMap { $0 == "(sans titre)" ? nil : $0 }
+        // An untitled event leaves the tab's title (review of 14/11), told by its state (lot 10, 20/11).
+        return Linker.event(forCode: code, at: date, among: events).flatMap { $0.isUntitled ? nil : $0.title }
     }
 
     /// The loop of 13/11, away from the main thread.

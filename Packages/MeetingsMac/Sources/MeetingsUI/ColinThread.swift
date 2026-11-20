@@ -220,14 +220,14 @@ public final class ColinThread: ObservableObject {
     // MARK: - What the app tells
 
     public func meetingBegan() {
-        cut("Arrêté : ton call commence.")
+        cut(.call)
         guard isOn else { return }
         status = .waitingCall
         watchCall()
     }
 
     public func macWillSleep() {
-        cut("Arrêté : le Mac s'endort.")
+        cut(.sleep)
     }
 
     // MARK: - Pieces
@@ -323,15 +323,15 @@ public final class ColinThread: ObservableObject {
         }
     }
 
-    /// Claude Code goes now; an answer under way keeps what came, and why it stopped.
-    private func cut(_ note: String) {
+    /// Claude Code goes now; an answer under way keeps what came, and why it stopped, in the words the base keeps.
+    private func cut(_ stop: ColinStop) {
         epoch += 1
         guard let runner else { return }
         Task { await runner.stop() }
         if case .working = status { status = isOn ? .idle : .off }
         if status == .starting || status == .settling { status = isOn ? .idle : .off }
         guard var row = answer else { return }
-        row.text = streaming.isEmpty ? note : streaming + "\n\n" + note
+        row.text = streaming.isEmpty ? stop.stored : streaming + "\n\n" + stop.stored
         row.state = .interrupted
         row.steps = Self.ended(liveSteps)
         liveSteps = []
@@ -346,7 +346,7 @@ public final class ColinThread: ObservableObject {
         if isOn {
             if status == .off { status = .idle }
         } else if status != .off {
-            cut("Arrêté : Colin est à l'arrêt.")
+            cut(.off)
             status = .off
         }
     }

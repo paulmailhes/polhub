@@ -884,7 +884,7 @@ struct MeetingListView: View {
 struct MeetingRowView: View {
     let row: MeetingRow
     let now: Date
-    var badge: String?
+    var badge: TranscriptBadge?
     var project: String?
     var summary: MeetingListModel.SummaryLine?
 
@@ -929,7 +929,8 @@ struct MeetingRowView: View {
             Chip("Interrompue", tint: Tint.attention)
         }
         if let badge, !row.status.isUnfinished {
-            Chip(badge, tint: badge == "Échec" || badge == "À vérifier" ? Tint.attention : nil)
+            // The state says the color, never the words (lot 10, 20/11).
+            Chip(badge.text, tint: badge.needsAttention ? Tint.attention : nil)
         }
     }
 }

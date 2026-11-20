@@ -37,8 +37,9 @@ struct ProjectListView: View {
             TableColumn("Client", value: \.clientSort) { row in Text(row.project.client ?? "").foregroundStyle(.secondary) }
                 .width(min: 90, ideal: 150)
             TableColumn("Échéance", value: \.dueSort) { row in
-                if let label = ProjectViews.dueLabel(row.project.dueDate, today: Date()) {
-                    Text(label).foregroundStyle(ProjectViews.dueTint(label) ?? .secondary)
+                // The color from the days left, never from the words (lot 10, 20/11).
+                if let due = ProjectViews.dueState(row.project.dueDate, today: Date()) {
+                    Text(due.label).foregroundStyle(due.role?.color ?? .secondary)
                 }
             }
             .width(min: 80, ideal: 100)

@@ -55,12 +55,17 @@ import Testing
     }
 
     @Test func theListBadgeFollowsTheJob() {
-        #expect(TranscriptModel.badge(job(.running, progress: 0.5)) == "Transcription 50 %")
-        #expect(TranscriptModel.badge(job(.queued)) == "En file")
-        #expect(TranscriptModel.badge(job(.failed)) == "Échec")
-        #expect(TranscriptModel.badge(job(.done, doubtful: true)) == "À vérifier")
+        #expect(TranscriptModel.badge(job(.running, progress: 0.5)) == .running(percent: 50))
+        #expect(TranscriptModel.badge(job(.queued)) == .queued)
+        #expect(TranscriptModel.badge(job(.failed)) == .failed)
+        #expect(TranscriptModel.badge(job(.done, doubtful: true)) == .toCheck)
         #expect(TranscriptModel.badge(job(.done)) == nil)
         #expect(TranscriptModel.badge(nil) == nil)
+        // The words beside the state; the color reads the state (lot 10, 20/11).
+        #expect(TranscriptBadge.running(percent: 50).text == "Transcription 50 %" && TranscriptBadge.queued.text == "En file")
+        #expect(TranscriptBadge.failed.text == "Échec" && TranscriptBadge.toCheck.text == "À vérifier")
+        #expect(TranscriptBadge.failed.needsAttention && TranscriptBadge.toCheck.needsAttention)
+        #expect(!TranscriptBadge.queued.needsAttention && !TranscriptBadge.running(percent: 50).needsAttention)
     }
 }
 

@@ -40,18 +40,22 @@ let package = Package(
         .target(name: "AudioCapture"),
         .target(name: "Transcription", dependencies: [.product(name: "Domain", package: "Kernel")]),
         // Updates from the versions published on GitHub, never during a meeting.
-        .target(name: "Updates"),
+        // Lot 10 (20/11): what it says of an update that failed comes from `Words` (PolhubDesign).
+        .target(name: "Updates", dependencies: ["PolhubDesign"]),
         // Google calendars, contacts, and the automatic links between events, meetings, contacts and projects.
         // The design system: tokens and components every screen uses (14/11, docs/design-system.md).
         // Its icons are Phosphor's, duotone weight (MIT, the license beside them in Icons/) (15/11).
         .target(name: "PolhubDesign", resources: [.copy("Icons")]),
         // Polhub's notifications: reminders, new events, meetings not recorded, summaries (14/11).
+        // Lot 10 (20/11): its dates and its counts are written by `Words` (PolhubDesign), as the screens'.
         .target(name: "Notifications", dependencies: [
+            "PolhubDesign",
             .product(name: "Domain", package: "Kernel"),
             .product(name: "Persistence", package: "Kernel"),
         ]),
         // The meetings' summaries, by the model built into macOS: nothing to download, nothing leaves the Mac (14/11).
         .target(name: "Summarization", dependencies: [
+            "PolhubDesign",
             .product(name: "Domain", package: "Kernel"),
             .product(name: "Persistence", package: "Kernel"),
         ]),
@@ -65,7 +69,8 @@ let package = Package(
         // Gmail, spoken to directly: the client and the measures of step 0 (14/11).
         // What a mail is made of when it leaves: MIME, replies, quotes. Pure, no network (14/11).
         .target(name: "MailFormat", dependencies: [.product(name: "Persistence", package: "Kernel")]),
-        .target(name: "Mail", dependencies: ["GoogleKit", "MailFormat", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
+        // Lot 10 (20/11): the errors it keeps for the screens are said by `Words` (PolhubDesign).
+        .target(name: "Mail", dependencies: ["GoogleKit", "MailFormat", "PolhubDesign", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         // The projects module: board, views, project page.
         .target(name: "ProjectsUI", dependencies: [
             "PolhubDesign",
@@ -78,6 +83,7 @@ let package = Package(
         // of the categories (Yams keeps their order), the collection and the tagger. No UI here. The vault's import is
         // gone with the vault (16/11).
         .target(name: "Inspiration", dependencies: [
+            "PolhubDesign",
             .product(name: "Domain", package: "Kernel"),
             .product(name: "Persistence", package: "Kernel"),
             .product(name: "Yams", package: "Yams"),
@@ -85,7 +91,8 @@ let package = Package(
         // Colin, the agent of the home page (17/11): how Polhub finds Claude Code on this Mac, starts it alone and reads
         // what it answers. No dependency: the probe of step 0 uses it first, the home page later.
         // Colin (17/11): the engine that launches Claude Code, and the rules of the Accueil, which read the base.
-        .target(name: "Colin", dependencies: [.product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
+        // Lot 10 (20/11): « Le point », « À faire » and the kanban write their days with `Words` (PolhubDesign).
+        .target(name: "Colin", dependencies: ["PolhubDesign", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         // The models live only in `polhub-calcul`: the app never loads them.
         .target(name: "Compute", dependencies: [
             "Transcription",
@@ -130,6 +137,7 @@ let package = Package(
             .product(name: "Observability", package: "Kernel"),
         ]),
         .target(name: "Pipeline", dependencies: [
+            "PolhubDesign",
             "MeetingDetection",
             "Recording",
             "Transcription",
@@ -152,10 +160,10 @@ let package = Package(
         .testTarget(name: "AudioCaptureTests", dependencies: ["AudioCapture"]),
         .testTarget(name: "ComputeTests", dependencies: ["Compute", "Transcription", "Recording", .product(name: "Domain", package: "Kernel")], resources: [.copy("Fixtures")]),
         .testTarget(name: "ReadingKitTests", dependencies: ["ReadingKit", "MailFormat", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
-        .testTarget(name: "InspirationTests", dependencies: ["Inspiration", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")], resources: [.copy("Fixtures")]),
+        .testTarget(name: "InspirationTests", dependencies: ["Inspiration", "PolhubDesign", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")], resources: [.copy("Fixtures")]),
         .testTarget(name: "ProjectsUITests", dependencies: ["ProjectsUI", "PolhubDesign", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "UpdatesTests", dependencies: ["Updates"]),
-        .testTarget(name: "NotificationsTests", dependencies: ["Notifications", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
+        .testTarget(name: "NotificationsTests", dependencies: ["Notifications", "PolhubDesign", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "SummarizationTests", dependencies: ["Summarization", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "AgendaTests", dependencies: ["Agenda", "GoogleKit", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "GoogleKitTests", dependencies: ["GoogleKit"]),
@@ -169,6 +177,6 @@ let package = Package(
         .testTarget(name: "PipelineTests", dependencies: ["Pipeline", "MeetingDetection", "Recording", "Transcription", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
         .testTarget(name: "ProbeKitTests", dependencies: ["ProbeKit", "Colin", "Recording", "AudioCapture", "MeetingDetection", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel"), .product(name: "Observability", package: "Kernel")]),
         .testTarget(name: "PolhubDesignTests", dependencies: ["PolhubDesign"]),
-        .testTarget(name: "ColinTests", dependencies: ["Colin", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
+        .testTarget(name: "ColinTests", dependencies: ["Colin", "PolhubDesign", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
     ]
 )

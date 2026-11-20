@@ -71,9 +71,8 @@ public enum ProjectViews {
         if let nextEvent {
             facts.append(CardFact(text: nextEventLabel(nextEvent, now: now, calendar: calendar), icon: "calendar.badge.clock", role: nil, strong: true))
         }
-        if let label = dueLabel(due, today: now, calendar: calendar) {
-            let role = dueRole(label)
-            facts.append(CardFact(text: label, icon: "flag", role: role, strong: role != nil))
+        if let state = dueState(due, today: now, calendar: calendar) {
+            facts.append(CardFact(text: state.label, icon: "flag", role: state.role, strong: state.role != nil))
         }
         if let lastMeeting {
             facts.append(CardFact(text: meetingLabel(lastMeeting, now: now, calendar: calendar), icon: "waveform", role: nil, strong: false))
@@ -119,28 +118,38 @@ public enum ProjectViews {
         calendar.dateComponents([.day], from: calendar.startOfDay(for: start), to: calendar.startOfDay(for: end)).day ?? 0
     }
 
-    /// « En retard de N j », « Échéance aujourd'hui », « Échéance demain », « Échéance dans N j », or nothing:
-    /// in words, not « J-2 », which read as a meeting (Paul, 15/11).
-    public static func dueLabel(_ due: Date?, today: Date, calendar: Calendar = .current) -> String? {
-        guard let due else { return nil }
-        let left = days(from: today, to: due, calendar: calendar)
-        if left < 0 { return "En retard de \(-left) j" }
-        switch left {
-        case 0: return "Échéance aujourd'hui"
-        case 1: return "Échéance demain"
-        default: return "Échéance dans \(left) j"
+    /// Where a due date stands (lot 10, 20/11): the days left, from which its words and its color are read; never the
+    /// color from the words, which may change.
+    public struct DueState: Equatable, Sendable {
+        /// Days left until the due date, counted by days; negative when it is past.
+        public let daysLeft: Int
+
+        /// « En retard de N j », « Échéance aujourd'hui », « Échéance demain », « Échéance dans N j »: in words, not
+        /// « J-2 », which read as a meeting (Paul, 15/11).
+        public var label: String {
+            if daysLeft < 0 { return "En retard de \(-daysLeft) j" }
+            switch daysLeft {
+            case 0: return "Échéance aujourd'hui"
+            case 1: return "Échéance demain"
+            default: return "Échéance dans \(daysLeft) j"
+            }
+        }
+
+        /// What it says by its color (design system v2, 19/11): late in the tint of the late, today in the tint of
+        /// attention, both readable as text; else nothing, neutral.
+        public var role: Tint.Role? {
+            daysLeft < 0 ? .late : daysLeft == 0 ? .attention : nil
         }
     }
 
-    /// What a due date says by its color (design system v2, 19/11): late in the tint of the late, today in the tint of
-    /// attention, both readable as text; else nothing, neutral.
-    public static func dueRole(_ label: String) -> Tint.Role? {
-        label.hasPrefix("En retard") ? .late : label == "Échéance aujourd'hui" ? .attention : nil
+    /// Where a due date stands today; nothing without a date.
+    public static func dueState(_ due: Date?, today: Date, calendar: Calendar = .current) -> DueState? {
+        due.map { DueState(daysLeft: days(from: today, to: $0, calendar: calendar)) }
     }
 
-    /// The color of `dueRole`, else neutral.
-    public static func dueTint(_ label: String) -> Color? {
-        dueRole(label)?.color
+    /// The words of `dueState`, or nothing.
+    public static func dueLabel(_ due: Date?, today: Date, calendar: Calendar = .current) -> String? {
+        dueState(due, today: today, calendar: calendar)?.label
     }
 
     /// « RDV aujourd'hui à 14:00 », « RDV demain à 9:30 », « RDV jeudi à 14:00 », « RDV le 2 déc. »: the next

@@ -2,6 +2,7 @@ import Domain
 import Foundation
 import Persistence
 import Testing
+import UserNotifications
 @testable import Notifications
 
 /// Polhub's notifications (Paul, 14/11): reminders before an event, new events, a meeting not recorded.
@@ -121,5 +122,15 @@ import Testing
         // an event, a new title or the sound turned off reach the reminders already planned (review of 14/11).
         #expect(center.added.map(\.id) == ["rappel|a|10", "rappel|b|1"])
         #expect(Set(center.pending) == ["autre-chose", "rappel|a|10", "rappel|b|1"])
+    }
+}
+
+/// Lot 10 (20/11): what macOS lets the notifications do is a state; Réglages reads it, never its words.
+@Suite struct NotificationAuthorizationTests {
+    @Test func theAnswerOfMacOSIsAState() {
+        #expect(NotificationAuthorization(.authorized) == .allowed && NotificationAuthorization(.provisional) == .allowed)
+        #expect(NotificationAuthorization(.denied) == .denied && NotificationAuthorization(.notDetermined) == .notAsked)
+        #expect(NotificationAuthorization.denied.text == "refusées dans Réglages Système")
+        #expect(NotificationAuthorization.allowed.text == "autorisées" && NotificationAuthorization.notAsked.text == "pas encore demandées")
     }
 }

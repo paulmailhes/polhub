@@ -137,6 +137,13 @@ import Testing
         #expect(draft.allDay && draft.start == date(20) && draft.end == date(21))
     }
 
+    /// Lot 10 (20/11): an event without a title opens with an empty field, by its state, never by its words.
+    @Test func anUntitledEventOpensWithAnEmptyTitle() {
+        let event = CalendarEventRow(account: "paul@exemple.fr", eventID: "e3", title: CalendarEventRow.untitledTitle, startAt: date(20, 9),
+                                     endAt: date(20, 10), allDay: false, updatedAt: date(1))
+        #expect(event.isUntitled && EventDraft(event: event, notes: "", calendar: calendar).title.isEmpty)
+    }
+
     @Test func deleteAndRead() {
         let delete = CalendarWrite.deleteRequest(accessToken: "jeton", eventID: "e1")
         #expect(delete.httpMethod == "DELETE" && delete.url?.absoluteString == "https://www.googleapis.com/calendar/v3/calendars/primary/events/e1?sendUpdates=all")

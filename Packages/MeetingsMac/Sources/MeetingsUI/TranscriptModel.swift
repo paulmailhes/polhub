@@ -14,6 +14,28 @@ public enum TranscriptStatus: Equatable, Sendable {
     case failed(String)
 }
 
+/// The label next to a meeting in the list (lot 10, 20/11): the color reads the state, never its words, which may change.
+public enum TranscriptBadge: Equatable, Sendable {
+    case queued
+    case running(percent: Int)
+    case failed
+    case toCheck
+
+    public var text: String {
+        switch self {
+        case .queued: "En file"
+        case .running(let percent): "Transcription \(percent) %"
+        case .failed: "Échec"
+        case .toCheck: "À vérifier"
+        }
+    }
+
+    /// Failed, or to check: the color of attention.
+    public var needsAttention: Bool {
+        self == .failed || self == .toCheck
+    }
+}
+
 public enum TranscriptModel {
     /// `nil` while the meeting is still being recorded.
     public static func status(_ job: JobRow?, meeting: MeetingRow, meetingActive: Bool) -> TranscriptStatus? {
@@ -39,13 +61,13 @@ public enum TranscriptModel {
         }
     }
 
-    /// The small label next to a meeting in the list.
-    public static func badge(_ job: JobRow?) -> String? {
+    /// The small label next to a meeting in the list: a state, its words beside it (lot 10, 20/11).
+    public static func badge(_ job: JobRow?) -> TranscriptBadge? {
         switch job?.state {
-        case .queued?: "En file"
-        case .running?: "Transcription \(Int(((job?.progress ?? 0) * 100).rounded())) %"
-        case .failed?: "Échec"
-        case .done? where job?.doubtful == true: "À vérifier"
+        case .queued?: .queued
+        case .running?: .running(percent: Int(((job?.progress ?? 0) * 100).rounded()))
+        case .failed?: .failed
+        case .done? where job?.doubtful == true: .toCheck
         default: nil
         }
     }

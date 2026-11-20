@@ -108,7 +108,8 @@ import Testing
         #expect(first.guests.map(\.email) == ["camille@exemple.fr"] && first.guests.first?.name == "Camille")
         #expect(first.attendees.contains { $0.isResource } && first.attendees.contains { $0.isSelf })
         let allDay = try #require(page.events.last)
-        #expect(allDay.allDay && allDay.title == "(sans titre)")
+        // The base's word for an event without a title, a format never reworded; the code asks `isUntitled` (lot 10, 20/11).
+        #expect(allDay.allDay && allDay.title == "(sans titre)" && allDay.isUntitled && !first.isUntitled)
     }
 
     @Test func theRequestReadsThePrimaryCalendarInAWindow() throws {

@@ -16,7 +16,8 @@ public final class ColinLibrary: ObservableObject {
     /// « À valider », in order: the drafts ready, the answers awaited, the silent clients, the meetings to file.
     @Published public private(set) var review: [ReviewRules.Line] = []
     /// « Le point »: four sentences at most, as they stood when Paul came back.
-    @Published public private(set) var briefing: [String] = []
+    /// Its lines, typed (lot 10, 20/11): the Accueil reads their kind, never their words.
+    @Published public private(set) var briefing: [Briefing.Line] = []
     /// When « Le point » was prepared: at a return of Paul's, or when Polhub opened.
     @Published public private(set) var briefingAt: Date?
     /// The threads where a client wrote since Paul last came: behind « Voir », with what moved.
@@ -459,7 +460,7 @@ public final class ColinLibrary: ObservableObject {
             var mails: MailInputs
             var base: BaseInputs
             var lines: [ReviewRules.Line]
-            var point: [String]?
+            var point: [Briefing.Line]?
             var kanban: [KanbanEdit] = []
             /// What moved without Paul since « Le point »'s since.
             var moved: [ProjectChangeLine] = []
@@ -571,7 +572,7 @@ public final class ColinLibrary: ObservableObject {
         }
 
         /// « Le point ». A client's mail delivered to two of Paul's mailboxes counts once.
-        private func sentences(_ mails: MailInputs, _ base: BaseInputs, since: Date?, moved: Int) -> [String] {
+        private func sentences(_ mails: MailInputs, _ base: BaseInputs, since: Date?, moved: Int) -> [Briefing.Line] {
             var clients = 0
             if withMails, let since {
                 let threads = Briefing.clientMails(mails.threads.filter { !hiddenAccounts.contains($0.account) }, rules: rules, since: since)

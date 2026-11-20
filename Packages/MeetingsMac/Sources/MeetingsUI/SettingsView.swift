@@ -1,5 +1,6 @@
 import AppKit
 import Agenda
+import Notifications
 import PolhubDesign
 import ProjectsUI
 import SwiftUI
@@ -456,9 +457,10 @@ struct NotificationStatus: View {
 
     var body: some View {
         HStack {
-            Text("Notifications \(hub.authorization.isEmpty ? "…" : hub.authorization)").foregroundStyle(.secondary)
+            Text("Notifications \(hub.authorization?.text ?? "…")").foregroundStyle(.secondary)
             Spacer()
-            if hub.authorization.hasPrefix("refusées") {
+            // By the state, never by its words (lot 10, 20/11).
+            if hub.authorization == .denied {
                 Button("Ouvrir Réglages Système") {
                     NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension")!)
                 }

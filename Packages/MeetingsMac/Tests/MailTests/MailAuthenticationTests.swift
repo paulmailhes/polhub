@@ -1,4 +1,5 @@
 import Foundation
+import Persistence
 import Testing
 @testable import Mail
 
@@ -44,3 +45,19 @@ import Testing
         #expect(try !verified("mx.google.com; dmarc=pass header.from=studio.exemple", from: nil))
     }
 }
+
+/// Lot 10 (20/11): a message without a subject is kept with the base's word for it, a format never reworded; the code
+/// asks `hasNoSubject`, never compares the words.
+@Suite struct MailNoSubjectTests {
+    @Test func aMessageWithoutASubjectSaysItByItsState() throws {
+        let json: [String: Any] = ["id": "m1", "threadId": "t1", "payload": ["mimeType": "text/plain", "filename": "",
+                                                                          "headers": [["name": "Subject", "value": "  "]]]]
+        let message = try GmailAPI.decode(GmailAPI.Message.self, from: try JSONSerialization.data(withJSONObject: json))
+        let row = MailParser.parse(message, account: "moi@exemple.fr").row
+        #expect(row.subject == "(sans objet)" && row.hasNoSubject)
+        let named = MailMessageRow(account: "moi@exemple.fr", messageID: "m2", threadID: "t2", date: Date(timeIntervalSince1970: 0),
+                                   sender: nil, subject: "Devis", snippet: "", labels: [])
+        #expect(!named.hasNoSubject)
+    }
+}
+

@@ -150,8 +150,9 @@ struct ProjectPage: View {
                     .menuIndicator(.hidden)
                     .fixedSize()
                     .help("Changer le statut")
-                    if let label = ProjectViews.dueLabel(draft.dueDate, today: Date()) {
-                        Chip(label, systemImage: "calendar", tint: ProjectViews.dueTint(label))
+                    // The color from the days left, never from the words (lot 10, 20/11).
+                    if let due = ProjectViews.dueState(draft.dueDate, today: Date()) {
+                        Chip(due.label, systemImage: "calendar", tint: due.role?.color)
                     }
                     if let client = draft.client, !client.isEmpty { Chip(client, systemImage: "building.2") }
                 }

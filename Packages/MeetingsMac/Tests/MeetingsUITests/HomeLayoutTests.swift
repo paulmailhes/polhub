@@ -92,11 +92,15 @@ import Testing
 
     /// Lot 5 (19/11): under the date, one line says what came since Paul last came, then « Voir › ».
     @Test func theLineUnderTheDateSaysWhatCameSince() {
-        #expect(BriefingText.since(["Cette semaine : 3 rendez-vous, le prochain demain 10:00.", "Depuis hier 19:40 : 1 mail de client, 2 projets ont bougé."])
+        let week = Briefing.Line(.week, label: "Cette semaine", text: "3 rendez-vous, le prochain demain 10:00.")
+        #expect(BriefingText.since([week, Briefing.Line(.since, label: "Depuis hier 19:40", text: "1 mail de client, 2 projets ont bougé.")])
                 == "Depuis hier 19:40 · 1 mail de client, 2 projets ont bougé")
-        #expect(BriefingText.since(["Depuis 8:05 : 3 mails de clients."]) == "Depuis 8:05 · 3 mails de clients")
-        #expect(BriefingText.since(["Cette semaine : aucun rendez-vous.", "À toi de jouer : Studio Nord."]) == nil)
+        #expect(BriefingText.since([Briefing.Line(.since, label: "Depuis 8:05", text: "3 mails de clients.")]) == "Depuis 8:05 · 3 mails de clients")
+        #expect(BriefingText.since([week, Briefing.Line(.yours, label: "À toi de jouer", text: "Studio Nord.")]) == nil)
         #expect(BriefingText.since([]) == nil)
+        // Lot 10 (20/11): found by its kind, whatever its first word says.
+        #expect(BriefingText.since([Briefing.Line(.since, label: "Ce matin", text: "rien de neuf.")]) == "Ce matin · rien de neuf")
+        #expect(BriefingText.since([Briefing.Line(.week, label: "Depuis lundi", text: "rien.")]) == nil)
     }
 
     /// Lot 5 (19/11): when « Le point » was prepared is said under the pointer, as the day is said elsewhere.
@@ -139,13 +143,12 @@ import Testing
         #expect(TodoText.menu(dated: false) == ["Ouvrir le projet"])
     }
 
+    /// Lot 10 (20/11): a sentence of the point is its label and its text, kept apart: never cut at its « : », which the
+    /// hour of « depuis » has too.
     @Test func aSentenceOfThePointIsItsLabelAndItsText() {
-        #expect(BriefingText.parts("Cette semaine : 5 rendez-vous, le prochain demain 10:00.") == BriefingText.Part(label: "Cette semaine", text: "5 rendez-vous, le prochain demain 10:00."))
-        // The hour of « depuis » has its own colon: only the one that ends the label counts.
-        #expect(BriefingText.parts("Depuis hier 19:40 : 4 mails de clients.") == BriefingText.Part(label: "Depuis hier 19:40", text: "4 mails de clients."))
-        // The text begins with a capital, as a sentence of its own.
-        #expect(BriefingText.parts("Cette semaine : aucun rendez-vous.") == BriefingText.Part(label: "Cette semaine", text: "Aucun rendez-vous."))
-        #expect(BriefingText.parts("Rien à dire.") == BriefingText.Part(label: nil, text: "Rien à dire."))
+        let since = Briefing.Line(.since, label: "Depuis hier 19:40", text: "4 mails de clients.")
+        #expect(since.sentence == "Depuis hier 19:40 : 4 mails de clients.")
+        #expect(Briefing.Line(.week, label: "Cette semaine", text: "aucun rendez-vous.").sentence == "Cette semaine : aucun rendez-vous.")
     }
 }
 
@@ -296,6 +299,12 @@ import Testing
         #expect(ColinThreadText.note(of: answer("Arrêté : le Mac s'endort.", .interrupted)) == ("", "Arrêté : le Mac s'endort."))
         #expect(ColinThreadText.note(of: answer("Marc t'a", .interrupted)) == ("Marc t'a", "Arrêté."))
         #expect(ColinThreadText.note(of: answer("Mar", .failed)) == ("Mar", "Colin n'a pas pu finir."))
+        // Lot 10 (20/11): the stop is found by the words the base keeps, never reworded, whatever the thread says of it.
+        #expect(ColinStop.ending("Marc t'a écrit\n\nArrêté : ton call commence.").map { [$0.said] } == ["Marc t'a écrit"])
+        #expect(ColinStop.ending("Arrêté : Colin est à l'arrêt.")?.stop == .off && ColinStop.ending("Arrêté : le Mac s'endort.")?.stop == .sleep)
+        #expect(ColinStop.ending("Marc t'a") == nil && ColinStop.ending("Arrêté : autre chose.") == nil)
+        #expect(ColinStop.call.stored == "Arrêté : ton call commence." && ColinStop.sleep.stored == "Arrêté : le Mac s'endort."
+                && ColinStop.off.stored == "Arrêté : Colin est à l'arrêt.")
         #expect(ColinThreadText.note(of: answer("Trois projets.", .done)) == ("Trois projets.", nil))
     }
 

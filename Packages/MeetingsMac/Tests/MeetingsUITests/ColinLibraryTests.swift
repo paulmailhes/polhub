@@ -513,7 +513,7 @@ import Testing
         #expect(world.colin.review.map(\.kind) == [.unfiled])
         world.colin.seen()
         try await waitUntil { world.colin.briefingAt != nil }
-        #expect(world.colin.briefing == ["Cette semaine : aucun rendez-vous.", "À toi de jouer : Cabinet Martin."])
+        #expect(world.colin.briefing.map(\.sentence) == ["Cette semaine : aucun rendez-vous.", "À toi de jouer : Cabinet Martin."])
     }
 
     // MARK: - The refreshes
@@ -648,7 +648,7 @@ import Testing
         try await waitUntil { world.colin.briefingAt != nil }
         #expect(world.colin.briefingAt == first)
         // The very first time: nothing « since ».
-        #expect(world.colin.briefing == ["Cette semaine : aucun rendez-vous.", "À toi de jouer : Cabinet Martin."])
+        #expect(world.colin.briefing.map(\.sentence) == ["Cette semaine : aucun rendez-vous.", "À toi de jouer : Cabinet Martin."])
 
         // Twenty minutes later he looks again: the point is closed, and stays as it was prepared whatever came meanwhile.
         world.clock.advance(hours: 1.0 / 3)
@@ -659,7 +659,7 @@ import Testing
         world.colin.seen()
         try await settled(world.colin)
         #expect(world.colin.briefingAt == first)
-        #expect(world.colin.briefing == ["Cette semaine : aucun rendez-vous.", "À toi de jouer : Cabinet Martin."])
+        #expect(world.colin.briefing.map(\.sentence) == ["Cette semaine : aucun rendez-vous.", "À toi de jouer : Cabinet Martin."])
 
         // Claire writes at 10:38; four hours later Paul is back: prepared again, since the last time he was there.
         try world.store.apply(account: Self.me, upserts: [received("b3", thread: "b", from: Self.claire, name: "Claire Morel", at: world.clock.now.addingTimeInterval(18 * 60))])
@@ -667,7 +667,7 @@ import Testing
         let back = world.clock.now
         world.colin.seen()
         try await waitUntil { world.colin.briefingAt == back }
-        #expect(world.colin.briefing == ["Cette semaine : aucun rendez-vous.", "À livrer : Cabinet Martin vendredi.", "À toi de jouer : Cabinet Martin.",
+        #expect(world.colin.briefing.map(\.sentence) == ["Cette semaine : aucun rendez-vous.", "À livrer : Cabinet Martin vendredi.", "À toi de jouer : Cabinet Martin.",
                                          "Depuis 10:20 : 1 mail de client."])
         // The threads of clients, behind « Voir ».
         #expect(world.colin.briefingMails.map(\.id) == [key("b")])
@@ -693,10 +693,10 @@ import Testing
         world.colin.seen()
         try await waitUntil { world.colin.briefingAt == back }
         try await settled(world.colin)
-        #expect(world.colin.briefing == ["Cette semaine : aucun rendez-vous.", "À toi de jouer : Cabinet Martin."])
+        #expect(world.colin.briefing.map(\.sentence) == ["Cette semaine : aucun rendez-vous.", "À toi de jouer : Cabinet Martin."])
         // Gmail answers: Claire wrote three hours ago.
         try world.store.apply(account: Self.me, upserts: [received("b3", thread: "b", from: Self.claire, name: "Claire Morel", at: back.addingTimeInterval(-3 * 3_600))])
-        try await waitUntil { world.colin.briefing.last == "Depuis 10:00 : 1 mail de client." }
+        try await waitUntil { world.colin.briefing.last?.sentence == "Depuis 10:00 : 1 mail de client." }
         #expect(world.colin.briefingAt == back)
         // The mailbox and the calendar were read again since his return: the point is closed.
         try world.store.save(MailCursorRow(account: Self.me, lastSyncAt: back.addingTimeInterval(20)))
@@ -709,7 +709,7 @@ import Testing
         try world.store.file(threadKey: key("c"), as: .project(world.project), at: world.clock.now)
         try await Task.sleep(for: .milliseconds(150))
         try await settled(world.colin)
-        #expect(world.colin.briefing.last == "Depuis 10:00 : 1 mail de client." && world.colin.briefingAt == back)
+        #expect(world.colin.briefing.last?.sentence == "Depuis 10:00 : 1 mail de client." && world.colin.briefingAt == back)
     }
 
     /// A copy read again writes what it found, then notes that it was read, in one pass: what the last one brings
@@ -736,14 +736,14 @@ import Testing
         // Then the mailbox, in one pass: Claire's mail of the evening, and the note that the mailbox was read.
         try world.store.apply(account: Self.me, upserts: [received("b3", thread: "b", from: Self.claire, name: "Claire Morel", at: back.addingTimeInterval(-3 * 3_600))])
         try world.store.save(MailCursorRow(account: Self.me, lastSyncAt: back.addingTimeInterval(6)))
-        try await waitUntil { world.colin.briefing.last == "Depuis 10:00 : 1 mail de client." }
+        try await waitUntil { world.colin.briefing.last?.sentence == "Depuis 10:00 : 1 mail de client." }
         try await settled(world.colin)
         // Everything was read again: the point is closed, what comes later is for the next one.
         try world.store.apply(account: Self.me, upserts: [received("c1", thread: "c", from: Self.claire, name: "Claire Morel", at: back.addingTimeInterval(-2 * 3_600))])
         try world.store.file(threadKey: key("c"), as: .project(world.project), at: world.clock.now)
         try await Task.sleep(for: .milliseconds(150))
         try await settled(world.colin)
-        #expect(world.colin.briefing.last == "Depuis 10:00 : 1 mail de client." && world.colin.briefingAt == back)
+        #expect(world.colin.briefing.last?.sentence == "Depuis 10:00 : 1 mail de client." && world.colin.briefingAt == back)
     }
 
     /// The same for the calendar read last: an event taken while Paul was away is in « Cette semaine ».
@@ -757,7 +757,7 @@ import Testing
         world.colin.seen()
         try await waitUntil { world.colin.briefingAt == back }
         try await settled(world.colin)
-        #expect(world.colin.briefing.first == "Cette semaine : aucun rendez-vous.")
+        #expect(world.colin.briefing.first?.sentence == "Cette semaine : aucun rendez-vous.")
         try world.store.save(MailCursorRow(account: Self.me, lastSyncAt: back.addingTimeInterval(5)))
         try await waitUntil { world.mails?.cursors[Self.me]?.lastSyncAt != nil }
         // A client took a slot tomorrow at ten; the calendar writes it, then notes that it was read.
@@ -765,7 +765,7 @@ import Testing
         let event = CalendarEventRow(account: Self.me, eventID: "e9", title: "Point Cabinet Martin", startAt: start, endAt: start.addingTimeInterval(3_600), updatedAt: back)
         try CalendarStore(world.database).applyGoogle(account: Self.me, changed: [event], cancelled: [], at: back.addingTimeInterval(6))
         try CalendarStore(world.database).recordSync(email: Self.me, syncToken: nil, error: nil, at: back.addingTimeInterval(6))
-        try await waitUntil { world.colin.briefing.first == "Cette semaine : 1 rendez-vous, demain 10:00." }
+        try await waitUntil { world.colin.briefing.first?.sentence == "Cette semaine : 1 rendez-vous, demain 10:00." }
         #expect(world.colin.briefingAt == back)
     }
 
@@ -786,7 +786,7 @@ import Testing
         clock.advance(hours: 4)
         world.colin.seen()
         try await waitUntil { world.colin.briefingAt == clock.now }
-        #expect(world.colin.briefing.last == "Depuis 10:00 : 1 mail de client.")
+        #expect(world.colin.briefing.last?.sentence == "Depuis 10:00 : 1 mail de client.")
 
         // Ten minutes later, another library on the same base and the same preferences: the app, opened again. Paul
         // was there all along: the mail of the morning is no news, the point says so no more.
@@ -798,7 +798,7 @@ import Testing
         again.seen()
         try await waitUntil { again.briefingAt != nil }
         #expect(again.briefingAt == clock.now)
-        #expect(again.briefing == ["Cette semaine : aucun rendez-vous.", "À toi de jouer : Cabinet Martin."])
+        #expect(again.briefing.map(\.sentence) == ["Cette semaine : aucun rendez-vous.", "À toi de jouer : Cabinet Martin."])
 
         // What came since his last passage is news: Claire writes at 14:15, the app opens again at 14:20.
         try world.store.apply(account: Self.me, upserts: [received("b3", thread: "b", from: Self.claire, name: "Claire Morel", at: clock.now.addingTimeInterval(5 * 60))])
@@ -807,7 +807,7 @@ import Testing
                                  every: .seconds(3_600))
         third.seen()
         try await waitUntil { third.briefingAt != nil }
-        #expect(third.briefing.last == "Depuis 14:10 : 1 mail de client.")
+        #expect(third.briefing.last?.sentence == "Depuis 14:10 : 1 mail de client.")
     }
 
     /// Paul leaves the Accueil (another app, another page): his absence starts then, not at his last arrival.

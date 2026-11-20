@@ -4,6 +4,40 @@ import Persistence
 import PolhubDesign
 import SwiftUI
 
+/// Why an answer of Colin stopped before its end (lot 10, 20/11): a call, the Mac's sleep, Colin turned off. The answer
+/// keeps it after its text, in the base, as `stored`: a format, never reworded, so the thread finds it again in the
+/// answers of before; the thread says `note`, which may change.
+enum ColinStop: CaseIterable, Sendable {
+    case call, sleep, off
+
+    /// What the base keeps after the answer (17/11): never changed.
+    var stored: String {
+        switch self {
+        case .call: "Arrêté : ton call commence."
+        case .sleep: "Arrêté : le Mac s'endort."
+        case .off: "Arrêté : Colin est à l'arrêt."
+        }
+    }
+
+    /// What the thread says under the answer.
+    var note: String {
+        switch self {
+        case .call: "Arrêté : ton call commence."
+        case .sleep: "Arrêté : le Mac s'endort."
+        case .off: "Arrêté : Colin est à l'arrêt."
+        }
+    }
+
+    /// The answer a stop ends, and the stop: from what the base kept; `nil` when it does not end with one.
+    static func ending(_ text: String) -> (said: String, stop: ColinStop)? {
+        for stop in allCases {
+            if text == stop.stored { return ("", stop) }
+            if text.hasSuffix("\n\n" + stop.stored) { return (String(text.dropLast(stop.stored.count + 2)), stop) }
+        }
+        return nil
+    }
+}
+
 /// The words of Colin's thread and bar (18/11), apart from the views.
 enum ColinThreadText {
     /// « Aujourd'hui », « Hier », then the date (« lundi 16 novembre »). One formatter for all (final review, 18/11:
@@ -131,8 +165,8 @@ enum ColinThreadText {
     static func note(of message: ColinMessageRow) -> (said: String, note: String?) {
         switch message.state {
         case .interrupted:
-            let parts = message.text.components(separatedBy: "\n\n")
-            if let last = parts.last, last.hasPrefix("Arrêté :") { return (parts.dropLast().joined(separator: "\n\n"), last) }
+            // Why it stopped, found by the words the base keeps, said in the thread's own (lot 10, 20/11).
+            if let ended = ColinStop.ending(message.text) { return (ended.said, ended.stop.note) }
             return (message.text, "Arrêté.")
         case .failed:
             return (message.text, "Colin n'a pas pu finir.")

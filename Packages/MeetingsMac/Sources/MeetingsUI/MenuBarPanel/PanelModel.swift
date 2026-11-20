@@ -540,11 +540,10 @@ enum PanelModel {
     }
 
     /// An account's error that Paul must act on: a connection expired, refused or too narrow. A network error passes
-    /// by itself and is never « à régler ».
+    /// by itself and is never « à régler ». The kept text says which error it is, read by `GoogleError` itself, never by
+    /// its first words here (lot 10, 20/11).
     static func needsReconnecting(_ error: String) -> Bool {
-        let reconnect = [GoogleError.expired, .needsWrite, .missingScope(.gmailModify), .missingScope(.calendarEvents)].map(\.description)
-        return reconnect.contains(error) || error.hasPrefix("Google a refusé") || error.hasPrefix("l'administrateur")
-            || error == GoogleError.refused("access_denied").description
+        GoogleError(stored: error)?.needsReconnecting ?? false
     }
 
     /// The footer's grey line: a version that waits for a quiet moment is not « à régler ».

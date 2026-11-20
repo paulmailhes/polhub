@@ -179,7 +179,8 @@ public struct TextButton: View {
 
     public var body: some View {
         Button(action: action) {
-            Text(title).font(.meta.weight(.medium)).padding(.horizontal, Space.s).padding(.vertical, 3)
+            // French typography, laid at display (`Words.typeset`, lot 10, 20/11).
+            Text(Words.typeset(title)).font(.meta.weight(.medium)).padding(.horizontal, Space.s).padding(.vertical, 3)
         }
         .buttonStyle(.hover(.capsule))
         .foregroundStyle(quiet ? Color.secondary : Tint.accent)
@@ -323,12 +324,16 @@ private struct HoverButtonBody: View {
 public struct IconButton: View {
     let systemImage: String
     let help: String
+    let shortcut: Words.Shortcut?
     let size: CGFloat
     let action: () -> Void
 
-    public init(_ systemImage: String, help: String, size: CGFloat = 15, action: @escaping () -> Void) {
+    /// `help`: what it does, a verb and its object (« Archiver le fil »), the bubble and VoiceOver's name; `shortcut`: the
+    /// key that does it where the button is, said in the bubble only, « Supprimer (⌫) » (lot 10, 20/11).
+    public init(_ systemImage: String, help: String, shortcut: Words.Shortcut? = nil, size: CGFloat = 15, action: @escaping () -> Void) {
         self.systemImage = systemImage
         self.help = help
+        self.shortcut = shortcut
         self.size = size
         self.action = action
     }
@@ -341,19 +346,20 @@ public struct IconButton: View {
         }
         .buttonStyle(.hover(.circle))
         .foregroundStyle(.secondary)
-        .help(help)
+        .help(Words.help(help, shortcuts: shortcut.map { [$0] } ?? []))
         .accessibilityLabel(help)
     }
 }
 
-/// A round icon that opens a menu, drawn and answering as `IconButton`.
+/// A round icon that opens a menu, drawn and answering as `IconButton`. A « … » menu says `Words.moreActions`, its help by
+/// default (lot 10, 20/11).
 public struct IconMenu<Content: View>: View {
     let systemImage: String
     let help: String
     let size: CGFloat
     let content: () -> Content
 
-    public init(_ systemImage: String, help: String, size: CGFloat = 15, @ViewBuilder content: @escaping () -> Content) {
+    public init(_ systemImage: String, help: String = Words.moreActions, size: CGFloat = 15, @ViewBuilder content: @escaping () -> Content) {
         self.systemImage = systemImage
         self.help = help
         self.size = size
@@ -398,7 +404,8 @@ public struct ShowMoreButton: View {
                 withAnimation(Motion.standard) { expanded.toggle() }
             } label: {
                 HStack(spacing: Space.xs) {
-                    Text(Self.title(hidden: hidden, expanded: expanded))
+                    // French typography, laid at display (`Words.typeset`, lot 10, 20/11).
+                    Text(Words.typeset(Self.title(hidden: hidden, expanded: expanded)))
                     Image(systemName: expanded ? "chevron.up" : "chevron.down").font(.system(size: 10, weight: .semibold))
                 }
                 .font(.meta.weight(.medium))
@@ -469,7 +476,8 @@ public struct EmptyLine: View {
     }
 
     public var body: some View {
-        Text(text)
+        // French typography, laid at display (`Words.typeset`, lot 10, 20/11).
+        Text(Words.typeset(text))
             .font(.rowBody)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)

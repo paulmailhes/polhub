@@ -110,9 +110,12 @@ import Testing
         #expect(ProjectViews.dueLabel(date(13, hour: 0), today: today, calendar: paris) == "Échéance aujourd'hui")
         #expect(ProjectViews.dueLabel(date(12, hour: 0), today: today, calendar: paris) == "En retard de 1 j")
         #expect(ProjectViews.dueLabel(nil, today: today, calendar: paris) == nil)
-        // One color, one meaning (design system v2, 19/11): late, or now.
-        #expect(ProjectViews.dueRole("En retard de 1 j") == .late && ProjectViews.dueRole("Échéance aujourd'hui") == .attention
-                && ProjectViews.dueRole("Échéance dans 3 j") == nil)
+        // One color, one meaning (design system v2, 19/11): late, or now; read from the days left, never from the words
+        // (lot 10, 20/11).
+        #expect(ProjectViews.dueState(date(12, hour: 0), today: today, calendar: paris) == ProjectViews.DueState(daysLeft: -1))
+        #expect(ProjectViews.DueState(daysLeft: -1).role == .late && ProjectViews.DueState(daysLeft: 0).role == .attention
+                && ProjectViews.DueState(daysLeft: 3).role == nil && ProjectViews.DueState(daysLeft: 1).role == nil)
+        #expect(ProjectViews.dueState(nil, today: today, calendar: paris) == nil)
         // The next meeting, the first thing a card says.
         #expect(ProjectViews.nextEventLabel(date(13, hour: 14), now: today, calendar: paris) == "RDV aujourd'hui à 14:00")
         #expect(ProjectViews.nextEventLabel(date(14, hour: 9), now: today, calendar: paris) == "RDV demain à 09:00")

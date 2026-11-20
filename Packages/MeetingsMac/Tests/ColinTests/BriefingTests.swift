@@ -33,6 +33,17 @@ import Testing
     func lines(week: (count: Int, next: CalendarEventRow?) = (0, nil), due: [ProjectRow] = [], yours: [ProjectRow] = [], clientMails: Int = 0,
                moved: Int = 0, since: Date? = nil, at date: Date? = nil) -> [String] {
         Briefing.lines(week: week, due: due, yours: yours, clientMails: clientMails, moved: moved, since: since, now: date ?? now, calendar: calendar)
+            .map(\.sentence)
+    }
+
+    /// Lot 10 (20/11): each line says what it speaks of by its kind, its label and its text apart; the Accueil never cuts
+    /// a sentence nor reads its first word.
+    @Test func eachLineCarriesItsKind() {
+        let all = Briefing.lines(week: (0, nil), due: [project("Cabinet Martin", due: at(19))], yours: [project("Studio Nord")], clientMails: 1,
+                                 since: at(17, 19, 40), now: now, calendar: calendar)
+        #expect(all.map(\.kind) == [.week, .due, .yours, .since])
+        #expect(all.last == Briefing.Line(.since, label: "Depuis hier 19:40", text: "1 mail de client."))
+        #expect(all.first?.sentence == "Cette semaine : aucun rendez-vous.")
     }
 
     /// « Le point · mardi 9:04 »: the day and the hour it was prepared, said as its sentences say them.

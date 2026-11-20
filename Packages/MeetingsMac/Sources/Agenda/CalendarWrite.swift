@@ -37,7 +37,8 @@ public struct EventDraft: Equatable, Sendable {
     /// An existing event, to change.
     public init(event: CalendarEventRow, notes: String, calendar: Calendar = .current) {
         let lastDay = event.allDay ? (calendar.date(byAdding: .day, value: -1, to: event.endAt) ?? event.endAt) : event.endAt
-        self.init(title: event.title == "(sans titre)" ? "" : event.title, start: event.startAt, end: max(event.startAt, lastDay),
+        // Without a title, an empty field (lot 10, 20/11: by its state, never by the words the base keeps).
+        self.init(title: event.isUntitled ? "" : event.title, start: event.startAt, end: max(event.startAt, lastDay),
                   allDay: event.allDay, location: event.location ?? "", notes: notes, guests: event.guests.map(\.email),
                   addMeet: event.meetCode != nil)
     }

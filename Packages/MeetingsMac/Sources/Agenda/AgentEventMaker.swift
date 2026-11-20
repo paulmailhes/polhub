@@ -151,6 +151,7 @@ public struct AgentEventMaker: Sendable {
         }
         let settings = settings()
         if let chosen = [settings.defaultAccount, settings.lastAccount].compactMap({ $0?.lowercased() }).first(where: accounts.contains) { return chosen }
-        return accounts.first { AccountStyle.label(for: $0) != "Perso" } ?? accounts[0]
+        // A work account: by its state, never by its label « Perso » (lot 10, 20/11).
+        return accounts.first { !AccountStyle.isPersonal($0) } ?? accounts[0]
     }
 }

@@ -1,4 +1,6 @@
 import Foundation
+import Persistence
+import PolhubDesign
 import Testing
 @testable import MeetingsUI
 
@@ -45,7 +47,9 @@ import Testing
         #expect(DiagnosticModel.state(.systemAudio, from: "nonZero") == .ok)
         #expect(DiagnosticModel.state(.systemAudio, from: "allZero") == .denied("Le son n'est pas capté"))
         #expect(DiagnosticModel.state(.diaAutomation, from: "wouldPrompt") == .missing)
-        #expect(DiagnosticModel.state(.diaAutomation, from: "notRunning") == .denied("Dia n'est pas ouvert"))
+        // Dia closed is a state of its own, said in words beside it (lot 10, 20/11).
+        #expect(DiagnosticModel.state(.diaAutomation, from: "notRunning") == .notRunning)
+        #expect(ItemState.notRunning.reason == "Dia n'est pas ouvert" && ItemState.denied("refusé").reason == "refusé" && ItemState.ok.reason == nil)
     }
 
     /// Only a fresh check of the others' sound is told (finding of 16/11): an earlier « ok » left in the list says
@@ -75,7 +79,7 @@ import Testing
         let model = DiagnosticModel(amplitude: 0.0000316, showsRelaunch: true, relaunchEnabled: { false }, setRelaunch: { _ in nil })
         model.set(.microphone, .ok)
         model.set(.systemAudio, .ok)
-        model.set(.diaAutomation, .denied("Dia n'est pas ouvert"))
+        model.set(.diaAutomation, .notRunning)
         model.set(.relaunch, .missing)
         #expect(model.permissionsGood)
         model.set(.diaAutomation, .denied("denied"))
@@ -85,4 +89,19 @@ import Testing
 
 @MainActor final class Heard {
     var states: [ItemState] = []
+}
+
+/// Lot 10 (20/11): a problem's screen says Polhub's words; the system's own go to the journal of Réglages.
+@Suite struct ProblemJournalTests {
+    @Test func theSystemsWordsGoToTheJournal() throws {
+        let database = try AppDatabase.inMemory()
+        let offline = Words.problem("Le fil n'a pas pu être rangé", URLError(.notConnectedToInternet))
+        database.journal(offline, at: Date(timeIntervalSince1970: 1_794_992_400))
+        let entries = try MeetingStore(database).journal(limit: 10)
+        #expect(entries.count == 1 && entries.first?.kind == .alert)
+        #expect(entries.first?.message.hasPrefix("Le fil n'a pas pu être rangé : ") == true && entries.first?.message.contains("NSURLErrorDomain") == true)
+        // Nothing for a problem without the system's words.
+        database.journal(Words.problem("Le fil n'a pas pu être rangé"))
+        #expect(try MeetingStore(database).journal(limit: 10).count == 1)
+    }
 }

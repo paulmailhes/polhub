@@ -52,7 +52,8 @@ struct EventEditor: View {
             _draft = State(initialValue: draft)
             let remembered = UserDefaults.standard.string(forKey: "dernierAgenda") ?? ""
             let accounts = agenda.accounts.map(\.email)
-            let work = accounts.first { AccountStyle.label(for: $0) != "Perso" }
+            // A work account: by its state, never by its label « Perso » (lot 10, 20/11).
+            let work = accounts.first { !AccountStyle.isPersonal($0) }
             let chosen = settings.defaultAccount.flatMap { accounts.contains($0) ? $0 : nil }
             _account = State(initialValue: chosen ?? (accounts.contains(remembered) ? remembered : (work ?? accounts.first ?? "")))
         }

@@ -5,7 +5,8 @@ import Pipeline
 public enum HUDContent: Equatable, Sendable {
     case prompt(title: String, deadline: Date)
     case toast(title: String, subtitle: String)
-    case alert(title: String, message: String, action: String)
+    /// `action`: the button that goes with « Fermer », none when closing is all there is to do (lot 10, 20/11).
+    case alert(title: String, message: String, action: String?)
 
     var priority: Int {
         switch self {
@@ -93,16 +94,18 @@ public enum HUDText {
         }
     }
 
-    public static func alert(_ alert: AppAlert) -> (title: String, message: String, action: String) {
+    /// `action`: the button beside « Fermer », which opens the Diagnostic; `nil` when there is nothing to open (lot 10,
+    /// 20/11: the HUD hid a button by its title, « OK »).
+    public static func alert(_ alert: AppAlert) -> (title: String, message: String, action: String?) {
         switch alert {
         case .tabsUnreadable:
             ("Polhub ne lit plus les onglets de Dia", "Les réunions sont détectées par le micro seul.", "Diagnostic")
         case .selfTestFailed:
             ("Le son des autres n'est pas capté", "Vérifie l'autorisation « Enregistrement de l'audio du système ».", "Diagnostic")
         case .diskLow(let freeGB):
-            ("Disque presque plein", "Il reste \(freeGB) Go. Une heure de réunion en prend environ 1,4.", "OK")
+            ("Disque presque plein", "Il reste \(freeGB) Go. Une heure de réunion en prend environ 1,4.", nil)
         case .trackFailed(let message):
-            ("Une piste s'est interrompue", message, "OK")
+            ("Une piste s'est interrompue", message, nil)
         }
     }
 }

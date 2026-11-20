@@ -40,7 +40,7 @@ import Testing
     }
 
     /// Each matching line, as `fichier:ligne`.
-    static func matches(_ pattern: String) throws -> [String] {
+    static func matches(_ pattern: String, in folders: [String] = folders) throws -> [String] {
         let expression = try NSRegularExpression(pattern: pattern)
         var found: [String] = []
         for folder in folders {

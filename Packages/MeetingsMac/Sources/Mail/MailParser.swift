@@ -46,7 +46,7 @@ public enum MailParser {
         let row = MailMessageRow(
             account: account, messageID: message.id, threadID: message.threadId ?? message.id, date: date,
             sender: sender, to: addresses(payload?.header("To")), cc: addresses(payload?.header("Cc")),
-            subject: subject.isEmpty ? "(sans objet)" : subject, snippet: entities(message.snippet ?? ""), labels: message.labelIds ?? [],
+            subject: subject.isEmpty ? MailMessageRow.noSubject : subject, snippet: entities(message.snippet ?? ""), labels: message.labelIds ?? [],
             rfcMessageID: payload?.header("Message-ID"),
             authenticated: authenticated(payload?.header("Authentication-Results"), from: sender?.email),
             listUnsubscribe: payload?.header("List-Unsubscribe"), listUnsubscribePost: payload?.header("List-Unsubscribe-Post"),
@@ -206,4 +206,13 @@ public enum MailParser {
         }
         return result
     }
+}
+
+extension MailMessageRow {
+    /// The subject the base keeps for a message Gmail gave without one (lot 10, 20/11): a format, never reworded; the code
+    /// asks `hasNoSubject`, never compares the words. The screens say `Words.noSubject` for a subject left empty.
+    public static let noSubject = "(sans objet)"
+
+    /// A message without a subject of its own.
+    public var hasNoSubject: Bool { subject == Self.noSubject }
 }

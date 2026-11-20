@@ -3,6 +3,15 @@ import Foundation
 import GoogleKit
 import Persistence
 
+extension CalendarEventRow {
+    /// The title the base keeps for an event Google gave without one (lot 10, 20/11): a format, never reworded; the code
+    /// asks `isUntitled`, never compares the words.
+    public static let untitledTitle = "(sans titre)"
+
+    /// An event without a title of its own.
+    public var isUntitled: Bool { title == Self.untitledTitle }
+}
+
 /// The Google Calendar API, version 3: the events of the primary calendar.
 public enum CalendarAPI {
     public struct Page: Sendable {
@@ -55,7 +64,7 @@ public enum CalendarAPI {
         let title = (item["summary"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         return CalendarEventRow(
             account: account, eventID: id, recurringEventID: item["recurringEventId"] as? String,
-            title: title?.isEmpty == false ? title! : "(sans titre)", startAt: start, endAt: end, allDay: allDay,
+            title: title?.isEmpty == false ? title! : CalendarEventRow.untitledTitle, startAt: start, endAt: end, allDay: allDay,
             meetCode: link.flatMap { MeetLink.parse($0)?.code }, location: item["location"] as? String,
             htmlLink: item["htmlLink"] as? String, organizer: (item["organizer"] as? [String: Any])?["email"] as? String,
             attendees: attendees, updatedAt: Date()

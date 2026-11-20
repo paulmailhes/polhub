@@ -75,7 +75,7 @@ struct SettingsScreenTests {
                                     missingModels: { [] })
         // Set by hand: the page never runs a check of its own (no micro, no sound).
         for item in [ChecklistItem.microphone, .systemAudio, .models, .relaunch] { model.set(item, .ok) }
-        model.set(.diaAutomation, .denied("Dia n'est pas ouvert"))
+        model.set(.diaAutomation, .notRunning)
         let logosFolder = world.root.appending(path: "logos", directoryHint: .isDirectory)
         let quiet = try #require(UserDefaults(suiteName: "reglages-lot7-logos-\(UUID().uuidString)"))
         quiet.set(false, forKey: Preferences.Key.projectLogos)
