@@ -19,4 +19,20 @@ enum HomeLayout: Equatable {
     static func of(width: CGFloat) -> HomeLayout {
         width >= breakpoint ? .columns : .stacked
     }
+
+    /// The panel's width when Paul drags its edge (20/11), at least and at most.
+    static let minimumPanelWidth: CGFloat = 360
+    static let maximumPanelWidth: CGFloat = 720
+
+    /// The panel as wide as Paul chose (`wanted`), between its bounds, and narrower when the page (`page`, its whole
+    /// width) would leave the day less than its minimum.
+    static func shownPanelWidth(_ wanted: CGFloat, page: CGFloat) -> CGFloat {
+        let room = page - 1 - dayMinimumWidth - 2 * PageMetrics.horizontal
+        return max(minimumPanelWidth, min(wanted, maximumPanelWidth, room))
+    }
+
+    /// The width after a drag of `translation` points from `start`: the panel is on the right, a drag to the left widens it.
+    static func resized(from start: CGFloat, by translation: CGFloat, page: CGFloat) -> CGFloat {
+        shownPanelWidth(start - translation, page: page)
+    }
 }

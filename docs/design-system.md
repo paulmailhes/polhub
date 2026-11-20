@@ -400,7 +400,8 @@ qu'il montre est calculé hors de l'affichage par `ColinLibrary`, par règles se
 Lot 5 du plan d'affinage (19/11), « Colin à droite » : ta journée est la page, Colin un panneau à droite.
 
 - **La composition** (`HomeLayout`) : à gauche, la journée, une colonne de 640 points au plus au milieu de ce que le
-  panneau laisse ; à droite, le panneau de Colin, 420 points, sur toute la hauteur, sur son propre fond
+  panneau laisse ; à droite, le panneau de Colin, 420 points au départ (Paul tire le filet pour le régler de 360 à
+  720 points, la journée gardant ses 420 ; `ColumnResizeLine`, 20/11), sur toute la hauteur, sur son propre fond
   (`Surface.fill`), un filet entre les deux, sans ombre. Deux colonnes dès que la journée garde 420 points à côté du
   panneau (897 points de page). Chaque zone défile seule. Sans Colin (version sans les mails, captures sans moteur) :
   la journée seule.

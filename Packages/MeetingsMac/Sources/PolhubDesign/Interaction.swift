@@ -483,3 +483,40 @@ public struct EmptyLine: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 }
+
+// MARK: - Columns
+
+/// The line between two columns that Paul drags to resize the one on its right (Colin's panel, 20/11): one point drawn,
+/// `grab` points to take it, the system's column pointer over it. `changed` receives the drag's distance since it began,
+/// in the window (the line moves with the column: its own space would shake); `ended`, when Paul lets go.
+public struct ColumnResizeLine: View {
+    /// The width that takes the drag, centred on the line.
+    public static let grab: CGFloat = 9
+    let changed: (CGFloat) -> Void
+    let ended: () -> Void
+
+    public init(changed: @escaping (CGFloat) -> Void, ended: @escaping () -> Void) {
+        self.changed = changed
+        self.ended = ended
+    }
+
+    public var body: some View {
+        Divider()
+            .ignoresSafeArea(edges: .vertical)
+            .overlay {
+                Color.clear
+                    .frame(width: Self.grab)
+                    .contentShape(Rectangle())
+                    .pointerStyle(.columnResize)
+                    .gesture(
+                        DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                            .onChanged { changed($0.translation.width) }
+                            .onEnded { _ in ended() }
+                    )
+                    .ignoresSafeArea(edges: .vertical)
+            }
+            // Above both columns, so the half of the grab over each still takes the pointer.
+            .zIndex(1)
+            .accessibilityHidden(true)
+    }
+}

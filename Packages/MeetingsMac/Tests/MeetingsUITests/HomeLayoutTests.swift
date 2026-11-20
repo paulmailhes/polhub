@@ -23,6 +23,25 @@ import Testing
         #expect(HomeLayout.of(width: 661) == .stacked)
         #expect(HomeLayout.of(width: 0) == .stacked)
     }
+
+    /// Paul drags the panel's edge (20/11): from 360 to 720 points, the day always keeping its 420 beside it.
+    @Test func paulResizesColinsPanelWithinItsBounds() {
+        let day = HomeLayout.dayMinimumWidth + 1 + 2 * PageMetrics.horizontal
+        #expect(HomeLayout.minimumPanelWidth == 360 && HomeLayout.maximumPanelWidth == 720)
+        #expect(HomeLayout.shownPanelWidth(500, page: 1_400) == 500)
+        #expect(HomeLayout.shownPanelWidth(200, page: 1_400) == 360)
+        #expect(HomeLayout.shownPanelWidth(2_000, page: 1_400) == 720)
+        // A narrower window: the panel gives way so the day keeps its 420 points; never under its own minimum.
+        #expect(HomeLayout.shownPanelWidth(700, page: 1_000) == 1_000 - day)
+        #expect(HomeLayout.shownPanelWidth(700, page: HomeLayout.breakpoint) == 420)
+        #expect(HomeLayout.shownPanelWidth(700, page: 700) == 360)
+        // Before the page is measured, the width Paul chose.
+        #expect(HomeLayout.shownPanelWidth(500, page: .infinity) == 500)
+        // The panel is on the right: dragging its edge to the left widens it.
+        #expect(HomeLayout.resized(from: 420, by: -100, page: 1_400) == 520)
+        #expect(HomeLayout.resized(from: 420, by: 30, page: 1_400) == 390)
+        #expect(HomeLayout.resized(from: 420, by: 300, page: 1_400) == 360)
+    }
 }
 
 /// The words of the Accueil. Every name here is invented.

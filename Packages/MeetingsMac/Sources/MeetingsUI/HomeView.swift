@@ -96,6 +96,13 @@ struct HomeView: View {
     var thread: ColinThread?
     @ObservedObject var router: WindowRouter
     @State private var layout = HomeLayout.columns
+    /// Colin's panel as wide as Paul left it, dragging its edge (20/11); 420 points at first.
+    @AppStorage("home.colinPanelWidth") private var colinWidth: Double = Double(HomeLayout.panelWidth)
+    /// The page's whole width, for the panel to give way to the day; unknown before the first layout.
+    @State private var pageWidth: CGFloat = .infinity
+    /// While Paul drags the edge: the width when he took it, and the width now (saved when he lets go).
+    @State private var dragStart: CGFloat?
+    @State private var dragWidth: CGFloat?
     /// The bar's height, for the bar of a sending to stay above it.
     @State private var barHeight: CGFloat = 0
     /// « Voir »: what moved without Paul, over the Accueil.
@@ -136,7 +143,10 @@ struct HomeView: View {
                 dayPage
             }
         }
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in layout = HomeLayout.of(width: width) }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
+            pageWidth = width
+            layout = HomeLayout.of(width: width)
+        }
         // Wide again: the thread is in its panel, nothing floats over the day.
         .onChange(of: layout) { _, now in if now == .columns { threadOpen = false } }
         .windowTitle("Accueil")
@@ -162,13 +172,23 @@ struct HomeView: View {
         .belowToolbar()
     }
 
-    /// The day on the left; Colin's panel on the right, on its own ground, a line between them, the whole height.
+    /// The day on the left; Colin's panel on the right, on its own ground, a line between them, the whole height. Paul
+    /// drags the line to widen or narrow the panel (20/11).
     private func columns(_ thread: ColinThread) -> some View {
-        HStack(spacing: 0) {
+        let shown = dragWidth ?? HomeLayout.shownPanelWidth(CGFloat(colinWidth), page: pageWidth)
+        return HStack(spacing: 0) {
             dayPage
-            Divider().ignoresSafeArea(edges: .vertical)
+            ColumnResizeLine(changed: { translation in
+                let start = dragStart ?? shown
+                dragStart = start
+                dragWidth = HomeLayout.resized(from: start, by: translation, page: pageWidth)
+            }, ended: {
+                if let dragWidth { colinWidth = Double(dragWidth) }
+                dragStart = nil
+                dragWidth = nil
+            })
             ColinPanel(thread: thread, colin: colin, mails: mails, router: router, due: due, barHeight: $barHeight)
-                .frame(width: HomeLayout.panelWidth)
+                .frame(width: shown)
                 .background(Surface.fill)
         }
     }

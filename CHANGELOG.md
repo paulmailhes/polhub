@@ -3,6 +3,14 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.48.0 — 20 novembre 2026
+
+**Le panneau de Colin se règle à la main.**
+
+- Sur l'Accueil, le filet entre ta journée et Colin se tire : au survol, le pointeur devient la flèche de
+  redimensionnement, et le panneau va de 360 à 720 points. Ta journée garde toujours au moins 420 points ; dans une
+  fenêtre plus étroite, le panneau cède d'abord. La largeur choisie est gardée d'une ouverture à l'autre.
+
 ## 0.47.1 — 20 novembre 2026
 
 **Les mots choisis par Paul.**
