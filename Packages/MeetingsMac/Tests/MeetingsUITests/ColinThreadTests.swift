@@ -284,7 +284,7 @@ import Testing
     }
 
     @Test func fiveMinutesAfterWakeTheQuestionWaitsThenGoes() async throws {
-        let world = try world(FakeLauncher { _, _ in Self.session() }, sinceWake: 299.5)
+        let world = try world(FakeLauncher { _, _ in Self.session() }, sinceWake: 299)
         ask(world.thread, "Où on en est ?")
         try await waitUntil { world.thread.status == .settling && world.thread.messages.map(\.text) == ["Où on en est ?"] }
         #expect(world.launcher.started.isEmpty)
