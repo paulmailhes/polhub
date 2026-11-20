@@ -35,6 +35,13 @@ public enum Devices {
         try? HAL.value(HAL.system, kAudioHardwarePropertyDefaultOutputDevice, as: AudioObjectID.self)
     }
 
+    /// Whether the device talks by Bluetooth: such a microphone takes up to a second to open (measured 20/11: 0,3 to
+    /// 0,8 s of the first words lost, against 0,05 s for the Mac's own).
+    public static func isBluetooth(_ device: AudioObjectID) -> Bool {
+        guard let transport = try? HAL.value(device, kAudioDevicePropertyTransportType, as: UInt32.self) else { return false }
+        return transport == kAudioDeviceTransportTypeBluetooth || transport == kAudioDeviceTransportTypeBluetoothLE
+    }
+
     static func hasInput(_ device: AudioObjectID) -> Bool {
         var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyStreams, mScope: kAudioObjectPropertyScopeInput,
                                                  mElement: kAudioObjectPropertyElementMain)

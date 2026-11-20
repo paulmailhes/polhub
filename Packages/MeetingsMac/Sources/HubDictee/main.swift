@@ -1,15 +1,16 @@
 import AudioCapture
-import AudioToolbox
-import AVFoundation
 import Compute
 import Dictation
 import Foundation
 import Transcription
 
-/// `hub-dictee`: the Dictée's ear (20/11). Launched by the app while the Dictée is installed, it keeps Whisper loaded,
-/// listens to the microphone on « commencer », says the words as they come, and the whole text on « finir ». One line of
-/// JSON per order on its input, per news on its output (`DictationWire`). It dies with the app that launched it.
-/// 20/11 in the evening: the microphone Paul chose, the sound kept, the paragraphs after the long pauses, the files.
+/// `hub-dictee`: the Dictée's ear (20/11). Launched by the app while the Dictée is installed, it listens to the
+/// microphone on « commencer », says the words as they come, and the whole text on « finir ». One line of JSON per order
+/// on its input, per news on its output (`DictationWire`). It dies with the app that launched it.
+///
+/// 21/11 (Paul: « dès que j'appuie, ça commence ») : it takes its orders from its first second — Whisper loads behind,
+/// and a dictation said meanwhile is written as soon as it is there. Its files: `Microphone` (the sound), `Session` (one
+/// dictation), `Whisper` (one call at a time), `Sounds` (files).
 setenv("HF_HUB_OFFLINE", "1", 1)
 guard getppid() != 1 else { exit(0) }
 let parentWatch = DispatchSource.makeProcessSource(identifier: getppid(), eventMask: .exit, queue: .global())
@@ -32,291 +33,137 @@ guard missing.isEmpty else {
     exit(1)
 }
 
-/// 16 kHz mono, as Whisper hears.
-let whisperFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false)!
+let whisper = WhisperBox()
+// Whisper loads (about twenty seconds) while the orders are already taken.
+Task.detached {
+    do {
+        // The encoder on the GPU: a text in 0,75 s instead of 1,4 s (measured 21/11 on the M3 Max).
+        let engine = try await WhisperEngine(locations: locations, encoderOnGPU: true)
+        // Three seconds of a low tone: one real pass, so the first text does not pay for the warm-up (4 to 5 s on the
+        // GPU, measured; a single second of silence did not even reach the encoder).
+        let tone = (0..<48_000).map { Float(sin(Double($0) * 0.05)) * 0.05 }
+        _ = try? await engine.dictate(tone, language: "fr", prompt: "", long: false)
+        await whisper.loaded(engine)
+        emit(.ready)
+    } catch {
+        emit(.failed("Whisper ne se charge pas : relance hub."))
+        exit(1)
+    }
+}
 
-/// Whisper, one call at a time: a partial in flight finishes before the final starts.
-actor Ear {
-    let engine: WhisperEngine
-    private var samples: [Float] = []
-    private var listening = false
-    private var options = DictationListening(language: "fr", prompt: "")
-    private var busy = false
-    private var lastLevel = Date.distantPast
+/// The orders, one at a time, in the order they came.
+actor Conductor {
+    private let whisper: WhisperBox
+    private var session: Session?
+    private var source: (any SoundSource)?
+    private var pump: Task<Void, Never>?
 
-    init(engine: WhisperEngine) {
-        self.engine = engine
+    init(whisper: WhisperBox) {
+        self.whisper = whisper
     }
 
-    func begin(_ options: DictationListening) {
-        samples = []
-        self.options = options
-        listening = true
+    func handle(_ command: DictationCommand) async {
+        switch command {
+        case .start(let options):
+            await start(options)
+        case .stop:
+            await stop(cancelled: false)
+        case .cancel:
+            await stop(cancelled: true)
+        case .file(let id, let path, let options):
+            // Aside: the key stays free while a file is written.
+            let whisper = whisper
+            Task.detached { await Conductor.transcribe(id: id, path: path, options: options, whisper: whisper) }
+        }
     }
 
-    func append(_ chunk: [Float]) {
-        guard listening else { return }
-        samples += chunk
-        // The level for the waveform, twenty times a second at most.
-        guard Date().timeIntervalSince(lastLevel) > 0.05, !chunk.isEmpty else { return }
-        lastLevel = Date()
-        let rms = (chunk.reduce(0) { $0 + $1 * $1 } / Float(chunk.count)).squareRoot()
-        emit(.level(Double(min(1, rms * 8))))
-    }
-
-    /// The words said so far, on the last 28 s, when Whisper is free.
-    func partial() async {
-        guard listening, !busy, samples.count > 8_000 else { return }
-        busy = true
-        let heard = Array(samples.suffix(16_000 * 28))
-        let text = (try? await engine.dictate(heard, language: options.language, prompt: options.prompt, long: false)) ?? ""
-        busy = false
-        if listening, !text.isEmpty { emit(.partial(text)) }
-    }
-
-    func finish(cancelled: Bool) async {
-        listening = false
-        let heard = samples
-        samples = []
-        guard !cancelled else { return }
-        while busy { try? await Task.sleep(for: .milliseconds(20)) }
-        busy = true
-        defer { busy = false }
-        guard heard.count > 4_000 else {
-            emit(.final(text: "", seconds: Double(heard.count) / 16_000))
+    private func start(_ options: DictationListening) async {
+        // A « commencer » without a « finir »: the dictation before is given up.
+        if session != nil { await stop(cancelled: true) }
+        let source: any SoundSource
+        do {
+            if let path = options.source {
+                source = try PlayedFile(path: path)
+            } else if let device = Microphone.choose(options.microphones) {
+                source = try Microphone(device: device)
+            } else {
+                emit(.failed("Aucun micro n'est branché."))
+                return
+            }
+        } catch {
+            emit(.failed("Le micro ne s'ouvre pas. Choisis-en un autre dans Réglages › Dictée."))
             return
         }
-        if let path = options.keepSoundAt { keep(heard, at: path) }
         do {
-            emit(.final(text: try await write(heard, options), seconds: Double(heard.count) / 16_000))
+            // Core Audio may block, a Bluetooth microphone takes its time: never on a thread that must answer.
+            try await Task.detached { try source.start() }.value
         } catch {
-            emit(.failed("Whisper n'a pas pu écrire ce qui a été dit (\(error))."))
+            Task.detached { source.stop() }
+            emit(.failed("Le micro met trop de temps à s'ouvrir. Réessaie, ou choisis-en un autre dans Réglages › Dictée."))
+            return
         }
+        let session = Session(options: options, whisper: whisper)
+        self.session = session
+        self.source = source
+        pump = Task.detached {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(40))
+                let heard = source.drain()
+                if !heard.isEmpty { await session.hear(heard) }
+            }
+        }
+    }
+
+    /// The microphone closed; what it still held joins the dictation; then its text.
+    private func stop(cancelled: Bool) async {
+        guard let session, let source else { return }
+        self.session = nil
+        self.source = nil
+        pump?.cancel()
+        await pump?.value
+        pump = nil
+        await Task.detached { source.stop() }.value
+        let rest = source.drain()
+        if !rest.isEmpty { await session.hear(rest) }
+        await session.finish(cancelled: cancelled)
     }
 
     /// A file of sound or a video, or a kept sound written again.
-    func file(id: String, path: String, options: DictationListening) async {
-        while busy { try? await Task.sleep(for: .milliseconds(20)) }
-        busy = true
-        defer { busy = false }
+    static func transcribe(id: String, path: String, options: DictationListening, whisper: WhisperBox) async {
+        let heard: [Float]
         do {
-            let heard = try await read(path)
-            guard heard.count > 4_000 else {
-                emit(.fileFailed(id: id, reason: "Il n'y a presque rien à entendre dans ce fichier."))
-                return
-            }
-            emit(.transcribed(id: id, text: try await write(heard, options), seconds: Double(heard.count) / 16_000))
+            heard = try read(path)
         } catch {
             emit(.fileFailed(id: id, reason: "Ce fichier n'a pas pu être lu : hub lit les sons et les vidéos que lit QuickTime."))
+            return
         }
-    }
-
-    /// The whole text; with paragraphs after the long pauses when Paul wants them, and when there are some.
-    private func write(_ heard: [Float], _ options: DictationListening) async throws -> String {
-        let long = heard.count > 16_000 * 28
-        guard let pause = options.paragraphPause else {
-            return try await engine.dictate(heard, language: options.language, prompt: options.prompt, long: long)
+        guard heard.count > 4_000 else {
+            emit(.fileFailed(id: id, reason: "Il n'y a presque rien à entendre dans ce fichier."))
+            return
         }
-        let breaks = DictationParagraphs.pauses(heard, longerThan: pause)
-        guard !breaks.isEmpty else {
-            return try await engine.dictate(heard, language: options.language, prompt: options.prompt, long: long)
-        }
-        let pieces = try await engine.dictatePieces(heard, language: options.language, prompt: options.prompt, long: long)
-        return DictationParagraphs.join(pieces.map { DictationParagraphs.Piece(text: $0.text, start: $0.start, end: $0.end) }, breaks: breaks)
-    }
-}
-
-/// Any sound, as 16 kHz mono.
-func convert(_ buffer: AVAudioPCMBuffer) -> [Float] {
-    guard let converter = AVAudioConverter(from: buffer.format, to: whisperFormat) else { return [] }
-    let capacity = AVAudioFrameCount(Double(buffer.frameLength) * 16_000 / buffer.format.sampleRate) + 1_024
-    guard let out = AVAudioPCMBuffer(pcmFormat: whisperFormat, frameCapacity: capacity) else { return [] }
-    // The whole buffer once, then the end of the stream: the converter gives back what it still holds.
-    nonisolated(unsafe) var given = false
-    var error: NSError?
-    converter.convert(to: out, error: &error) { _, status in
-        if given { status.pointee = .endOfStream; return nil }
-        given = true
-        status.pointee = .haveData
-        return buffer
-    }
-    guard let channel = out.floatChannelData?[0] else { return [] }
-    return Array(UnsafeBufferPointer(start: channel, count: Int(out.frameLength)))
-}
-
-/// The sound of a file or of a video, as 16 kHz mono. AVAudioFile reads them all on macOS 27, videos and Opus voice
-/// messages included (measured 20/11 on aiff, m4a, mp3, ogg, opus, mp4, mov); read a minute at a time.
-func read(_ path: String) async throws -> [Float] {
-    let file = try AVAudioFile(forReading: URL(fileURLWithPath: path))
-    let slice = AVAudioFrameCount(file.processingFormat.sampleRate * 60)
-    guard let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: slice) else { throw CocoaError(.fileReadCorruptFile) }
-    var samples: [Float] = []
-    while file.framePosition < file.length {
-        try file.read(into: buffer, frameCount: slice)
-        guard buffer.frameLength > 0 else { break }
-        samples += convert(buffer)
-    }
-    return samples
-}
-
-/// The sound of a dictation, in AAC (about 4 kB a second), where the app asked.
-func keep(_ samples: [Float], at path: String) {
-    let url = URL(fileURLWithPath: path)
-    try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-    let settings: [String: Any] = [AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 16_000, AVNumberOfChannelsKey: 1,
-                                   AVEncoderBitRateKey: 32_000]
-    guard let file = try? AVAudioFile(forWriting: url, settings: settings, commonFormat: .pcmFormatFloat32, interleaved: false),
-          let buffer = AVAudioPCMBuffer(pcmFormat: whisperFormat, frameCapacity: AVAudioFrameCount(samples.count)),
-          let channel = buffer.floatChannelData?[0] else { return }
-    buffer.frameLength = AVAudioFrameCount(samples.count)
-    samples.withUnsafeBufferPointer { channel.update(from: $0.baseAddress!, count: samples.count) }
-    try? file.write(from: buffer)
-}
-
-let engine: WhisperEngine
-do {
-    engine = try await WhisperEngine(locations: locations)
-} catch {
-    emit(.failed("Whisper ne se charge pas (\(error))."))
-    exit(1)
-}
-// A first second of silence: the model is compiled and warm before the first press.
-_ = try? await engine.dictate([Float](repeating: 0, count: 16_000), language: "fr", prompt: "", long: false)
-let ear = Ear(engine: engine)
-emit(.ready)
-
-/// The microphone, read as the meeting recorder reads it (20/11 in the evening): straight from Core Audio, at the format
-/// the device really has. AVAudioEngine kept an old format for Bluetooth earphones (48 kHz announced, 24 kHz real) and
-/// stopped hub-dictee with a « format mismatch » (0.63.0 and 0.63.1, measured). The sound goes through a lock-free ring,
-/// then is made 16 kHz mono for Whisper, twenty times a second.
-final class Listening: @unchecked Sendable {
-    private final class Slot: @unchecked Sendable {
-        var ring: SPSCRingBuffer?
-    }
-
-    let stream: HALInputStream
-    private let ring: SPSCRingBuffer
-    private let channels: Int
-    private let deviceFormat: AVAudioFormat
-    private let converter: AVAudioConverter
-    private var scratch: [Float]
-    private static let slice = 4_096
-
-    init(device: AudioObjectID) throws {
-        let slot = Slot()
-        stream = try HALInputStream(deviceID: device) { samples, frames, _ in
-            guard let base = samples.baseAddress else { return }
-            slot.ring?.write(base, frames: frames)
-        }
-        channels = max(1, stream.format.channels)
-        ring = SPSCRingBuffer(capacityFrames: Int(stream.format.sampleRate) * 8, channels: channels)
-        slot.ring = ring
-        guard let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: stream.format.sampleRate, channels: 1, interleaved: false),
-              let converter = AVAudioConverter(from: format, to: whisperFormat) else { throw CocoaError(.featureUnsupported) }
-        deviceFormat = format
-        self.converter = converter
-        scratch = [Float](repeating: 0, count: Self.slice * channels)
-    }
-
-    /// What the ring holds, as 16 kHz mono. One reader at a time.
-    func drain() -> [Float] {
-        var heard: [Float] = []
-        while true {
-            let frames = scratch.withUnsafeMutableBufferPointer { ring.read(into: $0.baseAddress!, maxFrames: Self.slice) }
-            guard frames > 0, let mono = AVAudioPCMBuffer(pcmFormat: deviceFormat, frameCapacity: AVAudioFrameCount(frames)),
-                  let channel = mono.floatChannelData?[0] else { break }
-            mono.frameLength = AVAudioFrameCount(frames)
-            for frame in 0..<frames {
-                var sum: Float = 0
-                for index in 0..<channels { sum += scratch[frame * channels + index] }
-                channel[frame] = sum / Float(channels)
-            }
-            heard += resample(mono)
-        }
-        return heard
-    }
-
-    /// One converter for the whole dictation: no click between two slices.
-    private func resample(_ buffer: AVAudioPCMBuffer) -> [Float] {
-        let capacity = AVAudioFrameCount(Double(buffer.frameLength) * 16_000 / deviceFormat.sampleRate) + 256
-        guard let out = AVAudioPCMBuffer(pcmFormat: whisperFormat, frameCapacity: capacity) else { return [] }
-        nonisolated(unsafe) var given = false
-        var error: NSError?
-        converter.convert(to: out, error: &error) { _, status in
-            if given { status.pointee = .noDataNow; return nil }
-            given = true
-            status.pointee = .haveData
-            return buffer
-        }
-        guard let channel = out.floatChannelData?[0] else { return [] }
-        return Array(UnsafeBufferPointer(start: channel, count: Int(out.frameLength)))
-    }
-}
-
-nonisolated(unsafe) var listening: Listening?
-nonisolated(unsafe) var pump: Task<Void, Never>?
-nonisolated(unsafe) var partials: Task<Void, Never>?
-
-/// The microphone Paul chose when it is connected, else the system's.
-func startListening(_ options: DictationListening) async {
-    guard let device = options.microphone.flatMap(Devices.device(uid:)) ?? Devices.defaultInput() else {
-        emit(.failed("Aucun micro n'est branché."))
-        return
-    }
-    do {
-        let opened = try Listening(device: device)
-        // Core Audio may block: never on the main thread, which waits on the orders.
-        try await Task.detached { try opened.stream.start() }.value
-        listening = opened
-    } catch {
-        emit(.failed("Le micro ne s'ouvre pas (\(error))."))
-        return
-    }
-    pump = Task.detached {
-        while !Task.isCancelled {
-            try? await Task.sleep(for: .milliseconds(50))
-            guard let heard = listening?.drain(), !heard.isEmpty else { continue }
-            await ear.append(heard)
-        }
-    }
-    partials = Task.detached {
-        while !Task.isCancelled {
-            try? await Task.sleep(for: .milliseconds(700))
-            await ear.partial()
+        do {
+            let text = try await whisper.run { engine in try await Session.write(engine, heard, options) }
+            emit(.transcribed(id: id, text: text, seconds: Double(heard.count) / 16_000))
+        } catch {
+            emit(.fileFailed(id: id, reason: "Whisper n'a pas pu écrire ce fichier. Réessaie."))
         }
     }
 }
 
-/// The microphone closed; what it still held joins the dictation.
-func stopListening() async {
-    partials?.cancel()
-    partials = nil
-    pump?.cancel()
-    await pump?.value
-    pump = nil
-    guard let closing = listening else { return }
-    listening = nil
-    await Task.detached { closing.stream.stop() }.value
-    let rest = closing.drain()
-    if !rest.isEmpty { await ear.append(rest) }
-}
-
-// The orders, read on a thread of their own: reading waits. A file is written aside: the key stays free meanwhile.
-while let line = readLine(strippingNewline: true) {
-    guard let command = try? DictationWire.read(DictationCommand.self, line) else { continue }
-    switch command {
-    case .start(let options):
-        await ear.begin(options)
-        await startListening(options)
-    case .stop:
-        await stopListening()
-        await ear.finish(cancelled: false)
-    case .cancel:
-        await stopListening()
-        await ear.finish(cancelled: true)
-    case .file(let id, let path, let options):
-        // Detached: the main thread waits on the next order, a task of its own would never start.
-        Task.detached { await ear.file(id: id, path: path, options: options) }
+let conductor = Conductor(whisper: whisper)
+// The orders are read on a thread of their own: reading waits, and nothing else must.
+let orders = AsyncStream<DictationCommand> { continuation in
+    let reader = Thread {
+        while let line = readLine(strippingNewline: true) {
+            if let command = try? DictationWire.read(DictationCommand.self, line) { continuation.yield(command) }
+        }
+        continuation.finish()
     }
+    reader.name = "orders"
+    reader.start()
+}
+emit(.hello)
+for await command in orders {
+    await conductor.handle(command)
 }
 exit(0)

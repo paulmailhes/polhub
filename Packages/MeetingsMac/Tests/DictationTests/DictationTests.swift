@@ -120,14 +120,14 @@ import Testing
 
 @Suite struct DictationProtocolTests {
     @Test func commandsAndEventsTravelAsOneLineOfJSON() throws {
-        let listening = DictationListening(language: "fr", prompt: "hub, Vigie", paragraphPause: 3, microphone: "BuiltInMicrophoneDevice",
-                                           keepSoundAt: "/tmp/son.m4a")
+        let listening = DictationListening(language: "fr", prompt: "hub, Vigie", paragraphPause: 3, microphones: ["casque", "interne"],
+                                           keepSoundAt: "/tmp/son.m4a", source: "/tmp/essai.wav")
         for command in [DictationCommand.start(listening), .stop, .cancel, .file(id: "a", path: "/tmp/memo.m4a", listening: listening)] {
             let line = try DictationWire.line(command)
             #expect(!line.contains("\n"))
             #expect(try DictationWire.read(DictationCommand.self, line) == command)
         }
-        for event in [DictationEvent.ready, .level(0.4), .partial("Bonjour"), .final(text: "Bonjour.", seconds: 1.5),
+        for event in [DictationEvent.hello, .ready, .listening, .level(0.4), .partial("Bonjour"), .progress(0.5), .final(text: "Bonjour.", seconds: 1.5),
                       .transcribed(id: "a", text: "Premier.\n\nSecond.", seconds: 62), .fileFailed(id: "a", reason: "illisible"), .failed("micro")] {
             #expect(try DictationWire.read(DictationEvent.self, try DictationWire.line(event)) == event)
         }
@@ -255,5 +255,12 @@ import Testing
         var watch = SilenceWatch(after: 5, startedAt: 100)
         let heard = [(0.0, 104.0), (0.0, 105.1)].map { watch.hear($0.0, at: $0.1) }
         #expect(heard == [false, true])
+    }
+
+    /// 21/11 : la fenêtre compte les trois dernières secondes avant l'arrêt.
+    @Test func theSecondsLeftAreCounted() {
+        var watch = SilenceWatch(after: 10, startedAt: 0)
+        _ = watch.hear(0.4, at: 2)
+        #expect(watch.remaining(at: 2) == 10 && watch.remaining(at: 9.5) == 2.5 && watch.remaining(at: 30) == 0)
     }
 }

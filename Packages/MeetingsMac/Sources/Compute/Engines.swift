@@ -38,12 +38,17 @@ public struct SileroDetector: SpeechDetecting {
 public final class WhisperEngine: TranscribingEngine, @unchecked Sendable {
     /// Measured on this M3 Max: 16 workers, 23 times real time on a meeting track.
     public static let workers = 16
+    /// The shortest sound a dictation gives to Whisper, in samples (1,25 s).
+    static let shortest = 20_000
     private let kit: WhisperKit
 
-    public init(locations: ModelLocations) async throws {
+    /// `encoderOnGPU`: the Dictée's choice (21/11). Measured on the M3 Max: a call takes 0,75 s instead of 1,4 s, for about
+    /// 570 MB more memory; the meetings keep the Neural Engine, which their sixteen workers share better.
+    public init(locations: ModelLocations, encoderOnGPU: Bool = false) async throws {
         let config = WhisperKitConfig(
             modelFolder: locations.whisperFolder.path(percentEncoded: false),
             tokenizerFolder: locations.tokenizerFolder,
+            computeOptions: encoderOnGPU ? ModelComputeOptions(audioEncoderCompute: .cpuAndGPU) : nil,
             verbose: false,
             logLevel: .error,
             prewarm: false,
@@ -77,17 +82,21 @@ public final class WhisperEngine: TranscribingEngine, @unchecked Sendable {
 
     /// The Dictée (20/11): one recording, its text. The memory's words go as Whisper's prompt; a recording longer than
     /// one window is cut by WhisperKit's own detector.
-    public func dictate(_ samples: [Float], language: String?, prompt: String, long: Bool) async throws -> String {
-        try await dictation(samples, language: language, prompt: prompt, long: long, timed: false)
+    /// `onText` (21/11): what is written so far, window by window, as Whisper writes; false stops the writing.
+    public func dictate(_ samples: [Float], language: String?, prompt: String, long: Bool,
+                        onText: (@Sendable (_ window: Int, _ text: String) -> Bool)? = nil) async throws -> String {
+        try await dictation(samples, language: language, prompt: prompt, long: long, timed: false, onText: onText)
             .map(\.text).joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// The same, in pieces with their times (20/11 in the evening): the paragraphs start after the long pauses.
-    public func dictatePieces(_ samples: [Float], language: String?, prompt: String, long: Bool) async throws -> [EngineSegment] {
-        try await dictation(samples, language: language, prompt: prompt, long: long, timed: true)
+    public func dictatePieces(_ samples: [Float], language: String?, prompt: String, long: Bool,
+                              onText: (@Sendable (_ window: Int, _ text: String) -> Bool)? = nil) async throws -> [EngineSegment] {
+        try await dictation(samples, language: language, prompt: prompt, long: long, timed: true, onText: onText)
     }
 
-    private func dictation(_ samples: [Float], language: String?, prompt: String, long: Bool, timed: Bool) async throws -> [EngineSegment] {
+    private func dictation(_ samples: [Float], language: String?, prompt: String, long: Bool, timed: Bool,
+                           onText: (@Sendable (_ window: Int, _ text: String) -> Bool)?) async throws -> [EngineSegment] {
         var tokens: [Int]?
         if !prompt.isEmpty, let tokenizer = kit.tokenizer {
             let begin = tokenizer.specialTokens.specialTokenBegin
@@ -103,7 +112,16 @@ public final class WhisperEngine: TranscribingEngine, @unchecked Sendable {
             concurrentWorkerCount: 4,
             chunkingStrategy: long ? .vad : ChunkingStrategy.none
         )
-        let results = try await kit.transcribe(audioArray: samples, decodeOptions: options)
+        // WhisperKit writes nothing at all for a second of sound or less (measured 21/11: « Oui », « Merci » dictated alone
+        // came back empty, and so did the first words of a sentence): a short sound is followed by silence up to 1,25 s.
+        let samples = samples.count < Self.shortest ? samples + [Float](repeating: 0, count: Self.shortest - samples.count) : samples
+        var callback: TranscriptionCallback?
+        if let onText {
+            callback = { (progress: TranscriptionProgress) -> Bool? in
+                onText(progress.windowId, progress.text) ? nil : false
+            }
+        }
+        let results = try await kit.transcribe(audioArray: samples, decodeOptions: options, callback: callback)
         guard timed else {
             return results.map { EngineSegment(start: 0, end: 0, text: $0.text, avgLogprob: 0, compressionRatio: 0, noSpeechProb: 0) }
         }

@@ -19,6 +19,10 @@ struct DictationSettings {
     var autoStop: Double? { seconds(Preferences.Key.dictationAutoStop, or: Self.autoStopDefault) }
     /// Seconds of pause before a paragraph; nil: never.
     var paragraphPause: Double? { seconds(Preferences.Key.dictationParagraphPause, or: Self.paragraphDefault) }
+    /// How the key works: a press starts and a press finishes, by default.
+    var mode: KeyGesture.Mode {
+        defaults.string(forKey: Preferences.Key.dictationMode).flatMap(KeyGesture.Mode.init(rawValue:)) ?? .toggle
+    }
     var windowAtTop: Bool { defaults.string(forKey: Preferences.Key.dictationWindowPlace) == "haut" }
     /// Days the history is kept; 0: always.
     var keepDays: Int { defaults.integer(forKey: Preferences.Key.dictationKeepDays) }
@@ -56,25 +60,38 @@ struct DictationSettings {
 @MainActor final class DictationSound {
     let settings: () -> DictationSettings
     let media: MediaPause
+    /// The muting that counts: a dictation that ends cancels the one asked before.
+    private var muteToken = 0
 
     init(settings: @escaping () -> DictationSettings = { DictationSettings() }, media: MediaPause) {
         self.settings = settings
         self.media = media
     }
 
-    func started(inMeeting: Bool) {
+    /// The key is pressed: what plays is paused at once.
+    func pressed(inMeeting: Bool) {
+        guard !inMeeting, settings().on(Preferences.Key.dictationPauseMedia) else { return }
+        media.pause()
+    }
+
+    /// The microphone gives sound: the small sound says « parle », then the Mac is muted.
+    func listening(inMeeting: Bool) {
         let settings = settings()
         if settings.on(Preferences.Key.dictationSounds) { Self.play("Tink") }
-        guard !inMeeting else { return }
-        if settings.on(Preferences.Key.dictationPauseMedia) { media.pause() }
-        if settings.on(Preferences.Key.dictationMuteMac) {
-            // After the small sound: muted at once, it would be cut.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { OutputMute.mute() }
+        guard !inMeeting, settings.on(Preferences.Key.dictationMuteMac) else { return }
+        muteToken += 1
+        let token = muteToken
+        // After the small sound: muted at once, it would be cut. Never once the dictation has ended meanwhile: a
+        // dictation given up in its first quarter of a second left the Mac muted (found 21/11).
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            guard let self, self.muteToken == token else { return }
+            OutputMute.mute()
         }
     }
 
-    /// `finished`: the text is coming (a sound); else the dictation was cancelled (none).
+    /// `finished`: the text is coming (a sound); else the dictation was given up (none).
     func stopped(finished: Bool) {
+        muteToken += 1
         OutputMute.unmute()
         media.resume()
         if finished, settings().on(Preferences.Key.dictationSounds) { Self.play("Pop") }

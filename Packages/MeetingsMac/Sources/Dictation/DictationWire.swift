@@ -8,17 +8,21 @@ public struct DictationListening: Codable, Equatable, Sendable {
     public var prompt: String
     /// A paragraph after a silence this long, in seconds; nil: never.
     public var paragraphPause: Double?
-    /// The microphone, by its Core Audio UID; nil: the system's.
-    public var microphone: String?
+    /// Paul's microphones by their Core Audio UIDs, in his order: the first connected is used; none: the system's.
+    public var microphones: [String]
     /// Where the sound is kept (AAC); nil: it is not.
     public var keepSoundAt: String?
+    /// For the measures and the tests, never the app: a file played as if it were said into the microphone.
+    public var source: String?
 
-    public init(language: String?, prompt: String, paragraphPause: Double? = nil, microphone: String? = nil, keepSoundAt: String? = nil) {
+    public init(language: String?, prompt: String, paragraphPause: Double? = nil, microphones: [String] = [], keepSoundAt: String? = nil,
+                source: String? = nil) {
         self.language = language
         self.prompt = prompt
         self.paragraphPause = paragraphPause
-        self.microphone = microphone
+        self.microphones = microphones
         self.keepSoundAt = keepSoundAt
+        self.source = source
     }
 }
 
@@ -36,12 +40,18 @@ public enum DictationCommand: Codable, Equatable, Sendable {
 
 /// What the helper tells the app, one line of JSON on its standard output.
 public enum DictationEvent: Codable, Equatable, Sendable {
-    /// Whisper is loaded: the key may be pressed.
+    /// The helper takes its orders (21/11): the key may be pressed, even while Whisper loads.
+    case hello
+    /// Whisper is loaded: a text is written at once.
     case ready
+    /// The microphone gives its first sound: Paul can talk.
+    case listening
     /// The voice's level, 0 to 1, for the waveform.
     case level(Double)
     /// The words said so far.
     case partial(String)
+    /// The final text is being written: how far, 0 to 1.
+    case progress(Double)
     /// The text of the whole recording, and how long it lasted.
     case final(text: String, seconds: Double)
     /// A file's text, and how long its sound lasts.

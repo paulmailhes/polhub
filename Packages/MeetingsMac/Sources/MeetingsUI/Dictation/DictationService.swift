@@ -6,28 +6,37 @@ import Foundation
 import HubDesign
 import Persistence
 
-/// The Dictée at work (20/11): it launches the helper `hub-dictee`, which keeps Whisper loaded; it watches the key; it
-/// shows the pill at the bottom of the screen; then it pastes the text where the cursor was, and keeps it in the history.
+/// The Dictée at work (20/11): it launches the helper `hub-dictee`, which listens and writes; it watches the key; it
+/// shows the window that says what is happening; then it pastes the text where the cursor was, and keeps it in the
+/// history. 21/11: the key answers from the helper's first second, and the window always says why when it cannot.
 @MainActor public final class DictationService: ObservableObject {
     public enum Phase: Equatable, Sendable {
-        /// Whisper loads (about 20 s at launch).
-        case loading
+        /// The helper is not there yet: hub has just been launched, or the helper starts again.
+        case starting
         case ready
         case listening
-        /// Whisper writes the whole recording.
+        /// The final text is being written.
         case writing
         case failed(String)
     }
 
-    @Published public private(set) var phase: Phase = .loading
+    @Published public private(set) var phase: Phase = .starting
+    /// Whisper is loaded (about 20 s after the launch): until then a dictation is heard, and written as soon as it is.
+    @Published public private(set) var whisperLoaded = false
+    /// The microphone gives sound: Paul can talk.
+    @Published public private(set) var micOpen = false
     /// The words said so far.
     @Published public private(set) var partial = ""
     @Published public private(set) var level: Double = 0
-    /// What the pill says once: « Copié : colle-le avec ⌘V ».
-    @Published public private(set) var notice: String?
+    /// The final writing's progress, 0 to 1.
+    @Published public private(set) var progress: Double = 0
+    /// How the last dictation ended, said in the window before it closes.
+    @Published private(set) var outcome: DictationOutcome?
+    /// Seconds before a long silence finishes the dictation, once it is near.
+    @Published public private(set) var silenceLeft: Int?
     /// Whether macOS lets hub watch the key everywhere and paste into the other apps.
     @Published public private(set) var trusted = AXIsProcessTrusted()
-    /// When the recording started, for the window's clock.
+    /// When the microphone started to give sound, for the window's clock.
     @Published public private(set) var startedAt: Date?
     /// The window at the top of the screen (Réglages › Dictée), read at each dictation.
     @Published public private(set) var windowAtTop = false
@@ -40,7 +49,7 @@ import Persistence
     let helper: URL
     private var process: Process?
     private var input: FileHandle?
-    private var gesture = KeyGesture(mode: DictationService.mode)
+    private var gesture: KeyGesture
     private var monitors: [Any] = []
     private var ticker: Timer?
     private var target: NSRunningApplication?
@@ -53,13 +62,27 @@ import Persistence
     /// Whether hub records a meeting: then the Mac's sound and the music are left alone.
     private let inMeeting: @MainActor () -> Bool
     private var lastPurge = Date.distantPast
+    private var lastKnown = Date.distantPast
+    /// The window's closing that counts: a new dictation cancels the one asked before.
+    private var hideToken = 0
+    /// Réglages › Dictée; the tests give their own.
+    private let defaults: UserDefaults
+    private var settings: DictationSettings { DictationSettings(defaults: defaults) }
+    /// For the tests: no window on the screen, a file played as the microphone, and where the text goes instead of the
+    /// app in front.
+    var showsWindow = true
+    var testSource: String?
+    var testDelivery: ((String) -> Void)?
 
     /// `media`: `hub-media.dylib`, which pauses the music; nil: the music is never paused.
-    public init(library: DictationLibrary, helper: URL, media: URL? = nil, inMeeting: @escaping @MainActor () -> Bool = { false }) {
+    public init(library: DictationLibrary, helper: URL, media: URL? = nil, defaults: UserDefaults = .standard,
+                inMeeting: @escaping @MainActor () -> Bool = { false }) {
         self.library = library
         self.helper = helper
         self.inMeeting = inMeeting
-        sound = DictationSound(media: MediaPause(bridge: media.map(MediaBridge.init(library:))))
+        self.defaults = defaults
+        gesture = KeyGesture(mode: DictationSettings(defaults: defaults).mode)
+        sound = DictationSound(settings: { DictationSettings(defaults: defaults) }, media: MediaPause(bridge: media.map(MediaBridge.init(library:))))
     }
 
     public func start() {
@@ -75,6 +98,8 @@ import Persistence
                 // Accessibility given in Réglages Système: noticed without a relaunch.
                 if !self.trusted, AXIsProcessTrusted() { self.trusted = true; self.watchKey() }
                 if Date().timeIntervalSince(self.lastPurge) > 3_600 { self.purge() }
+                // The names hub knows, read away from the key: a press never waits for the base.
+                if Date().timeIntervalSince(self.lastKnown) > 300, self.phase == .ready { self.refreshKnown() }
             }
         }
     }
@@ -95,6 +120,13 @@ import Persistence
         if !trusted, let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
         }
+    }
+
+    /// What the window needs to say what is happening.
+    var windowState: DictationWindowState {
+        DictationWindowState(phase: phase, micOpen: micOpen, whisperLoaded: whisperLoaded, partial: partial,
+                             liveText: settings.on(Preferences.Key.dictationLiveText), progress: progress, outcome: outcome,
+                             silenceLeft: silenceLeft, mode: gesture.mode, key: DictationKey.current.title)
     }
 
     // MARK: - The helper
@@ -120,22 +152,37 @@ import Persistence
             try process.run()
             self.process = process
             input = toHelper.fileHandleForWriting
-            phase = .loading
+            phase = .starting
+            whisperLoaded = false
         } catch {
             phase = .failed("La Dictée ne démarre pas : relance hub.")
         }
     }
 
-    /// The helper died: started again, three times at most, then said.
+    /// The helper died: what was under way is given up and said, and it is started again — three times at most.
     private func helperStopped() {
         guard process != nil else { return }
         process = nil
+        input = nil
+        whisperLoaded = false
+        let wasBusy = phase == .listening || phase == .writing
+        if phase == .listening { sound.stopped(finished: false) }
+        silence = nil
+        silenceLeft = nil
+        gesture = KeyGesture(mode: mode)
+        working = [:]
         restarts += 1
         guard restarts <= 3 else {
             phase = .failed("La Dictée s'est arrêtée : relance hub.")
+            if wasBusy { tell(.problem("La Dictée s'est arrêtée : relance hub."), for: 4) }
             return
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in self?.launch() }
+        phase = .starting
+        if wasBusy { tell(.problem("La Dictée s'est arrêtée. Elle redémarre : réessaie dans un instant."), for: 4) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+            guard let self, self.process == nil, self.ticker != nil else { return }
+            self.launch()
+        }
     }
 
     private func send(_ command: DictationCommand) {
@@ -145,14 +192,22 @@ import Persistence
 
     private func handle(_ event: DictationEvent) {
         switch event {
+        case .hello:
+            // The helper takes its orders: the key works, even while Whisper loads.
+            if phase == .starting { phase = .ready }
         case .ready:
-            phase = .ready
+            whisperLoaded = true
             restarts = 0
+            if phase == .starting { phase = .ready }
+        case .listening:
+            microphoneOpened()
         case .level(let value):
             level = value
             watchSilence(value)
         case .partial(let text):
-            if phase == .listening, Self.on(Preferences.Key.dictationLiveText) { partial = text }
+            if phase == .listening || phase == .writing, settings.on(Preferences.Key.dictationLiveText) { partial = text }
+        case .progress(let value):
+            if phase == .writing { progress = max(progress, value) }
         case .final(let text, let seconds):
             finish(text, seconds: seconds)
         case .transcribed(let id, let text, let seconds):
@@ -168,13 +223,7 @@ import Persistence
     // MARK: - The key
 
     /// Réglages › Dictée: a press starts and a press finishes, by default.
-    static var mode: KeyGesture.Mode {
-        UserDefaults.standard.string(forKey: Preferences.Key.dictationMode).flatMap(KeyGesture.Mode.init(rawValue:)) ?? .toggle
-    }
-
-    static func on(_ key: String) -> Bool {
-        UserDefaults.standard.object(forKey: key) as? Bool ?? true
-    }
+    private var mode: KeyGesture.Mode { settings.mode }
 
     /// Everywhere when macOS trusts hub (Accessibility), else only while hub is in front.
     private func watchKey() {
@@ -193,16 +242,16 @@ import Persistence
     private func handle(_ event: NSEvent) {
         let now = ProcessInfo.processInfo.systemUptime
         // A way changed in Réglages takes effect at the next dictation.
-        if gesture.state == .idle, gesture.mode != Self.mode { gesture = KeyGesture(mode: Self.mode) }
+        if gesture.state == .idle, gesture.mode != mode { gesture = KeyGesture(mode: mode) }
         let key = DictationKey.current
         switch event.type {
         case .flagsChanged where event.keyCode == key.keyCode:
-            apply(event.modifierFlags.contains(key.flag) ? gesture.keyDown(at: now) : gesture.keyUp(at: now))
+            self.key(down: event.modifierFlags.contains(key.flag), at: now)
         case .flagsChanged:
             // Another modifier with the key: a character is being typed.
             apply(gesture.otherKey())
         case .keyDown where event.keyCode == 53:
-            apply(gesture.escape())
+            escape()
         case .keyDown:
             apply(gesture.otherKey())
         default:
@@ -210,36 +259,58 @@ import Persistence
         }
     }
 
+    /// The Dictée's key goes down or up.
+    func key(down: Bool, at now: TimeInterval = ProcessInfo.processInfo.systemUptime) {
+        apply(down ? gesture.keyDown(at: now) : gesture.keyUp(at: now))
+    }
+
+    /// Échap: the dictation under way is given up.
+    func escape() {
+        apply(gesture.escape())
+    }
+
     private func apply(_ action: KeyGesture.Action) {
         switch action {
         case .start:
-            guard phase == .ready else { return }
-            let settings = DictationSettings()
+            guard phase == .ready else {
+                // Not a dictation: the window says why, and the next press is a first press again.
+                explain()
+                gesture = KeyGesture(mode: mode)
+                return
+            }
+            let settings = settings
             target = NSWorkspace.shared.frontmostApplication
-            library.refreshKnown()
             partial = ""
-            notice = nil
-            startedAt = Date()
+            outcome = nil
+            progress = 0
+            level = 0
+            micOpen = false
+            silence = nil
+            silenceLeft = nil
+            startedAt = nil
             windowAtTop = settings.windowAtTop
             dictationID = UUID()
-            silence = settings.autoStop.map { SilenceWatch(after: $0, startedAt: ProcessInfo.processInfo.systemUptime) }
+            hideToken += 1
             phase = .listening
             var listening = listeningOptions(settings)
-            listening.microphone = settings.microphone(connected: Devices.microphones())
+            listening.microphones = settings.microphones
             listening.keepSoundAt = settings.on(Preferences.Key.dictationKeepSound) ? library.soundURL(dictationID).path(percentEncoded: false) : nil
+            listening.source = testSource
             send(.start(listening))
-            sound.started(inMeeting: inMeeting())
+            sound.pressed(inMeeting: inMeeting())
             showPill()
         case .finish:
             guard phase == .listening else { return }
             phase = .writing
             silence = nil
+            silenceLeft = nil
             send(.stop)
             sound.stopped(finished: true)
         case .cancel:
             guard phase == .listening else { return }
             send(.cancel)
             silence = nil
+            silenceLeft = nil
             phase = .ready
             pill?.hide()
             sound.stopped(finished: false)
@@ -248,52 +319,78 @@ import Persistence
         }
     }
 
+    /// The key pressed while the Dictée cannot listen: the window says why, instead of nothing.
+    private func explain() {
+        switch phase {
+        case .starting: tell(.notReady("La Dictée démarre…"), for: 2)
+        case .failed(let why): tell(.problem(why), for: 4)
+        case .ready, .listening, .writing: break
+        }
+    }
+
+    /// The microphone gives sound: the small sound says « parle », the clock and the silence count from here.
+    private func microphoneOpened() {
+        guard phase == .listening, !micOpen else { return }
+        micOpen = true
+        startedAt = Date()
+        silence = settings.autoStop.map { SilenceWatch(after: $0, startedAt: ProcessInfo.processInfo.systemUptime) }
+        sound.listening(inMeeting: inMeeting())
+    }
+
     /// The language, the memory and the paragraphs, for a dictation or a file.
     private func listeningOptions(_ settings: DictationSettings) -> DictationListening {
-        let language = UserDefaults.standard.string(forKey: Preferences.Key.dictationLanguage) == "auto" ? nil : "fr"
+        let language = defaults.string(forKey: Preferences.Key.dictationLanguage) == "auto" ? nil : "fr"
         return DictationListening(language: language, prompt: library.prompt, paragraphPause: settings.paragraphPause)
     }
 
-    /// « Arrêt seul » (20/11 in the evening): a long silence finishes the dictation, when the key is not held.
+    /// « Arrêt seul » (20/11 in the evening): a long silence finishes the dictation, when the key is not held; its last
+    /// three seconds are counted in the window.
     private func watchSilence(_ value: Double) {
         guard phase == .listening, [.listening, .handsFree].contains(gesture.state), var watch = silence else { return }
-        let finish = watch.hear(value, at: ProcessInfo.processInfo.systemUptime)
+        let now = ProcessInfo.processInfo.systemUptime
+        let finish = watch.hear(value, at: now)
         silence = watch
+        let left = Int(watch.remaining(at: now).rounded(.up))
+        let shown: Int? = (1...3).contains(left) ? left : nil
+        if shown != silenceLeft { silenceLeft = shown }
         guard finish else { return }
         apply(.finish)
         // The key is free again: the next press starts a dictation.
-        gesture = KeyGesture(mode: Self.mode)
+        gesture = KeyGesture(mode: mode)
     }
 
     // MARK: - The text
 
     private func finish(_ raw: String, seconds: Double) {
-        let text = DictationText.clean(raw, replacements: library.corrections, rules: DictationSettings().rules)
+        guard phase == .writing else { return }
+        let text = DictationText.clean(raw, replacements: library.corrections, rules: settings.rules)
         phase = .ready
+        progress = 1
+        // The names hub knows, for the next dictation: read now, not when the key is pressed.
+        DispatchQueue.main.async { [weak self] in self?.refreshKnown() }
         guard !text.isEmpty else {
             library.removeSound(dictationID)
-            pill?.hide()
+            tell(.nothing, for: 1.8)
             return
         }
         library.keep(DictationRow(id: dictationID, text: text, raw: raw, app: target?.localizedName, seconds: seconds, createdAt: Date()))
-        if trusted, AXIsProcessTrusted() {
-            // A space after, to dictate the next sentence straight on (Réglages › Dictée).
-            let space = Self.on(Preferences.Key.dictationTrailingSpace) && !text.hasSuffix("\n") ? " " : ""
-            Paster.paste(text + space, restore: Self.on(Preferences.Key.dictationRestoreClipboard))
-            pill?.hide()
+        // A space after, to dictate the next sentence straight on (Réglages › Dictée).
+        let space = settings.on(Preferences.Key.dictationTrailingSpace) && !text.hasSuffix("\n") ? " " : ""
+        if let testDelivery {
+            testDelivery(text + space)
+            tell(.pasted(app: nil, text: text), for: 0.2)
+        } else if trusted, AXIsProcessTrusted() {
+            Paster.paste(text + space, restore: settings.on(Preferences.Key.dictationRestoreClipboard))
+            tell(.pasted(app: target?.localizedName, text: text), for: 1)
         } else {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(text, forType: .string)
-            notice = "Copié : colle-le avec ⌘V"
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
-                guard self?.phase != .listening else { return }
-                self?.pill?.hide()
-            }
+            tell(.copied(text: text), for: 3)
         }
     }
 
     /// A failure during a dictation (the microphone that does not open): said in the window, the Mac's sound given back,
-    /// and the Dictée ready for the next one — the helper is still there. Before it is loaded, it is the Dictée's state.
+    /// and the Dictée ready for the next one — the helper is still there. Outside a dictation, it is the Dictée's state.
     private func failed(_ reason: String) {
         guard phase == .listening || phase == .writing else {
             phase = .failed(reason)
@@ -302,13 +399,28 @@ import Persistence
         }
         if phase == .listening { sound.stopped(finished: false) }
         silence = nil
-        gesture = KeyGesture(mode: Self.mode)
+        silenceLeft = nil
+        gesture = KeyGesture(mode: mode)
         phase = .ready
-        notice = Words.typeset(reason)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
-            guard self?.phase != .listening else { return }
-            self?.pill?.hide()
+        tell(.problem(reason), for: 4)
+    }
+
+    /// Says how a dictation ended, then closes the window — unless another dictation has begun.
+    private func tell(_ outcome: DictationOutcome, for seconds: Double) {
+        self.outcome = outcome
+        showPill()
+        hideToken += 1
+        let token = hideToken
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in
+            guard let self, self.hideToken == token, self.phase != .listening, self.phase != .writing else { return }
+            self.pill?.hide()
+            self.outcome = nil
         }
+    }
+
+    private func refreshKnown() {
+        lastKnown = Date()
+        library.refreshKnown()
     }
 
     // MARK: - The files
@@ -318,7 +430,7 @@ import Persistence
         let id = "fichier-" + UUID().uuidString
         working[id] = url.lastPathComponent
         fileProblem = nil
-        send(.file(id: id, path: url.path(percentEncoded: false), listening: listeningOptions(DictationSettings())))
+        send(.file(id: id, path: url.path(percentEncoded: false), listening: listeningOptions(settings)))
     }
 
     /// « Retranscrire »: a dictation's kept sound written again, with today's memory.
@@ -326,7 +438,7 @@ import Persistence
         let id = "dictee-" + row.id.uuidString
         working[id] = row.app ?? ""
         fileProblem = nil
-        send(.file(id: id, path: library.soundURL(row.id).path(percentEncoded: false), listening: listeningOptions(DictationSettings())))
+        send(.file(id: id, path: library.soundURL(row.id).path(percentEncoded: false), listening: listeningOptions(settings)))
     }
 
     public func isRewriting(_ row: DictationRow) -> Bool {
@@ -335,9 +447,9 @@ import Persistence
 
     private func written(id: String, raw: String, seconds: Double) {
         guard let name = working.removeValue(forKey: id) else { return }
-        let text = DictationText.clean(raw, replacements: library.corrections, rules: DictationSettings().rules)
+        let text = DictationText.clean(raw, replacements: library.corrections, rules: settings.rules)
         if id.hasPrefix("dictee-"), let row = UUID(uuidString: String(id.dropFirst("dictee-".count))) {
-            library.setText(row, text: text, raw: raw)
+            if !text.isEmpty { library.setText(row, text: text, raw: raw) }
         } else if !text.isEmpty {
             library.keep(DictationRow(text: text, raw: raw, app: nil, seconds: seconds, createdAt: Date(), file: name))
         } else {
@@ -348,18 +460,24 @@ import Persistence
     /// « Garder l'historique » (Réglages › Dictée): the older dictations go, with their sounds.
     private func purge() {
         lastPurge = Date()
-        library.purge(keepDays: DictationSettings().keepDays)
+        library.purge(keepDays: settings.keepDays)
     }
 
-    /// A state set by hand, for the window's captures (tests only).
-    func show(_ phase: Phase, partial: String, level: Double) {
-        self.phase = phase
-        self.partial = partial
+    /// A state set by hand, for the window's captures and tests.
+    func show(_ state: DictationWindowState, level: Double = 0.6) {
+        phase = state.phase
+        micOpen = state.micOpen
+        whisperLoaded = state.whisperLoaded
+        partial = state.partial
+        progress = state.progress
+        outcome = state.outcome
+        silenceLeft = state.silenceLeft
         self.level = level
-        startedAt = Date().addingTimeInterval(-7)
+        startedAt = state.micOpen ? Date().addingTimeInterval(-7) : nil
     }
 
     private func showPill() {
+        guard showsWindow else { return }
         if pill == nil { pill = DictationPill(service: self) }
         pill?.show()
     }

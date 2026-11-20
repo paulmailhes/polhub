@@ -489,8 +489,8 @@ struct DictationSettingsPane: View {
 
     private var state: String {
         switch service.phase {
-        case .loading: "Whisper se charge (une vingtaine de secondes après le lancement)"
-        case .ready: "Prête"
+        case .starting: "La Dictée démarre"
+        case .ready: service.whisperLoaded ? "Prête" : "Prête ; Whisper finit de se charger, ta dictée sera écrite dès qu'il est là"
         case .listening: "À l'écoute"
         case .writing: "J'écris"
         case .failed(let reason): reason
@@ -503,11 +503,14 @@ struct DictationMicrophones: View {
     @AppStorage(Preferences.Key.dictationMicrophones) private var stored = ""
     @State private var connected: [Microphone] = []
     @State private var systemUID: String?
+    /// The microphone that records talks by Bluetooth.
+    @State private var bluetooth = false
     /// The names of the microphones seen, for those not connected now.
     @AppStorage(Preferences.Key.dictationMicrophoneNames) private var names = ""
 
     var body: some View {
-        SettingRow("Micros", help: "Le premier branché sert ; sinon celui du système. Range-les avec les flèches") {
+        SettingRow("Micros", help: "Le premier branché sert ; sinon celui du système. Range-les avec les flèches",
+                   problem: bluetooth ? "Ton micro est en Bluetooth : il met jusqu'à une seconde à s'ouvrir, et tes premiers mots peuvent manquer. Mets le micro du Mac en premier pour parler dès l'appui." : nil) {
             EmptyView()
         }
         // On the row always there: an empty list never appears.
@@ -564,6 +567,7 @@ struct DictationMicrophones: View {
         var all = known
         for microphone in connected { all[microphone.uid] = microphone.name }
         names = all.map { "\($0.key)\t\($0.value)" }.sorted().joined(separator: "\n")
+        bluetooth = used.flatMap(Devices.device(uid:)).map(Devices.isBluetooth) ?? false
     }
 
     private func move(_ index: Int, by offset: Int) {
@@ -572,5 +576,6 @@ struct DictationMicrophones: View {
         guard uids.indices.contains(index), uids.indices.contains(target) else { return }
         uids.swapAt(index, target)
         stored = uids.joined(separator: "\n")
+        bluetooth = used.flatMap(Devices.device(uid:)).map(Devices.isBluetooth) ?? false
     }
 }

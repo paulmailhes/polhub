@@ -3,6 +3,26 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.64.0 — 21 novembre 2026
+
+**Dictée : elle répond dès l'appui, tu vois tes mots, et elle va deux à trois fois plus vite.**
+
+- **Dès l'appui.** La touche répond dès la première seconde après un lancement, au lieu de vingt secondes sans rien.
+  Ce que tu dictes pendant que Whisper se charge est écrit dès qu'il est là.
+- **Tes mots en direct.** Les premiers arrivent après une seconde environ, puis ils se mettent à jour toutes les
+  0,8 s (avant : plus de 2 s).
+- **Le texte final.** Il s'écrit dès que tu te tais : il arrive souvent en moins d'une seconde après ton appui
+  (avant : 1,5 à 3,5 s).
+- **Une fenêtre qui dit ce qui se passe** : « Le micro s'ouvre… », « Je t'écoute », tes mots, « Je relis avec ta
+  mémoire… » et sa barre, « Collé dans Mail », « Je n'ai rien entendu ». Un appui pendant que la Dictée démarre dit
+  pourquoi, au lieu de ne rien montrer.
+- **Les mots courts** : « Oui », « Merci », « OK » dictés seuls s'écrivent enfin.
+- **Rien dit, rien écrit** : plus de « Merci. » inventé dans un silence.
+- **Arrêt seul** : la fenêtre compte les trois dernières secondes avant de finir.
+- **Micro Bluetooth** : Réglages › Dictée › Micros prévient qu'il met jusqu'à une seconde à s'ouvrir, et dit quoi
+  faire.
+- Réparé : une dictée annulée très vite pouvait laisser le son du Mac coupé ; un appui raté avalait l'appui suivant.
+
 ## 0.63.2 — 20 novembre 2026
 
 **La Dictée remarche avec des écouteurs Bluetooth.**

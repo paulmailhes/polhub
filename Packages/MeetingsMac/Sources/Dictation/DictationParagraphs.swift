@@ -89,4 +89,9 @@ public struct SilenceWatch: Sendable {
         }
         return time - lastVoice > after
     }
+
+    /// Seconds left before it finishes, if nothing is said.
+    public func remaining(at time: TimeInterval) -> TimeInterval {
+        max(0, after - (time - lastVoice))
+    }
 }
