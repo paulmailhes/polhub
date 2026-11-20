@@ -100,6 +100,14 @@ public enum SwapScript {
         "'" + text.replacingOccurrences(of: "'", with: #"'\''"#) + "'"
     }
 
+    /// A text `pgrep -f` reads as itself: every sign of an extended regular expression escaped.
+    static func pattern(_ text: String) -> String {
+        text.reduce(into: "") { result, character in
+            if #"\.[]()*+?{}|^$"#.contains(character) { result.append("\\") }
+            result.append(character)
+        }
+    }
+
     /// A path without the trailing slash Foundation gives existing folders.
     static func path(_ url: URL) -> String {
         var path = url.path(percentEncoded: false)
@@ -126,12 +134,15 @@ public enum SwapScript {
     ///   (`signatureCheck`); the tests pass their own.
     public static func make(
         newApp: URL, installed: URL, keepOld: URL, version: String, signal: URL, log: URL, pid: Int32, processName: String,
-        start: String, startTimeout: Int, failedKey: String?, register: String? = nil, verify: String
+        start: String, startTimeout: Int, failedKey: String?, register: String? = nil, verify: String, waitSteps: Int = 150
     ) -> String {
         let registration = register.map { "touch \(quote(path(installed))); \($0) \(quote(path(installed))) 2>/dev/null || true" } ?? "true"
         let new = quote(path(newApp)), app = quote(path(installed)), parent = quote(path(installed.deletingLastPathComponent()))
         let keep = quote(path(keepOld)), zip = quote(path(keepOld) + "/Polhub-precedente.zip"), signalFile = quote(path(signal))
         let failed = failedKey.map { "defaults write \(Verifier.bundleID) \($0) \(quote(version))" } ?? "true"
+        // Only a copy of the installed app counts, by its path (20/11: the iPhone app in the simulator is called
+        // Polhub too, and the name alone stopped an update).
+        let copy = quote(pattern(path(installed) + "/Contents/MacOS/" + processName))
         return """
         #!/bin/bash
         # Polhub : échange de versions, écrit par l'app et lancé hors d'elle.
@@ -153,10 +164,11 @@ public enum SwapScript {
         }
         trap finish EXIT
         say "début : passage à la version \(version)"
-        for i in $(seq 1 150); do kill -0 \(pid) 2>/dev/null || break; sleep 0.2; done
+        for i in $(seq 1 \(waitSteps)); do kill -0 \(pid) 2>/dev/null || break; sleep 0.2; done
         if kill -0 \(pid) 2>/dev/null; then say "l'app ne s'est pas arrêtée : rien n'est changé"; DONE=1; exit 1; fi
-        for i in $(seq 1 150); do pgrep -x \(quote(processName)) >/dev/null || break; sleep 0.2; done
-        if pgrep -x \(quote(processName)) >/dev/null; then say "une autre copie tourne encore : rien n'est changé"; DONE=1; exit 1; fi
+        for i in $(seq 1 \(waitSteps)); do pgrep -f \(copy) >/dev/null || break; sleep 0.2; done
+        # Nothing is changed, but the app that quit for the update starts again.
+        if pgrep -f \(copy) >/dev/null; then say "une autre copie tourne encore : rien n'est changé"; exit 1; fi
         mkdir -p \(keep)
         rm -f \(zip)
         if ! ditto -c -k --keepParent \(app) \(zip); then say "l'ancienne version ne se met pas de côté : rien n'est changé"; DONE=1; start; exit 1; fi
@@ -183,7 +195,7 @@ public enum SwapScript {
           sleep 0.2
         done
         say "la nouvelle version ne démarre pas : retour à l'ancienne version"
-        pkill -x \(quote(processName)) 2>/dev/null; sleep 1
+        pkill -f \(copy) 2>/dev/null; sleep 1
         restore; \(failed); DONE=1; start; exit 1
 
         """

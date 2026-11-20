@@ -92,10 +92,14 @@ import Testing
         return layout
     }
 
+    /// Run from a file, as the app does: its text is not in the command line `pgrep` reads.
     func run(_ script: String) throws -> Int32 {
+        let file = FileManager.default.temporaryDirectory.appending(path: "echange-\(UUID().uuidString).sh")
+        try script.write(to: file, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: file) }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = ["-c", script]
+        process.arguments = [file.path(percentEncoded: false)]
         try process.run()
         process.waitUntilExit()
         return process.terminationStatus
@@ -172,6 +176,60 @@ import Testing
     @Test func theRealCheckIsTheVerifiersRequirement() {
         #expect(SwapScript.signatureCheck.hasPrefix("/usr/bin/codesign --verify --strict --deep -R "))
         #expect(SwapScript.signatureCheck.contains(Verifier.requirement()))
+    }
+
+    /// A real program called `name` in `folder`/Contents/MacOS, running until the test stops it. Built here: macOS
+    /// kills a copy of a system program, and a script would be called `sh`.
+    func program(named name: String, at folder: URL) throws -> Process {
+        let directory = folder.appending(path: "Contents/MacOS", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let binary = directory.appending(path: name)
+        let source = folder.appending(path: "attente.c")
+        try "#include <unistd.h>\nint main(void) { sleep(30); return 0; }\n".write(to: source, atomically: true, encoding: .utf8)
+        let build = Process()
+        build.executableURL = URL(fileURLWithPath: "/usr/bin/cc")
+        build.arguments = [source.path(percentEncoded: false), "-o", binary.path(percentEncoded: false)]
+        try build.run()
+        build.waitUntilExit()
+        let process = Process()
+        process.executableURL = binary
+        try process.run()
+        Thread.sleep(forTimeInterval: 0.3)
+        return process
+    }
+
+    /// 20/11: the iPhone app in the simulator is called Polhub too; the swap took it for another copy, gave up, and
+    /// left Paul without Polhub. Only a copy of the installed app counts.
+    @Test func aProgramOfTheSameNameElsewhereDoesNotStopTheSwap() throws {
+        let layout = try layout()
+        defer { try? FileManager.default.removeItem(at: layout.root) }
+        let name = "pt\(UUID().uuidString.prefix(8))"
+        let other = try program(named: name, at: layout.root.appending(path: "Simulateur/Polhub.app", directoryHint: .isDirectory))
+        defer { other.terminate() }
+        let script = SwapScript.make(newApp: layout.newApp, installed: layout.installed, keepOld: layout.keep, version: "0.3.1",
+                                     signal: layout.signal, log: layout.log, pid: 999_999, processName: name,
+                                     start: "echo 0.3.1 > \(SwapScript.quote(layout.signal.path(percentEncoded: false)))",
+                                     startTimeout: 3, failedKey: nil, verify: "true", waitSteps: 5)
+        #expect(try run(script) == 0)
+        #expect(try installedVersion(layout) == "0.3.1")
+    }
+
+    /// When a copy of the installed app does run, nothing is changed, but Polhub is started again all the same.
+    @Test func anotherCopyOfTheInstalledAppStopsTheSwapButPolhubStartsAgain() throws {
+        let layout = try layout()
+        defer { try? FileManager.default.removeItem(at: layout.root) }
+        let name = "pt\(UUID().uuidString.prefix(8))"
+        let other = try program(named: name, at: layout.installed)
+        defer { other.terminate() }
+        let started = layout.root.appending(path: "lancees.txt")
+        let script = SwapScript.make(newApp: layout.newApp, installed: layout.installed, keepOld: layout.keep, version: "0.3.1",
+                                     signal: layout.signal, log: layout.log, pid: 999_999, processName: name,
+                                     start: "echo lancée >> \(SwapScript.quote(started.path(percentEncoded: false)))",
+                                     startTimeout: 2, failedKey: nil, verify: "true", waitSteps: 5)
+        #expect(try run(script) != 0)
+        #expect(try installedVersion(layout) == "0.3.0")
+        #expect(try String(contentsOf: layout.log, encoding: .utf8).contains("une autre copie tourne encore"))
+        #expect((try? String(contentsOf: started, encoding: .utf8)) == "lancée\n")
     }
 
     @Test func quotesSurviveAnyPath() {

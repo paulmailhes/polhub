@@ -3,6 +3,13 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.53.1 — 20 novembre 2026
+
+- Une mise à jour ne laisse plus jamais le Mac sans Polhub. Elle prenait pour une autre copie de Polhub tout programme du
+  même nom, comme l'app iPhone ouverte dans le simulateur : elle abandonnait alors sans relancer Polhub, et l'iPhone ne
+  joignait plus le Mac. Seule une copie de l'app installée compte désormais, et si l'échange ne se fait pas, Polhub
+  repart quand même.
+
 ## 0.53.0 — 20 novembre 2026
 
 **Les notifications de Polhub arrivent sur l'iPhone.**
