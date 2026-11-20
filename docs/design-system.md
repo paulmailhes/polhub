@@ -486,16 +486,16 @@ Centre de contrôle. La logique vit à part, testée sans écran (`PanelModel`).
   taille normale, ensemble à droite, la principale en dernier, chacune à sa largeur (jamais un libellé sur deux lignes ;
   à court de place, le bouton d'un compte rendu en préparation passe sous son état) ; « Arrêter » en
   `.primary(.recording)`. Elle change en fondu (`Motion.gentle`).
-- **Le sur-titre de la vedette** (`PanelModel.eyebrow`) est une étiquette grise de 12 points semi-gras, en casse
-  normale (« Dans 8 min », « Enregistrement », « Vendredi 20 novembre » ; lot 9, 20/11 : en capitales de 13 avant). Une
-  seule chose y prend la couleur, jamais toute la ligne : le symbole d'un état (le point de l'enregistrement, l'icône
-  d'une fin présumée ou d'un problème) ou les mots d'un délai (« Dans 8 min », comme sur l'Accueil).
   « Réunion détectée » suit la maquette : le décompte, le titre, « S'enregistre seule dans 7 s », les deux réponses,
   puis « Jamais pour ce lien » dessous, seulement pour un lien Meet. Un Meet enregistré puis fini dans son créneau n'est
   jamais « pas enregistrée » : son compte rendu en préparation prend la place.
   Le compte rendu (en cours ou prêt) a une croix en haut à droite qui le range pour de bon ; il se range aussi seul dès
   que la réunion est ouverte dans Polhub une fois transcrite (Paul, 16/11 : « je l'ai déjà traité, j'ai plus besoin
   qu'il s'affiche »). Les comptes rendus rangés sont gardés d'un lancement à l'autre (`AppModel.reportsPutAway`).
+- **Le sur-titre de la vedette** (`PanelModel.eyebrow`) est une étiquette grise de 12 points semi-gras, en casse
+  normale (« Dans 8 min », « Enregistrement », « Vendredi 20 novembre » ; lot 9, 20/11 : en capitales de 13 avant). Une
+  seule chose y prend la couleur, jamais toute la ligne : le symbole d'un état (le point de l'enregistrement, l'icône
+  d'une fin présumée ou d'un problème) ou les mots d'un délai (« Dans 8 min », comme sur l'Accueil).
 - **Les tuiles** : l'icône de la section dans sa couleur et son nom (13 points), la valeur (15 points), une ligne de
   détail (13 points), un nombre en haut à droite pour Calendrier (les rendez-vous qui restent aujourd'hui). La carte de
   l'app, `.cardHover` au survol ; un clic ouvre la page puis la fenêtre (⌘1 à ⌘7 dans l'ordre de la barre latérale, les
@@ -535,8 +535,9 @@ Centre de contrôle. La logique vit à part, testée sans écran (`PanelModel`).
 - **Elle reste** jusqu'à « Rejoindre » ou la croix, dix minutes après le début au plus ; jamais pour la réunion que
   Polhub enregistre déjà. Réglages › Notifications : activée, 2 min avant (1, 2 ou 5).
 - **Le HUD** (la réunion détectée, un message, une alerte) flotte dans le même panneau et parle de même : son titre en
-  15 points semi-gras (deux lignes au plus), sa ligne en 13 (deux lignes au plus), à 16 du bord ; 480 points de large (440 avant), et
-  la hauteur de ses mots, de 76 à 120 (lot 9, 20/11 : une alerte longue n'est plus coupée à « Polhub ne lit plus les… »).
+  15 points semi-gras (deux lignes au plus), sa ligne en 13 (deux lignes au plus), à 16 du bord ; 480 points de large
+  (440 avant) et la hauteur de ses mots, de 76 à 120 (lot 9, 20/11 : « Google Meet · Rev… » et « Polhub ne lit plus
+  les ongl… » étaient coupés).
 
 ## Inspiration
 
