@@ -3,6 +3,19 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.62.0 — 20 novembre 2026
+
+**Dictée : un appui pour commencer, un appui pour finir.**
+
+- Plus besoin de tenir la touche : appuie sur ⌥ droite, parle, appuie de nouveau. Le texte arrive là où tu écrivais.
+  Échap annule. Tu préfères tenir ? Réglages › Dictée › « Façon » : « Appuyer, parler, appuyer », « Tenir pour
+  parler » ou « Les deux ».
+- Une fenêtre plus grande et plus lisible : tes mots en grand sur trois lignes, la courbe de ta voix, le temps écoulé
+  et ce qu'il faut presser. Après le dernier appui, un sablier « J'écris… » jusqu'au collage.
+- Ta dernière dictée dans le Coup d'œil, avec son heure et « Copier ».
+- Réglages › Dictée : « Mots en direct » (les voir s'écrire pendant que tu parles) et « Presse-papiers » (remettre ce
+  qu'il contenait après le collage), à couper si tu préfères.
+
 ## 0.61.0 — 20 novembre 2026
 
 **Dictée : tu parles, tes mots s'écrivent là où est ton curseur.**

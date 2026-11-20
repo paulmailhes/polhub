@@ -94,6 +94,12 @@ public struct Preferences: @unchecked Sendable {
         /// « auto ».
         public static let dictationKey = "dictee.touche"
         public static let dictationLanguage = "dictee.langue"
+        /// How the key records (`KeyGesture.Mode`): a press starts and a press finishes, by default (Paul, 20/11).
+        public static let dictationMode = "dictee.facon"
+        /// The words shown as they come in the window; on by default.
+        public static let dictationLiveText = "dictee.direct"
+        /// The clipboard as it was after the text is pasted; on by default: the text stays in the history.
+        public static let dictationRestoreClipboard = "dictee.pressePapiers"
         public static let cardSize = "projets.tailleDesCartes"
         /// Réglages › Projets (15/11): the logos asked of the clients' sites.
         public static let projectLogos = "projets.logosEnLigne"

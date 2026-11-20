@@ -1,3 +1,4 @@
+import Dictation
 import HubDesign
 import Persistence
 import SwiftUI
@@ -125,13 +126,24 @@ struct DictationSettingsPane: View {
     @ObservedObject var service: DictationService
     @AppStorage(Preferences.Key.dictationKey) private var key = DictationKey.rightOption.rawValue
     @AppStorage(Preferences.Key.dictationLanguage) private var language = "fr"
+    @AppStorage(Preferences.Key.dictationMode) private var mode = KeyGesture.Mode.toggle.rawValue
+    @AppStorage(Preferences.Key.dictationLiveText) private var liveText = true
+    @AppStorage(Preferences.Key.dictationRestoreClipboard) private var restoreClipboard = true
 
     var body: some View {
         Form {
             Section {
-                SettingRow("Touche", help: "Tiens-la pour parler ; deux appuis pour parler mains libres, Échap pour annuler") {
+                SettingRow("Touche", help: "Celle qui commence et finit une dictée ; Échap annule") {
                     Picker("Touche", selection: $key) {
                         ForEach(DictationKey.allCases, id: \.rawValue) { Text($0.title).tag($0.rawValue) }
+                    }
+                    .fixedSize()
+                }
+                SettingRow("Façon", help: Self.help(KeyGesture.Mode(rawValue: mode) ?? .toggle)) {
+                    Picker("Façon", selection: $mode) {
+                        Text("Appuyer, parler, appuyer").tag(KeyGesture.Mode.toggle.rawValue)
+                        Text("Tenir pour parler").tag(KeyGesture.Mode.hold.rawValue)
+                        Text("Les deux").tag(KeyGesture.Mode.hybrid.rawValue)
                     }
                     .fixedSize()
                 }
@@ -141,6 +153,15 @@ struct DictationSettingsPane: View {
                         Text("Automatique").tag("auto")
                     }
                     .fixedSize()
+                }
+            }
+            Section {
+                SettingRow("Mots en direct", help: "Tes mots s'écrivent dans la fenêtre pendant que tu parles") {
+                    Toggle("Mots en direct", isOn: $liveText)
+                }
+                SettingRow("Presse-papiers", help: restoreClipboard ? "Rendu comme avant après le collage ; ta dictée reste dans l'historique"
+                    : "Ta dictée y reste après le collage") {
+                    Toggle("Rendre le presse-papiers", isOn: $restoreClipboard)
                 }
             }
             Section {
@@ -156,6 +177,14 @@ struct DictationSettingsPane: View {
             }
         }
         .settingsForm()
+    }
+
+    static func help(_ mode: KeyGesture.Mode) -> String {
+        switch mode {
+        case .toggle: "Un appui commence, un appui finit : tu ne restes pas appuyé"
+        case .hold: "Tiens la touche le temps de parler ; deux appuis brefs pour parler mains libres"
+        case .hybrid: "Un appui bref commence, un appui finit ; tenue longtemps, elle finit quand tu la lâches"
+        }
     }
 
     private var state: String {

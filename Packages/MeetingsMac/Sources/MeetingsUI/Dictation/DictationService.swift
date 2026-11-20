@@ -26,12 +26,14 @@ import Persistence
     @Published public private(set) var notice: String?
     /// Whether macOS lets hub watch the key everywhere and paste into the other apps.
     @Published public private(set) var trusted = AXIsProcessTrusted()
+    /// When the recording started, for the window's clock.
+    @Published public private(set) var startedAt: Date?
 
     let library: DictationLibrary
     let helper: URL
     private var process: Process?
     private var input: FileHandle?
-    private var gesture = KeyGesture()
+    private var gesture = KeyGesture(mode: DictationService.mode)
     private var monitors: [Any] = []
     private var ticker: Timer?
     private var target: NSRunningApplication?
@@ -128,7 +130,7 @@ import Persistence
         case .level(let value):
             level = value
         case .partial(let text):
-            if phase == .listening { partial = text }
+            if phase == .listening, Self.on(Preferences.Key.dictationLiveText) { partial = text }
         case .final(let text, let seconds):
             finish(text, seconds: seconds)
         case .failed(let reason):
@@ -138,6 +140,15 @@ import Persistence
     }
 
     // MARK: - The key
+
+    /// Réglages › Dictée: a press starts and a press finishes, by default.
+    static var mode: KeyGesture.Mode {
+        UserDefaults.standard.string(forKey: Preferences.Key.dictationMode).flatMap(KeyGesture.Mode.init(rawValue:)) ?? .toggle
+    }
+
+    static func on(_ key: String) -> Bool {
+        UserDefaults.standard.object(forKey: key) as? Bool ?? true
+    }
 
     /// Everywhere when macOS trusts hub (Accessibility), else only while hub is in front.
     private func watchKey() {
@@ -155,6 +166,8 @@ import Persistence
 
     private func handle(_ event: NSEvent) {
         let now = ProcessInfo.processInfo.systemUptime
+        // A way changed in Réglages takes effect at the next dictation.
+        if gesture.state == .idle, gesture.mode != Self.mode { gesture = KeyGesture(mode: Self.mode) }
         let key = DictationKey.current
         switch event.type {
         case .flagsChanged where event.keyCode == key.keyCode:
@@ -179,6 +192,7 @@ import Persistence
             library.refreshKnown()
             partial = ""
             notice = nil
+            startedAt = Date()
             phase = .listening
             let language = UserDefaults.standard.string(forKey: Preferences.Key.dictationLanguage) == "auto" ? nil : "fr"
             send(.start(language: language, prompt: library.prompt))
@@ -208,7 +222,7 @@ import Persistence
         }
         library.keep(DictationRow(text: text, raw: raw, app: target?.localizedName, seconds: seconds, createdAt: Date()))
         if trusted, AXIsProcessTrusted() {
-            Paster.paste(text)
+            Paster.paste(text, restore: Self.on(Preferences.Key.dictationRestoreClipboard))
             pill?.hide()
         } else {
             NSPasteboard.general.clearContents()
@@ -219,6 +233,14 @@ import Persistence
                 self?.pill?.hide()
             }
         }
+    }
+
+    /// A state set by hand, for the window's captures (tests only).
+    func show(_ phase: Phase, partial: String, level: Double) {
+        self.phase = phase
+        self.partial = partial
+        self.level = level
+        startedAt = Date().addingTimeInterval(-7)
     }
 
     private func showPill() {
@@ -247,7 +269,8 @@ final class LineSplitter: @unchecked Sendable {
 
 /// The text where the cursor is (20/11): in the clipboard, a ⌘V for the app in front, then the clipboard as it was.
 enum Paster {
-    @MainActor static func paste(_ text: String) {
+    /// `restore`: the clipboard as it was afterwards (Réglages › Dictée); the text stays in the history either way.
+    @MainActor static func paste(_ text: String, restore: Bool) {
         let board = NSPasteboard.general
         let saved: [[NSPasteboard.PasteboardType: Data]] = board.pasteboardItems?.map { item in
             item.types.reduce(into: [:]) { result, type in result[type] = item.data(forType: type) }
@@ -261,7 +284,7 @@ enum Paster {
             event?.post(tap: .cghidEventTap)
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            guard !saved.isEmpty else { return }
+            guard restore, !saved.isEmpty else { return }
             board.clearContents()
             board.writeObjects(saved.map { types in
                 let item = NSPasteboardItem()
