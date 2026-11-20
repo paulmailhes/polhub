@@ -78,6 +78,12 @@ targets:
         copy:
           destination: wrapper
           subpath: Contents/Helpers
+      - target: HubDictee
+        embed: true
+        codeSign: true
+        copy:
+          destination: wrapper
+          subpath: Contents/Helpers
       - target: HubCLI
         embed: true
         codeSign: true
@@ -146,6 +152,12 @@ targets:
         copy:
           destination: wrapper
           subpath: Contents/Helpers
+      - target: HubDictee
+        embed: true
+        codeSign: true
+        copy:
+          destination: wrapper
+          subpath: Contents/Helpers
       - target: HubCLI
         embed: true
         codeSign: true
@@ -183,6 +195,31 @@ targets:
     settings:
       base:
         PRODUCT_NAME: hub-calcul
+        MACOSX_DEPLOYMENT_TARGET: "27.0"
+        SWIFT_VERSION: "6.0"
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "Developer ID Application"
+        DEVELOPMENT_TEAM: CQ43U6XX4Z
+        ENABLE_HARDENED_RUNTIME: YES
+        SKIP_INSTALL: YES
+  # hub-dictee (20/11): the Dictée's ear, Whisper loaded, outside the app.
+  HubDictee:
+    type: tool
+    platform: macOS
+    sources:
+      - path: Packages/MeetingsMac/Sources/HubDictee
+    dependencies:
+      - package: MeetingsMac
+        product: Compute
+      - package: MeetingsMac
+        product: Transcription
+      - package: MeetingsMac
+        product: Dictation
+    settings:
+      base:
+        PRODUCT_NAME: hub-dictee
+        # The Dictée listens to the microphone itself: a hardened program needs the right (20/11).
+        CODE_SIGN_ENTITLEMENTS: App/Hub/HubDictee.entitlements
         MACOSX_DEPLOYMENT_TARGET: "27.0"
         SWIFT_VERSION: "6.0"
         CODE_SIGN_STYLE: Manual

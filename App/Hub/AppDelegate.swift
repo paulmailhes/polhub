@@ -146,6 +146,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     /// The add-ons installed (20/11), settled at launch: what is not installed is never made.
     private(set) var addOns = Set(AddOn.allCases)
     private var addOnControl: AddOnControl?
+    private var dictation: DictationLibrary?
+    private var dictationService: DictationService?
     // The meetings.
     private(set) var store: MeetingStore?
     /// The folders, moved under the name hub-board at the first launch that has it (20/11), before anything opens the base.
@@ -263,10 +265,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         // The model of Réunions, downloaded when it is installed and missing, taken away when it is removed.
         // The models are shared by the installed and the development versions (13/11): their standard place.
         let models = ModelSetup()
+        // Réunions and Dictée share it: it goes with the last of them (20/11).
+        weak var installed: AddOnControl?
         let control = AddOnControl(store: addOnStore, isBusy: { [weak self] in !(await self?.isQuiet() ?? false) },
                                    relaunch: { [weak self] in self?.relaunchForAddOns() },
-                                   prepare: { addOn in addOn == .meetings ? await models.prepare() : nil },
-                                   cleanUp: { addOn in if addOn == .meetings { models.remove() } })
+                                   prepare: { addOn in [.meetings, .dictation].contains(addOn) ? await models.prepare() : nil },
+                                   cleanUp: { addOn in
+                                       guard [.meetings, .dictation].contains(addOn), let after = installed?.installed,
+                                             !after.contains(.meetings), !after.contains(.dictation) else { return }
+                                       models.remove()
+                                   })
+        installed = control
         models.control = control
         control.claudeFound = ClaudeBinary.find() != nil
         addOnControl = control
@@ -293,6 +302,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         projects = addOns.contains(.projects) ? ProjectLibrary(store: ProjectStore(store.database), meetings: store) : nil
         projectLogos = ProjectLogos(folder: paths.logos, database: store.database)
         startAgenda(database: store.database)
+        // The Dictée (20/11): its helper keeps Whisper loaded, the key is watched.
+        if addOns.contains(.dictation) {
+            let library = DictationLibrary(database: store.database)
+            let service = DictationService(library: library, helper: Bundle.main.bundleURL.appending(path: "Contents/Helpers/hub-dictee"))
+            service.start()
+            dictation = library
+            dictationService = service
+            coupDoeil.dictation = library
+        }
         // Nothing installed yet (a new Mac): the window opens on Réglages › Add-ons, « Choisis tes add-ons ».
         if addOns.isEmpty {
             router.section = .settings
@@ -870,7 +888,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             let diagnostic = diagnostic
             let probe = colinProbe
             let view = MainWindowView(library: library, projects: projects, agenda: agenda, mails: mails, colin: colin, thread: colinThread, colinProbe: colinProbe, claudeAccounts: claudeAccounts, inspiration: inspiration,
-                                      updates: updates, notifications: notifications, startup: startup, phone: phone, addOns: addOns, addOnControl: addOnControl, router: router, paths: paths) {
+                                      updates: updates, notifications: notifications, startup: startup, phone: phone, addOns: addOns, addOnControl: addOnControl,
+                                      dictation: dictation, dictationService: dictationService, router: router, paths: paths) {
                 if let diagnostic {
                     DiagnosticView(model: diagnostic, colin: probe) { [weak self] in self?.showProbeWindow() }
                 }

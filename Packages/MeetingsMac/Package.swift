@@ -12,6 +12,7 @@ let package = Package(
         .library(name: "Pipeline", targets: ["Pipeline"]),
         .library(name: "ProbeKit", targets: ["ProbeKit"]),
         .library(name: "Transcription", targets: ["Transcription"]),
+        .library(name: "Dictation", targets: ["Dictation"]),
         .library(name: "Compute", targets: ["Compute"]),
         .library(name: "ReadingKit", targets: ["ReadingKit"]),
         .library(name: "ProjectsUI", targets: ["ProjectsUI"]),
@@ -133,6 +134,8 @@ let package = Package(
             "Colin",
             "Notifications",
             "Inspiration",
+            // La Dictée (20/11).
+            "Dictation",
             // hub on the iPhone (20/11): the server on the loopback, and what it says.
             "LocalServer",
             .product(name: "HubLink", package: "Link"),

@@ -30,6 +30,8 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
     let addOns: Set<AddOn>
     /// Réglages › Add-ons (20/11); none in a capture or a test that does not ask for it.
     let addOnControl: AddOnControl?
+    /// Réglages › Dictée (20/11), when the Dictée is installed.
+    let dictationService: DictationService?
     let diagnostic: Diagnostic
     let journal: Journal
 
@@ -37,7 +39,9 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
          inspiration: InspirationLibrary? = nil, library: MeetingLibrary,
          notifications: NotificationHub? = nil, startup: StartupControl? = nil, colinThread: ColinThread? = nil, colinProbe: ColinProbeControl? = nil,
          phone: PhoneAccess? = nil, addOns: Set<AddOn> = Set(AddOn.allCases), addOnControl: AddOnControl? = nil,
+         dictationService: DictationService? = nil,
          @ViewBuilder diagnostic: () -> Diagnostic, @ViewBuilder journal: () -> Journal) {
+        self.dictationService = dictationService
         self.phone = phone
         self.addOns = addOns
         self.addOnControl = addOnControl
@@ -86,7 +90,8 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
         Form {
             ForEach(Array(SettingsPane.families(hasAgenda: agenda != nil, hasProjects: projects != nil, hasMails: hasMails,
                                                 hasInspiration: inspiration != nil, hasMeetings: addOns.contains(.meetings),
-                                                hasColin: addOns.contains(.colin), hasPhone: phone != nil).enumerated()), id: \.offset) { _, group in
+                                                hasColin: addOns.contains(.colin), hasPhone: phone != nil,
+                                                hasDictation: dictationService != nil).enumerated()), id: \.offset) { _, group in
                 Section {
                     ForEach(group, id: \.self) { pane in
                         Button { router.settingsPane = pane } label: { SettingsRow(pane: pane) }
@@ -129,6 +134,8 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
             MeetingsSettingsPane(library: library)
         case .inspiration:
             if let inspiration { InspirationSettingsPane(library: inspiration, router: router) }
+        case .dictation:
+            if let dictationService { DictationSettingsPane(service: dictationService) }
         case .updates:
             if let updates {
                 UpdatesSettingsView(updates: updates)

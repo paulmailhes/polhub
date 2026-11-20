@@ -5,6 +5,8 @@ import Foundation
 public enum AddOn: String, CaseIterable, Codable, Sendable {
     case projects = "projets"
     case meetings = "reunions"
+    /// The Dictée (20/11): Paul talks, his words are written where his cursor is; Réunions' model.
+    case dictation = "dictee"
     case calendar = "calendrier"
     case mails = "mails"
     case inspiration = "inspiration"
@@ -16,6 +18,7 @@ public enum AddOn: String, CaseIterable, Codable, Sendable {
         switch self {
         case .projects: "Projets"
         case .meetings: "Réunions"
+        case .dictation: "Dictée"
         case .calendar: "Calendrier"
         case .mails: "Mails"
         case .inspiration: "Inspiration"
@@ -29,7 +32,7 @@ public enum AddOn: String, CaseIterable, Codable, Sendable {
         switch self {
         case .mails: [.calendar]
         case .colin: [.mails, .calendar]
-        case .projects, .meetings, .calendar, .inspiration, .iphone: []
+        case .projects, .meetings, .dictation, .calendar, .inspiration, .iphone: []
         }
     }
 }

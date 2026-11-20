@@ -56,7 +56,7 @@ public struct WindowKeys {
             // From an item open, its page's grid, where the « + » is.
             if router.inspirationItem != nil { router.openInspiration(router.inspirationPage) }
             router.addRequest = UUID()
-        case .home, .meetings, .mails, .contacts, .settings:
+        case .home, .meetings, .mails, .contacts, .dictation, .settings:
             guard let mails, !mails.accounts.isEmpty else { return false }
             mails.writeNewMail(router: router)
         }
@@ -82,7 +82,7 @@ extension WindowRouter {
             openInspiration(inspirationPage)
         case .settings:
             openSettings(nil)
-        case .home, .projects, .meetings, .calendar, .contacts:
+        case .home, .projects, .meetings, .calendar, .contacts, .dictation:
             section = item
         }
     }

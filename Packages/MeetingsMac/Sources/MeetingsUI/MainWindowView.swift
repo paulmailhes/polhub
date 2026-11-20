@@ -9,7 +9,7 @@ import Updates
 
 /// The sidebar keeps the work; the app's own pages (diagnostic, journal) live in Réglages (Paul, 13/11).
 public enum SidebarItem: String, Hashable, Sendable {
-    case home, projects, meetings, calendar, mails, contacts, inspiration, settings
+    case home, projects, meetings, calendar, mails, contacts, inspiration, dictation, settings
 
     var title: String {
         switch self {
@@ -20,6 +20,7 @@ public enum SidebarItem: String, Hashable, Sendable {
         case .mails: "Mails"
         case .contacts: "Contacts"
         case .inspiration: "Inspiration"
+        case .dictation: "Dictée"
         case .settings: "Réglages"
         }
     }
@@ -34,6 +35,7 @@ public enum SidebarItem: String, Hashable, Sendable {
         case .mails: .mails
         case .contacts: .contacts
         case .inspiration: .inspiration
+        case .dictation: .dictation
         case .settings: .settings
         }
     }
@@ -47,6 +49,7 @@ public enum SidebarItem: String, Hashable, Sendable {
         case .mails: "envelope.fill"
         case .contacts: "person.2.fill"
         case .inspiration: "lightbulb.fill"
+        case .dictation: "waveform"
         case .settings: "gearshape.fill"
         }
     }
@@ -61,6 +64,7 @@ public enum SidebarItem: String, Hashable, Sendable {
         case .mails: Palette.pink
         case .contacts: Palette.green
         case .inspiration: Palette.yellow
+        case .dictation: Palette.indigo
         case .settings: Palette.gray
         }
     }
@@ -69,10 +73,11 @@ public enum SidebarItem: String, Hashable, Sendable {
     /// Contacts need the agenda (13/11). « Inspiration » on one row, after Mails; Contacts at the bottom, with Réglages
     /// (lot 4, 19/11: « Mails court »).
     /// Réunions only when its add-on is installed (20/11).
+    /// Dictée last (20/11): the keys ⌘1 to ⌘7 of the others do not move, and it has none.
     static func visible(hasProjects: Bool, hasAgenda: Bool, hasMails: Bool = false, hasInspiration: Bool = false,
-                        hasMeetings: Bool = true) -> [SidebarItem] {
+                        hasMeetings: Bool = true, hasDictation: Bool = false) -> [SidebarItem] {
         [hasAgenda ? .home : nil, hasProjects ? .projects : nil, hasMeetings ? .meetings : nil, hasAgenda ? .calendar : nil,
-         hasMails ? .mails : nil, hasInspiration ? .inspiration : nil].compactMap { $0 }
+         hasMails ? .mails : nil, hasInspiration ? .inspiration : nil, hasDictation ? .dictation : nil].compactMap { $0 }
     }
 
     /// The rows at the bottom of the sidebar, apart from the work (lot 4, 19/11): Contacts, then Réglages.
@@ -99,7 +104,7 @@ public enum SidebarItem: String, Hashable, Sendable {
 /// The families of Réglages, entered one by one, as in Apple's settings (Paul, 14/11). Every new feature puts
 /// its settings in its family.
 public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
-    case addOns, general, notifications, accounts, iphone, calendar, mails, colin, projects, meetings, inspiration, updates, diagnostic, journal
+    case addOns, general, notifications, accounts, iphone, calendar, mails, colin, projects, meetings, inspiration, dictation, updates, diagnostic, journal
 
     public var title: String {
         switch self {
@@ -114,6 +119,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .projects: "Projets"
         case .meetings: "Réunions"
         case .inspiration: "Inspiration"
+        case .dictation: "Dictée"
         case .updates: "Mises à jour"
         case .diagnostic: "Diagnostic"
         case .journal: "Journal"
@@ -133,6 +139,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .projects: "square.grid.3x2.fill"
         case .meetings: "waveform"
         case .inspiration: "lightbulb.fill"
+        case .dictation: "waveform"
         case .updates: "arrow.down.circle.fill"
         case .diagnostic: "stethoscope"
         case .journal: "list.bullet.rectangle.fill"
@@ -152,6 +159,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .projects: Palette.blue
         case .meetings: Palette.violet
         case .inspiration: Palette.yellow
+        case .dictation: Palette.indigo
         // Beside Général since lot 7 (19/11): no longer its grey, a family is found by its color.
         case .updates: Palette.brown
         case .diagnostic: Palette.green
@@ -174,6 +182,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .projects: "Taille des cartes du kanban"
         case .meetings: "Comptes rendus, langue des transcriptions"
         case .inspiration: "Pages LinkedIn, collecte, catégories"
+        case .dictation: "Touche, langue, autorisation"
         case .updates: "Version installée, installation automatique"
         case .diagnostic: "Autorisations, micro, Dia"
         case .journal: "Ce que hub a fait et vu"
@@ -185,9 +194,9 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
     /// read in them. Diagnostic and Journal are lines of Général, no families.
     /// Add-ons first, alone (20/11): what hub can do. Colin's and the iPhone's families follow their add-ons.
     static func families(hasAgenda: Bool, hasProjects: Bool, hasMails: Bool = false, hasInspiration: Bool = false,
-                         hasMeetings: Bool = true, hasColin: Bool = true, hasPhone: Bool = true) -> [[SettingsPane]] {
+                         hasMeetings: Bool = true, hasColin: Bool = true, hasPhone: Bool = true, hasDictation: Bool = false) -> [[SettingsPane]] {
         let work = SidebarItem.visible(hasProjects: hasProjects, hasAgenda: hasAgenda, hasMails: hasMails, hasInspiration: hasInspiration,
-                                       hasMeetings: hasMeetings)
+                                       hasMeetings: hasMeetings, hasDictation: hasDictation)
             .compactMap { section in allCases.first { $0.section == section } }
             .filter { $0 != .colin || (hasMails && hasColin) }
         return [[.addOns], work, [hasAgenda ? .accounts : nil, hasPhone ? .iphone : nil, .notifications, .updates, .general].compactMap { $0 }]
@@ -202,6 +211,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .calendar: .calendar
         case .mails: .mails
         case .inspiration: .inspiration
+        case .dictation: .dictation
         case .addOns, .general, .notifications, .accounts, .iphone, .updates, .diagnostic, .journal: nil
         }
     }
@@ -461,7 +471,7 @@ public final class WindowRouter: ObservableObject {
         case .projects: place.project != nil ? .project : nil
         case .inspiration: place.inspirationItem != nil ? .inspirationItem : nil
         case .settings: place.settingsPane != nil ? .settingsPane : nil
-        case .meetings, .calendar, .contacts: nil
+        case .meetings, .calendar, .contacts, .dictation: nil
         }
     }
 
@@ -677,6 +687,9 @@ public struct MainWindowView<Diagnostic: View>: View {
     /// The add-ons installed (20/11): Réunions shows in the sidebar only with its own.
     let addOns: Set<AddOn>
     let addOnControl: AddOnControl?
+    /// The Dictée, when installed (20/11).
+    let dictation: DictationLibrary?
+    let dictationService: DictationService?
     @ObservedObject var router: WindowRouter
     let paths: AppPaths
     let diagnostic: Diagnostic
@@ -686,12 +699,15 @@ public struct MainWindowView<Diagnostic: View>: View {
         library: MeetingLibrary, projects: ProjectLibrary? = nil, agenda: AgendaLibrary? = nil, mails: MailLibrary? = nil, colin: ColinLibrary? = nil,
         thread: ColinThread? = nil, colinProbe: ColinProbeControl? = nil, claudeAccounts: ClaudeAccountsModel? = nil, inspiration: InspirationLibrary? = nil, updates: UpdateService? = nil, notifications: NotificationHub? = nil,
         startup: StartupControl? = nil, phone: PhoneAccess? = nil, addOns: Set<AddOn> = Set(AddOn.allCases), addOnControl: AddOnControl? = nil,
+        dictation: DictationLibrary? = nil, dictationService: DictationService? = nil,
         router: WindowRouter, paths: AppPaths,
         @ViewBuilder diagnostic: () -> Diagnostic
     ) {
         self.phone = phone
         self.addOns = addOns
         self.addOnControl = addOnControl
+        self.dictation = dictation
+        self.dictationService = dictationService
         self.notifications = notifications
         self.startup = startup
         self.library = library
@@ -715,7 +731,8 @@ public struct MainWindowView<Diagnostic: View>: View {
         NavigationSplitView(columnVisibility: $columns) {
             Sidebar(router: router, library: library, agenda: agenda, mails: mails,
                     items: SidebarItem.visible(hasProjects: projects != nil, hasAgenda: agenda != nil, hasMails: mails != nil,
-                                               hasInspiration: inspiration != nil, hasMeetings: addOns.contains(.meetings)),
+                                               hasInspiration: inspiration != nil, hasMeetings: addOns.contains(.meetings),
+                                               hasDictation: dictation != nil),
                     footer: SidebarItem.footer(hasAgenda: agenda != nil))
                 // One width, always: a sidebar free to resize changed size from one section to the next (Paul, 15/11).
                 .navigationSplitViewColumnWidth(Self.sidebarWidth)
@@ -752,6 +769,8 @@ public struct MainWindowView<Diagnostic: View>: View {
                 if let mails { MailSectionView(mails: mails, router: router) }
             case .inspiration:
                 if let inspiration { InspirationSectionView(library: inspiration, router: router) }
+            case .dictation:
+                if let dictation { DictationPage(library: dictation) }
             case .projects:
                 if let projects {
                     ProjectsView(library: projects)
@@ -811,7 +830,7 @@ public struct MainWindowView<Diagnostic: View>: View {
             case .settings:
                 SettingsPage(router: router, updates: updates, projects: projects, agenda: agenda, mails: mails, inspiration: inspiration,
                              library: library, notifications: notifications, startup: startup, colinThread: thread, colinProbe: colinProbe,
-                             phone: phone, addOns: addOns, addOnControl: addOnControl) {
+                             phone: phone, addOns: addOns, addOnControl: addOnControl, dictationService: dictationService) {
                     diagnostic
                 } journal: {
                     JournalView(entries: library.journal)

@@ -90,6 +90,10 @@ public struct Preferences: @unchecked Sendable {
         /// Whether the relaunch agent was on, noted at each launch (0.57.1): the version that changes its name (hub.app
         /// → hub.app, 20/11) registers it again from its new place.
         public static let relaunchHint = "relanceActive"
+        /// Réglages › Dictée (20/11): the key held to talk (`DictationKey`), ⌥ right by default; the language, French or
+        /// « auto ».
+        public static let dictationKey = "dictee.touche"
+        public static let dictationLanguage = "dictee.langue"
         public static let cardSize = "projets.tailleDesCartes"
         /// Réglages › Projets (15/11): the logos asked of the clients' sites.
         public static let projectLogos = "projets.logosEnLigne"

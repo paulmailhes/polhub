@@ -44,14 +44,14 @@ import Testing
         let all = Set(AddOn.allCases)
         let left = AddOns.uninstalling(.calendar, from: all)
         #expect(!left.contains(.calendar) && !left.contains(.mails) && !left.contains(.colin))
-        #expect(left.contains(.projects) && left.contains(.meetings))
+        #expect(left.contains(.projects) && left.contains(.meetings) && left.contains(.dictation))
         #expect(AddOns.removed(by: .calendar, from: all) == [.mails, .colin])
         #expect(AddOns.removed(by: .projects, from: all).isEmpty)
     }
 
     @Test func theIdentifiersAndNamesAreFixed() {
-        #expect(AddOn.allCases.map(\.rawValue) == ["projets", "reunions", "calendrier", "mails", "inspiration", "colin", "iphone"])
-        #expect(AddOn.allCases.map(\.title) == ["Projets", "Réunions", "Calendrier", "Mails", "Inspiration", "Colin", "iPhone"])
+        #expect(AddOn.allCases.map(\.rawValue) == ["projets", "reunions", "dictee", "calendrier", "mails", "inspiration", "colin", "iphone"])
+        #expect(AddOn.allCases.map(\.title) == ["Projets", "Réunions", "Dictée", "Calendrier", "Mails", "Inspiration", "Colin", "iPhone"])
         #expect(AddOnStore.key == "addOns.installes")
     }
 }

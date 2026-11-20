@@ -76,7 +76,7 @@ struct AddOnsSettingsPane: View {
         if installing {
             parts = [control.confirmation(installing: addOn), AddOnTexts.installing]
         } else {
-            parts = [control.confirmation(uninstalling: addOn), addOn == .meetings ? AddOnTexts.takingModel : nil,
+            parts = [control.confirmation(uninstalling: addOn), AddOnTexts.takingModel(addOn, installed: control.installed),
                      AddOnTexts.keepsData, AddOnTexts.removing]
         }
         asking = Question(addOn: addOn, installing: installing, message: parts.compactMap { $0 }.joined(separator: " "))

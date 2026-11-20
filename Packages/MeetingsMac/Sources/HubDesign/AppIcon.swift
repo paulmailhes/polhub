@@ -9,6 +9,8 @@ import SwiftUI
 public enum AppIcon: String, CaseIterable, Sendable {
     // The sidebar.
     case home, projects, meetings, calendar, mails, contacts, settings
+    /// « Dictée » (20/11).
+    case dictation
     /// The notifications center.
     case bell
     // The mail folders.
@@ -31,6 +33,7 @@ public enum AppIcon: String, CaseIterable, Sendable {
         case .home: "house"
         case .projects: "folders"
         case .meetings: "microphone"
+        case .dictation: "waveform"
         case .calendar: "calendar-dots"
         case .mails: "envelope-simple"
         case .contacts: "address-book"

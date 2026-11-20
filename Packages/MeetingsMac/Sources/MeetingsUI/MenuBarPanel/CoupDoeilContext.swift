@@ -78,6 +78,8 @@ public final class CoupDoeilContext {
     public private(set) var notifications: NotificationHub?
     /// Updates (`state`, `newer`, `autoInstall`, `installNow()`); nil in the development build.
     public private(set) var updates: UpdateService?
+    /// The Dictée, when installed (20/11): « Copier la dernière dictée ».
+    public var dictation: DictationLibrary?
 
     /// Watches the meeting open in the window: once transcribed, its summary is read (16/11).
     @ObservationIgnored private var openedMeeting: AnyCancellable?

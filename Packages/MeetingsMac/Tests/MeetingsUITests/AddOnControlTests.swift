@@ -47,7 +47,7 @@ import Testing
     @Test func uninstallingTakesTheDependentsAndCleansUp() async throws {
         let (control, store, calls) = try control(Set(AddOn.allCases))
         await control.uninstall(.calendar)
-        #expect(store.installed == [.projects, .meetings, .inspiration, .iphone])
+        #expect(store.installed == [.projects, .meetings, .dictation, .inspiration, .iphone])
         #expect(calls.cleaned == [.calendar, .mails, .colin] && calls.relaunched == 1)
     }
 

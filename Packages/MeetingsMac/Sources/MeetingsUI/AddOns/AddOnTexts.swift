@@ -7,7 +7,13 @@ public enum AddOnTexts {
     public static let removing = "hub se relance pour le retirer."
     public static let keepsData = "Ses données restent : le réinstaller le remet comme avant."
     public static let permissions = "Les autorisations données à macOS se retirent dans Réglages Système › Confidentialité."
-    public static let takingModel = "Désinstaller Réunions efface aussi son modèle (1,6 Go). Tes réunions enregistrées restent."
+    /// Réunions and Dictée share their model: it goes with the last of them.
+    public static func takingModel(_ addOn: AddOn, installed: Set<AddOn>) -> String? {
+        let other: AddOn = addOn == .meetings ? .dictation : .meetings
+        guard [.meetings, .dictation].contains(addOn), !installed.contains(other) else { return nil }
+        return addOn == .meetings ? "Désinstaller Réunions efface aussi son modèle (1,6 Go). Tes réunions enregistrées restent."
+            : "Désinstaller Dictée efface aussi son modèle (1,6 Go). Ton historique et ta mémoire restent."
+    }
     public static let needsClaude = "Installe d'abord Claude Code sur ce Mac."
     public static let choose = "Choisis tes add-ons : hub ne montre et ne fait que ce que tu installes."
 
@@ -16,6 +22,7 @@ public enum AddOnTexts {
         switch addOn {
         case .projects: "Le kanban et la page de chaque projet"
         case .meetings: "Tes Meet enregistrés, transcrits et résumés"
+        case .dictation: "Parle : tes mots s'écrivent là où est ton curseur"
         case .calendar: "Ton agenda Google"
         case .mails: "Tes boîtes Gmail"
         case .inspiration: "Sites, branding et mock-ups"
@@ -28,6 +35,7 @@ public enum AddOnTexts {
     public static func needs(_ addOn: AddOn) -> String? {
         switch addOn {
         case .meetings: "1,6 Go à télécharger"
+        case .dictation: "le modèle de Réunions (1,6 Go), l'Accessibilité"
         case .calendar, .mails: "un compte Google"
         case .colin: "Claude Code sur ce Mac"
         case .iphone: "iCloud"

@@ -34,6 +34,6 @@
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>hub enregistre le son de ton navigateur pendant tes réunions pour les transcrire sur ce Mac.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>hub enregistre ta voix pendant tes réunions pour les transcrire sur ce Mac.</string>
+	<string>hub enregistre ta voix pendant tes réunions, et quand tu dictes, pour l'écrire sur ce Mac.</string>
 </dict>
 </plist>

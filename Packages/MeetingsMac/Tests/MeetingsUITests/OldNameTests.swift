@@ -16,6 +16,7 @@ import Updates
         "archiveNames = [\"hub-board.zip\", \"Polhub.zip\"]",     // les versions publiées sous l'ancien nom
         "appNames = [\"hub.app\", \"Polhub.app\"]",
         "(?:hub-board|Polhub)-",                                  // les copies de la base d'avant
+        "(\"Polhub\", \"hub\")",                                    // la Dictée corrige l'ancien nom entendu
     ]
 
     static var root: URL {

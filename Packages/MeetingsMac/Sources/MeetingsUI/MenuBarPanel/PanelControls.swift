@@ -195,6 +195,10 @@ struct PanelFooter: View {
                         Button("Ouvrir Contacts") { context.open(.section(.contacts)) }
                     }
                     Button("Ouvrir le Diagnostic") { context.actions.showDiagnostic() }
+                    if let dictation = context.dictation {
+                        Button("Copier la dernière dictée") { dictation.copyLast() }
+                            .disabled(dictation.history.isEmpty)
+                    }
                     Divider()
                     // No key: quitting must never cut a meeting by mistake.
                     Button("Quitter hub") { context.actions.quit() }

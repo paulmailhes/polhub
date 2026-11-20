@@ -3,6 +3,19 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.61.0 — 20 novembre 2026
+
+**Dictée : tu parles, tes mots s'écrivent là où est ton curseur.**
+
+- Un nouvel add-on, à installer dans Réglages › Add-ons. Tiens ⌥ droite et parle : une pastille montre ta voix et tes
+  mots, et le texte arrive là où tu écris, dans n'importe quelle app, quand tu relâches. Deux appuis : tu parles mains
+  libres, un appui arrête. Échap annule.
+- Elle utilise le même Whisper que tes réunions : rien à télécharger chez toi.
+- Une section « Dictée » : l'historique de ce que tu as dit, et ta mémoire (tes mots, et des corrections comme
+  « mythe » qui donne « Meet »). Whisper connaît d'avance tes projets, leurs clients et tes contacts.
+- « Copier la dernière dictée » dans le Coup d'œil, et Réglages › Dictée pour la touche, la langue et l'autorisation
+  Accessibilité.
+
 ## 0.60.0 — 20 novembre 2026
 
 **Les notifications de l'iPhone passent chiffrées.**

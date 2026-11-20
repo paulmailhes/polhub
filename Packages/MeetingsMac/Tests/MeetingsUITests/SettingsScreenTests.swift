@@ -96,11 +96,20 @@ struct SettingsScreenTests {
         addOnStore.save(Set(AddOn.allCases).subtracting([.colin, .iphone]))
         let addOnControl = AddOnControl(store: addOnStore, isBusy: { false }, relaunch: {})
         addOnControl.claudeFound = false
+        // La Dictée (20/11) : deux dictées, un mot, l'aide jamais lancée.
+        let dictation = DictationLibrary(database: database)
+        dictation.keep(DictationRow(text: "Bonjour, je t'envoie le devis du site ce soir.", raw: "bonjour je t'envoie le devis", app: "Mail",
+                                    seconds: 3.2, createdAt: Date().addingTimeInterval(-3_600)))
+        dictation.keep(DictationRow(text: "Ajoute une action : relancer l'atelier pour les photos.", raw: "ajoute une action", app: "Code",
+                                    seconds: 2.1, createdAt: Date().addingTimeInterval(-120)))
+        dictation.addWord("Atelier Exemple")
+        let dictationService = DictationService(library: dictation, helper: URL(fileURLWithPath: "/usr/bin/false"))
+        try await waitUntil { dictation.history.count == 2 && dictation.words.count == 1 }
 
         func window(_ startup: StartupControl) -> some View {
             MainWindowView(library: library, projects: projects, agenda: agenda, mails: mails, thread: thread, colinProbe: probe,
                            inspiration: inspiration, updates: updates, startup: startup, phone: phone, addOnControl: addOnControl,
-                           router: router, paths: world.paths) {
+                           dictation: dictation, dictationService: dictationService, router: router, paths: world.paths) {
                 DiagnosticView(model: model, colin: probe) {}
             }
             .environment(\.projectLogos, logos)
@@ -113,6 +122,9 @@ struct SettingsScreenTests {
                                              size: Self.size, dark: dark, wait: .milliseconds(1_800))
             }
         }
+        // La page Dictée (20/11).
+        router.section = .dictation
+        try await LiveWindow.capture(window(startup), to: output.appending(path: "dictee-historique.png"), size: Self.size, wait: .milliseconds(1_800))
         // The narrowest window, on the pages with the most helps: two lines at most, beside a list too.
         for pane in [SettingsPane.general, .notifications, .mails, .colin, .meetings, .inspiration] {
             router.openSettings(pane)

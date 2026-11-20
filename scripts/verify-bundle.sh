@@ -59,7 +59,7 @@ check "pas de droit get-task-allow"       lacks "$entitlements" "get-task-allow"
 
 # Étape 2 : le calcul et la ligne de commande, signés comme l'app.
 HELPERS="$APP/Contents/Helpers"
-for tool in hub-calcul hub; do
+for tool in hub-calcul hub-dictee hub; do
     tool_details=$(codesign -dv --verbose=4 "$HELPERS/$tool" 2>&1 || true)
     check "$tool présent"                 test -x "$HELPERS/$tool"
     check "$tool signé par CQ43U6XX4Z"    has "$tool_details" "TeamIdentifier=CQ43U6XX4Z"
@@ -67,6 +67,8 @@ for tool in hub-calcul hub; do
     check "$tool horodaté"                has "$tool_details" "Timestamp="
     check "$tool sans get-task-allow"     lacks "$(codesign -d --entitlements - --xml "$HELPERS/$tool" 2>/dev/null)" "get-task-allow"
 done
+# The Dictée's helper listens to the microphone itself (20/11).
+check "hub-dictee : droit audio-input"   has "$(codesign -d --entitlements - --xml "$HELPERS/hub-dictee" 2>/dev/null)" "com.apple.security.device.audio-input"
 check "hub --help répond"           "$HELPERS/hub" --help
 check "aucun modèle d'IA lié à l'app"     not_linked_whisperkit
 
