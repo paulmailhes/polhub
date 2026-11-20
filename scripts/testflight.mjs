@@ -69,7 +69,23 @@ if (ordre === "attendre") {
   const deja = ajout.corps?.errors?.some((e) => /already|existe/i.test(e.detail ?? ""));
   if (ajout.statut >= 300 && !deja) throw new Error(`Testeur refusé : ${JSON.stringify(ajout.corps?.errors?.map((e) => e.detail))}`);
   console.log("Groupe TestFlight « Paul » prêt : chaque version arrive seule sur l'iPhone.");
+} else if (ordre === "pret") {
+  // Attend que la dernière version envoyée soit traitée par Apple : elle est alors dans TestFlight.
+  const fiche = await app();
+  if (!fiche) throw new Error("La fiche de l'app n'existe pas encore.");
+  for (;;) {
+    const r = await asc(`/v1/builds?filter[app]=${fiche.id}&sort=-uploadedDate&limit=1&fields[builds]=version,processingState`);
+    const build = r.corps?.data?.[0];
+    if (build?.attributes.processingState === "VALID") {
+      console.log(`Version ${build.attributes.version} prête dans TestFlight.`);
+      process.exit(0);
+    }
+    if (build?.attributes.processingState === "FAILED" || build?.attributes.processingState === "INVALID") {
+      throw new Error(`Apple a refusé la version ${build.attributes.version} (${build.attributes.processingState}).`);
+    }
+    await new Promise((r) => setTimeout(r, 30_000));
+  }
 } else {
-  console.error("Usage : node scripts/testflight.mjs attendre|groupe");
+  console.error("Usage : node scripts/testflight.mjs attendre|groupe|pret");
   process.exit(2);
 }
