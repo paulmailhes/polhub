@@ -75,6 +75,28 @@ public final class WhisperEngine: TranscribingEngine, @unchecked Sendable {
         }
     }
 
+    /// The Dictée (20/11): one recording, its text. The memory's words go as Whisper's prompt; a recording longer than
+    /// one window is cut by WhisperKit's own detector.
+    public func dictate(_ samples: [Float], language: String?, prompt: String, long: Bool) async throws -> String {
+        var tokens: [Int]?
+        if !prompt.isEmpty, let tokenizer = kit.tokenizer {
+            let begin = tokenizer.specialTokens.specialTokenBegin
+            tokens = Array(tokenizer.encode(text: " " + prompt).filter { $0 < begin }.prefix(200))
+        }
+        let options = DecodingOptions(
+            language: language,
+            usePrefillPrompt: true,
+            detectLanguage: language == nil,
+            skipSpecialTokens: true,
+            withoutTimestamps: true,
+            promptTokens: tokens,
+            concurrentWorkerCount: 4,
+            chunkingStrategy: long ? .vad : ChunkingStrategy.none
+        )
+        let results = try await kit.transcribe(audioArray: samples, decodeOptions: options)
+        return results.map(\.text).joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     public enum EngineError: Error, CustomStringConvertible {
         case clipFailed(Int)
 

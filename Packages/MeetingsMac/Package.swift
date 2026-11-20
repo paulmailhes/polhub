@@ -26,8 +26,9 @@ let package = Package(
         .library(name: "Inspiration", targets: ["Inspiration"]),
         .library(name: "Colin", targets: ["Colin"]),
         .library(name: "LocalServer", targets: ["LocalServer"]),
-        .executable(name: "polhub-calcul", targets: ["HubCalcul"]),
-        .executable(name: "polhub", targets: ["HubCLI"]),
+        .executable(name: "hub-calcul", targets: ["HubCalcul"]),
+        .executable(name: "hub-dictee", targets: ["HubDictee"]),
+        .executable(name: "hub", targets: ["HubCLI"]),
     ],
     dependencies: [
         .package(path: "../Kernel"),
@@ -107,6 +108,7 @@ let package = Package(
             .product(name: "FluidAudio", package: "FluidAudio"),
         ]),
         .executableTarget(name: "HubCalcul", dependencies: ["Compute", "Transcription"]),
+        .executableTarget(name: "HubDictee", dependencies: ["Compute", "Transcription", "Dictation"]),
         // Claude Code reads the meetings through these, read-only.
         .target(name: "ReadingKit", dependencies: [
             "MailFormat",
