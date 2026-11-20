@@ -132,7 +132,8 @@ struct GuestRow: View {
     private func standing(_ link: PersonLink, person: MailAddress) -> some View {
         if let project {
             if link == .member {
-                Chip("Dans « \(project.name) »", systemImage: "checkmark", tint: PeopleStyle.color(of: project))
+                // Neutral, the project's color in its dot: an identity never colors a text (lot 8, 19/11).
+                Chip("Dans « \(project.name) »", dot: PeopleStyle.color(of: project))
                     .help("Contact lié au projet « \(project.name) »")
             } else {
                 // A gesture to make, at the app's accent (design system v2, 19/11).

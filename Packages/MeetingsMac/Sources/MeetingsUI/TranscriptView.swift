@@ -11,13 +11,13 @@ struct TranscriptHeader: View {
     let queue: TranscriptionQueue?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
+        VStack(alignment: .leading, spacing: Space.xs) {
+            HStack(alignment: .firstTextBaseline, spacing: Space.s) {
                 Label("Transcription", systemImage: "text.quote").font(.headline)
                 if case .running(let progress)? = status {
                     ProgressView(value: progress).frame(maxWidth: 120).controlSize(.small)
                 }
-                Spacer(minLength: 8)
+                Spacer(minLength: Space.s)
                 if case .failed? = status {
                     Button("Réessayer") { Task { await queue?.retry(meetingID: meetingID) } }.buttonStyle(.secondary).controlSize(.small)
                 }
@@ -107,7 +107,7 @@ struct DialogueParagraph: View {
     @State private var hovering = false
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 14) {
+        HStack(alignment: .firstTextBaseline, spacing: Space.l) {
             VStack(alignment: .leading, spacing: 2) {
                 // « Moi » and the time that plays at the app's accent, ink (design system v2, 19/11).
                 Text(paragraph.speaker.label)
@@ -144,8 +144,9 @@ struct DialogueParagraph: View {
             }
         }
         .padding(.vertical, Space.s)
-        .padding(.horizontal, 10)
-        .hoverRow(selected: heard)
+        // On the page's edge, as « Transcription » above; the highlight spills past it (lot 8, 19/11: the turns were set
+        // 10 points in).
+        .hoverRow(selected: heard, inset: Space.s)
         .onHover { hovering = $0 }
         .animation(Motion.quick, value: hovering)
     }

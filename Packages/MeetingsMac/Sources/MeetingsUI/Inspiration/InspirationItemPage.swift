@@ -52,8 +52,9 @@ struct InspirationItemPage: View {
     private var header: some View {
         HStack(alignment: .top, spacing: Space.l) {
             VStack(alignment: .leading, spacing: Space.xs) {
+                // The large title of an object open, 26 points, as a project's (lot 8, 19/11).
                 Text(InspirationBrowse.displayTitle(item))
-                    .font(.title.weight(.bold))
+                    .font(.largeTitle.weight(.bold))
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 6) {
@@ -226,7 +227,8 @@ struct InspirationCategoryMenu: View {
         } label: {
             Group {
                 if row.values.isEmpty {
-                    Text("Choisir…").font(.meta).foregroundStyle(.tertiary)
+                    // Grey to be read (lot 8, 19/11): in `.tertiary`, 1.9:1.
+                    Text("Choisir…").font(.meta).foregroundStyle(.secondary)
                         .padding(.vertical, 3)
                 } else {
                     FlowLayout(spacing: Space.xs) {

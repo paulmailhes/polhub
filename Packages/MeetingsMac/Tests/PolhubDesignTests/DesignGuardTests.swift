@@ -21,7 +21,8 @@ import Testing
              ceiling: 0),
         // The typography of the screens moves at their lots (5 to 9). Lot 5 (19/11): the Accueil has none left, 57 → 42.
         // Lot 6 (19/11): the mails' bands, the programmed line and two chevrons, 42 → 37; lot 7: Réglages has none left, → 36.
-        Rule(name: "une taille de texte écrite à la main", pattern: #"\.system\(size:\s*[0-9]"#, ceiling: 36),
+        // Lot 8: the name of a card of the Kanban and the seal of a decision take the type's sizes, → 34.
+        Rule(name: "une taille de texte écrite à la main", pattern: #"\.system\(size:\s*[0-9]"#, ceiling: 34),
         // Lot 5 (19/11): the lines of the Accueil take the secondary role, small; one outline in the whole app.
         Rule(name: "le bouton bordé d'avant (.subtle)", pattern: #"\.buttonStyle\(\.subtle\)"#, ceiling: 0),
     ]

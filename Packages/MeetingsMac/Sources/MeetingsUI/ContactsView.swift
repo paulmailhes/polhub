@@ -18,6 +18,9 @@ struct ContactsView: View {
 
     /// As the meetings' list (13/11).
     static let listWidth: CGFloat = 300
+    /// No one chosen: what to do (lot 8, 19/11). It counted « N contacts, venus de tes agendas, de tes mails et de l'ancien
+    /// coffre », a vault gone on 16/11.
+    static let noneChosen = (title: "Aucun contact choisi", text: "Choisis un contact dans la liste.")
 
     var body: some View {
         let now = Date()
@@ -117,8 +120,7 @@ struct ContactsView: View {
         if let contact = selected {
             ContactPage(contact: contact, agenda: agenda, router: router).id(contact.id)
         } else if !agenda.contacts.isEmpty {
-            ContentUnavailableView("Aucun contact choisi", systemImage: "person.2",
-                                   description: Text("\(agenda.contacts.count) contacts, venus de tes agendas, de tes mails et de l'ancien coffre."))
+            ContentUnavailableView(Self.noneChosen.title, systemImage: "person.2", description: Text(Self.noneChosen.text))
         }
     }
 }
@@ -157,7 +159,8 @@ struct ContactListRow: View {
                 if !projects.isEmpty {
                     HStack(spacing: Space.xs) {
                         ForEach(projects.prefix(Self.chips)) { project in
-                            Chip(project.name, tint: ProjectViews.tint(project))
+                            // Neutral, the project's color in its dot: an identity never colors a text (lot 8, 19/11).
+                            Chip(project.name, dot: ProjectViews.tint(project))
                         }
                         if projects.count > Self.chips {
                             Chip("+\(projects.count - Self.chips)").fixedSize()
@@ -224,15 +227,16 @@ struct ContactPage: View {
         Page {
             header(now: now, events: events)
             Group {
+                // Sixteen points between two cards, as everywhere (lot 8, 19/11).
                 if width >= Self.twoColumns {
                     HStack(alignment: .top, spacing: Space.xl) {
-                        VStack(alignment: .leading, spacing: Space.xl) {
+                        VStack(alignment: .leading, spacing: PageMetrics.cardGap) {
                             mailsCard
                             eventsCard(events, now: now)
                             meetingsCard(now: now)
                         }
                         .frame(maxWidth: .infinity)
-                        VStack(alignment: .leading, spacing: Space.xl) {
+                        VStack(alignment: .leading, spacing: PageMetrics.cardGap) {
                             projectsCard
                             detailsCard
                             notesCard
@@ -240,7 +244,7 @@ struct ContactPage: View {
                         .frame(width: Self.sideWidth)
                     }
                 } else {
-                    VStack(alignment: .leading, spacing: Space.xl) {
+                    VStack(alignment: .leading, spacing: PageMetrics.cardGap) {
                         projectsCard
                         mailsCard
                         eventsCard(events, now: now)
@@ -267,9 +271,12 @@ struct ContactPage: View {
             HStack(alignment: .center, spacing: Space.l) {
                 Avatar(ContactsModel.initials(saved), size: narrow ? 56 : 72, tint: ContactsModel.tint(saved))
                 VStack(alignment: .leading, spacing: Space.xs) {
+                    // The large title of an object open, 26 points, as a project's and a meeting's (lot 8, 19/11); whole in
+                    // its height, never cut by the row (lot 3's review: cut in the dark).
                     TextField("Nom", text: $contact.name)
-                        .font((narrow ? Font.title2 : .title).weight(.bold))
+                        .font(.largeTitle.weight(.bold))
                         .textFieldStyle(.plain)
+                        .fixedSize(horizontal: false, vertical: true)
                         .onSubmit(save)
                     let line = [saved.company, email].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
                     if !line.isEmpty {
@@ -576,35 +583,35 @@ struct ContactPage: View {
     }
 }
 
-/// A project on a contact's page, in its color: a click opens it, « × » takes the contact out of it.
+/// A project on a contact's page: its dot in its color, its name in the text's (lot 8, 19/11: an identity never colors a
+/// text); a click opens it, « × » takes the contact out of it.
 struct ContactProjectChip: View {
     let project: ProjectRow
     let open: () -> Void
     let remove: () -> Void
-    @Environment(\.self) private var environment
 
     var body: some View {
-        let tint = ProjectViews.tint(project)
         HStack(spacing: 0) {
             Button(action: open) {
                 HStack(spacing: 6) {
-                    ColorDot(tint, size: 8)
-                    Text(project.name).font(.meta.weight(.medium)).foregroundStyle(tint.readable(in: environment)).lineLimit(1)
+                    ColorDot(ProjectViews.tint(project), size: 8)
+                    Text(project.name).font(.meta.weight(.medium)).foregroundStyle(.primary).lineLimit(1)
                 }
                 .padding(.leading, Space.m - 2).padding(.trailing, Space.xs).padding(.vertical, 5)
             }
-            .buttonStyle(HoverButtonStyle(.capsule, fill: tint.opacity(0.14)))
+            .buttonStyle(.hover(.capsule))
             .help("Ouvrir « \(project.name) »")
             Button(action: remove) {
                 Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).frame(width: 22, height: 22)
             }
-            .buttonStyle(HoverButtonStyle(.circle, fill: tint.opacity(0.2)))
-            .foregroundStyle(tint.readable(in: environment).opacity(0.8))
+            .buttonStyle(.hover(.circle))
+            .foregroundStyle(.secondary)
             .padding(.trailing, 3)
             .help("Retirer de « \(project.name) » : le lien ne reviendra pas tout seul.")
             .accessibilityLabel("Retirer de « \(project.name) »")
         }
-        .background(tint.opacity(0.12), in: Capsule())
+        .background(Surface.fill, in: Capsule())
+        .overlay(Capsule().strokeBorder(Surface.stroke))
         .fixedSize()
     }
 }
