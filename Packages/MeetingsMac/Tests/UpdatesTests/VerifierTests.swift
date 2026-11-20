@@ -48,11 +48,11 @@ import Testing
         #expect(Verifier.requirement().hasSuffix(" and notarized"))
     }
 
-    static let built = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appending(path: "../../../../build/Polhub.app").standardizedFileURL
+    static let built = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appending(path: "../../../../build/hub.app").standardizedFileURL
 
     /// Only after `make app`: a Polhub signed with the author's Developer ID passes.
     @Test(.enabled(if: FileManager.default.fileExists(atPath: VerifierTests.built.path(percentEncoded: false))))
-    func aBuiltPolhubPasses() {
+    func aBuiltHubPasses() {
         #expect(Verifier.signatureError(app: Self.built) == nil)
     }
 

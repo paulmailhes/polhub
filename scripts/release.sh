@@ -1,19 +1,20 @@
 #!/bin/bash
-# Publie une version de Polhub sur GitHub. Usage : scripts/release.sh 0.3.1 (ou make release VERSION=0.3.1)
-#   1. tests ; 2. VERSION ; 3. app signée et vérifiée ; 4. notarisation par Apple ; 5. dist/Polhub.zip ;
+# Publie une version de hub-board sur GitHub. Usage : scripts/release.sh 0.3.1 (ou make release VERSION=0.3.1)
+#   1. tests ; 2. VERSION ; 3. app signée et vérifiée ; 4. notarisation par Apple ; 5. dist/hub-board.zip ;
 #   6. version GitHub créée en brouillon, puis publiée en dernier (l'étiquette vX.Y.Z naît à ce moment).
-# Les Polhub installés la trouvent dans l'heure et s'installent seuls, jamais pendant une réunion : ils
+# Les hub installés la trouvent dans l'heure et s'installent seuls, jamais pendant une réunion : ils
 # n'acceptent qu'une app signée par l'équipe de l'auteur (Packages/MeetingsMac/Sources/Updates/Verifier.swift).
-# Réglages locaux (jamais publiés) : prive/release.env peut définir POLHUB_NOTARY_PROFILE, le profil créé par
-# `xcrun notarytool store-credentials`. POLHUB_ALLOW_UNNOTARIZED=1 : publier sans notarisation (déconseillé).
+# Réglages locaux (jamais publiés) : prive/release.env peut définir HUB_NOTARY_PROFILE (ou l'ancien nom de la variable), le profil créé par
+# `xcrun notarytool store-credentials`. HUB_ALLOW_UNNOTARIZED=1 : publier sans notarisation (déconseillé).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VERSION="${1:?version, par exemple 0.3.1}"
-REPO="paulmailhes/polhub"
-APP="$ROOT/build/Polhub.app"
+REPO="paulmailhes/hub-board"
+APP="$ROOT/build/hub.app"
 cd "$ROOT"
 [ -f prive/release.env ] && . prive/release.env
-PROFILE="${POLHUB_NOTARY_PROFILE:-polhub-notarisation}"
+# The notarization profile keeps its name of before 20/11, in the Keychain.
+PROFILE="${HUB_NOTARY_PROFILE:-${POLHUB_NOTARY_PROFILE:-polhub-notarisation}}"
 
 fail() { echo "$*" >&2; echo "Rien n'est publié." >&2; exit 1; }
 
@@ -58,15 +59,15 @@ if xcrun notarytool history --keychain-profile "$PROFILE" >/dev/null 2>&1; then
   printf '%s\n' "$RESULT" | tail -3
   [[ "$RESULT" == *"status: Accepted"* ]] || fail "Apple a refusé la notarisation (xcrun notarytool log <id> --keychain-profile $PROFILE)."
   xcrun stapler staple "$APP" >/dev/null || fail "L'agrafage du ticket de notarisation a échoué."
-elif [ -n "${POLHUB_ALLOW_UNNOTARIZED:-}" ]; then
-  echo "    ! profil « $PROFILE » refusé par Apple : app signée mais non notarisée (POLHUB_ALLOW_UNNOTARIZED)."
+elif [ -n "${HUB_ALLOW_UNNOTARIZED:-}" ]; then
+  echo "    ! profil « $PROFILE » refusé par Apple : app signée mais non notarisée (HUB_ALLOW_UNNOTARIZED)."
 else
   fail "Apple refuse le profil de notarisation « $PROFILE » (accord à accepter sur developer.apple.com, ou prive/release.env)."
 fi
 
 echo "5/6 Archive"
-rm -f dist/Polhub.zip
-ditto -c -k --keepParent "$APP" dist/Polhub.zip
+rm -f dist/hub-board.zip
+ditto -c -k --keepParent "$APP" dist/hub-board.zip
 printf '%s\n' "$NOTES" > dist/notes.md
 
 echo "6/6 Publication"
@@ -74,12 +75,12 @@ git push -q origin main
 TARGET="$(git rev-parse HEAD)"
 if gh release view "v$VERSION" --repo "$REPO" >/dev/null 2>&1; then
   # A draft left by an interrupted run: its archive and notes are replaced.
-  gh release upload "v$VERSION" dist/Polhub.zip --repo "$REPO" --clobber >/dev/null
+  gh release upload "v$VERSION" dist/hub-board.zip --repo "$REPO" --clobber >/dev/null
   gh release edit "v$VERSION" --repo "$REPO" --notes-file dist/notes.md --target "$TARGET" >/dev/null
 else
-  gh release create "v$VERSION" dist/Polhub.zip --repo "$REPO" --draft --target "$TARGET" \
-    --title "Polhub $VERSION" --notes-file dist/notes.md >/dev/null
+  gh release create "v$VERSION" dist/hub-board.zip --repo "$REPO" --draft --target "$TARGET" \
+    --title "hub-board $VERSION" --notes-file dist/notes.md >/dev/null
 fi
 gh release edit "v$VERSION" --repo "$REPO" --draft=false >/dev/null
 git fetch -q --tags origin
-echo "Publié : https://github.com/$REPO/releases/tag/v$VERSION ($(du -h dist/Polhub.zip | cut -f1))"
+echo "Publié : https://github.com/$REPO/releases/tag/v$VERSION ($(du -h dist/hub-board.zip | cut -f1))"

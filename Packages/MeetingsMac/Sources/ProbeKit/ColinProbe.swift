@@ -120,7 +120,7 @@ public struct ColinProbe: Probe {
 
     /// The command line embedded in the app, when it is there.
     public static func embeddedHelper(bundle: Bundle = .main) -> URL? {
-        let url = bundle.bundleURL.appending(path: "Contents/Helpers/polhub")
+        let url = bundle.bundleURL.appending(path: "Contents/Helpers/hub")
         return FileManager.default.isExecutableFile(atPath: url.path(percentEncoded: false)) ? url : nil
     }
 

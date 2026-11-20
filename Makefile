@@ -1,8 +1,8 @@
-APP      := build/Polhub.app
-PRODUCT  := build/DerivedData/Build/Products/Release/Polhub.app
-INSTALL  := /Applications/Polhub.app
+APP      := build/hub.app
+PRODUCT  := build/DerivedData/Build/Products/Release/hub.app
+INSTALL  := /Applications/hub.app
 AGENT    := fr.paulmailhes.polhub.relance
-DB       := $(HOME)/Library/Application Support/Polhub/Polhub.sqlite
+DB       := $(HOME)/Library/Application Support/hub-board/Polhub.sqlite
 VERSION  := $(shell cat VERSION)
 
 .PHONY: check gen app app-dev verify install stop release
@@ -27,15 +27,15 @@ app: gen
 	xcodebuild -exportArchive -archivePath build/Polhub.xcarchive -exportPath build/export \
 		-exportOptionsPlist scripts/export-developer-id.plist -allowProvisioningUpdates -quiet
 	rm -rf $(APP)
-	ditto build/export/Polhub.app $(APP)
+	ditto build/export/hub.app $(APP)
 
 # La version de développement : identifiant .dev, données à part, détection coupée. Jamais installée.
 app-dev: gen
 	xcodebuild -project Polhub.xcodeproj -scheme PolhubDev -configuration Release \
 		-derivedDataPath build/DerivedData -quiet MARKETING_VERSION=$(VERSION) CURRENT_PROJECT_VERSION=$(VERSION) build
-	rm -rf "build/Polhub Dev.app"
-	ditto "build/DerivedData/Build/Products/Release/Polhub Dev.app" "build/Polhub Dev.app"
-	scripts/verify-bundle.sh "build/Polhub Dev.app" fr.paulmailhes.polhub.dev
+	rm -rf "build/hub dev.app"
+	ditto "build/DerivedData/Build/Products/Release/hub dev.app" "build/hub dev.app"
+	scripts/verify-bundle.sh "build/hub dev.app" fr.paulmailhes.polhub.dev
 
 verify:
 	scripts/verify-bundle.sh $(APP)
@@ -45,7 +45,7 @@ install:
 	@test "$(CONFIRM)" = "oui" || { echo "Refusé : relancer avec CONFIRM=oui, après accord de Paul."; exit 1; }
 	@n=$$(sqlite3 "$(DB)" "SELECT count(*) FROM meeting WHERE status IN ('pending','recording','presumedEnded') AND deletedAt IS NULL" 2>/dev/null || echo 0); \
 		test "$$n" = "0" || { echo "Refusé : une réunion s'enregistre ($$n). Attendre sa fin."; exit 1; }
-	@! pgrep -x Polhub >/dev/null || { echo "Refusé : Polhub tourne. Le quitter d'abord (make stop)."; exit 1; }
+	@! pgrep -x hub >/dev/null || { echo "Refusé : hub tourne. Le quitter d'abord (make stop)."; exit 1; }
 	rm -rf $(INSTALL)
 	ditto $(APP) $(INSTALL)
 	@echo "Installé : $(INSTALL)"
@@ -53,14 +53,14 @@ install:
 	@if launchctl print gui/$$(id -u)/$(AGENT) >/dev/null 2>&1; then \
 		launchctl kickstart gui/$$(id -u)/$(AGENT) && echo "Relancée par l'agent de relance."; \
 	else \
-		echo "Agent de relance absent : ouvrir Polhub, puis cocher la relance dans le Diagnostic."; \
+		echo "Agent de relance absent : ouvrir hub, puis cocher la relance dans le Diagnostic."; \
 	fi
 
 # Quitte l'app, sauf si une réunion s'enregistre.
 stop:
 	@n=$$(sqlite3 "$(DB)" "SELECT count(*) FROM meeting WHERE status IN ('pending','recording','presumedEnded') AND deletedAt IS NULL" 2>/dev/null || echo 0); \
 		test "$$n" = "0" || { echo "Refusé : une réunion s'enregistre ($$n)."; exit 1; }
-	-pkill -x Polhub
+	-pkill -x hub
 	@sleep 1
 
 # Publie une version sur GitHub (tests, app signée, archive, notes de CHANGELOG.md) : make release VERSION=0.3.1

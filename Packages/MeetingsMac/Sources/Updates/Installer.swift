@@ -102,7 +102,7 @@ public struct Installer: Sendable {
         let target = installed.deletingLastPathComponent().appending(path: newApp.lastPathComponent, directoryHint: .isDirectory)
         let renamed = SwapScript.path(target) != SwapScript.path(installed)
         let restart = "launchctl kickstart -k gui/\(getuid())/\(Self.agent) 2>/dev/null || open \(SwapScript.quote(SwapScript.path(installed)))"
-        let processName = Bundle.main.object(forInfoDictionaryKey: "CFBundleExecutable") as? String ?? "Polhub"
+        let processName = Bundle.main.object(forInfoDictionaryKey: "CFBundleExecutable") as? String ?? "hub"
         let newProcessName = Verifier.signedInfo(app: newApp)["CFBundleExecutable"] as? String ?? processName
         let script = SwapScript.make(
             newApp: newApp, installed: installed, target: target, keepOld: keepOld, version: version.description, signal: signal, log: log,

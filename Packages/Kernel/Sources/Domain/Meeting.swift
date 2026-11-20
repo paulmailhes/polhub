@@ -30,8 +30,8 @@ public enum JournalKind: String, Codable, Sendable {
 public enum AppFlavor: String, Sendable {
     case prod, dev
 
-    /// Read from the `PolhubFlavor` key of the app's Info.plist; absent means production.
+    /// Read from the `HubFlavor` key of the app's Info.plist; absent means production.
     public static var current: AppFlavor {
-        (Bundle.main.object(forInfoDictionaryKey: "PolhubFlavor") as? String).flatMap(AppFlavor.init(rawValue:)) ?? .prod
+        (Bundle.main.object(forInfoDictionaryKey: "HubFlavor") as? String).flatMap(AppFlavor.init(rawValue:)) ?? .prod
     }
 }

@@ -86,7 +86,9 @@ targets:
           subpath: Contents/Helpers
     settings:
       base:
-        PRODUCT_NAME: Polhub
+        PRODUCT_NAME: hub
+        # The app and the command line are both called hub: their Swift modules need names of their own.
+        PRODUCT_MODULE_NAME: HubApp
         PRODUCT_BUNDLE_IDENTIFIER: fr.paulmailhes.polhub
         MACOSX_DEPLOYMENT_TARGET: "27.0"
         SWIFT_VERSION: "6.0"
@@ -152,7 +154,7 @@ targets:
           subpath: Contents/Helpers
     settings:
       base:
-        PRODUCT_NAME: "Polhub Dev"
+        PRODUCT_NAME: "hub dev"
         PRODUCT_BUNDLE_IDENTIFIER: fr.paulmailhes.polhub.dev
         MACOSX_DEPLOYMENT_TARGET: "27.0"
         SWIFT_VERSION: "6.0"
@@ -167,7 +169,7 @@ targets:
         ENABLE_HARDENED_RUNTIME: YES
         # The icon, made with Icon Composer's layers so macOS gives it Liquid Glass (14/11).
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-  # polhub-calcul: the models live only in this process (WhisperKit, Silero), never in the app.
+  # hub-calcul: the models live only in this process (WhisperKit, Silero), never in the app.
   PolhubCalcul:
     type: tool
     platform: macOS
@@ -180,7 +182,7 @@ targets:
         product: Transcription
     settings:
       base:
-        PRODUCT_NAME: polhub-calcul
+        PRODUCT_NAME: hub-calcul
         MACOSX_DEPLOYMENT_TARGET: "27.0"
         SWIFT_VERSION: "6.0"
         CODE_SIGN_STYLE: Manual
@@ -188,7 +190,7 @@ targets:
         DEVELOPMENT_TEAM: CQ43U6XX4Z
         ENABLE_HARDENED_RUNTIME: YES
         SKIP_INSTALL: YES
-  # polhub: the meetings read-only, for the terminal and Claude Code (MCP).
+  # hub: the meetings read-only, for the terminal and Claude Code (MCP).
   PolhubCLI:
     type: tool
     platform: macOS
@@ -201,7 +203,8 @@ targets:
         product: Persistence
     settings:
       base:
-        PRODUCT_NAME: polhub
+        PRODUCT_NAME: hub
+        PRODUCT_MODULE_NAME: HubTool
         MACOSX_DEPLOYMENT_TARGET: "27.0"
         SWIFT_VERSION: "6.0"
         CODE_SIGN_STYLE: Manual
@@ -227,7 +230,7 @@ targets:
         product: PolhubCloud
     settings:
       base:
-        PRODUCT_NAME: Polhub
+        PRODUCT_NAME: hub
         PRODUCT_BUNDLE_IDENTIFIER: fr.paulmailhes.polhub.ios
         IPHONEOS_DEPLOYMENT_TARGET: "27.0"
         SWIFT_VERSION: "6.0"

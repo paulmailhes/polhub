@@ -377,7 +377,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     /// The queue starts what a stop or a crash left, then looks for new meetings every minute and at the end of
     /// each meeting.
     private func startTranscription(store: MeetingStore) {
-        let helper = Bundle.main.bundleURL.appending(path: "Contents/Helpers/polhub-calcul")
+        let helper = Bundle.main.bundleURL.appending(path: "Contents/Helpers/hub-calcul")
         let queue = TranscriptionQueue(
             meetings: store, transcripts: TranscriptStore(store.database), paths: paths,
             launcher: LiveCalculLauncher(executable: helper), log: detectionLog,
