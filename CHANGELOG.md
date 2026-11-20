@@ -3,6 +3,13 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.57.1 — 20 novembre 2026
+
+**Préparation du nouveau nom : rien ne change à l'écran.**
+
+- Polhub va changer de nom. Cette version apprend à la mise à jour à installer une app qui porte un autre nom et vient
+  d'une autre adresse sur GitHub, en gardant l'ancienne de côté si la nouvelle ne démarre pas.
+
 ## 0.57.0 — 20 novembre 2026
 
 **Un nombre sur l'icône de Polhub, et des mails plus propres sur l'iPhone.**

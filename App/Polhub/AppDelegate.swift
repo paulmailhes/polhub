@@ -416,6 +416,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         }
         UserDefaults.standard.set(version, forKey: key)
         guard !isDevelopment, let current = SemanticVersion(version) else { return }
+        // The version that changes its name registers the relaunch again if it was on (0.57.1, 20/11).
+        UserDefaults.standard.set(RelaunchAgent.isEnabled, forKey: Preferences.Key.relaunchHint)
         // The swap script waits for this: the new version has really started.
         LaunchSignal.write(version: version)
         let updates = UpdateService(current: current, isIdle: { [weak self] in await self?.isQuiet() ?? false })

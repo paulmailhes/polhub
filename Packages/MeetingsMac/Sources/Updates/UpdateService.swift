@@ -62,12 +62,13 @@ public final class UpdateService: ObservableObject {
 
     /// The public list of versions; no token: the repository is public.
     public static let fetchFromGitHub: @Sendable () async throws -> Data = {
-        var request = URLRequest(url: Releases.listURL, timeoutInterval: 20)
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        request.setValue("Polhub", forHTTPHeaderField: "User-Agent")
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
-        return data
+        try await Releases.fetchFirst(Releases.listURLs) { url in
+            var request = URLRequest(url: url, timeoutInterval: 20)
+            request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+            request.setValue("Polhub", forHTTPHeaderField: "User-Agent")
+            let (data, response) = try await URLSession.shared.data(for: request)
+            return (data, (response as? HTTPURLResponse)?.statusCode ?? 0)
+        }
     }
 
     public func check() async {

@@ -87,6 +87,9 @@ public enum CardSize: String, CaseIterable, Identifiable, Sendable {
 /// the rest through this. New features add theirs here, and a row in Réglages (14/11).
 public struct Preferences: @unchecked Sendable {
     public enum Key {
+        /// Whether the relaunch agent was on, noted at each launch (0.57.1): the version that changes its name (Polhub.app
+        /// → hub.app, 20/11) registers it again from its new place.
+        public static let relaunchHint = "relanceActive"
         public static let cardSize = "projets.tailleDesCartes"
         /// Réglages › Projets (15/11): the logos asked of the clients' sites.
         public static let projectLogos = "projets.logosEnLigne"

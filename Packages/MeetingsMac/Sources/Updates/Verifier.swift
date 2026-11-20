@@ -77,6 +77,7 @@ public enum ArchiveCheck {
 
     /// `listing`: the output of `zipinfo <archive>`.
     public static func problem(listing: String) -> String? {
+        var app: String?
         for line in listing.components(separatedBy: "\n") {
             if let total = line.firstMatch(of: #/(\d+) bytes uncompressed/#), let bytes = Int64(total.output.1), bytes > maxUncompressed {
                 return "\(bytes) octets une fois ouverte"
@@ -87,7 +88,10 @@ public enum ArchiveCheck {
             let name = String(fields[8])
             if first == "l" { return "lien symbolique : \(name)" }
             if name.hasPrefix("/") || name.split(separator: "/").contains("..") { return "chemin hors du dossier : \(name)" }
-            if !name.hasPrefix("Polhub.app/") { return "élément inattendu : \(name)" }
+            // One app only, under its name of today or the one before 20/11.
+            guard let folder = Installer.appNames.first(where: { name.hasPrefix($0 + "/") }) else { return "élément inattendu : \(name)" }
+            if let app, app != folder { return "deux apps : \(app) et \(folder)" }
+            app = folder
         }
         return nil
     }
@@ -132,17 +136,28 @@ public enum SwapScript {
     ///   harmless one, so that no test app is ever registered.
     /// - verify: the command that says, by its exit code, whether the app whose path follows is the author's
     ///   (`signatureCheck`); the tests pass their own.
+    /// - target: where the new version goes; `installed` itself, unless the app changes its name (20/11: Polhub.app
+    ///   becomes hub.app). Then the old app is kept aside and taken away, and comes back if the new one does not start.
+    /// - start: the command that launches the new version, at `target`; `startOld`, the one that launches the installed
+    ///   app again (`start` when the name does not change).
     public static func make(
-        newApp: URL, installed: URL, keepOld: URL, version: String, signal: URL, log: URL, pid: Int32, processName: String,
-        start: String, startTimeout: Int, failedKey: String?, register: String? = nil, verify: String, waitSteps: Int = 150
+        newApp: URL, installed: URL, target: URL? = nil, keepOld: URL, version: String, signal: URL, log: URL, pid: Int32,
+        processName: String, newProcessName: String? = nil, start: String, startOld: String? = nil, startTimeout: Int,
+        failedKey: String?, register: String? = nil, verify: String, waitSteps: Int = 150
     ) -> String {
-        let registration = register.map { "touch \(quote(path(installed))); \($0) \(quote(path(installed))) 2>/dev/null || true" } ?? "true"
-        let new = quote(path(newApp)), app = quote(path(installed)), parent = quote(path(installed.deletingLastPathComponent()))
+        let target = target ?? installed
+        let renamed = path(target) != path(installed)
+        let registration = register.map { "touch \(quote(path(target))); \($0) \(quote(path(target))) 2>/dev/null || true" } ?? "true"
+        let new = quote(path(newApp)), app = quote(path(installed)), dest = quote(path(target))
+        let parent = quote(path(installed.deletingLastPathComponent()))
         let keep = quote(path(keepOld)), zip = quote(path(keepOld) + "/Polhub-precedente.zip"), signalFile = quote(path(signal))
         let failed = failedKey.map { "defaults write \(Verifier.bundleID) \($0) \(quote(version))" } ?? "true"
         // Only a copy of the installed app counts, by its path (20/11: the iPhone app in the simulator is called
         // Polhub too, and the name alone stopped an update).
         let copy = quote(pattern(path(installed) + "/Contents/MacOS/" + processName))
+        let newCopy = quote(pattern(path(target) + "/Contents/MacOS/" + (newProcessName ?? processName)))
+        // A renamed version left half-way is taken away: the old app is the one that stays.
+        let dropTarget = renamed ? "rm -rf \(dest)" : "true"
         return """
         #!/bin/bash
         # Polhub : échange de versions, écrit par l'app et lancé hors d'elle.
@@ -152,14 +167,15 @@ public enum SwapScript {
         say() { echo "$(date '+%Y-%m-%d %H:%M:%S') $*"; }
         verified() { \(verify) "$1" >/dev/null 2>&1; }
         # Nothing starts that the author did not sign: a copy changed after its check, or an old version replaced.
-        start() { if verified \(app); then \(start); else say "l'app en place n'est pas signée par l'auteur de Polhub : elle n'est pas lancée"; fi; }
-        restore() { rm -rf \(app); ditto -x -k \(zip) \(parent); }
+        start_new() { if verified \(dest); then \(start); else say "l'app en place n'est pas signée par l'auteur de Polhub : elle n'est pas lancée"; fi; }
+        start_old() { if verified \(app); then \(startOld ?? start); else say "l'app en place n'est pas signée par l'auteur de Polhub : elle n'est pas lancée"; fi; }
+        restore() { rm -rf \(dest); rm -rf \(app); ditto -x -k \(zip) \(parent); }
         DONE=0
         # Whatever happens, Paul is never left without an app.
         finish() {
           if [ "$DONE" = 0 ]; then
-            [ -d \(app) ] || restore
-            start
+            if [ -d \(app) ]; then \(dropTarget); else restore; fi
+            start_old
           fi
         }
         trap finish EXIT
@@ -171,20 +187,21 @@ public enum SwapScript {
         if pgrep -f \(copy) >/dev/null; then say "une autre copie tourne encore : rien n'est changé"; exit 1; fi
         mkdir -p \(keep)
         rm -f \(zip)
-        if ! ditto -c -k --keepParent \(app) \(zip); then say "l'ancienne version ne se met pas de côté : rien n'est changé"; DONE=1; start; exit 1; fi
-        rm -rf \(app)
-        if ! ditto \(new) \(app); then
+        if ! ditto -c -k --keepParent \(app) \(zip); then say "l'ancienne version ne se met pas de côté : rien n'est changé"; DONE=1; start_old; exit 1; fi
+        rm -rf \(dest)
+        if ! ditto \(new) \(dest); then
           say "copie de la nouvelle version ratée : retour à l'ancienne version"
-          restore; \(failed); DONE=1; start; exit 1
+          restore; \(failed); DONE=1; start_old; exit 1
         fi
-        if ! verified \(app); then
+        if ! verified \(dest); then
           say "la nouvelle version copiée n'est pas signée par l'auteur de Polhub : retour à l'ancienne version"
-          restore; \(failed); DONE=1; start; exit 1
+          restore; \(failed); DONE=1; start_old; exit 1
         fi
-        xattr -dr com.apple.quarantine \(app) 2>/dev/null
+        \(renamed ? "rm -rf \(app)" : "true")
+        xattr -dr com.apple.quarantine \(dest) 2>/dev/null
         \(registration)
         rm -f \(signalFile)
-        start
+        start_new
         for i in $(seq 1 $(( \(startTimeout) * 5 ))); do
           if [ "$(cat \(signalFile) 2>/dev/null)" = \(quote(version)) ]; then
             say "nouvelle version \(version) installée et lancée"
@@ -195,8 +212,8 @@ public enum SwapScript {
           sleep 0.2
         done
         say "la nouvelle version ne démarre pas : retour à l'ancienne version"
-        pkill -f \(copy) 2>/dev/null; sleep 1
-        restore; \(failed); DONE=1; start; exit 1
+        pkill -f \(newCopy) 2>/dev/null; sleep 1
+        restore; \(failed); DONE=1; start_old; exit 1
 
         """
     }

@@ -72,6 +72,22 @@ import Testing
     }
 }
 
+extension VerifierTests {
+    /// 20/11 : l'archive de la 0.58.0 contient hub.app ; une archive qui mêle deux apps, ou une autre, est refusée.
+    @Test func anArchiveOfTheRenamedAppPasses() {
+        let renamed = """
+        drwxr-xr-x  2.1 unx        0 bx stor 26-Nov-21 09:00 hub.app/
+        -rwxr-xr-x  2.1 unx   912432 bX defN 26-Nov-21 09:00 hub.app/Contents/MacOS/hub
+        2 files, 912432 bytes uncompressed, 400000 bytes compressed:  56.2%
+        """
+        #expect(ArchiveCheck.problem(listing: renamed) == nil)
+        let mixed = renamed.replacingOccurrences(of: "hub.app/Contents/MacOS/hub", with: "Polhub.app/Contents/MacOS/Polhub")
+        #expect(ArchiveCheck.problem(listing: mixed) != nil)
+        #expect(ArchiveCheck.problem(listing: renamed.replacingOccurrences(of: "hub.app/", with: "Autre.app/")) != nil)
+        #expect(Installer.appNames == ["hub.app", "Polhub.app"])
+    }
+}
+
 /// The swap script, run for real in a temporary folder: success, then a new version that never starts.
 @Suite struct SwapScriptTests {
     struct Layout {
@@ -230,6 +246,44 @@ import Testing
         #expect(try installedVersion(layout) == "0.3.0")
         #expect(try String(contentsOf: layout.log, encoding: .utf8).contains("une autre copie tourne encore"))
         #expect((try? String(contentsOf: started, encoding: .utf8)) == "lancée\n")
+    }
+
+    /// 20/11 : la 0.58.0 s'appelle hub.app. Elle prend sa place à côté, l'ancienne app est mise de côté puis retirée.
+    @Test func aRenamedSwapInstallsTheNewNameAndRemovesTheOld() throws {
+        let layout = try layout()
+        defer { try? FileManager.default.removeItem(at: layout.root) }
+        let (newApp, target) = try renamed(layout)
+        let script = SwapScript.make(newApp: newApp, installed: layout.installed, target: target, keepOld: layout.keep, version: "0.3.1",
+                                     signal: layout.signal, log: layout.log, pid: 999_999, processName: "polhub-test-absent",
+                                     newProcessName: "hub-test-absent",
+                                     start: "echo 0.3.1 > \(SwapScript.quote(layout.signal.path(percentEncoded: false)))",
+                                     startTimeout: 3, failedKey: nil, verify: "true")
+        #expect(try run(script) == 0)
+        #expect(try String(contentsOf: target.appending(path: "Contents/version"), encoding: .utf8) == "0.3.1")
+        #expect(!FileManager.default.fileExists(atPath: layout.installed.path(percentEncoded: false)))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: layout.keep.path(percentEncoded: false)) == ["Polhub-precedente.zip"])
+    }
+
+    /// A renamed version that never starts: the old app comes back under its own name, the new one is taken away.
+    @Test func aRenamedSwapThatDoesNotStartGivesTheOldAppBack() throws {
+        let layout = try layout()
+        defer { try? FileManager.default.removeItem(at: layout.root) }
+        let (newApp, target) = try renamed(layout)
+        let script = SwapScript.make(newApp: newApp, installed: layout.installed, target: target, keepOld: layout.keep, version: "0.3.1",
+                                     signal: layout.signal, log: layout.log, pid: 999_999, processName: "polhub-test-absent",
+                                     newProcessName: "hub-test-absent", start: "true", startTimeout: 1, failedKey: nil, verify: "true")
+        #expect(try run(script) != 0)
+        #expect(try installedVersion(layout) == "0.3.0")
+        #expect(!FileManager.default.fileExists(atPath: target.path(percentEncoded: false)))
+        #expect(try String(contentsOf: layout.log, encoding: .utf8).contains("retour à l'ancienne version"))
+    }
+
+    /// The new version under its new name, `maj/hub.app`, and where it goes, `Applications/hub.app`.
+    func renamed(_ layout: Layout) throws -> (URL, URL) {
+        let newApp = layout.root.appending(path: "maj/hub.app", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: newApp.appending(path: "Contents"), withIntermediateDirectories: true)
+        try "0.3.1".write(to: newApp.appending(path: "Contents/version"), atomically: true, encoding: .utf8)
+        return (newApp, layout.root.appending(path: "Applications/hub.app", directoryHint: .isDirectory))
     }
 
     @Test func quotesSurviveAnyPath() {

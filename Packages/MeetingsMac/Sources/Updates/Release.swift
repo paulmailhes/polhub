@@ -41,11 +41,23 @@ public struct Release: Equatable, Sendable {
 }
 
 public enum Releases {
-    /// The name of the archive every release carries.
-    public static let archiveName = "Polhub.zip"
-    /// The public repository the versions are published on.
-    public static let listURL = URL(string: "https://api.github.com/repos/paulmailhes/polhub/releases?per_page=20")!
-    static let downloadPrefix = "https://github.com/paulmailhes/polhub/releases/download/"
+    /// The archive every release carries: hub-board's, then the one of the versions published as Polhub, the name before
+    /// 20/11 (the bridge 0.57.1 included).
+    public static let archiveNames = ["hub-board.zip", "Polhub.zip"]
+    /// The name of the archive this version publishes and downloads.
+    public static var archiveName: String { archiveNames[0] }
+    /// The public repository the versions are published on, then its name before 20/11.
+    public static let repositories = ["paulmailhes/hub-board", "paulmailhes/polhub"]
+    public static let listURLs: [URL] = repositories.map { URL(string: "https://api.github.com/repos/\($0)/releases?per_page=20")! }
+    static let downloadPrefixes = repositories.map { "https://github.com/\($0)/releases/download/" }
+
+    /// The first of `urls` that answers 200: before the repository is renamed, the new address does not answer yet.
+    public static func fetchFirst(_ urls: [URL], get: @Sendable (URL) async throws -> (Data, Int)) async throws -> Data {
+        for url in urls {
+            if let (data, status) = try? await get(url), status == 200 { return data }
+        }
+        throw URLError(.badServerResponse)
+    }
 
     private struct Payload: Decodable {
         struct Asset: Decodable {
@@ -67,8 +79,8 @@ public enum Releases {
         return try JSONDecoder().decode([Payload].self, from: json).compactMap { payload in
             // Only an archive of this repository's releases (review, minor 6).
             guard !payload.draft, !payload.prerelease, let version = SemanticVersion(payload.tag_name),
-                  let asset = payload.assets.first(where: { $0.name == archiveName }),
-                  asset.browser_download_url.hasPrefix(downloadPrefix), let url = URL(string: asset.browser_download_url)
+                  let asset = archiveNames.lazy.compactMap({ name in payload.assets.first { $0.name == name } }).first,
+                  downloadPrefixes.contains(where: asset.browser_download_url.hasPrefix), let url = URL(string: asset.browser_download_url)
             else { return nil }
             return Release(version: version, notes: (payload.body ?? "").trimmingCharacters(in: .whitespacesAndNewlines),
                            publishedAt: payload.published_at.flatMap(iso.date(from:)), archiveURL: url)

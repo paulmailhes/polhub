@@ -4,6 +4,8 @@ import Foundation
 public struct Installer: Sendable {
     public static let maxArchiveBytes: Int64 = 200 * 1_024 * 1_024
     public static let agent = "fr.paulmailhes.polhub.relance"
+    /// The app an archive holds: its name since 20/11, then its name before.
+    public static let appNames = ["hub.app", "Polhub.app"]
 
     public enum InstallError: Error, CustomStringConvertible {
         case download(String)
@@ -84,7 +86,8 @@ public struct Installer: Sendable {
         guard run("/usr/bin/ditto", ["-x", "-k", archive.path(percentEncoded: false), folder.path(percentEncoded: false)]).status == 0 else {
             throw InstallError.noApp
         }
-        let app = folder.appending(path: "Polhub.app", directoryHint: .isDirectory)
+        guard let app = Self.appNames.lazy.map({ folder.appending(path: $0, directoryHint: .isDirectory) })
+            .first(where: { FileManager.default.fileExists(atPath: $0.path(percentEncoded: false)) }) else { throw InstallError.noApp }
         if let error = Verifier.signatureError(app: app) { throw InstallError.refused(error) }
         if let error = Verifier.check(info: Verifier.signedInfo(app: app), expected: release.version) { throw InstallError.refused(error) }
         return app
@@ -93,10 +96,18 @@ public struct Installer: Sendable {
     /// Writes the swap script and starts it in a session of its own, with default signal handling, nothing
     /// inherited from the app; the caller then quits the app.
     public func launch(newApp: URL, version: SemanticVersion) throws {
-        let start = "launchctl kickstart -k gui/\(getuid())/\(Self.agent) 2>/dev/null || open \(SwapScript.quote(SwapScript.path(installed)))"
+        // 20/11: the new version may carry another name (Polhub.app → hub.app); it goes beside the installed one, which is
+        // taken away. The relaunch agent still names the installed app: the new one is opened by its path.
+        let target = installed.deletingLastPathComponent().appending(path: newApp.lastPathComponent, directoryHint: .isDirectory)
+        let renamed = SwapScript.path(target) != SwapScript.path(installed)
+        let restart = "launchctl kickstart -k gui/\(getuid())/\(Self.agent) 2>/dev/null || open \(SwapScript.quote(SwapScript.path(installed)))"
+        let processName = Bundle.main.object(forInfoDictionaryKey: "CFBundleExecutable") as? String ?? "Polhub"
+        let newProcessName = Verifier.signedInfo(app: newApp)["CFBundleExecutable"] as? String ?? processName
         let script = SwapScript.make(
-            newApp: newApp, installed: installed, keepOld: keepOld, version: version.description, signal: signal, log: log,
-            pid: getpid(), processName: "Polhub", start: start, startTimeout: 30, failedKey: UpdateService.failedVersionKey,
+            newApp: newApp, installed: installed, target: target, keepOld: keepOld, version: version.description, signal: signal, log: log,
+            pid: getpid(), processName: processName, newProcessName: newProcessName,
+            start: renamed ? "open \(SwapScript.quote(SwapScript.path(target)))" : restart, startOld: restart,
+            startTimeout: 30, failedKey: UpdateService.failedVersionKey,
             register: SwapScript.launchServicesRegister, verify: SwapScript.signatureCheck
         )
         let file = newApp.deletingLastPathComponent().appending(path: "echange.sh")
