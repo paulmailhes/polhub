@@ -33,6 +33,17 @@ import Testing
     func lines(week: (count: Int, next: CalendarEventRow?) = (0, nil), due: [ProjectRow] = [], yours: [ProjectRow] = [], clientMails: Int = 0,
                moved: Int = 0, since: Date? = nil, at date: Date? = nil) -> [String] {
         Briefing.lines(week: week, due: due, yours: yours, clientMails: clientMails, moved: moved, since: since, now: date ?? now, calendar: calendar)
+            .map(\.sentence)
+    }
+
+    /// Lot 10 (20/11): each line says what it speaks of by its kind, its label and its text apart; the Accueil never cuts
+    /// a sentence nor reads its first word.
+    @Test func eachLineCarriesItsKind() {
+        let all = Briefing.lines(week: (0, nil), due: [project("Cabinet Martin", due: at(19))], yours: [project("Studio Nord")], clientMails: 1,
+                                 since: at(17, 19, 40), now: now, calendar: calendar)
+        #expect(all.map(\.kind) == [.week, .due, .yours, .since])
+        #expect(all.last == Briefing.Line(.since, label: "Depuis hier 19:40", text: "1 mail de client."))
+        #expect(all.first?.sentence == "Cette semaine : aucun rendez-vous.")
     }
 
     /// « Le point · mardi 9:04 »: the day and the hour it was prepared, said as its sentences say them.
@@ -120,7 +131,7 @@ import Testing
         #expect(lines(due: [project("Cabinet Martin", due: at(19))])[1] == "À livrer : Cabinet Martin demain.")
         #expect(lines(due: [project("Cabinet Martin", due: at(24))])[1] == "À livrer : Cabinet Martin mardi.")
         #expect(lines(due: [project("Cabinet Martin", due: at(16))])[1] == "À livrer : Cabinet Martin en retard de 2 jours.")
-        #expect(lines(due: [project("Cabinet Martin", due: at(25))])[1] == "À livrer : Cabinet Martin le 25.")
+        #expect(lines(due: [project("Cabinet Martin", due: at(25))])[1] == "À livrer : Cabinet Martin mercredi 25.")
         let many = [project("A", due: at(16)), project("B", due: at(18)), project("C", due: at(19)), project("D", due: at(20)), project("E", due: at(21))]
         #expect(lines(due: many)[1] == "À livrer : A en retard de 2 jours, B aujourd'hui, C demain et 2 autres.")
         #expect(lines(due: Array(many.prefix(4)))[1] == "À livrer : A en retard de 2 jours, B aujourd'hui, C demain et 1 autre.")

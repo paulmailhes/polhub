@@ -1,6 +1,7 @@
 import Domain
 import Foundation
 import Persistence
+import PolhubDesign
 
 /// One notification Polhub asks macOS to show, now or at a date.
 public struct PlannedNotice: Equatable, Sendable {
@@ -64,7 +65,9 @@ public enum NotificationPlan {
             for minute in Set(minutes) where minute >= 0 {
                 let fire = event.startAt.addingTimeInterval(-Double(minute) * 60)
                 guard fire > now, fire <= now.addingTimeInterval(horizon) else { continue }
-                let when = minute == 0 ? "Maintenant" : "Dans \(minute) min"
+                // « Dans 10 min », « Dans 1 h », « Maintenant », from the minutes asked, exactly: a start between two
+                // seconds never rounds up into one minute more (`Words.duration`, lot 10, 20/11).
+                let when = minute == 0 ? "Maintenant" : "Dans " + Words.duration(minute * 60)
                 notices.append(PlannedNotice(
                     id: "\(reminderPrefix)\(event.id)|\(Int(event.startAt.timeIntervalSince1970))|\(minute)", fireDate: fire, title: event.title,
                     body: when + (event.meetCode != nil ? " · Google Meet" : ""), eventID: event.id, meetCode: event.meetCode,
@@ -88,8 +91,9 @@ public enum NotificationPlan {
         .sorted { $0.startAt < $1.startAt }
     }
 
+    /// « Atelier · demain 14:00 », « Atelier · mercredi 2 décembre à 14:00 » (`Words.moment`, lot 10, 20/11).
     public static func newEventNotice(_ event: CalendarEventRow, now: Date) -> PlannedNotice {
-        let when = event.startAt.formatted(.dateTime.weekday(.wide).day().month(.wide).hour().minute().locale(Locale(identifier: "fr_FR")))
+        let when = Words.moment(event.startAt, now: now)
         return PlannedNotice(id: "nouveau|\(event.id)", fireDate: now, title: "Nouveau rendez-vous", body: "\(event.title) · \(when)",
                              eventID: event.id, meetCode: event.meetCode, account: event.account, kind: .newEvent)
     }
@@ -103,9 +107,12 @@ public enum NotificationPlan {
         }
     }
 
+    /// A visio, a meeting of the agenda with a Meet link, not a « réunion »: what Polhub recorded (lot 10, 20/11). The
+    /// title says it is not recorded, the body need not: shorter, it holds in the bell's two lines (« …ne l'enregistre
+    /// pas.… » was cut).
     public static func unrecordedNotice(_ event: CalendarEventRow, now: Date) -> PlannedNotice {
-        PlannedNotice(id: "non-enregistree|\(event.id)", fireDate: now, title: "Réunion non enregistrée",
-                      body: "« \(event.title) » a commencé et Polhub ne l'enregistre pas. Rejoindre ?", eventID: event.id,
+        PlannedNotice(id: "non-enregistree|\(event.id)", fireDate: now, title: "Visio non enregistrée",
+                      body: "« \(event.title) » a commencé. Rejoindre ?", eventID: event.id,
                       meetCode: event.meetCode, account: event.account, kind: .unrecorded)
     }
 
@@ -117,7 +124,8 @@ public enum NotificationPlan {
     /// New mails of the main tab (14/11): one notice per mail, or one line for a burst. A click opens the thread.
     public static func mailNotices(_ mails: [(threadKey: String, sender: String, subject: String)], now: Date) -> [PlannedNotice] {
         guard mails.count <= 3 else {
-            return [PlannedNotice(id: "mails|\(Int(now.timeIntervalSince1970))", fireDate: now, title: "\(mails.count) nouveaux mails",
+            // « 5 nouveaux mails » (`Words.count`, lot 10, 20/11).
+            return [PlannedNotice(id: "mails|\(Int(now.timeIntervalSince1970))", fireDate: now, title: Words.count(mails.count, "nouveau mail", "nouveaux mails"),
                                   body: mails.prefix(3).map(\.sender).joined(separator: ", ") + "…", eventID: nil, meetCode: nil, account: nil, kind: .mail)]
         }
         return mails.map { mail in
@@ -128,15 +136,17 @@ public enum NotificationPlan {
 
     /// The drafts an agent just prepared (18/11), said by Colin: one notice each, or one line for more than three.
     /// `recipient`: the first name of who the mail is written to, empty when nobody yet. A click opens the Accueil,
-    /// where they wait at the head of « À valider ». The same draft said again replaces its notice.
+    /// where they wait at the head of « À valider ». The same draft said again replaces its notice. « À relire. », the
+    /// word of the button that waits for them (lot 10, 20/11: « On le valide ? »).
     public static func draftNotices(_ drafts: [(id: String, recipient: String, threadKey: String?)], now: Date) -> [PlannedNotice] {
         guard drafts.count <= 3 else {
             return [PlannedNotice(id: "brouillons|\(Int(now.timeIntervalSince1970))", fireDate: now, title: "Colin",
-                                  body: "\(drafts.count) brouillons prêts. On les valide ?", eventID: nil, meetCode: nil, account: nil, kind: .draft)]
+                                  body: Words.count(drafts.count, "brouillon prêt", "brouillons prêts") + ". À relire.", eventID: nil,
+                                  meetCode: nil, account: nil, kind: .draft)]
         }
         return drafts.map { draft in
             PlannedNotice(id: "brouillon|\(draft.id)", fireDate: now, title: "Colin",
-                          body: (draft.recipient.isEmpty ? "Brouillon prêt." : "Brouillon prêt pour \(draft.recipient).") + " On le valide ?",
+                          body: (draft.recipient.isEmpty ? "Brouillon prêt." : "Brouillon prêt pour \(draft.recipient).") + " À relire.",
                           eventID: nil, meetCode: nil, account: nil, threadKey: draft.threadKey, kind: .draft)
         }
     }

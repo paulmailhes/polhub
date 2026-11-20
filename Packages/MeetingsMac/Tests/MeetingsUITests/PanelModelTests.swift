@@ -84,7 +84,7 @@ import Updates
         state.pausedUntil = nil
         let report = PanelModel.hero(meeting: state, events: [lunch, later], meetings: meetings, now: now, calendar: calendar)
         guard case .report(let preparing) = report else { Issue.record("expected the report"); return }
-        #expect(preparing.stage == .transcribing(0.58) && preparing.isPreparing && preparing.stageText == "Transcription 58 %")
+        #expect(preparing.stage == .transcribing(0.58) && preparing.isPreparing && preparing.stageText == "Transcription 58\u{202F}%")
         // 7. Nothing else: the day.
         meetings.jobs = [:]
         meetings.rows = []
@@ -208,7 +208,7 @@ import Updates
         meetings.summaryJobs[row.id] = SummaryJobRow(meetingID: row.id, state: .running, updatedAt: now)
         meetings.summaryProgress[row.id] = SummaryProgress(done: 2, total: 5)
         let writing = PanelModel.report(meetings, now: now)
-        #expect(writing?.stageText == "Résumé, partie 3 sur 5")
+        #expect(writing?.stageText == "Compte rendu : partie 3 sur 5")
         meetings.summaryJobs[row.id] = SummaryJobRow(meetingID: row.id, state: .done, updatedAt: at(15, 18))
         meetings.overviews[row.id] = "Maquettes validées ; reste la page tarifs."
         let ready = PanelModel.report(meetings, now: now)
@@ -292,8 +292,8 @@ import Updates
         #expect(PanelModel.unread([camille], hidden: ["paul@atelier-nord.fr"], tab: { _ in .personnes }).isEmpty)
         #expect(PanelModel.unread([thread("d", from: "Léa", "lea@exemple.fr", subject: "Lu", at: now, unread: false)], hidden: [], tab: { _ in .personnes }).isEmpty)
         #expect(PanelModel.mailsTile(PanelModel.Mails(unread: [], hasMailboxes: true)).value == "Rien de neuf")
-        #expect(PanelModel.mailsTile(nil).value == "Relier Gmail")
-        #expect(PanelModel.mailsTile(PanelModel.Mails(hasMailboxes: false)).value == "Relier Gmail")
+        #expect(PanelModel.mailsTile(nil).value == "Autoriser les mails")
+        #expect(PanelModel.mailsTile(PanelModel.Mails(hasMailboxes: false)).value == "Autoriser les mails")
         // A mailbox to reconnect; a network error passes by itself.
         let expired = PanelModel.Mails.Failure(account: "paul@atelier-nord.fr", text: GoogleError.expired.description)
         #expect(PanelModel.mailsTile(PanelModel.Mails(unread: unread, hasMailboxes: true, failure: expired)).value == "Atelier Nord déconnecté")
@@ -331,7 +331,7 @@ import Updates
         let issues = PanelModel.issues(alerts: [.tabsUnreadable], accounts: [expired, offline], mailFailure: mailFailure, updates: failed)
         #expect(issues.map(\.title) == ["Polhub ne lit plus les onglets de Dia", "Compte Atelier Nord à reconnecter", "La mise à jour 0.18.0 a échoué"])
         #expect(issues.map(\.action) == [.diagnostic, .accounts, .installUpdate])
-        #expect(issues[1].detail == "Son agenda et ses mails ne se mettent plus à jour")
+        #expect(issues[1].detail == "Son agenda et ses mails ne se mettent plus à jour.")
         // Three at most, the riskiest first.
         let many = PanelModel.issues(alerts: [.tabsUnreadable, .selfTestFailed, .diskLow(freeGB: 9)], accounts: [expired], updates: failed)
         #expect(many.count == 3 && many.allSatisfy { $0.action == .diagnostic })
@@ -422,13 +422,13 @@ import Updates
              PanelModel.Eyebrow(text: "Détection suspendue", systemImage: "pause.circle.fill", tint: nil, colored: .nothing)),
             (report(.transcribing(0.4)), PanelModel.Eyebrow(text: "Compte rendu en cours", systemImage: "sparkles", tint: nil, colored: .nothing)),
             (report(.ready(overview: "Tout est validé.")),
-             PanelModel.Eyebrow(text: "Résumé prêt", systemImage: "checkmark.circle.fill", tint: nil, colored: .nothing)),
+             PanelModel.Eyebrow(text: "Compte rendu prêt", systemImage: "checkmark.circle.fill", tint: nil, colored: .nothing)),
             (report(.transcriptReady(reason: nil)),
              PanelModel.Eyebrow(text: "Transcription prête", systemImage: "checkmark.circle.fill", tint: nil, colored: .nothing)),
             (report(.transcriptionFailed("moteur absent")),
-             PanelModel.Eyebrow(text: "Transcription échouée", systemImage: "exclamationmark.triangle.fill", tint: .attention, colored: .symbol)),
+             PanelModel.Eyebrow(text: "Transcription en échec", systemImage: "exclamationmark.triangle.fill", tint: .attention, colored: .symbol)),
             (report(.summaryFailed("trop court")),
-             PanelModel.Eyebrow(text: "Résumé impossible", systemImage: "exclamationmark.triangle.fill", tint: .attention, colored: .symbol)),
+             PanelModel.Eyebrow(text: "Compte rendu impossible", systemImage: "exclamationmark.triangle.fill", tint: .attention, colored: .symbol)),
             (.day(title: "Dimanche 15 novembre", line: nil),
              PanelModel.Eyebrow(text: "Dimanche 15 novembre", systemImage: nil, tint: nil, colored: .nothing)),
         ]

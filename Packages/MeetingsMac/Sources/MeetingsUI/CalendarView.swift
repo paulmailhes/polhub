@@ -64,13 +64,9 @@ struct CalendarView: View {
         let line = gridTop + CGFloat(min(max(0, hour), 23)) * hourHeight
         return max(0, line - labelRise - Space.s)
     }
-    static let locale = Locale(identifier: "fr_FR")
-    static var calendar: Calendar {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.locale = locale
-        calendar.firstWeekday = 2
-        return calendar
-    }
+    /// French and Paul's calendar, fixed once by `Words` (lot 10, 20/11): the Accueil reads them here too.
+    static let locale = Words.locale
+    static var calendar: Calendar { Words.calendar }
 
     static func monday(of date: Date) -> Date {
         calendar.dateInterval(of: .weekOfYear, for: date)?.start ?? calendar.startOfDay(for: date)
@@ -113,24 +109,28 @@ struct CalendarView: View {
 
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
+        // An icon alone says its gesture, the same words in its bubble and to VoiceOver (lot 10, 20/11).
         ToolbarItemGroup(placement: .navigation) {
-            Button { move(-7) } label: { Label("Semaine précédente", systemImage: "chevron.left") }
+            Button { move(-7) } label: { Label("Aller à la semaine précédente", systemImage: "chevron.left") }
+                .help("Aller à la semaine précédente")
             Button("Aujourd'hui") { weekStart = Self.monday(of: .now) }
-            Button { move(7) } label: { Label("Semaine suivante", systemImage: "chevron.right") }
+            Button { move(7) } label: { Label("Aller à la semaine suivante", systemImage: "chevron.right") }
+                .help("Aller à la semaine suivante")
         }
         ToolbarItem(placement: .primaryAction) {
             SyncStatus(agenda: agenda)
         }
         ToolbarItem(placement: .primaryAction) {
-            Button { router.newEvent() } label: { Label("Nouveau rendez-vous", systemImage: "plus") }
-                .help("Nouveau rendez-vous (ou double-clic dans la grille)")
+            // ⌘N makes one on this page (`WindowKeys`); the double click on the grid is found alone.
+            Button { router.newEvent() } label: { Label("Créer un rendez-vous", systemImage: "plus") }
+                .help(Words.help("Créer un rendez-vous", .command("n")))
                 .disabled(agenda.accounts.isEmpty)
         }
     }
 
+    /// « Novembre 2026 », by `Words` (lot 10, 20/11).
     private var weekTitle: String {
-        let month = weekStart.formatted(.dateTime.month(.wide).year().locale(Self.locale))
-        return month.prefix(1).uppercased() + month.dropFirst()
+        Words.capitalizedFirst(Words.month(weekStart, year: true, calendar: Self.calendar))
     }
 
     private func move(_ days: Int) {
@@ -138,11 +138,11 @@ struct CalendarView: View {
     }
 
     /// What the copy does not hold of the week shown, as the agents are told (`AgendaDesk.gaps`): an empty week past it is
-    /// not a free one (audit of 19/11).
+    /// not a free one (audit of 19/11). The day by `Words`, its year when it is not the week's (lot 10, 20/11).
     static func copyNotice(weekStart: Date, days: Int, accounts: [GoogleAccountRow]) -> String? {
         guard let covered = CalendarWindow.covered(by: accounts),
               let end = calendar.date(byAdding: .day, value: days, to: weekStart), end > covered.to else { return nil }
-        let last = covered.to.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(locale))
+        let last = Words.fullDate(covered.to, now: weekStart, calendar: calendar)
         return "Polhub lit tes agendas jusqu'au \(last) : au-delà, regarde Google Agenda."
     }
 
@@ -161,14 +161,16 @@ struct CalendarView: View {
     private var setup: some View {
         VStack(spacing: Space.m) {
             Image(systemName: "calendar").font(.system(size: 44, weight: .light)).foregroundStyle(.secondary)
-            Text("Connecte tes agendas Google").font(.title2.bold())
+            // Without the key, a clear title, then what to do (lot 10, 20/11).
+            Text(agenda.hasGoogleKey ? "Connecte tes agendas Google" : "Il manque la clé Google").font(.title2.bold())
             if agenda.hasGoogleKey {
-                Text("Polhub lit tes rendez-vous, et crée ou modifie ceux que tu lui demandes : les invités deviennent des contacts, rangés dans les projets de leurs rendez-vous.")
+                Text(Words.typeset("Polhub lit tes rendez-vous, et crée ou modifie ceux que tu lui demandes : les invités deviennent des contacts, rangés dans les projets de leurs rendez-vous."))
                     .multilineTextAlignment(.center).foregroundStyle(.secondary).frame(maxWidth: 460)
-                Button("Ajouter un compte Google…") { Task { await agenda.connect() } }
+                // « Connecter » a Google account, never « Ajouter » (lot 10, 20/11).
+                Button("Connecter un compte Google…") { Task { await agenda.connect() } }
                     .buttonStyle(.primary).controlSize(.large)
             } else {
-                Text("La clé Google n'est pas encore en place : lance « configurer-google.command », dans le dossier scripts de Polhub, puis reviens ici.")
+                Text(Words.typeset("Lance « configurer-google.command », dans le dossier scripts de Polhub, puis reviens ici."))
                     .multilineTextAlignment(.center).foregroundStyle(.secondary).frame(maxWidth: 460)
             }
             if let message = agenda.message { Text(message).font(.callout).foregroundStyle(.secondary) }
@@ -217,11 +219,12 @@ struct CalendarView: View {
             Color.clear.frame(width: Self.gutter, height: 1)
             ForEach(days, id: \.self) { day in
                 let today = Self.calendar.isDateInToday(day)
-                // Today at the app's accent, ink; its number in the accent's opposite (design system v2, 19/11).
+                // Today at the app's accent, ink; its number in the accent's opposite (design system v2, 19/11). The day's
+                // words by `Words` (lot 10, 20/11).
                 HStack(spacing: 6) {
-                    Text(day.formatted(.dateTime.weekday(.abbreviated).locale(Self.locale)).uppercased())
+                    Text(Words.weekday(day, short: true, calendar: Self.calendar).uppercased())
                         .font(.caption.weight(.medium)).foregroundStyle(today ? Tint.accent : .secondary)
-                    Text(day.formatted(.dateTime.day().locale(Self.locale)))
+                    Text(Words.number(Self.calendar.component(.day, from: day)))
                         .font(.title3.weight(today ? .bold : .regular).monospacedDigit())
                         .foregroundStyle(today ? Tint.onAccent.color : .primary)
                         .frame(minWidth: 30, minHeight: 30)
@@ -266,7 +269,8 @@ struct CalendarView: View {
     private var hourLabels: some View {
         VStack(spacing: 0) {
             ForEach(0..<24, id: \.self) { hour in
-                Text(hour == 0 ? "" : String(format: "%02d h", hour))
+                // « 8 h », never « 08 h » (lot 10, 20/11).
+                Text(hour == 0 ? "" : Words.hour(hour))
                     .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
                     .frame(width: Self.gutter - Space.s, height: Self.hourHeight, alignment: .topTrailing)
                     .offset(y: -Self.labelRise)
@@ -354,7 +358,8 @@ struct CalendarView: View {
                 if event.meetingID != nil { Image(systemName: "waveform").font(.caption2).foregroundStyle(color) }
             }
             if height > 34 {
-                Text(event.startAt.formatted(date: .omitted, time: .shortened) + (project(event).map { " · \($0.name)" } ?? ""))
+                // « 9:30 », by `Words` (lot 10, 20/11).
+                Text(Words.time(event.startAt, calendar: CalendarView.calendar) + (project(event).map { " · \($0.name)" } ?? ""))
                     .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
             }
         }
@@ -388,7 +393,8 @@ struct NowLine: View {
     }
 }
 
-/// When the calendars were last read, an error, and « Synchroniser ».
+/// When the calendars were last read, an error, and « Actualiser » (lot 10, 20/11: « Synchroniser » before; one verb
+/// to read Google again, for the agendas, the mails and the logos).
 struct SyncStatus: View {
     @ObservedObject var agenda: AgendaLibrary
 
@@ -397,11 +403,11 @@ struct SyncStatus: View {
             if agenda.syncing {
                 ProgressView().controlSize(.small)
             } else if let last = agenda.accounts.compactMap(\.lastSyncAt).max() {
-                Text("À jour à \(last.formatted(date: .omitted, time: .shortened))").font(.callout).foregroundStyle(.secondary)
+                Text("À jour à " + Words.time(last)).font(.callout).foregroundStyle(.secondary)
             }
-            Button { Task { await agenda.syncAll() } } label: { Label("Synchroniser", systemImage: "arrow.clockwise") }
+            Button { Task { await agenda.syncAll() } } label: { Label("Actualiser", systemImage: "arrow.clockwise") }
                 .disabled(agenda.syncing || agenda.accounts.isEmpty)
-                .help("Relire les agendas maintenant")
+                .help("Actualiser les agendas")
         }
     }
 }
@@ -424,7 +430,8 @@ struct EventPopover: View {
                 Capsule().fill(color).frame(width: 4).frame(maxHeight: .infinity)
                 VStack(alignment: .leading, spacing: Space.xs) {
                     Text(event.title).font(.title3.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
-                    Text(when).foregroundStyle(.secondary)
+                    // The range of hours kept whole by `Words.typeset` (lot 10, 20/11).
+                    Text(Words.typeset(when)).foregroundStyle(.secondary)
                     Text("\(AccountStyle.label(for: event.account)) · \(event.account)").font(.meta).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
@@ -434,7 +441,7 @@ struct EventPopover: View {
             }
             .fixedSize(horizontal: false, vertical: true)
             if !EventCopies.canEdit(event), let organizer = event.organizer {
-                Text("Invitation de \(agenda.contact(email: organizer)?.name ?? organizer) : seul l'organisateur la modifie.")
+                Text("Invitation \(Words.of(agenda.contact(email: organizer)?.name ?? organizer)) : seul l'organisateur la modifie.")
                     .font(.meta).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
 
@@ -446,18 +453,19 @@ struct EventPopover: View {
                     Label("Rejoindre", systemImage: "video.fill").frame(maxWidth: .infinity)
                 }
                 // Glass in a popover, at the app's accent whatever the account: the account's color stays in its
-                // stripe (design system v2, 19/11).
+                // stripe (design system v2, 19/11). The words of every « Rejoindre », and ↩, which joins here (lot 10, 20/11).
                 .buttonStyle(.primary)
                 .controlSize(.large)
                 .keyboardShortcut(.defaultAction)
-                .help("Ouvre le Meet dans Dia avec le compte \(event.account)")
+                .help(Words.help(Words.joinHelp(account: AccountStyle.label(for: event.account)), .return))
             }
             if let meetingID = event.meetingID {
                 Button {
                     close()
                     router.open(meetingID: meetingID, at: nil)
                 } label: {
-                    Label("Ouvrir la réunion enregistrée", systemImage: "waveform").frame(maxWidth: .infinity)
+                    // A meeting is what Polhub recorded: « Ouvrir la réunion » (lot 10, 20/11).
+                    Label("Ouvrir la réunion", systemImage: "waveform").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.secondary)
             }
@@ -476,7 +484,8 @@ struct EventPopover: View {
                         Text(project.name).tag(Optional(project.id))
                     }
                 }
-                if let reason { Text(reason).font(.meta).foregroundStyle(.secondary) }
+                // French typography, laid at display (lot 10, 20/11).
+                if let reason { Text(Words.typeset(reason)).font(.meta).foregroundStyle(.secondary) }
                 // The project leads to itself, as from a contact's page (lot 4, 19/11).
                 if let id = event.projectID, agenda.projects.contains(where: { $0.id == id }) {
                     TextButton("Ouvrir le projet") {
@@ -496,19 +505,19 @@ struct EventPopover: View {
         .frame(width: 320, alignment: .leading)
     }
 
+    /// « Jeudi 19 novembre, 9:30 – 10:00 », « Jeudi 19 novembre, toute la journée »: by `Words`, the year when it is not
+    /// this one's (lot 10, 20/11).
     private var when: String {
-        let locale = CalendarView.locale
-        let day = event.startAt.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(locale))
-        let capitalized = day.prefix(1).uppercased() + day.dropFirst()
-        if event.allDay { return capitalized + ", toute la journée" }
-        return capitalized + ", " + event.startAt.formatted(.dateTime.hour().minute().locale(locale))
-            + " – " + event.endAt.formatted(.dateTime.hour().minute().locale(locale))
+        let day = Words.capitalizedFirst(Words.fullDate(event.startAt, now: Date(), calendar: CalendarView.calendar))
+        if event.allDay { return day + ", " + Words.allDay }
+        return day + ", " + Words.timeRange(from: event.startAt, to: event.endAt, calendar: CalendarView.calendar)
     }
 
     private var reason: String? {
         switch event.projectOrigin {
         case .paul?: event.projectID == nil ? "Sorti de tout projet par toi." : "Rangé par toi."
-        case .reunion?: "D'après la réunion enregistrée."
+        // A meeting is what Polhub recorded (lot 10, 20/11).
+        case .reunion?: "D'après la réunion."
         case .serie?: "D'après les autres rendez-vous de la série."
         case .invites?: "D'après les projets des invités."
         case .titre?: "D'après le titre."

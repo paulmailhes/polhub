@@ -75,6 +75,26 @@ public enum AttachmentSafety {
     }
 }
 
+/// A refusal in Paul's words, for `Words.problem` (lot 10, 20/11): the reason without the name, which the sentence says
+/// before it (« « Photos » n'a pas pu être joint : c'est un dossier. »), and what to do. `description` does not move.
+extension AttachmentSafety.Refusal: LocalizedError {
+    public var failureReason: String? {
+        switch self {
+        case .badName: "ce nom n'est pas permis pour une pièce jointe"
+        case .folder: "c'est un dossier"
+        case .unreadable: "le fichier ne se lit pas"
+        }
+    }
+
+    public var recoverySuggestion: String? {
+        switch self {
+        case .badName: "Renomme le fichier, puis joins-le."
+        case .folder: "Compresse-le, puis joins le fichier compressé."
+        case .unreadable: nil
+        }
+    }
+}
+
 /// Where the bodies and the files of the mails live: beside the base, one folder per mailbox.
 public struct MailFiles: Sendable {
     public let root: URL

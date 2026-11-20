@@ -53,10 +53,10 @@ struct PersonBadgeMark: View {
 }
 
 extension PersonBadge {
-    /// What the badge says, under the pointer.
+    /// What the badge says, under the pointer: someone in a project is « Dans « P » » (lot 10, 20/11).
     func help(project: String?) -> String {
         switch self {
-        case .member: project.map { "Contact de « \($0) »" } ?? "Contact"
+        case .member: project.map { "Dans « \($0) »" } ?? "Contact"
         case .contact: "Contact"
         case .add: project.map { "Pas encore dans « \($0) »" } ?? "Pas encore un contact"
         case .none: ""
@@ -190,11 +190,12 @@ struct PersonMenuItems: View {
 
     var body: some View {
         Section(person.email) {
+            // « Ajouter à « P » », « Retirer de « P » », as everywhere (lot 10, 20/11).
             if let project {
                 if link == .member {
-                    Button("Retirer du projet « \(project.name) »", systemImage: "minus.circle", action: remove)
+                    Button("Retirer de « \(project.name) »", systemImage: "minus.circle", action: remove)
                 } else {
-                    Button("Ajouter au projet « \(project.name) »", systemImage: "plus.circle", action: add)
+                    Button("Ajouter à « \(project.name) »", systemImage: "plus.circle", action: add)
                 }
             } else if link == .stranger {
                 Button("Ajouter aux contacts", systemImage: "person.crop.circle.badge.plus", action: add)
@@ -294,13 +295,17 @@ struct ThreadPeopleRow: View {
                     .buttonStyle(.hover(.capsule))
                     .menuIndicator(.hidden)
                     .fixedSize()
-                    .help("Les autres personnes du fil")
+                    // A verb first (lot 10, 20/11).
+                    .help("Voir les autres personnes du fil")
                 }
                 if let project, !newcomers.isEmpty {
                     Button {
                         withAnimation(Motion.standard) { mails.add(newcomers, to: project.id, respectRemoval: true) }
                     } label: {
-                        Label("Ajouter \(newcomers.count) au projet « \(project.name) »", systemImage: "person.badge.plus")
+                        // « Ajouter Claire à « P » », « Ajouter les 3 à « P » »: never « Ajouter 1 au projet » (lot 10, 20/11).
+                        Label(Words.typeset(newcomers.count == 1 ? "Ajouter \(PeopleStyle.firstName(newcomers[0])) à « \(project.name) »"
+                                                                 : "Ajouter les \(Words.number(newcomers.count)) à « \(project.name) »"),
+                              systemImage: "person.badge.plus")
                     }
                     // No glass in the content: a secondary action (design system v2, 19/11).
                     .buttonStyle(.secondary)

@@ -67,11 +67,11 @@ final class SilentGmail: @unchecked Sendable {
         #expect(MailText.scheduled(date(2026, 11, 19, 8), now: now, calendar: paris) == "demain 8:00")
         #expect(MailText.scheduled(date(2026, 11, 17, 8), now: now, calendar: paris) == "hier 8:00")
         #expect(MailText.scheduled(date(2026, 11, 23, 8), now: now, calendar: paris) == "lundi 8:00")
-        #expect(MailText.scheduled(date(2026, 12, 1, 8), now: now, calendar: paris) == "mardi 1 décembre 8:00")
-        #expect(MailText.scheduled(date(2027, 1, 4, 8), now: now, calendar: paris) == "lundi 4 janvier 2027 8:00")
+        #expect(MailText.scheduled(date(2026, 12, 1, 8), now: now, calendar: paris) == "mardi 1er décembre à 8:00")
+        #expect(MailText.scheduled(date(2027, 1, 4, 8), now: now, calendar: paris) == "lundi 4 janvier 2027 à 8:00")
         #expect(MailText.scheduledShort(date(2026, 11, 18, 18, 30), now: now, calendar: paris) == "18:30")
         #expect(MailText.scheduledShort(date(2026, 11, 23, 8), now: now, calendar: paris) == "lun. 8:00")
-        #expect(MailText.scheduledShort(date(2026, 12, 1, 8), now: now, calendar: paris) == "1 déc. 8:00")
+        #expect(MailText.scheduledShort(date(2026, 12, 1, 8), now: now, calendar: paris) == "1er déc. 8:00")
         #expect(MailText.presetDate(date(2026, 11, 21, 8), calendar: paris) == "sam. 21 nov. 8:00")
     }
 

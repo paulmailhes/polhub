@@ -4,6 +4,7 @@ import Foundation
 import MeetingDetection
 import Observability
 import Persistence
+import PolhubDesign
 import Recording
 
 /// The short notices shown at the top of the screen.
@@ -352,7 +353,8 @@ public final class MeetingCoordinator {
         do {
             recorder = try recorders.make(folder: folder, mode: source)
         } catch {
-            presenter?.show(.trackFailed("L'enregistrement ne démarre pas : \(error.localizedDescription)"))
+            // Polhub's words on the screen, the system's text in the journal (lot 10, 20/11).
+            presenter?.show(.trackFailed(Words.problem("L'enregistrement ne démarre pas", error).sentence))
             journal(.alert, "L'enregistrement de « \(row.title) » n'a pas démarré : \(error.localizedDescription)")
             return
         }
@@ -443,7 +445,11 @@ public final class MeetingCoordinator {
             meeting.outputName = output.map(deviceName)
             current = meeting
             presenter?.show(.devices(mic: meeting.micNames, output: meeting.outputName))
-        case .trackFailed(_, let message), .traceFailed(let message):
+        case .trackFailed(let track, let message):
+            // The screen says what stopped, never a track, a step or a code; they stay in the journal (lot 10, 20/11).
+            presenter?.show(.trackFailed(track == CaptureEngine.Track.moi.rawValue ? "Ta voix n'est plus enregistrée." : "Le son des autres n'est plus enregistré."))
+            journal(.alert, "Pendant « \(meeting.row.title) » : \(message)")
+        case .traceFailed(let message):
             presenter?.show(.trackFailed(message))
             journal(.alert, "Pendant « \(meeting.row.title) » : \(message)")
         }

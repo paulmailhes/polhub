@@ -112,13 +112,16 @@ import Testing
         #expect(HUDText.toast(.ended(title: "Point hebdo", seconds: 2520)) == ("Réunion enregistrée", "Point hebdo · 42 min"))
         #expect(HUDText.alert(.diskLow(freeGB: 15)).message == "Il reste 15 Go. Une heure de réunion en prend environ 1,4.")
         #expect(HUDText.alert(.selfTestFailed).title == "Le son des autres n'est pas capté")
+        // The button that opens the Diagnostic, or none: never hidden by its words (lot 10, 20/11).
+        #expect(HUDText.alert(.tabsUnreadable).action != nil && HUDText.alert(.selfTestFailed).action != nil)
+        #expect(HUDText.alert(.diskLow(freeGB: 15)).action == nil && HUDText.alert(.trackFailed("Le micro s'est coupé.")).action == nil)
     }
 
     /// The HUD as tall as its words (lot 9, 20/11): in the panel's 15 and 13 points, a prompt keeps its 76 points, and a
     /// long alert takes two lines for its title and two for its explanation instead of « Polhub ne lit plus les… ».
     @Test func theHUDIsAsTallAsItsWords() {
         _ = NSApplication.shared
-        func size(_ kind: HUDModel.Kind, _ title: String, _ subtitle: String, action: String = "") -> CGSize {
+        func size(_ kind: HUDModel.Kind, _ title: String, _ subtitle: String, action: String? = nil) -> CGSize {
             let model = HUDModel()
             model.kind = kind
             model.title = title

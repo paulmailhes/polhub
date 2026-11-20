@@ -27,7 +27,8 @@ public enum MailTab: String, Hashable, Sendable, CaseIterable {
     public var explanation: String {
         switch self {
         case .personnes: "Les mails écrits par des personnes : clients, collègues, proches."
-        case .notifications: "Ce que des services et des listes envoient tout seuls : reçus, alertes, rappels, lettres d'information, promotions. Rien n'y attend de réponse."
+        // « newsletter », never « lettre d'information » (lot 10, 20/11).
+        case .notifications: "Ce que des services et des listes envoient tout seuls : reçus, alertes, rappels, newsletters, promotions. Rien n'y attend de réponse."
         }
     }
 

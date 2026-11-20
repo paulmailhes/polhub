@@ -220,10 +220,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             externalChanges = ExternalChangeSignal.listen(queue: .main) { try? database.notifyExternalChanges() }
         } catch AppDatabaseError.newerBase {
             // Not a crash: a plain exit, which the relaunch agent leaves alone, instead of the same alert every
-            // ten seconds (correctifs, 15/11).
-            Self.alertThenExit(AppDatabaseError.newerBase.localizedDescription, code: 0)
+            // ten seconds (correctifs, 15/11). Its sentence is Polhub's own, in French (lot 10, 20/11).
+            Self.alertThenExit(AppDatabaseError.newerBase.errorDescription ?? "", code: 0)
         } catch {
-            Self.alertThenExit("La base des réunions ne s'ouvre pas : \(error.localizedDescription)")
+            // What did not work, in French, then what to do; the system's own text goes to the log, the base is not
+            // there for the journal (lot 10, 20/11). Polhub quits after the alert: reopening it is the gesture.
+            let problem = Words.problem("La base des réunions ne s'ouvre pas", error, remedy: "Rouvre Polhub.")
+            if let journal = problem.journal { NSLog("%@", journal) }
+            Self.alertThenExit(problem.sentence)
         }
         self.store = store
         library = MeetingLibrary(store: store)

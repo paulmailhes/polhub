@@ -1,6 +1,7 @@
 import Domain
 import Foundation
 import Persistence
+import PolhubDesign
 
 /// « À faire » on the Accueil (0.36.0, 18/11): the projects where it is Paul's turn (« priorité 2 ») and those whose
 /// deadline is past or within a week, grouped by day, the late first. A deadline is the next dated step: a meeting of
@@ -114,26 +115,21 @@ public enum TodoRules {
     }
 
     /// When, in words: « depuis 6 j », « aujourd'hui », « demain », « jeudi », « lundi 30 », « mercredi 2 décembre »;
-    /// a call, « call demain 9:30 ». Nothing for a project without a date.
+    /// a visio, « visio demain 9:30 » (lot 10, 20/11: « call »). Nothing for a project without a date.
     public static func when(_ line: Line, now: Date, calendar: Calendar) -> String? {
         guard let due = line.due else { return nil }
         let away = Briefing.days(from: now, to: due, calendar: calendar)
         if let call = line.call {
             return callWords(call, now: now, calendar: calendar)
         }
-        if away < 0 { return "depuis \(-away) j" }
+        if away < 0 { return "depuis " + Words.dayCount(-away, short: true) }
         return dayWord(due, now: now, calendar: calendar)
     }
 
-    /// A day in words: « aujourd'hui », « demain », « jeudi », « lundi 30 », « mercredi 2 décembre »; past, « le 12 novembre ».
+    /// A day in words: « aujourd'hui », « demain », « jeudi », « lundi 30 », « mercredi 2 décembre », by `Words` (lot 10,
+    /// 20/11).
     public static func dayWord(_ date: Date, now: Date, calendar: Calendar) -> String {
-        switch Briefing.days(from: now, to: date, calendar: calendar) {
-        case ..<0: "le \(Briefing.dayOfMonth(date, now: now, calendar: calendar, always: true))"
-        case 0: "aujourd'hui"
-        case 1: "demain"
-        case 2...6: Briefing.weekday(date, calendar: calendar)
-        default: "\(Briefing.weekday(date, calendar: calendar)) \(Briefing.dayOfMonth(date, now: now, calendar: calendar))"
-        }
+        Words.day(date, now: now, calendar: calendar)
     }
 
     /// What shows of the list folded: today's and tomorrow's always; the others, in order, up to `limit` lines in all.
@@ -203,19 +199,18 @@ public enum TodoRules {
             .min { $0.startAt < $1.startAt }
     }
 
-    /// « Livré, prochaine échéance : call jeudi 9:30 ».
-    public static func deliveredNext(_ call: CalendarEventRow, now: Date, calendar: Calendar) -> String {
-        "Livré, prochaine échéance : \(callWords(call.startAt, now: now, calendar: calendar))"
+    /// « Livré, prochaine échéance : visio jeudi 9:30 ».
+    public static func deliveredNext(_ meeting: CalendarEventRow, now: Date, calendar: Calendar) -> String {
+        "Livré, prochaine échéance : \(callWords(meeting.startAt, now: now, calendar: calendar))"
     }
 
-    /// « call jeudi 9:30 ».
+    /// « visio jeudi 9:30 », « visio lundi 30 à 9:30 » (lot 10, 20/11: « call »).
     public static func callWords(_ date: Date, now: Date, calendar: Calendar) -> String {
-        "call \(dayWord(date, now: now, calendar: calendar)) \(Briefing.time(date, calendar: calendar))"
+        "visio " + Words.moment(date, now: now, calendar: calendar)
     }
 
-    /// The journal's line of « Livré »: « Livré le 18/11 ».
+    /// The journal's line of « Livré »: « Livré le 18 nov. » (lot 10, 20/11: « 18/11 »).
     public static func delivered(_ date: Date, calendar: Calendar) -> String {
-        let parts = calendar.dateComponents([.day, .month], from: date)
-        return String(format: "Livré le %02d/%02d", parts.day ?? 0, parts.month ?? 0)
+        "Livré le " + Words.shortDate(date, now: date, calendar: calendar)
     }
 }

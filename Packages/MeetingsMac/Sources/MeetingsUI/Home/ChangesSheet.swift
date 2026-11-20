@@ -14,19 +14,21 @@ struct ChangesSheet: View {
 
     /// « Depuis hier 19:40 : 3 projets ont bougé. »
     private var title: String {
-        colin.briefing.first { $0.hasPrefix("Depuis ") } ?? "Le point"
+        colin.briefing.first { $0.kind == .since }?.sentence ?? "Le point"
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.l) {
-            Text(verbatim: title).font(.headline)
+            // A sentence with its « : »: French typography (lot 10, 20/11).
+            Text(verbatim: Words.typeset(title)).font(.headline)
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.m) {
                     ForEach(colin.briefingMails) { thread in
                         HStack(spacing: Space.m) {
                             Image(systemName: "envelope").foregroundStyle(.secondary).frame(width: 16)
                             VStack(alignment: .leading, spacing: 1) {
-                                Text(thread.subject.isEmpty ? "(sans objet)" : thread.subject).font(.rowBody).lineLimit(1)
+                                // A subject left empty, said as everywhere (lot 10, 20/11: `Words.noSubject`).
+                                Text(thread.subject.isEmpty ? Words.noSubject : thread.subject).font(.rowBody).lineLimit(1)
                                 Text(thread.senders.last.map { $0.name ?? $0.email } ?? "").font(.meta).foregroundStyle(.secondary).lineLimit(1)
                             }
                             Spacer(minLength: Space.s)

@@ -56,7 +56,7 @@ struct WindowSnapshotTests {
                                            job: nil, meetingActive: false, router: router))
         measure("en-tête de transcription", TranscriptHeader(status: .done(doubtful: true), meetingID: row.id, queue: nil))
         measure("répliques", DialogueParagraphs(paragraphs: TranscriptModel.paragraphs(try TranscriptStore(database).utterances(meetingID: row.id)), seek: { _ in }))
-        measure("ligne de liste", MeetingRowView(row: row, now: Date(), badge: "Transcription 50 %", project: "Refonte du site",
+        measure("ligne de liste", MeetingRowView(row: row, now: Date(), badge: .running(percent: 50), project: "Refonte du site",
                                                  summary: .init(text: "Le client valide la refonte ; la maquette de l'accueil part vendredi.", kind: .ready)))
 
         for width in [860.0, 1_280] {
@@ -160,7 +160,7 @@ struct WindowSnapshotTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let database = try AppDatabase.inMemory()
         let store = MeetingStore(database)
-        try store.addJournal(JournalEntry(createdAt: Date(), kind: .info, message: "Polhub mis à jour : 0.3.0 → 0.3.1."))
+        try store.addJournal(JournalEntry(createdAt: Date(), kind: .info, message: "Polhub est passé de 0.3.0 à 0.3.1."))
         let library = MeetingLibrary(store: store)
         let projects = ProjectLibrary(store: ProjectStore(database), meetings: store)
         let updates = UpdateService(current: SemanticVersion("0.3.1")!, fetch: { Data("[]".utf8) }, isIdle: { true },

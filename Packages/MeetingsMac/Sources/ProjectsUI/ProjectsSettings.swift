@@ -4,7 +4,8 @@ import SwiftUI
 /// The words of Réglages › Projets (lot 7, 19/11): one line under the logos' switch, the detail behind « ⓘ ».
 enum ProjectsSettingsText {
     static let logosHelp = "Polhub demande son icône au site de chaque client ; coupé, les initiales."
-    static let logosDetail = "Directement depuis le Mac, sans passer par un autre service : le site voit l'adresse IP du Mac, comme lors d'une visite. Une image déposée sur le logo d'un projet reste toujours."
+    // Fifteen words at most a sentence (lot 10, 20/11).
+    static let logosDetail = "Sans autre service : le site voit l'adresse IP du Mac, comme lors d'une visite. Une image déposée sur le logo d'un projet reste toujours."
 }
 
 /// Réglages › Projets: the size of the cards, the logos of the clients' sites (15/11).
@@ -31,7 +32,8 @@ public struct ProjectsSettingsPane: View {
                         .onChange(of: logosOnline) { _, on in if !on { logos?.cancelPending() } }
                 }
                 if let logos {
-                    Button("Rafraîchir les logos") { logos.refreshAll() }
+                    // « Actualiser » reads again what comes from outside (lot 10, 20/11).
+                    Button("Actualiser les logos") { logos.refreshAll() }
                         .disabled(!logosOnline)
                 }
             }

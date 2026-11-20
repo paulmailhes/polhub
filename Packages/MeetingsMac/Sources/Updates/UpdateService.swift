@@ -1,4 +1,5 @@
 import Foundation
+import PolhubDesign
 
 public protocol UpdateInstalling: Sendable {
     func prepare(_ release: Release) async throws -> URL
@@ -117,7 +118,8 @@ public final class UpdateService: ObservableObject {
             quit()
         } catch {
             lastFailure = now()
-            state = .failed("La mise à jour \(release.version) n'a pas pu s'installer : \(error). Nouvel essai dans une heure.")
+            // Polhub's words, never the system's text (lot 10, 20/11).
+            state = .failed(Words.problem("La mise à jour \(release.version) n'a pas pu s'installer", error, remedy: "Nouvel essai dans une heure.").sentence)
         }
     }
 
@@ -148,6 +150,7 @@ public final class UpdateService: ObservableObject {
     /// The line of the journal at the first launch of a new version.
     public static func upgradeNote(previous: String?, current: String) -> String? {
         guard let previous, previous != current else { return nil }
-        return "Polhub mis à jour : \(previous) → \(current)."
+        // Neither « → » nor « — » in a sentence (lot 10, 20/11).
+        return "Polhub est passé de \(previous) à \(current)."
     }
 }

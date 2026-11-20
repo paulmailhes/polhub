@@ -33,8 +33,6 @@ struct LastContact: Equatable, Sendable {
 /// What the Contacts section shows, and in which order (15/11): Paul lands there from a mail or a meeting, so
 /// the people he crossed lately come first, and a contact's page says in a glance where they stand.
 enum ContactsModel {
-    static let locale = Locale(identifier: "fr_FR")
-
     // MARK: - The list
 
     /// Every word typed is found in the name, the address, the company or one of the contact's projects, without
@@ -94,16 +92,16 @@ enum ContactsModel {
     static let never = "Sans échange"
 
     /// Those Paul crossed lately first, as Apple's Notes cut by date: « 7 jours précédents », « 30 jours
-    /// précédents », « Plus tôt », the most recent first in each; then « Sans échange », by last name.
-    static func sections(_ contacts: [ContactRow], last: [UUID: LastContact], now: Date, calendar: Calendar = .current) -> [Section] {
-        let today = calendar.startOfDay(for: now)
+    /// précédents », « Plus tôt », the most recent first in each; then « Sans échange », by last name. The days counted
+    /// by `Words` (lot 10, 20/11).
+    static func sections(_ contacts: [ContactRow], last: [UUID: LastContact], now: Date, calendar: Calendar = Words.calendar) -> [Section] {
         var buckets: [String: [ContactRow]] = [:]
         for contact in contacts {
             guard let date = last[contact.id]?.date else {
                 buckets[never, default: []].append(contact)
                 continue
             }
-            let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: date), to: today).day ?? 0
+            let days = Words.days(from: date, to: now, calendar: calendar)
             buckets[days < 7 ? recentWeek : days < 30 ? recentMonth : earlier, default: []].append(contact)
         }
         return [recentWeek, recentMonth, earlier, never].compactMap { title in
@@ -138,36 +136,22 @@ enum ContactsModel {
         MailText.tint(for: contact.email ?? contact.name)
     }
 
-    /// At the end of a row: « Aujourd'hui », « Hier », « Lundi » within the week, « 12 nov. » this year,
-    /// « 12/11/25 » before.
-    static func when(_ date: Date, now: Date, calendar: Calendar = .current) -> String {
-        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: date), to: calendar.startOfDay(for: now)).day ?? 0
-        if days <= 0 { return "Aujourd'hui" }
-        if days == 1 { return "Hier" }
-        if days < 7 { return capitalized(date.formatted(.dateTime.weekday(.wide).locale(locale))) }
-        if calendar.component(.year, from: date) == calendar.component(.year, from: now) {
-            return date.formatted(.dateTime.day().month(.abbreviated).locale(locale))
-        }
-        return date.formatted(.dateTime.day(.twoDigits).month(.twoDigits).year(.twoDigits).locale(locale))
+    /// At the end of a row, a meta (lot 10, 20/11): « aujourd'hui », « hier », « lun. » within the week, « 12 nov. » this
+    /// year, « 12 nov. 2025 » before; no longer « 12/11/25 ».
+    static func when(_ date: Date, now: Date, calendar: Calendar = Words.calendar) -> String {
+        Words.shortDay(date, now: now, calendar: calendar)
     }
 
     // MARK: - A contact's page
 
-    /// « aujourd'hui », « hier », « il y a 3 jours », « il y a 2 semaines », « il y a 4 mois », « il y a 1 an ».
-    static func ago(_ date: Date, now: Date, calendar: Calendar = .current) -> String {
-        let days = max(0, calendar.dateComponents([.day], from: calendar.startOfDay(for: date), to: calendar.startOfDay(for: now)).day ?? 0)
-        switch days {
-        case 0: return "aujourd'hui"
-        case 1: return "hier"
-        case ..<7: return "il y a \(days) jours"
-        case ..<35: return days / 7 == 1 ? "il y a 1 semaine" : "il y a \(days / 7) semaines"
-        case ..<365: return "il y a \(max(1, days / 30)) mois"
-        default: return days / 365 == 1 ? "il y a 1 an" : "il y a \(days / 365) ans"
-        }
+    /// « aujourd'hui », « hier », « il y a 3 jours », « il y a 2 semaines », « il y a 4 mois », « il y a 1 an »: by
+    /// `Words` (lot 10, 20/11).
+    static func ago(_ date: Date, now: Date, calendar: Calendar = Words.calendar) -> String {
+        Words.daysAgo(date, now: now, calendar: calendar)
     }
 
     /// « Dernier mail il y a 3 jours ».
-    static func lastText(_ last: LastContact, now: Date, calendar: Calendar = .current) -> String {
+    static func lastText(_ last: LastContact, now: Date, calendar: Calendar = Words.calendar) -> String {
         "\(last.kind.title) \(ago(last.date, now: now, calendar: calendar))"
     }
 
@@ -180,50 +164,29 @@ enum ContactsModel {
                 mine.filter { $0.endAt <= now }.sorted { $0.startAt > $1.startAt })
     }
 
-    /// « Rendez-vous en cours », « Rendez-vous aujourd'hui à 14:00 », « … demain à 9:30 », « … jeudi à 14:00 »
-    /// within the week, « … le 28 nov. à 14:00 » after.
-    static func nextText(_ event: CalendarEventRow, now: Date, calendar: Calendar = .current) -> String {
+    /// « Rendez-vous en cours », « Rendez-vous aujourd'hui 14:00 », « … demain 9:30 », « … jeudi 14:00 » within the
+    /// week, « … mercredi 25 à 14:00 », « … mercredi 2 décembre à 14:00 » after; a whole day, « Rendez-vous demain »,
+    /// « Rendez-vous lundi 30 ». The day and the hour by `Words` (lot 10, 20/11).
+    static func nextText(_ event: CalendarEventRow, now: Date, calendar: Calendar = Words.calendar) -> String {
         if event.startAt <= now { return "Rendez-vous en cours" }
-        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: calendar.startOfDay(for: event.startAt)).day ?? 0
-        let day: String = switch days {
-        case 0: "aujourd'hui"
-        case 1: "demain"
-        case ..<7: event.startAt.formatted(.dateTime.weekday(.wide).locale(locale))
-        default: "le " + event.startAt.formatted(.dateTime.day().month(.abbreviated).locale(locale))
-        }
-        if event.allDay { return "Rendez-vous \(day)" }
-        return "Rendez-vous \(day) à \(event.startAt.formatted(.dateTime.hour().minute().locale(locale)))"
+        if event.allDay { return "Rendez-vous " + Words.day(event.startAt, now: now, calendar: calendar) }
+        return "Rendez-vous " + Words.moment(event.startAt, now: now, calendar: calendar)
     }
 
-    /// Under an event's title: « Aujourd'hui, 14:00 – 15:00 », « Demain, 9:30 – 10:00 », « jeu. 20 nov., 14:00 –
-    /// 15:00 », the year when it is not this one; « journée » for a whole day.
-    static func eventWhen(_ event: CalendarEventRow, now: Date, calendar: Calendar = .current) -> String {
-        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: calendar.startOfDay(for: event.startAt)).day ?? 0
-        let sameYear = calendar.component(.year, from: event.startAt) == calendar.component(.year, from: now)
-        let day: String = switch days {
-        case 0: "Aujourd'hui"
-        case 1: "Demain"
-        case -1: "Hier"
-        default: event.startAt.formatted(sameYear ? .dateTime.weekday(.abbreviated).day().month(.abbreviated).locale(locale)
-                                                  : .dateTime.day().month(.abbreviated).year().locale(locale))
-        }
-        if event.allDay { return "\(day), journée" }
-        let time = Date.FormatStyle.dateTime.hour().minute().locale(locale)
-        return "\(day), \(event.startAt.formatted(time)) – \(event.endAt.formatted(time))"
+    /// Under an event's title: « Aujourd'hui, 14:00 – 15:00 », « Demain, 9:30 – 10:00 », « Jeu., 14:00 – 15:00 »
+    /// within the week, « 20 nov., 14:00 – 15:00 », the year when it is not this one; « Demain, toute la journée » for a
+    /// whole day. By `Words` (lot 10, 20/11).
+    static func eventWhen(_ event: CalendarEventRow, now: Date, calendar: Calendar = Words.calendar) -> String {
+        let day = Words.capitalizedFirst(Words.shortDay(event.startAt, now: now, calendar: calendar))
+        if event.allDay { return day + ", " + Words.allDay }
+        return day + ", " + Words.timeRange(from: event.startAt, to: event.endAt, calendar: calendar)
     }
 
-    /// Under a meeting's title: « 12 nov., 14:00 · 45 min ».
-    static func meetingWhen(_ meeting: MeetingRow, now: Date, calendar: Calendar = .current) -> String {
-        let sameYear = calendar.component(.year, from: meeting.startedAt) == calendar.component(.year, from: now)
-        let date = meeting.startedAt.formatted(sameYear ? .dateTime.day().month(.abbreviated).hour().minute().locale(locale)
-                                                        : .dateTime.day().month(.abbreviated).year().hour().minute().locale(locale))
+    /// Under a meeting's title: « 12 nov., 14:00 · 45 min », the year when it is not this one; the length as the list
+    /// of the meetings says it. By `Words` (lot 10, 20/11).
+    static func meetingWhen(_ meeting: MeetingRow, now: Date, calendar: Calendar = Words.calendar) -> String {
+        let date = Words.shortDate(meeting.startedAt, now: now, calendar: calendar) + ", " + Words.time(meeting.startedAt, calendar: calendar)
         guard let end = meeting.endedAt, end > meeting.startedAt else { return date }
-        let minutes = Int((end.timeIntervalSince(meeting.startedAt) / 60).rounded())
-        let length = minutes < 60 ? "\(max(1, minutes)) min" : minutes % 60 == 0 ? "\(minutes / 60) h" : "\(minutes / 60) h \(String(format: "%02d", minutes % 60))"
-        return "\(date) · \(length)"
-    }
-
-    static func capitalized(_ text: String) -> String {
-        text.prefix(1).uppercased() + text.dropFirst()
+        return date + " · " + Words.duration(Int(end.timeIntervalSince(meeting.startedAt)))
     }
 }

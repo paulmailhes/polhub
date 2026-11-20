@@ -197,8 +197,9 @@ public struct Banner<Actions: View>: View {
 
     private var text: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title).font(.meta.weight(.semibold))
-            if let detail { Text(detail).font(.meta).foregroundStyle(.secondary) }
+            // French typography, laid at display (`Words.typeset`, lot 10, 20/11).
+            Text(Words.typeset(title)).font(.meta.weight(.semibold))
+            if let detail { Text(Words.typeset(detail)).font(.meta).foregroundStyle(.secondary) }
         }
         .fixedSize(horizontal: false, vertical: true)
     }
@@ -215,7 +216,8 @@ public struct ErrorLine: View {
 
     public var body: some View {
         Label {
-            Text(text).foregroundStyle(.primary)
+            // French typography, laid at display (`Words.typeset`, lot 10, 20/11).
+            Text(Words.typeset(text)).foregroundStyle(.primary)
         } icon: {
             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Tint.attention)
         }

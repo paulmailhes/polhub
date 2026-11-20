@@ -148,7 +148,7 @@ public enum InspirationTagError: Error, Equatable, Sendable, CustomStringConvert
     public var description: String {
         switch self {
         case .turnedOff: "Les catégories par l'IA d'Apple sont coupées dans Réglages › Inspiration."
-        case .byPaul: "Tu as choisi ces catégories : l'IA n'y touche plus."
+        case .byPaul: "Tu as choisi ces catégories : l'IA d'Apple n'y touche plus." // never « l'IA » alone (lot 10, 20/11)
         case .tooShort: "Le texte est trop court pour proposer des catégories."
         case .notTaggable: "Pas de catégories proposées pour un mock-up."
         case .unavailable: "L'IA d'Apple n'est pas disponible sur ce Mac pour l'instant."

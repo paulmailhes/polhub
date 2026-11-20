@@ -1,6 +1,7 @@
 import Domain
 import Foundation
 import Persistence
+import PolhubDesign
 
 /// A meeting's summary: what was said, what matters, what was decided, what is to be done (design of 12/11,
 /// « Points clés » 15/11).
@@ -57,8 +58,9 @@ public enum SummaryError: Error, Equatable, CustomStringConvertible {
     public var description: String {
         switch self {
         case .model(let text), .unavailable(let text): text
-        case .tooLong: "La transcription dépasse la fenêtre du modèle."
-        case .refused: "Le modèle d'Apple a refusé ce passage."
+        // « l'IA d'Apple », never « le modèle » (lot 10, 20/11).
+        case .tooLong: "La transcription est trop longue pour l'IA d'Apple."
+        case .refused: "L'IA d'Apple a refusé ce passage."
         }
     }
 }
@@ -332,8 +334,9 @@ public enum SummaryChecks {
         fold(text).split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
     }
 
+    /// `Words`' capital, the same everywhere (lot 10, 20/11).
     static func capitalized(_ text: String) -> String {
-        text.prefix(1).uppercased() + text.dropFirst()
+        Words.capitalizedFirst(text)
     }
 }
 

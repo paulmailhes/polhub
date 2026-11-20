@@ -20,7 +20,8 @@ public final class NotificationHub: ObservableObject {
     var alerted: Set<String> = []
     /// The reminders handed to macOS, until they come: macOS shows them on its own, the list keeps them then.
     var scheduled: [PlannedNotice] = []
-    @Published public private(set) var authorization = ""
+    /// What macOS lets them do, a state (lot 10, 20/11); `nil` until it is read.
+    @Published public private(set) var authorization: NotificationAuthorization?
     /// Polhub's own list of what it notified (15/11): the bell of the sidebar reads it.
     public let inbox: NotificationInbox?
 
@@ -162,7 +163,7 @@ public final class NotificationHub: ObservableObject {
     }
 
     public func readAuthorization() async {
-        authorization = await SystemNotifications.authorizationText()
+        authorization = await SystemNotifications.authorization()
     }
 }
 

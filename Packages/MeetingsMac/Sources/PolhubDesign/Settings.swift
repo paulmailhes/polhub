@@ -39,7 +39,8 @@ public struct SettingRow<Control: View>: View {
             control.labelsHidden().toggleStyle(.switch)
         } label: {
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
+                // French typography, laid at display (`Words.typeset`, lot 10, 20/11).
+                Text(Words.typeset(title))
                 if let problem {
                     ErrorLine(problem).font(.meta).fixedSize(horizontal: false, vertical: true)
                 } else if let help {
@@ -67,7 +68,8 @@ public struct SettingHelp: View {
 
     public var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: Space.xs) {
-            Text(text)
+            // French typography, laid at display (`Words.typeset`, lot 10, 20/11).
+            Text(Words.typeset(text))
                 .font(.meta)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -95,7 +97,8 @@ public struct InfoBubble: View {
         .help("En savoir plus")
         .accessibilityLabel("En savoir plus")
         .popover(isPresented: $shown) {
-            Text(text)
+            // French typography, laid at display (`Words.typeset`, lot 10, 20/11).
+            Text(Words.typeset(text))
                 .font(.meta)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(width: 320, alignment: .leading)

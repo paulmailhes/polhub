@@ -67,12 +67,12 @@ import Testing
         #expect(due(events) == ["d", "a", "b"])
     }
 
-    /// « Dans 2 min », « Dans 1 min », « Maintenant », « Commencé il y a 3 min ».
+    /// « dans 2 min », « dans 1 min », « maintenant », « commencé il y a 3 min »: a meta, in small letters (lot 10, 20/11).
     @Test func theCardSaysWhen() {
         let start = now
-        #expect(MeetingCardPlan.when(start, now: now.addingTimeInterval(-110)) == "Dans 2 min")
-        #expect(MeetingCardPlan.when(start, now: now.addingTimeInterval(-50)) == "Dans 1 min")
-        #expect(MeetingCardPlan.when(start, now: now.addingTimeInterval(20)) == "Maintenant")
-        #expect(MeetingCardPlan.when(start, now: now.addingTimeInterval(190)) == "Commencé il y a 3 min")
+        #expect(MeetingCardPlan.when(start, now: now.addingTimeInterval(-110)) == "dans 2 min")
+        #expect(MeetingCardPlan.when(start, now: now.addingTimeInterval(-50)) == "dans 1 min")
+        #expect(MeetingCardPlan.when(start, now: now.addingTimeInterval(20)) == "maintenant")
+        #expect(MeetingCardPlan.when(start, now: now.addingTimeInterval(190)) == "commencé il y a 3 min")
     }
 }

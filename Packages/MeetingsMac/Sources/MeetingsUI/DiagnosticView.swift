@@ -43,6 +43,18 @@ public enum ChecklistItem: String, CaseIterable, Identifiable, Sendable {
 public enum ItemState: Equatable, Sendable {
     case unknown, ok, missing
     case denied(String)
+    /// Dia is not open: nothing is refused, its answer waits for it to open (lot 10, 20/11: a state, no longer the words
+    /// of a refusal that the replay compared).
+    case notRunning
+
+    /// What the line says under its explanation: why it is refused, or that Dia is not open.
+    public var reason: String? {
+        switch self {
+        case .denied(let reason): reason
+        case .notRunning: "Dia n'est pas ouvert"
+        case .unknown, .ok, .missing: nil
+        }
+    }
 }
 
 /// The checks of the first launch, run again from the Diagnostic page or when macOS or Dia changes.
@@ -88,7 +100,7 @@ public final class DiagnosticModel: ObservableObject {
     /// off, is not a permission taken away.
     public var permissionsGood: Bool {
         states[.microphone] == .ok && states[.systemAudio] == .ok
-            && (states[.diaAutomation] == .ok || states[.diaAutomation] == .denied("Dia n'est pas ouvert"))
+            && (states[.diaAutomation] == .ok || states[.diaAutomation] == .notRunning)
     }
 
     /// A line's answer; the others' sound is told as it comes (`systemAudioChecked`).
@@ -142,8 +154,11 @@ public final class DiagnosticModel: ObservableObject {
         case (.microphone, "notDetermined"), (.diaAutomation, "wouldPrompt"): .missing
         case (.systemAudio, "notTested"): .unknown
         case (.systemAudio, "allZero"): .denied("Le son n'est pas capté")
-        case (.diaAutomation, "notRunning"): .denied("Dia n'est pas ouvert")
-        default: .denied(answer)
+        case (.diaAutomation, "notRunning"): .notRunning
+        // macOS's answer in words, never its code on screen (« denied », « restricted », « error:-1708 »), lot 10, 20/11.
+        case (_, "denied"): .denied("Refusé dans Réglages Système")
+        case (_, "restricted"): .denied("Bloqué par un profil installé sur le Mac")
+        default: .denied("macOS ne répond pas comme prévu")
         }
     }
 }
@@ -170,7 +185,8 @@ public struct DiagnosticView: View {
             Section {
                 // What is missing: a problem, said by `ErrorLine` (design system v2, 19/11).
                 if model.allGood {
-                    Text("Tout est prêt : chaque Meet ouvert dans Dia s'enregistre tout seul.").foregroundStyle(.secondary)
+                    // « Visio », never « un Meet »; French typography, laid at display (lot 10, 20/11).
+                    Text(Words.typeset("Tout est prêt : chaque visio rejointe dans Dia s'enregistre toute seule.")).foregroundStyle(.secondary)
                 } else {
                     ErrorLine("Il manque quelque chose pour que les réunions s'enregistrent toutes seules.")
                 }
@@ -198,10 +214,11 @@ public struct DiagnosticView: View {
             stateIcon(state, testing: model.testing.contains(item))
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
-                Text(item.explanation).font(.meta).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                if case .denied(let reason) = state {
+                // French typography, laid at display (lot 10, 20/11).
+                Text(Words.typeset(item.explanation)).font(.meta).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                if let reason = state.reason {
                     // In the text's color: the icon on the left carries the attention (design system v2, 19/11).
-                    Text(reason).font(.meta).foregroundStyle(.primary)
+                    Text(Words.typeset(reason)).font(.meta).foregroundStyle(.primary)
                 }
                 if item == .relaunch, let startup { RelaunchProblem(startup: startup) }
             }
@@ -230,7 +247,7 @@ public struct DiagnosticView: View {
             switch state {
             case .ok: Image(systemName: "checkmark.circle.fill").foregroundStyle(Tint.done).font(.title3)
             case .missing: Image(systemName: "circle.dashed").foregroundStyle(Tint.attention).font(.title3)
-            case .denied: Image(systemName: "xmark.octagon.fill").foregroundStyle(Tint.attention).font(.title3)
+            case .denied, .notRunning: Image(systemName: "xmark.octagon.fill").foregroundStyle(Tint.attention).font(.title3)
             case .unknown: Image(systemName: "questionmark.circle").foregroundStyle(.secondary).font(.title3)
             }
         }

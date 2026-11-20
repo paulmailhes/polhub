@@ -1,5 +1,6 @@
 import Foundation
 import Persistence
+import PolhubDesign
 
 /// The card that stays at the top right of the screen before a meeting with a Meet, with « Rejoindre » (Paul,
 /// 16/11: macOS's banners « s'en vont direct »). Pure: the panel is the app's (`MeetingCardPresenter`).
@@ -36,11 +37,10 @@ public enum MeetingCardPlan {
             .map { $0 }
     }
 
-    /// « Dans 2 min », « Maintenant », « Commencé il y a 3 min ».
+    /// « dans 2 min », « maintenant » for the first minute, then « commencé il y a 3 min »: a meta, in small letters, by
+    /// `Words` (lot 10, 20/11: « Dans 2 min », « Maintenant », « Commencé… »).
     public static func when(_ start: Date, now: Date) -> String {
-        let seconds = start.timeIntervalSince(now)
-        if seconds > 0 { return "Dans \(max(1, Int((seconds / 60).rounded(.up)))) min" }
-        let since = Int((-seconds / 60).rounded(.down))
-        return since < 1 ? "Maintenant" : "Commencé il y a \(since) min"
+        if now.timeIntervalSince(start) < 60 { return Words.until(start, now: now) }
+        return "commencé " + Words.ago(start, now: now)
     }
 }

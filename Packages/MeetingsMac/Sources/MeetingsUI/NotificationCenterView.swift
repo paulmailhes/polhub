@@ -94,12 +94,10 @@ public struct NotificationBell: View {
         count <= 0 ? nil : count > 99 ? "99+" : "\(count)"
     }
 
+    /// « Ouvrir les notifications : 3 nouvelles »: the bubble and VoiceOver's name, the same words (lot 10, 20/11: a noun
+    /// for an action, « Notifications, 3 nouvelles »), the count by `Words.count`.
     static func accessibilityText(_ count: Int) -> String {
-        switch count {
-        case 0: "Notifications"
-        case 1: "Notifications, 1 nouvelle"
-        default: "Notifications, \(count) nouvelles"
-        }
+        Words.help("Ouvrir les notifications", detail: count > 0 ? Words.count(count, "nouvelle") : nil)
     }
 
     public var body: some View {
@@ -283,14 +281,14 @@ public struct NotificationPanel: View {
             card(group.notices[0], now: now)
         } else if !expanded.isDisjoint(with: ids) {
             VStack(alignment: .leading, spacing: Space.s) {
-                // The stack opened: its section's label, as the days', and « Afficher moins » in a grey word (lot 9,
-                // 20/11: a capsule always drawn before).
+                // The stack opened: its section's label, as the days', and « Voir moins » in a grey word (lot 9, 20/11: a
+                // capsule always drawn before; lot 10, 20/11: « Voir » unfolds in place, « Afficher » shows what is hidden).
                 HStack(alignment: .firstTextBaseline, spacing: Space.s) {
                     Text(group.section.title)
                         .font(.tag.weight(.semibold))
                         .foregroundStyle(.secondary)
                     Spacer(minLength: 0)
-                    TextButton("Afficher moins", quiet: true) {
+                    TextButton("Voir moins", quiet: true) {
                         withAnimation(Motion.standard) { expanded.subtract(ids) }
                     }
                 }
@@ -345,17 +343,14 @@ struct NoticeCard: View {
     /// How far a card goes sideways before it is let go.
     static let swipeDistance: CGFloat = 90
 
-    /// « 3 messages » on a thread's card that stands for several mails.
+    /// « 3 messages » on a thread's card that stands for several mails (`Words.count`, lot 10, 20/11).
     static func countText(_ notice: InboxNotice) -> String? {
-        notice.kind == .mail && notice.threadKey != nil && notice.count > 1 ? "\(notice.count) messages" : nil
+        notice.kind == .mail && notice.threadKey != nil && notice.count > 1 ? Words.count(notice.count, "message") : nil
     }
 
+    /// « et 1 autre », « et 3 autres » (`Words.count`, lot 10, 20/11).
     static func hiddenText(_ hidden: Int) -> String? {
-        switch hidden {
-        case ..<1: nil
-        case 1: "et 1 autre"
-        default: "et \(hidden) autres"
-        }
+        hidden < 1 ? nil : "et " + Words.count(hidden, "autre")
     }
 
     var body: some View {
@@ -383,7 +378,9 @@ struct NoticeCard: View {
                             .foregroundStyle(.secondary)
                             .fixedSize()
                     }
-                    Text(notice.body)
+                    // French typography on Polhub's own sentences (« a commencé. Rejoindre ? »), never on a mail's subject
+                    // (`Words.typeset`, lot 10, 20/11).
+                    Text(notice.kind == .mail ? notice.body : Words.typeset(notice.body))
                         .font(.rowBody)
                         .foregroundStyle(.primary.opacity(0.82))
                         .lineLimit(2)
@@ -410,7 +407,8 @@ struct NoticeCard: View {
         .padding(.bottom, StackedCard.drop * CGFloat(min(hidden, 2)))
         .overlay(alignment: .topLeading) {
             if hovering {
-                DismissButton(help: hidden > 0 ? "Effacer ces notifications" : "Effacer", action: dismiss)
+                // A verb and its object, the bubble and VoiceOver's name (lot 10, 20/11: « Effacer » alone).
+                DismissButton(help: hidden > 0 ? "Effacer ces notifications" : "Effacer cette notification", action: dismiss)
                     .offset(x: -7, y: -7)
                     .transition(.opacity)
             }

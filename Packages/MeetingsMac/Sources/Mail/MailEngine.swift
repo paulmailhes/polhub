@@ -3,6 +3,7 @@ import Foundation
 import GoogleKit
 import MailFormat
 import Persistence
+import PolhubDesign
 import UniformTypeIdentifiers
 
 /// Keeps the copy of each mailbox in step with Gmail (14/11): a first reading of everything, the most recent
@@ -905,8 +906,9 @@ public actor MailEngine {
         // whole, below what Paul adds, as before.
         let whole = formatted && MailRichText.holdsMoreThanText(body)
         let others = try store.messages(threadKey: message.threadKey).filter { $0.id != message.id }
+        // A message without a subject gives an empty field, by its state (lot 10, 20/11).
         var draft = MailDraftRow(account: message.account, mode: others.isEmpty ? .new : .reply, threadKey: others.isEmpty ? nil : message.threadKey,
-                                 to: message.to, cc: message.cc, bcc: MailParser.addresses(headers?.header("Bcc")), subject: message.subject == "(sans objet)" ? "" : message.subject,
+                                 to: message.to, cc: message.cc, bcc: MailParser.addresses(headers?.header("Bcc")), subject: message.hasNoSubject ? "" : message.subject,
                                  body: whole ? "" : formatted ? MailRichText.plain(body) : (message.bodyIsHTML ? HTMLText.plain(body) : body),
                                  bodyHTML: formatted && !whole ? MailRichText.clean(body) : nil,
                                  quoteHTML: whole ? HTMLText.quotable(body) : nil, quoteText: whole ? HTMLText.plain(body) : nil,
@@ -1105,7 +1107,8 @@ public actor MailEngine {
             retryAt[draftID] = now().addingTimeInterval(Self.retryDelay)
             replace(back)
         } catch {
-            try? store.markDraftError(draftID, error: "Gmail a refusé l'envoi programmé : \(error)")
+            // The draft's line says Polhub's sentence, never the system's text (lot 10, 20/11).
+            try? store.markDraftError(draftID, error: Words.problem("Gmail a refusé l'envoi programmé", error).sentence)
             finish(entry, .stopped(entry, .refused("\(error)")))
         }
     }

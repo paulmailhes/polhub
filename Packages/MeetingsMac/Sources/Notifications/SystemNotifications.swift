@@ -16,6 +16,31 @@ public enum NoticeKey {
     static let plainCategory = "polhub"
 }
 
+/// What macOS lets Polhub's notifications do (lot 10, 20/11): Réglages offers to open Réglages Système when they are
+/// refused, by this state, never by its words.
+public enum NotificationAuthorization: Equatable, Sendable {
+    case allowed, denied, notAsked, unknown
+
+    init(_ status: UNAuthorizationStatus) {
+        switch status {
+        case .authorized, .provisional, .ephemeral: self = .allowed
+        case .denied: self = .denied
+        case .notDetermined: self = .notAsked
+        @unknown default: self = .unknown
+        }
+    }
+
+    /// « autorisées », « refusées dans Réglages Système », « pas encore demandées ».
+    public var text: String {
+        switch self {
+        case .allowed: "autorisées"
+        case .denied: "refusées dans Réglages Système"
+        case .notAsked: "pas encore demandées"
+        case .unknown: "inconnues"
+        }
+    }
+}
+
 /// macOS's notification center. A notification scheduled at a date is shown by macOS itself, even when Polhub is
 /// not running; a click opens Polhub, which joins the Meet or opens the page (14/11).
 public struct SystemNotifications: NotificationCenterClient {
@@ -37,14 +62,9 @@ public struct SystemNotifications: NotificationCenterClient {
         (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])) ?? false
     }
 
-    /// « autorisées », « refusées », « pas encore demandées ».
-    public static func authorizationText() async -> String {
-        switch await UNUserNotificationCenter.current().notificationSettings().authorizationStatus {
-        case .authorized, .provisional, .ephemeral: "autorisées"
-        case .denied: "refusées dans Réglages Système"
-        case .notDetermined: "pas encore demandées"
-        @unknown default: "inconnues"
-        }
+    /// What macOS lets Polhub's notifications do: a state, read by Réglages, its words beside it (lot 10, 20/11).
+    public static func authorization() async -> NotificationAuthorization {
+        NotificationAuthorization(await UNUserNotificationCenter.current().notificationSettings().authorizationStatus)
     }
 
     public func pendingIdentifiers() async -> [String] {

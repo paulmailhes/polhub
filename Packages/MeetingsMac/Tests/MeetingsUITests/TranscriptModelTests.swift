@@ -27,10 +27,10 @@ import Testing
         #expect(text(nil) == "En attente de transcription")
         #expect(text(job(.queued)) == "En attente de transcription")
         #expect(text(job(.queued), active: true) == "Transcription en pause pendant la réunion")
-        #expect(text(job(.running, progress: 0.42)) == "Transcription : 42 %")
+        #expect(text(job(.running, progress: 0.42)) == "Transcription 42\u{202F}%")
         #expect(text(job(.done)) == nil)
-        #expect(text(job(.done, doubtful: true)) == "À vérifier : le moteur a peut-être inventé des passages.")
-        #expect(text(job(.failed, error: "Le moteur a planté.")) == "La transcription a échoué : Le moteur a planté.")
+        #expect(text(job(.done, doubtful: true)) == "À vérifier : la transcription a peut-être inventé des passages.")
+        #expect(text(job(.failed, error: "Le moteur a planté.")) == "La transcription a échoué. Réessaie.")
         var recording = meeting
         recording.status = .recording
         #expect(TranscriptModel.status(nil, meeting: recording, meetingActive: true) == nil)
@@ -55,12 +55,17 @@ import Testing
     }
 
     @Test func theListBadgeFollowsTheJob() {
-        #expect(TranscriptModel.badge(job(.running, progress: 0.5)) == "Transcription 50 %")
-        #expect(TranscriptModel.badge(job(.queued)) == "En file")
-        #expect(TranscriptModel.badge(job(.failed)) == "Échec")
-        #expect(TranscriptModel.badge(job(.done, doubtful: true)) == "À vérifier")
+        #expect(TranscriptModel.badge(job(.running, progress: 0.5)) == .running(percent: 50))
+        #expect(TranscriptModel.badge(job(.queued)) == .queued)
+        #expect(TranscriptModel.badge(job(.failed)) == .failed)
+        #expect(TranscriptModel.badge(job(.done, doubtful: true)) == .toCheck)
         #expect(TranscriptModel.badge(job(.done)) == nil)
         #expect(TranscriptModel.badge(nil) == nil)
+        // The words beside the state; the color reads the state (lot 10, 20/11).
+        #expect(TranscriptBadge.running(percent: 50).text == "Transcription 50\u{202F}%" && TranscriptBadge.queued.text == "En attente")
+        #expect(TranscriptBadge.failed.text == "Échec" && TranscriptBadge.toCheck.text == "À vérifier")
+        #expect(TranscriptBadge.failed.needsAttention && TranscriptBadge.toCheck.needsAttention)
+        #expect(!TranscriptBadge.queued.needsAttention && !TranscriptBadge.running(percent: 50).needsAttention)
     }
 }
 

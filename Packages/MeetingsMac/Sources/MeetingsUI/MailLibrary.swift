@@ -161,7 +161,8 @@ public enum MailImages: String, Hashable, Sendable, CaseIterable {
         switch self {
         case .connus: "Pour les expéditeurs connus"
         case .demander: "Toujours demander"
-        case .afficher: "Tout afficher"
+        // « Tout afficher » cleared Inspiration's filters too: one sense for one word (lot 10, 20/11).
+        case .afficher: "Toujours afficher"
         }
     }
 }
@@ -546,7 +547,10 @@ public final class MailLibrary: ObservableObject {
             try store.file(threadKey: thread.id, as: filing, at: date)
             if let sender, follows { try store.remember(address: sender, filing: .some(filing.rawValue), at: date) }
         } catch {
-            message = "Rangement impossible : \(error)"
+            // What failed in Paul's words; the system's own text goes to the journal (lot 10, 20/11).
+            let problem = Words.problem("Le fil n'a pas pu être rangé", error)
+            message = problem.sentence
+            agenda.database.journal(problem)
             return nil
         }
         var takeBack: [() -> Void] = [{
@@ -578,24 +582,31 @@ public final class MailLibrary: ObservableObject {
                     }
                 }
             } catch {
-                message = "Le contact n'a pas pu être relié au projet : \(error)"
+                // « Ajouter à « P » », never « relier » (lot 10, 20/11).
+                let projectName: String? = project(projectID)?.name
+                let problem = Words.problem(projectName.map { "Le contact n'a pas pu être ajouté à « \($0) »" }
+                                                ?? "Le contact n'a pas pu être ajouté au projet", error)
+                message = problem.sentence
+                agenda.database.journal(problem)
             }
         }
         return takeBack
     }
 
     static func filedText(_ filing: MailFiling, project: String?, sender: String?) -> String {
-        let next = sender.map { "les prochains mails de \($0)" } ?? "les prochains mails"
+        let next = sender.map { "les prochains mails \(Words.of($0))" } ?? "les prochains mails"
         switch filing {
         case .project: return "Rangé dans « \(project ?? "le projet") » : \(next) suivront."
-        case .none: return "Sans case : \(next) resteront dans Personnes."
+        // The tab « Personnes » is gone: a thread without a case goes to the folder (lot 10, 20/11).
+        case .none: return "Sans case : \(next) resteront dans la Boîte de réception."
         default: return "Rangé dans \(filing.title ?? "") : \(next) suivront."
         }
     }
 
     /// « Rangés dans « Site vitrine » : 3 fils ».
     static func filedText(_ filing: MailFiling, project: String?, count: Int) -> String {
-        let threads = count > 1 ? "\(count) fils" : "1 fil", filed = count > 1 ? "Rangés" : "Rangé"
+        // Accorded by `Words` (lot 10, 20/11).
+        let threads = Words.count(count, "fil"), filed = Words.plural(count, "Rangé")
         switch filing {
         case .project: return "\(filed) dans « \(project ?? "le projet") » : \(threads)"
         case .none: return "Sans case : \(threads)"
@@ -684,8 +695,8 @@ public final class MailLibrary: ObservableObject {
         let reading = accounts.compactMap { cursors[$0.email] }.filter { $0.finishedAt == nil && $0.total > 0 }
         guard !reading.isEmpty else { return nil }
         let done = reading.reduce(0) { $0 + $1.done }, total = reading.reduce(0) { $0 + $1.total }
-        let format = IntegerFormatStyle<Int>.number.locale(Locale(identifier: "fr_FR"))
-        return "Lecture \(reading.count > 1 ? "des boîtes" : "de la boîte") : \(done.formatted(format)) sur \(total.formatted(format))"
+        // The numbers as French writes them, by `Words` (lot 10, 20/11).
+        return "Lecture \(reading.count > 1 ? "des boîtes" : "de la boîte") : \(Words.number(done)) sur \(Words.number(total))"
     }
 
     /// A mailbox that cannot be read, and why.
@@ -705,7 +716,8 @@ public final class MailLibrary: ObservableObject {
     /// Where the thread stands in the list: « 3 sur 42 ».
     public func position(of key: String) -> String? {
         let keys = shown.map(\.id)
-        return keys.firstIndex(of: key).map { "\($0 + 1) sur \(keys.count)" }
+        // « 1 sur 2 500 », the thousands apart (lot 10, 20/11).
+        return keys.firstIndex(of: key).map { "\(Words.number($0 + 1)) sur \(Words.number(keys.count))" }
     }
 
     // MARK: - Selection
@@ -743,18 +755,20 @@ public final class MailLibrary: ObservableObject {
 
     // MARK: - Gestures
 
+    /// « Fil archivé », « 3 fils archivés »: accorded by `Words`; « Restaurer » gives « restauré », never « rétabli » (lot 10,
+    /// 20/11).
     private static func done(_ kind: MailGestureKind, count: Int) -> String {
         let plural = count > 1
-        let what = plural ? "\(count) fils" : "Fil"
+        let what = plural ? Words.count(count, "fil") : "Fil"
         switch kind {
-        case .archive: return "\(what) archivé\(plural ? "s" : "")"
+        case .archive: return "\(what) \(Words.plural(count, "archivé"))"
         case .unarchive: return "\(what) remis en boîte de réception"
-        case .markRead: return plural ? "\(count) fils marqués comme lus" : "Marqué comme lu"
-        case .markUnread: return plural ? "\(count) fils marqués comme non lus" : "Marqué comme non lu"
-        case .trash: return "\(what) supprimé\(plural ? "s" : "")"
-        case .untrash: return "\(what) rétabli\(plural ? "s" : "")"
-        case .spam: return "\(what) signalé\(plural ? "s" : "") comme spam"
-        case .notSpam: return "\(what) sorti\(plural ? "s" : "") du spam"
+        case .markRead: return plural ? "\(what) marqués comme lus" : "Marqué comme lu"
+        case .markUnread: return plural ? "\(what) marqués comme non lus" : "Marqué comme non lu"
+        case .trash: return "\(what) \(Words.plural(count, "supprimé"))"
+        case .untrash: return "\(what) \(Words.plural(count, "restauré"))"
+        case .spam: return "\(what) \(Words.plural(count, "signalé")) comme spam"
+        case .notSpam: return "\(what) \(Words.plural(count, "sorti")) du spam"
         }
     }
 
@@ -768,7 +782,10 @@ public final class MailLibrary: ObservableObject {
                     if let gesture = try await engine.perform(kind, threadKey: thread.id) { made.append(gesture) }
                 }
             } catch {
-                message = "Geste impossible : \(error)"
+                // « Geste » is the code's word: what changed is said (lot 10, 20/11).
+                let problem = Words.problem(threads.count > 1 ? "Ces fils n'ont pas pu être modifiés" : "Ce fil n'a pas pu être modifié", error)
+                message = problem.sentence
+                agenda.database.journal(problem)
             }
             guard canUndo, !made.isEmpty else { return }
             undoToken += 1
@@ -801,7 +818,12 @@ public final class MailLibrary: ObservableObject {
         guard let gestures = undoable?.gestures else { return }
         undoable = nil
         Task {
-            do { for gesture in gestures { try await engine.undo(gesture) } } catch { message = "Annulation impossible : \(error)" }
+            do { for gesture in gestures { try await engine.undo(gesture) } } catch {
+                // Polhub's words, the system's to the journal (lot 10, 20/11).
+                let problem = Words.problem("Le changement n'a pas pu être annulé", error)
+                message = problem.sentence
+                agenda.database.journal(problem)
+            }
         }
     }
 
@@ -880,7 +902,13 @@ public final class MailLibrary: ObservableObject {
             do {
                 try await engine.aside(aside.label, accounts: accounts)
             } catch {
-                if token == asideToken { message = "Gmail n'a pas pu donner \(aside == .trash ? "sa corbeille" : "son spam") : \(error). Voici ce que Polhub en a déjà." }
+                if token == asideToken {
+                    // What the copy holds stays in the list: said in place of what to do (lot 10, 20/11).
+                    let problem = Words.problem("Gmail n'a pas donné \(aside == .trash ? "sa corbeille" : "son spam")", error,
+                                                remedy: "Voici ce que Polhub en a déjà.")
+                    message = problem.sentence
+                    agenda.database.journal(problem)
+                }
             }
             guard token == asideToken else { return }
             readingAside = false
@@ -938,7 +966,10 @@ public final class MailLibrary: ObservableObject {
             }
             refreshFiles()
         } catch {
-            message = "Recherche impossible : \(error)"
+            // Polhub's words, the system's to the journal (lot 10, 20/11).
+            let problem = Words.problem("Gmail n'a pas répondu à la recherche", error)
+            message = problem.sentence
+            agenda.database.journal(problem)
         }
     }
 
@@ -950,21 +981,21 @@ public final class MailLibrary: ObservableObject {
 
     /// The line under the bar during a search: how many threads, and what Enter does.
     public var searchSummary: String? {
+        // « 1 fil », « 1 234 fils »: counted and accorded by `Words` (lot 10, 20/11).
         if let aside = folder.aside {
             guard let found else { return nil }
-            return (found.isEmpty ? "Aucun fil" : (found.count == 1 ? "1 fil" : "\(found.count) fils")) + " \(aside.place)"
+            return (found.isEmpty ? "Aucun fil" : Words.count(found.count, "fil")) + " \(aside.place)"
         }
         if searching { return "Recherche dans Gmail…" }
         let mode = MailSearch.mode(query)
         guard mode != .none else { return nil }
         guard let found else { return mode == .tooShort ? nil : "Entrée : chercher dans Gmail" }
-        let number = found.count.formatted(IntegerFormatStyle<Int>.number.locale(Locale(identifier: "fr_FR")))
-        let count = found.isEmpty ? "Aucun fil" : (found.count == 1 ? "1 fil" : "\(number) fils")
+        let count = found.isEmpty ? "Aucun fil" : Words.count(found.count, "fil")
         guard gmailFound != nil else { return "\(count) dans tes mails · Entrée : chercher aussi dans Gmail" }
         if foundInGmail == 0 { return found.isEmpty ? "Aucun fil, ni dans tes mails ni dans Gmail" : "\(count) · Gmail n'en a pas trouvé d'autre" }
-        let plural = foundInGmail > 1 ? "s" : ""
-        if foundInGmail == found.count { return "\(count) trouvé\(plural) dans Gmail" }
-        return "\(count), dont \(foundInGmail) trouvé\(plural) dans Gmail"
+        let foundWord = Words.plural(foundInGmail, "trouvé")
+        if foundInGmail == found.count { return "\(count) \(foundWord) dans Gmail" }
+        return "\(count), dont \(Words.number(foundInGmail)) \(foundWord) dans Gmail"
     }
 
     // MARK: - Images
@@ -998,7 +1029,10 @@ public final class MailLibrary: ObservableObject {
         do {
             try store.remember(address: address, tab: .some(nil), images: false, filing: .some(nil), at: Date())
         } catch {
-            message = "Impossible d'oublier \(address) : \(error)"
+            // Polhub's words, the system's to the journal (lot 10, 20/11).
+            let problem = Words.problem("Polhub n'a pas pu oublier \(address)", error)
+            message = problem.sentence
+            agenda.database.journal(problem)
         }
     }
 
@@ -1012,7 +1046,8 @@ public final class MailLibrary: ObservableObject {
     /// A chip under a line of the list: its file shows at once, without opening the thread.
     public func open(_ file: MailListedFile) {
         guard let carrier = try? store.message(file.messageKey) else {
-            message = "Pièce jointe indisponible : son mail n'est plus dans la copie."
+            // « la copie » is the code's word: Gmail still has the file (lot 10, 20/11).
+            message = Words.problem("La pièce jointe n'a pas pu être lue", remedy: "Ouvre le fil dans Gmail.").sentence
             return
         }
         open(file.attachment, of: carrier)
@@ -1031,7 +1066,10 @@ public final class MailLibrary: ObservableObject {
                 if AttachmentSafety.canOpen(name: attachment.filename) { preview = url } else { saveCopy(of: url) }
             } catch {
                 opening.remove(id)
-                message = "Pièce jointe indisponible : \(error)"
+                // Polhub's words, then what to do; the system's text to the journal (lot 10, 20/11).
+                let problem = Words.problem("La pièce jointe n'a pas pu être lue", error, remedy: "Ouvre le fil dans Gmail.")
+                message = problem.sentence
+                agenda.database.journal(problem)
             }
         }
     }
@@ -1044,7 +1082,12 @@ public final class MailLibrary: ObservableObject {
 
     public func save(_ attachment: MailAttachment, of carrier: MailMessageRow) {
         Task {
-            do { saveCopy(of: try await engine.file(attachment, of: carrier)) } catch { message = "Pièce jointe indisponible : \(error)" }
+            do { saveCopy(of: try await engine.file(attachment, of: carrier)) } catch {
+                // Polhub's words, then what to do; the system's text to the journal (lot 10, 20/11).
+                let problem = Words.problem("La pièce jointe n'a pas pu être lue", error, remedy: "Ouvre le fil dans Gmail.")
+                message = problem.sentence
+                agenda.database.journal(problem)
+            }
         }
     }
 
@@ -1054,7 +1097,12 @@ public final class MailLibrary: ObservableObject {
         panel.nameFieldStringValue = url.lastPathComponent
         guard panel.runModal() == .OK, let target = panel.url else { return }
         try? FileManager.default.removeItem(at: target)
-        do { try FileManager.default.copyItem(at: url, to: target) } catch { message = "Enregistrement impossible : \(error.localizedDescription)" }
+        do { try FileManager.default.copyItem(at: url, to: target) } catch {
+            // « Enregistrement » is a meeting's word: what failed is the file's copy (lot 10, 20/11).
+            let problem = Words.problem("La pièce jointe n'a pas pu être copiée dans ce dossier", error)
+            message = problem.sentence
+            agenda.database.journal(problem)
+        }
     }
 
     // MARK: - Writing (step « Écrire », 14/11)
@@ -1133,7 +1181,10 @@ public final class MailLibrary: ObservableObject {
             do {
                 try await engine.changeAccount(draftID, to: account)
             } catch {
-                message = "Changement de boîte impossible : \(error)"
+                // The account sends, its mailbox holds the mails (lot 10, 20/11).
+                let problem = Words.problem("Le compte qui envoie n'a pas pu être changé", error)
+                message = problem.sentence
+                agenda.database.journal(problem)
             }
             schedulePush(draftID, after: .zero)
         }
@@ -1169,7 +1220,10 @@ public final class MailLibrary: ObservableObject {
             try store.saveDraft(draft)
             return draft.id
         } catch {
-            self.message = "Réponse impossible : \(error)"
+            // Polhub's words, the system's to the journal (lot 10, 20/11).
+            let problem = Words.problem(mode == .forward ? "Le transfert n'a pas pu être préparé" : "La réponse n'a pas pu être préparée", error)
+            self.message = problem.sentence
+            self.agenda.database.journal(problem)
             return nil
         }
     }
@@ -1197,7 +1251,11 @@ public final class MailLibrary: ObservableObject {
             } catch is MailDraftRow.Conflict {
             } catch GoogleError.notFound {
             } catch {
-                try? self.store.markDraftError(draftID, error: "\(error)")
+                // The base keeps the sentence the draft's line says, never the system's text: that goes to the journal
+                // (lot 10, 20/11).
+                let problem = Words.problem("Le brouillon n'a pas pu être enregistré dans Gmail", error)
+                try? self.store.markDraftError(draftID, error: problem.sentence)
+                self.agenda.database.journal(problem)
             }
             if self.pushes[draftID]?.token == token { self.pushes[draftID] = nil }
         }
@@ -1225,7 +1283,10 @@ public final class MailLibrary: ObservableObject {
                 try await engine.keepMine(draftID)
                 schedulePush(draftID, after: .zero)
             } catch {
-                message = "Brouillon impossible à garder : \(error)"
+                // Polhub's words, the system's to the journal (lot 10, 20/11).
+                let problem = Words.problem("Ce brouillon n'a pas pu être gardé", error)
+                message = problem.sentence
+                agenda.database.journal(problem)
             }
         }
     }
@@ -1238,9 +1299,13 @@ public final class MailLibrary: ObservableObject {
         Task {
             do {
                 try await engine.forgetLocally(draftID)
-                if gmailKept { message = "La version de Gmail t'attend dans Brouillons, parmi les brouillons commencés ailleurs." }
+                // The group's own title in Brouillons (lot 10, 20/11).
+                if gmailKept { message = "La version de Gmail t'attend dans Brouillons, sous « Commencés dans Gmail »." }
             } catch {
-                message = "Brouillon impossible à retirer : \(error)"
+                // « Le supprimer », « Prendre celui de Gmail »: Polhub's version goes (lot 10, 20/11).
+                let problem = Words.problem("Ce brouillon n'a pas pu être supprimé de Polhub", error)
+                message = problem.sentence
+                agenda.database.journal(problem)
             }
         }
     }
@@ -1264,27 +1329,33 @@ public final class MailLibrary: ObservableObject {
                 total += file.size
                 plan.append((file.url, name, file.size))
             } catch {
-                message = "\(error)"
+                // A refusal of Polhub's (a folder, a file it cannot read) says its reason by `LocalizedError`; never the
+                // system's text on the screen (lot 10, 20/11).
+                let problem = Words.problem("« \(url.lastPathComponent) » n'a pas pu être joint", error)
+                message = problem.sentence
+                agenda.database.journal(problem)
             }
         }
         guard !plan.isEmpty else { return }
         let work = plan
         Task {
-            let copied = await Task.detached { () -> [(name: String, size: Int, error: String?)] in
+            // The problem is said away from the screen's thread, in Paul's words (lot 10, 20/11).
+            let copied = await Task.detached { () -> [(name: String, size: Int, problem: Words.Problem?)] in
                 try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
                 return work.map { item in
                     do {
                         try FileManager.default.copyItem(at: item.source, to: folder.appending(path: item.name))
                         return (item.name, item.size, nil)
                     } catch {
-                        return (item.name, item.size, error.localizedDescription)
+                        return (item.name, item.size, Words.problem("« \(item.name) » n'a pas pu être joint", error))
                     }
                 }
             }.value
             var added: [MailDraftFile] = []
             for item in copied {
-                if let error = item.error {
-                    message = "« \(item.name) » n'a pas pu être joint : \(error)"
+                if let problem = item.problem {
+                    message = problem.sentence
+                    agenda.database.journal(problem)
                     continue
                 }
                 let type = UTType(filenameExtension: (item.name as NSString).pathExtension)?.preferredMIMEType ?? "application/octet-stream"
@@ -1304,7 +1375,8 @@ public final class MailLibrary: ObservableObject {
 
     /// Why a draft cannot leave yet; `nil` when it can.
     public func sendProblem(_ draft: MailDraftRow) -> String? {
-        if unconfirmed.contains(draft.id) { return "Choisis la boîte d'envoi (De)." }
+        // A mailbox holds the mails, the account sends them (lot 10, 20/11).
+        if unconfirmed.contains(draft.id) { return "Choisis le compte qui envoie, dans « De »." }
         if draft.conflict != nil { return "Choisis d'abord la version à garder." }
         if (draft.to + draft.cc + draft.bcc).isEmpty { return "Ajoute un destinataire." }
         if let bad = (draft.to + draft.cc + draft.bcc).first(where: { !MIMEBuilder.isValid($0.email) }) { return "L'adresse « \(bad.email) » n'est pas valide." }
@@ -1332,7 +1404,8 @@ public final class MailLibrary: ObservableObject {
         pushes[draftID]?.task.cancel()
         pushes[draftID] = nil
         if composing == draftID { composing = nil }
-        let subject = draft.subject.isEmpty ? "(sans objet)" : draft.subject
+        // The screen's « (sans objet) », never the base's marker (lot 10, 20/11).
+        let subject = draft.subject.isEmpty ? Words.noSubject : draft.subject
         // Gmail's delay, chosen in Réglages › Mails (15/11).
         let delay = Preferences(defaults: defaults).mailUndoSeconds
         sending = (draftID, subject, Date().addingTimeInterval(Double(delay)), false)
@@ -1348,8 +1421,15 @@ public final class MailLibrary: ObservableObject {
                 if (try? self.store.draft(draftID)) != nil {
                     // Still programmed (Gmail did not answer): it waits in « Programmés », as it was.
                     let waits = (try? await self.engine.scheduledSends())?.contains { $0.draftID == draftID } ?? false
-                    if !(error is MailDraftRow.Conflict), !waits { try? self.store.markDraftError(draftID, error: "\(error)") }
-                    self.message = "Mail non envoyé : \(error). " + (waits ? "Il attend toujours dans Programmés." : "Il t'attend dans Brouillons.")
+                    // What failed in Paul's words, then where the mail waits; the draft's line keeps the sentence, the journal
+                    // the system's text (lot 10, 20/11).
+                    let problem = Words.problem("Le mail n'est pas parti", error,
+                                                remedy: waits ? "Il attend toujours dans Programmés." : "Il t'attend dans Brouillons.")
+                    if !(error is MailDraftRow.Conflict), !waits {
+                        try? self.store.markDraftError(draftID, error: Words.problem("Le mail n'est pas parti", error).sentence)
+                    }
+                    self.message = problem.sentence
+                    self.agenda.database.journal(problem)
                     self.onSendFailed?(subject, draft.threadKey)
                 }
             }
@@ -1388,7 +1468,8 @@ public final class MailLibrary: ObservableObject {
         let pass = await engine.takeAgentDrafts(busy: { [weak self] id in
             await MainActor.run { self?.sending?.draftID == id }
         })
-        func title(_ subject: String) -> String { subject.isEmpty ? "(sans objet)" : subject }
+        // The screen's « (sans objet) » (lot 10, 20/11).
+        func title(_ subject: String) -> String { subject.isEmpty ? Words.noSubject : subject }
         if !pass.adopted.isEmpty { onAgentDrafts?(pass.adopted) }
         if !pass.changed.isEmpty, let fresh = try? store.drafts() { drafts = fresh }
         var calledBack: String?
@@ -1450,7 +1531,12 @@ public final class MailLibrary: ObservableObject {
         unconfirmed.remove(draftID)
         if composing == draftID { composing = nil }
         Task {
-            do { try await engine.discard(draftID) } catch { message = "Brouillon impossible à supprimer : \(error)" }
+            do { try await engine.discard(draftID) } catch {
+                // Polhub's words, the system's to the journal (lot 10, 20/11).
+                let problem = Words.problem("Ce brouillon n'a pas pu être supprimé", error)
+                message = problem.sentence
+                agenda.database.journal(problem)
+            }
         }
     }
 
@@ -1467,7 +1553,8 @@ public final class MailLibrary: ObservableObject {
         }
         pushes[draftID]?.task.cancel()
         pushes[draftID] = nil
-        let subject = draft.subject.isEmpty ? "(sans objet)" : draft.subject, engine = self.engine
+        // The screen's « (sans objet) », never the base's marker (lot 10, 20/11).
+        let subject = draft.subject.isEmpty ? Words.noSubject : draft.subject, engine = self.engine
         Task {
             do {
                 let entry = try await engine.schedule(draftID, at: date)
@@ -1478,7 +1565,10 @@ public final class MailLibrary: ObservableObject {
             } catch GoogleError.readOnlyBuild {
                 message = "La version de développement ne programme aucun envoi."
             } catch {
-                message = "Envoi non programmé : \(error)."
+                // Polhub's words, the system's to the journal (lot 10, 20/11).
+                let problem = Words.problem("L'envoi n'a pas pu être programmé", error)
+                message = problem.sentence
+                agenda.database.journal(problem)
             }
         }
     }
@@ -1497,7 +1587,10 @@ public final class MailLibrary: ObservableObject {
                     message = "« \(entry.subject) » n'est plus programmé : il t'attend dans Brouillons."
                 }
             } catch {
-                message = "Impossible d'annuler l'envoi programmé : \(error)."
+                // Polhub's words, the system's to the journal (lot 10, 20/11).
+                let problem = Words.problem("L'envoi programmé n'a pas pu être annulé", error)
+                message = problem.sentence
+                agenda.database.journal(problem)
             }
         }
     }
@@ -1533,14 +1626,17 @@ public final class MailLibrary: ObservableObject {
 
     /// The words of an outcome (Paul, 15/11: « Parti à 9:12 au lieu de 8:00 »; « « Objet » n'est pas parti : le
     /// brouillon a changé depuis que tu l'as programmé »).
-    nonisolated static func texts(for outcome: ScheduleOutcome, now: Date = Date(), calendar: Calendar = .current) -> (line: String?, notice: MailScheduleNotice?) {
+    /// The hours and the days by `Words`, on Paul's calendar (lot 10, 20/11).
+    nonisolated static func texts(for outcome: ScheduleOutcome, now: Date = Date(), calendar: Calendar = Words.calendar) -> (line: String?, notice: MailScheduleNotice?) {
         switch outcome {
         case .sent(let entry, let at):
             // On time, as in Gmail: no notification.
             guard at.timeIntervalSince(entry.sendAt) > 5 * 60 else { return ("Mail programmé envoyé : « \(entry.subject) ».", nil) }
-            // The day too when it left the day after (« au lieu d'hier 23:00 »).
-            let planned = calendar.isDate(entry.sendAt, inSameDayAs: at) ? "de \(MailText.clock(entry.sendAt, calendar: calendar))"
-                : { let words = MailText.scheduled(entry.sendAt, now: at, calendar: calendar); return words.hasPrefix("hier") ? "d'\(words)" : "de \(words)" }()
+            // The day too when it left the day after (« au lieu d'hier 23:00 »): « d' » by the day it was planned for, never
+            // by the first word said of it (lot 10, 20/11).
+            let away = Words.days(from: at, to: entry.sendAt, calendar: calendar)
+            let planned = (away == -1 ? "d'" : "de ")
+                + (away == 0 ? MailText.clock(entry.sendAt, calendar: calendar) : MailText.scheduled(entry.sendAt, now: at, calendar: calendar))
             let late = "Parti à \(MailText.clock(at, calendar: calendar)) au lieu \(planned)"
             return ("« \(entry.subject) » : \(late.prefix(1).lowercased() + late.dropFirst()).",
                     MailScheduleNotice(title: "« \(entry.subject) »", body: "\(late) : \(lateReason(entry)).",
@@ -1609,7 +1705,10 @@ public final class MailLibrary: ObservableObject {
                 refreshFolders()
                 open(draft, router: router)
             } catch {
-                self.message = "Brouillon impossible à reprendre : \(error)"
+                // Polhub's words, the system's to the journal (lot 10, 20/11).
+                let problem = Words.problem("Ce brouillon n'a pas pu être repris", error)
+                self.message = problem.sentence
+                self.agenda.database.journal(problem)
             }
         }
     }
@@ -1692,9 +1791,15 @@ public final class MailLibrary: ObservableObject {
                     let status = (response as? HTTPURLResponse)?.statusCode ?? 0
                     guard (200..<400).contains(status) else { throw GoogleError.http(status) }
                     remember(unsubscribedFrom: sender)
-                    message = "Désabonné de \(sender). Les mails déjà reçus restent ; « Tout archiver » les range."
+                    // « Archiver » takes them out of the inbox; « Ranger » puts in a project or a case (lot 10, 20/11).
+                    message = "Désabonné \(Words.of(sender)). Les mails déjà reçus restent ; « Tout archiver » les sort de la boîte de réception."
                 } catch {
-                    message = "Désabonnement refusé par \(method.domain) (\(error)). Ouvre un de ses mails : le lien en bas fait la même chose."
+                    // What failed, then what does the same; one « : » in the sentence; the system's text to the journal
+                    // (lot 10, 20/11).
+                    let problem = Words.problem("Le désabonnement n'a pas abouti chez \(method.domain)", error,
+                                                remedy: "Le lien en bas d'un de ses mails fait la même chose.")
+                    message = problem.sentence
+                    agenda.database.journal(problem)
                 }
             }
         case .mail(let to, let subject):
@@ -1724,6 +1829,11 @@ public final class MailLibrary: ObservableObject {
 
     /// « Afficher l'original ».
     public func original(of message: MailMessageRow) async -> String {
-        do { return try await engine.original(of: message) } catch { return "Original indisponible : \(error)" }
+        do { return try await engine.original(of: message) } catch {
+            // Polhub's words in the sheet, the system's to the journal (lot 10, 20/11).
+            let problem = Words.problem("L'original n'a pas pu être lu", error)
+            agenda.database.journal(problem)
+            return problem.sentence
+        }
     }
 }

@@ -45,5 +45,8 @@ import Testing
         #expect(AccountStyle.label(for: "paul@exemple.fr") == "Exemple")
         #expect(AccountStyle.label(for: "studio@atelier-nord.fr") == "Atelier Nord")
         #expect(AccountStyle.label(for: "moi@gmail.com") == "Perso")
+        // Lot 10 (20/11): the personal account is a state, not the word of its label; a company may be called « Perso ».
+        #expect(AccountStyle.isPersonal("moi@gmail.com") && !AccountStyle.isPersonal("paul@exemple.fr"))
+        #expect(AccountStyle.label(for: "contact@perso.exemple") == "Perso" && !AccountStyle.isPersonal("contact@perso.exemple"))
     }
 }

@@ -151,20 +151,22 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         }
     }
 
+    /// What the family's page holds (lot 10, 20/11: Mails, Colin, Projets and Journal said their page again; « kanban »
+    /// in a sentence, « Polhub », never « l'app »).
     var subtitle: String {
         switch self {
         case .general: "Ouverture à la session, barre des menus, diagnostic, journal"
         case .notifications: "Rappels de rendez-vous, nouveaux rendez-vous, comptes rendus"
         case .accounts: "Comptes, couleurs, accès à l'agenda et aux mails"
         case .calendar: "Nouveaux rendez-vous, affichage"
-        case .mails: "Images distantes"
-        case .colin: "Ce que Colin signale, et la barre"
-        case .projects: "Taille des cartes du Kanban"
+        case .mails: "Liste, images, envoi, agents, tri"
+        case .colin: "Marche, ce qu'il sait, ce qu'il signale"
+        case .projects: "Taille des cartes du kanban"
         case .meetings: "Comptes rendus, langue des transcriptions"
         case .inspiration: "Pages LinkedIn, collecte, catégories"
         case .updates: "Version installée, installation automatique"
         case .diagnostic: "Autorisations, micro, Dia"
-        case .journal: "Ce que l'app a fait et vu"
+        case .journal: "Ce que Polhub a fait et vu"
         }
     }
 
@@ -496,13 +498,14 @@ public final class WindowRouter: ObservableObject {
         return true
     }
 
-    /// The help of a way back: where « Fermer » leads (« Revenir à l'Accueil (Échap) »).
+    /// The help of a way back: where « Fermer » leads (« Revenir à l'Accueil (Échap) »), written by `Words.help` (lot 10,
+    /// 20/11).
     public var returnHelp: String {
         let now = location
-        guard Self.opened(now) != nil else { return "Fermer (Échap)" }
+        guard Self.opened(now) != nil else { return Words.help("Fermer", .escape) }
         let behind = stepsBehind
         let destination = stepsToClose().map { behind[behind.count - $0] }?.section ?? now.section
-        return "Revenir à \(destination == .home ? "l'Accueil" : destination.title) (Échap)"
+        return Words.help("Revenir à \(destination == .home ? "l'Accueil" : destination.title)", .escape)
     }
 
     private func restore(_ place: Location) {
@@ -735,12 +738,14 @@ public struct MainWindowView<Diagnostic: View>: View {
                             // Lot 4, 19/11: its events lead to them; closing goes back where it was opened from.
                             projects.openEvent = { [weak router] id in router?.openEvent(id) }
                             projects.close = { [weak router] in router?.close() ?? false }
-                            projects.returnHelp = { [weak router] in router?.returnHelp ?? "Revenir à Projets (Échap)" }
+                            projects.returnHelp = { [weak router] in router?.returnHelp ?? Words.help("Revenir à Projets", .escape) }
                             openAskedProject(projects)
                         }
                         .onChange(of: router.projectSelection) { _, _ in openAskedProject(projects) }
                 } else {
-                    ContentUnavailableView("Projets indisponibles", systemImage: "square.grid.3x2")
+                    // What did not work, then what to do (lot 10, 20/11).
+                    ContentUnavailableView("Les projets ne s'ouvrent pas", systemImage: "square.grid.3x2",
+                                           description: Text("Quitte Polhub et rouvre-le."))
                 }
             case .meetings:
                 // A fixed list and a detail that wraps its text: a split view let the detail push the
@@ -777,7 +782,8 @@ public struct MainWindowView<Diagnostic: View>: View {
                 }
                 // The sidebar's word; never the meeting's title, written large in its page (lot 4, 19/11).
                 .windowTitle("Réunions")
-                .searchable(text: $router.query, placement: .toolbar, prompt: "Chercher dans les transcriptions")
+                // « réunion », what Polhub recorded; never « transcriptions » for the page (lot 10, 20/11).
+                .searchable(text: $router.query, placement: .toolbar, prompt: "Chercher dans les réunions")
             case .settings:
                 SettingsPage(router: router, updates: updates, projects: projects, agenda: agenda, mails: mails, inspiration: inspiration,
                              library: library, notifications: notifications, startup: startup, colinThread: thread, colinProbe: colinProbe) {
@@ -815,8 +821,9 @@ struct MeetingListView: View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
             let sections = MeetingListModel.sections(library.rows, now: context.date, calendar: .current)
             if sections.isEmpty {
+                // « visio », never « un Meet »; a sentence with its « : », French typography (lot 10, 20/11).
                 ContentUnavailableView("Aucune réunion", systemImage: "waveform",
-                                       description: Text("Ouvre un Meet dans Dia : il s'enregistre tout seul."))
+                                       description: Text(Words.typeset("Rejoins une visio dans Dia : elle s'enregistre toute seule.")))
             } else {
                 List(selection: $selection) {
                     ForEach(sections) { section in
@@ -884,7 +891,7 @@ struct MeetingListView: View {
 struct MeetingRowView: View {
     let row: MeetingRow
     let now: Date
-    var badge: String?
+    var badge: TranscriptBadge?
     var project: String?
     var summary: MeetingListModel.SummaryLine?
 
@@ -929,7 +936,8 @@ struct MeetingRowView: View {
             Chip("Interrompue", tint: Tint.attention)
         }
         if let badge, !row.status.isUnfinished {
-            Chip(badge, tint: badge == "Échec" || badge == "À vérifier" ? Tint.attention : nil)
+            // The state says the color, never the words (lot 10, 20/11).
+            Chip(badge.text, tint: badge.needsAttention ? Tint.attention : nil)
         }
     }
 }

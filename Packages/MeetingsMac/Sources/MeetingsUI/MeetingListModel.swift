@@ -4,6 +4,7 @@ import Foundation
 import Pipeline
 import GRDB
 import Persistence
+import PolhubDesign
 import Summarization
 
 public struct DaySection: Equatable, Identifiable, Sendable {
@@ -13,14 +14,11 @@ public struct DaySection: Equatable, Identifiable, Sendable {
 }
 
 public enum MeetingListModel {
-    /// Meetings by day, the latest first: « Aujourd'hui », « Hier », then « Mardi 10 novembre ».
+    /// Meetings by day, the latest first: « Aujourd'hui », « Hier », then « Mardi 10 novembre » (« Mercredi 12 novembre
+    /// 2025 » another year), by `Words` (lot 10, 20/11).
     public static func sections(_ rows: [MeetingRow], now: Date, calendar: Calendar) -> [DaySection] {
         let today = calendar.startOfDay(for: now)
         let yesterday = calendar.date(byAdding: .day, value: -1, to: today)
-        let formatter = DateFormatter()
-        formatter.locale = calendar.locale ?? Locale(identifier: "fr_FR")
-        formatter.timeZone = calendar.timeZone
-        formatter.dateFormat = "EEEE d MMMM"
         let byDay = Dictionary(grouping: rows) { calendar.startOfDay(for: $0.startedAt) }
         return byDay.keys.sorted(by: >).map { day in
             let title: String
@@ -29,22 +27,23 @@ public enum MeetingListModel {
             } else if day == yesterday {
                 title = "Hier"
             } else {
-                let text = formatter.string(from: day)
-                title = text.prefix(1).uppercased() + text.dropFirst()
+                title = Words.capitalizedFirst(Words.fullDate(day, now: now, calendar: calendar))
             }
             return DaySection(title: title, rows: (byDay[day] ?? []).sorted { $0.startedAt > $1.startedAt })
         }
     }
 
+    /// « 42 min », « 1 h 05 », « 2 h », by `Words`; a meta in words when the end is unknown, never « — » (lot 10, 20/11).
     public static func durationText(_ row: MeetingRow, now: Date) -> String {
         if row.status.isUnfinished { return "en cours" }
-        guard let end = row.endedAt else { return "—" }
-        return DurationText.short(Int(end.timeIntervalSince(row.startedAt)))
+        guard let end = row.endedAt else { return "durée inconnue" }
+        return Words.duration(Int(end.timeIntervalSince(row.startedAt)))
     }
 
-    /// « 14:00 · 52 min · Refonte du site »: the second line of a meeting in the list.
+    /// « 14:00 · 52 min · Refonte du site »: the second line of a meeting in the list; the hour by `Words`, « 9:05 »
+    /// (lot 10, 20/11).
     public static func metaText(_ row: MeetingRow, project: String?, now: Date) -> String {
-        ([row.startedAt.formatted(date: .omitted, time: .shortened), durationText(row, now: now)] + (project.map { [$0] } ?? []))
+        ([Words.time(row.startedAt), durationText(row, now: now)] + (project.map { [$0] } ?? []))
             .joined(separator: " · ")
     }
 

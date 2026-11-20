@@ -63,7 +63,9 @@ struct MailUndoBar: View {
                     HStack(spacing: Space.m) {
                         // What leaves is told, not called: grey; « Annuler » is the action (design system v2, 19/11).
                         Image(systemName: "paperplane.fill").foregroundStyle(.secondary)
-                        Text(left > 0 ? "« \(sending.subject) » part dans \(left) s" : "Envoi de « \(sending.subject) »…").lineLimit(1)
+                        // « 8 s » by `Words`, the French typography laid at display (lot 10, 20/11).
+                        Text(Words.typeset(left > 0 ? "« \(sending.subject) » part dans \(Words.preciseDuration(left))" : "Envoi de « \(sending.subject) »…"))
+                            .lineLimit(1)
                         if !sending.leaving {
                             undoButton { mails.cancelSend() }.disabled(left == 0)
                         }
@@ -71,12 +73,12 @@ struct MailUndoBar: View {
                 }
             } else if let undo = mails.undoable {
                 HStack(spacing: Space.m) {
-                    Text(undo.text)
+                    Text(Words.typeset(undo.text))
                     undoButton { mails.undo() }
                 }
             } else if let message = mails.barMessage(draftNews: draftNews) {
                 HStack(spacing: Space.m) {
-                    Text(message).fixedSize(horizontal: false, vertical: true)
+                    Text(Words.typeset(message)).fixedSize(horizontal: false, vertical: true)
                     IconButton("xmark", help: "Fermer", size: 13) { mails.message = nil }
                 }
             }
@@ -98,37 +100,58 @@ struct MailUndoBar: View {
         .buttonStyle(.hover(.capsule))
         .foregroundStyle(Tint.accent)
         .keyboardShortcut("z", modifiers: .command)
+        // The key it answers to, said by `Words.help` (lot 10, 20/11).
+        .help(Words.help("Annuler", .command("z")))
     }
 }
 
-enum MailText {
-    static let locale = Locale(identifier: "fr_FR")
+/// A row of a message's details (lot 10, 20/11): what it says, its title beside it.
+enum MessageDetail: Hashable, CaseIterable {
+    case from, to, cc, date, mailbox, sender
 
-    /// « 14:02 » today, « 12 nov. » this year, « 12/11/25 » before.
-    static func date(_ date: Date, now: Date = Date(), calendar: Calendar = .current) -> String {
-        if calendar.isDate(date, inSameDayAs: now) { return date.formatted(.dateTime.hour().minute().locale(locale)) }
-        if calendar.component(.year, from: date) == calendar.component(.year, from: now) { return date.formatted(.dateTime.day().month(.abbreviated).locale(locale)) }
-        return date.formatted(.dateTime.day(.twoDigits).month(.twoDigits).year(.twoDigits).locale(locale))
+    var title: String {
+        switch self {
+        case .from: "De"
+        case .to: "À"
+        case .cc: "Cc"
+        case .date: "Date"
+        case .mailbox: "Boîte"
+        case .sender: "Expéditeur"
+        }
+    }
+
+    /// The rows of people, each a contact to click.
+    var listsPeople: Bool { self == .to || self == .cc }
+}
+
+/// The mails' words; every date, hour and number by `Words` (lot 10, 20/11).
+enum MailText {
+    /// French, whatever the Mac's: `Words.locale` (lot 10, 20/11).
+    static let locale = Words.locale
+
+    /// « 14:02 » today, « 12 nov. » this year, « 12 nov. 2025 » before (lot 10, 20/11: never « 12/11/25 »).
+    static func date(_ date: Date, now: Date = Date(), calendar: Calendar = Words.calendar) -> String {
+        if calendar.isDate(date, inSameDayAs: now) { return Words.time(date, calendar: calendar) }
+        return Words.shortDate(date, now: now, calendar: calendar)
     }
 
     /// When a message of an open thread was written, in short (lot 6, 19/11): « Aujourd'hui 17:55 », « Hier 9:12 »,
     /// « 14 nov. », « 3 déc. 2025 ». The whole date is in its help (`longDate`).
-    static func shortDate(_ date: Date, now: Date = Date(), calendar: Calendar = .current) -> String {
-        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: date), to: calendar.startOfDay(for: now)).day ?? 0
-        switch days {
-        case 0: return "Aujourd'hui \(clock(date, calendar: calendar))"
-        case 1: return "Hier \(clock(date, calendar: calendar))"
-        default:
-            let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: now)
-            return format(date, sameYear ? "d MMM" : "d MMM y", calendar: calendar)
+    static func shortDate(_ date: Date, now: Date = Date(), calendar: Calendar = Words.calendar) -> String {
+        switch Words.days(from: date, to: now, calendar: calendar) {
+        // Alone on its line, a capital at its head (lot 10, 20/11).
+        case 0, 1: return Words.capitalizedFirst(Words.shortDay(date, now: now, calendar: calendar)) + " " + Words.time(date, calendar: calendar)
+        default: return Words.shortDate(date, now: now, calendar: calendar)
         }
     }
 
-    /// « 14 nov. 2026 à 14:02 (il y a 2 heures) »: the help of a message's date.
-    static func longDate(_ date: Date, now: Date = Date()) -> String {
-        let full = date.formatted(.dateTime.day().month(.abbreviated).year().hour().minute().locale(locale))
+    /// « 14 nov. à 14:02 (il y a 2 h) », « 12 nov. à 9:30 (hier) »: the help of a message's date; how long ago within a week,
+    /// to the minute the same day (lot 10, 20/11).
+    static func longDate(_ date: Date, now: Date = Date(), calendar: Calendar = Words.calendar) -> String {
+        let full = Words.shortDate(date, now: now, calendar: calendar) + " à " + Words.time(date, calendar: calendar)
         guard now.timeIntervalSince(date) < 7 * 86_400 else { return full }
-        return "\(full) (\(date.formatted(.relative(presentation: .named).locale(locale))))"
+        let ago = Words.days(from: date, to: now, calendar: calendar) == 0 ? Words.ago(date, now: now) : Words.daysAgo(date, now: now, calendar: calendar)
+        return "\(full) (\(ago))"
     }
 
     /// « Camille, moi (3) »; one sender alone keeps the whole name (« La Lettre du design »), as in Gmail.
@@ -154,8 +177,9 @@ enum MailText {
         return people.map { mine.contains($0.email) ? "moi" : ($0.name?.components(separatedBy: " ").first ?? $0.email) }.joined(separator: ", ")
     }
 
+    /// « 182 Ko », in French whatever the Mac's language (lot 10, 20/11: « 182 KB » before). `Words` has no size yet.
     static func size(_ bytes: Int) -> String {
-        ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
+        ByteCountFormatStyle(style: .file, locale: Words.locale).format(Int64(bytes))
     }
 
     /// The same color for a sender everywhere.
@@ -165,13 +189,14 @@ enum MailText {
         return Color(hex: colors[sum % colors.count])
     }
 
-    /// The list cut by day: « Aujourd'hui », « Hier », « Cette semaine », « Ce mois-ci », then the months.
-    static func sections(_ threads: [MailThreadRow], now: Date = Date(), calendar: Calendar = .current) -> [(title: String, threads: [MailThreadRow])] {
+    /// The list cut by day: « Aujourd'hui », « Hier », « Cette semaine », « Ce mois-ci », then the months (« Octobre »,
+    /// « Août 2025 »), by `Words` (lot 10, 20/11).
+    static func sections(_ threads: [MailThreadRow], now: Date = Date(), calendar: Calendar = Words.calendar) -> [(title: String, threads: [MailThreadRow])] {
         var result: [(title: String, threads: [MailThreadRow])] = []
         let today = calendar.startOfDay(for: now)
         for thread in threads {
             let day = calendar.startOfDay(for: thread.lastMessageAt)
-            let days = calendar.dateComponents([.day], from: day, to: today).day ?? 0
+            let days = Words.days(from: day, to: today, calendar: calendar)
             let title: String
             if days <= 0 {
                 title = "Aujourd'hui"
@@ -183,8 +208,7 @@ enum MailText {
                 title = "Ce mois-ci"
             } else {
                 let sameYear = calendar.isDate(day, equalTo: today, toGranularity: .year)
-                let month = thread.lastMessageAt.formatted(sameYear ? .dateTime.month(.wide).locale(locale) : .dateTime.month(.wide).year().locale(locale))
-                title = month.prefix(1).uppercased() + month.dropFirst()
+                title = Words.capitalizedFirst(Words.month(thread.lastMessageAt, year: !sameYear, calendar: calendar))
             }
             if result.last?.title == title { result[result.count - 1].threads.append(thread) } else { result.append((title, [thread])) }
         }
@@ -277,7 +301,9 @@ struct MailFilingChip: View {
             .buttonStyle(.hover(.capsule))
             .menuIndicator(.hidden)
             .fixedSize()
-            .help(found.map { "\($0.origin.explanation) · cliquer pour changer" } ?? "Ranger ce fil dans un projet ou une case")
+            // What it does, then why the thread is there; never « cliquer », 60 characters at most (lot 10, 20/11).
+            .help(found.map { Words.help("Ranger ailleurs", detail: $0.origin.explanation.prefix(1).lowercased() + $0.origin.explanation.dropFirst()) }
+                  ?? "Ranger ce fil dans un projet ou une case")
             .accessibilityLabel("Rangé : \(label.text)")
         }
     }
@@ -375,7 +401,10 @@ final class MailThreadModel: ObservableObject {
                 html[message.id] = page.isHTML
                 bodies[message.id] = page.text
             } catch {
-                failed[message.id] = "\(error)"
+                // Polhub's sentence on the screen, the system's text to the journal (lot 10, 20/11).
+                let problem = Words.problem("Ce message n'a pas pu être lu", error)
+                failed[message.id] = problem.sentence
+                library.agenda.database.journal(problem)
             }
         }
     }
@@ -412,7 +441,10 @@ final class MailThreadModel: ObservableObject {
                     try? FileManager.default.removeItem(at: target)
                     try FileManager.default.copyItem(at: url, to: target)
                 } catch {
-                    library.message = "Pièce jointe indisponible : \(error)"
+                    // Polhub's words, the system's text to the journal (lot 10, 20/11).
+                    let problem = Words.problem("La pièce jointe « \(file.filename) » n'a pas pu être copiée dans ce dossier", error)
+                    library.message = problem.sentence
+                    library.agenda.database.journal(problem)
                 }
             }
         }
@@ -492,7 +524,8 @@ struct MailThreadView: View {
     private func replyButton(principal: Bool) -> some View {
         let button = Button { reply(.reply) } label: { Label("Répondre", systemImage: "arrowshape.turn.up.left") }
             .keyboardShortcut("r", modifiers: .command)
-            .help("Répondre (⌘R)")
+            // The key, written by `Words.help` (lot 10, 20/11).
+            .help(Words.help("Répondre", .command("r")))
         if principal {
             button.buttonStyle(.primary)
         } else {
@@ -554,7 +587,8 @@ struct MailThreadView: View {
                                             collapseQuote: message.id != model.messages.first?.id, aside: aside, reply: { mode in reply(mode, to: message) })
                         case .more(let count):
                             Button { model.showAll = true } label: {
-                                Text("\(count) messages plus anciens").font(.meta.weight(.medium))
+                                // « Voir » unfolds in place, the count accorded (lot 10, 20/11).
+                                Text("Voir les \(Words.count(count, "message plus ancien", "messages plus anciens"))").font(.meta.weight(.medium))
                                     .padding(.horizontal, Space.m).padding(.vertical, 5)
                                     .background(Surface.raised, in: Capsule())
                             }
@@ -583,10 +617,10 @@ struct MailThreadView: View {
                             replyButton(principal: Self.replyIsPrincipal(openReplies: drafts.count))
                             Button { reply(.replyAll) } label: { Label("Répondre à tous", systemImage: "arrowshape.turn.up.left.2") }
                                 .keyboardShortcut("r", modifiers: [.command, .shift])
-                                .help("Répondre à tous (⇧⌘R)")
+                                .help(Words.help("Répondre à tous", .shiftCommand("r")))
                                 .buttonStyle(.secondary)
+                            // No help: it only said the label again (lot 10, 20/11).
                             Button { reply(.forward) } label: { Label("Transférer", systemImage: "arrowshape.turn.up.right") }
-                                .help("Transférer")
                                 .buttonStyle(.secondary)
                         }
                         // No glass in the content (design system v2, 19/11). Large, as « Envoyer » in the bar of a reply:
@@ -671,7 +705,8 @@ struct MailThreadView: View {
                     ColorDot(mails.color(for: thread.account), size: 8)
                     Text(AccountStyle.label(for: thread.account))
                     Text("·")
-                    Text(model.messages.count > 1 ? "\(model.messages.count) messages" : "1 message")
+                    // Accorded by `Words`; « 1 message » while the thread is read (lot 10, 20/11).
+                    Text(Words.count(max(1, model.messages.count), "message"))
                     Text("·")
                     if let aside {
                         // Put aside: where it is, never a case to change.
@@ -697,18 +732,20 @@ struct MailThreadView: View {
                 if let position = mails.position(of: key) {
                     Text(position).font(.meta).foregroundStyle(.secondary).monospacedDigit().lineLimit(1).fixedSize()
                 }
-                IconButton("chevron.up", help: "Fil précédent (↑)") { go(-1) }
+                // A verb and its object, the key in the bubble only (lot 10, 20/11).
+                IconButton("chevron.up", help: "Ouvrir le fil précédent", shortcut: .up) { go(-1) }
                     .disabled(mails.neighbor(of: key, offset: -1) == nil)
                     // While a reply is written, the arrows stay in it (15/11).
                     .keyboardShortcut(writing == true ? nil : KeyboardShortcut(.upArrow, modifiers: []))
-                IconButton("chevron.down", help: "Fil suivant (↓)") { go(1) }
+                IconButton("chevron.down", help: "Ouvrir le fil suivant", shortcut: .down) { go(1) }
                     .disabled(mails.neighbor(of: key, offset: 1) == nil)
                     .keyboardShortcut(writing == true ? nil : KeyboardShortcut(.downArrow, modifiers: []))
                 Divider().frame(height: 18)
             }
             if let aside {
                 IconButton(aside.gesture.icon, help: aside.gesture.title()) { gesture(aside.gesture) }
-                IconMenu("ellipsis", help: "Plus") {
+                // « Plus d'actions », `IconMenu`'s own (lot 10, 20/11).
+                IconMenu("ellipsis") {
                     if let thread { Button("Ouvrir dans Gmail") { NSWorkspace.shared.open(mails.gmailURL(thread, in: aside)) } }
                 }
             } else {
@@ -726,7 +763,8 @@ struct MailThreadView: View {
         IconButton("archivebox", help: "Archiver") { gesture(.archive) }
         IconButton("trash", help: "Supprimer") { gesture(.trash) }
         IconButton("envelope.badge", help: "Marquer comme non lu") { gesture(.markUnread) }
-        IconMenu("ellipsis", help: "Plus") {
+        // « Plus d'actions », `IconMenu`'s own (lot 10, 20/11).
+        IconMenu("ellipsis") {
             if let thread {
                 Button("Répondre") { reply(.reply) }
                 Button("Répondre à tous") { reply(.replyAll) }
@@ -736,7 +774,7 @@ struct MailThreadView: View {
                 if let message = model.messages.last(where: { $0.listUnsubscribe != nil }), let sender = message.sender,
                    let method = mails.unsubscribeMethod(listUnsubscribe: message.listUnsubscribe, post: message.listUnsubscribePost,
                                                         authenticated: message.authenticated) {
-                    Button("Se désabonner de \(sender.display)…") { mails.askUnsubscribe(sender: sender, method: method) }
+                    Button("Se désabonner \(Words.of(sender.display))…") { mails.askUnsubscribe(sender: sender, method: method) }
                 }
                 Button("Signaler comme spam") {
                     mails.reportSpam(thread)
@@ -763,7 +801,8 @@ struct MailAsideBanner: View {
                 Label(aside.gesture.title(), systemImage: aside.gesture.icon)
             }
             .buttonStyle(.primary)
-            .help(aside == .spam ? "Remettre ce fil en boîte de réception : Gmail apprend que ce n'est pas un spam" : "Remettre ce fil en boîte de réception")
+            // A verb, then the consequence; 60 characters at most (lot 10, 20/11).
+            .help(aside == .spam ? Words.help("Sortir du spam", detail: "Gmail apprend que ce n'est pas un spam") : "Remettre ce fil en boîte de réception")
         }
     }
 }
@@ -861,7 +900,8 @@ struct MailMessageView: View {
                 if aside == nil {
                     IconButton("arrowshape.turn.up.left", help: "Répondre à ce message") { reply(.reply) }
                 }
-                IconMenu("ellipsis", help: "Plus") {
+                // « Plus d'actions », `IconMenu`'s own (lot 10, 20/11).
+                IconMenu("ellipsis") {
                     if aside == nil {
                         Button("Répondre") { reply(.reply) }
                         Button("Répondre à tous") { reply(.replyAll) }
@@ -888,25 +928,27 @@ struct MailMessageView: View {
         .onHover { hoveringHeader = $0 }
     }
 
-    private var detailRows: [(String, String)] {
-        var rows: [(String, String)] = []
-        if let from = message.sender { rows.append(("De", from.name.map { "\($0) <\(from.email)>" } ?? from.email)) }
-        if !message.to.isEmpty { rows.append(("À", message.to.map(\.email).joined(separator: ", "))) }
-        if !message.cc.isEmpty { rows.append(("Cc", message.cc.map(\.email).joined(separator: ", "))) }
-        rows.append(("Date", message.date.formatted(.dateTime.weekday(.wide).day().month(.wide).year().hour().minute().locale(MailText.locale))))
-        rows.append(("Boîte", message.account))
-        rows.append(("Expéditeur", message.authenticated ? "vérifié par Gmail" : "non vérifié par Gmail"))
+    private var detailRows: [(field: MessageDetail, value: String)] {
+        var rows: [(field: MessageDetail, value: String)] = []
+        if let from = message.sender { rows.append((.from, from.name.map { "\($0) <\(from.email)>" } ?? from.email)) }
+        if !message.to.isEmpty { rows.append((.to, message.to.map(\.email).joined(separator: ", "))) }
+        if !message.cc.isEmpty { rows.append((.cc, message.cc.map(\.email).joined(separator: ", "))) }
+        // « mercredi 18 novembre à 14:02 », by `Words` (lot 10, 20/11).
+        rows.append((.date, Words.fullDate(message.date, now: Date()) + " à " + Words.time(message.date)))
+        rows.append((.mailbox, message.account))
+        rows.append((.sender, message.authenticated ? "vérifié par Gmail" : "non vérifié par Gmail"))
         return rows
     }
 
     private var detailGrid: some View {
         Grid(alignment: .leading, horizontalSpacing: Space.m, verticalSpacing: 4) {
-            ForEach(detailRows, id: \.0) { title, value in
+            ForEach(detailRows, id: \.field) { field, value in
                 GridRow {
-                    Text(title).foregroundStyle(.secondary).gridColumnAlignment(.trailing)
-                    // Who is a contact, and a click for the small menu of each (15/11).
-                    if (title == "À" || title == "Cc") && aside == nil {
-                        MessagePeople(people: title == "À" ? message.to : message.cc, mine: mine, project: projectID, mails: mails)
+                    Text(field.title).foregroundStyle(.secondary).gridColumnAlignment(.trailing)
+                    // Who is a contact, and a click for the small menu of each (15/11); found by the row's field, never by
+                    // its title (lot 10, 20/11).
+                    if field.listsPeople && aside == nil {
+                        MessagePeople(people: field == .to ? message.to : message.cc, mine: mine, project: projectID, mails: mails)
                     } else {
                         Text(value).textSelection(.enabled)
                     }
@@ -954,8 +996,9 @@ struct MailMessageView: View {
                 if !message.files.isEmpty, !isSpam { files }
             }
         } else if let failure = model.failed[message.id] {
-            // A failure: the icon at the attention's color, the sentence at the text's (design system v2, 19/11).
-            ErrorLine("Ce message n'a pas pu être lu : \(failure)").font(.rowBody)
+            // A failure: the icon at the attention's color, the sentence at the text's (design system v2, 19/11); the sentence
+            // is `Words.problem`'s, never the system's text (lot 10, 20/11).
+            ErrorLine(failure).font(.rowBody)
         } else {
             ProgressView().controlSize(.small)
         }
@@ -964,7 +1007,8 @@ struct MailMessageView: View {
     private var files: some View {
         VStack(alignment: .leading, spacing: Space.s) {
             HStack {
-                Text(message.files.count > 1 ? "\(message.files.count) pièces jointes" : "1 pièce jointe").font(.meta.weight(.semibold)).foregroundStyle(.secondary)
+                // Accorded by `Words` (lot 10, 20/11).
+                Text(Words.count(message.files.count, "pièce jointe", "pièces jointes")).font(.meta.weight(.semibold)).foregroundStyle(.secondary)
                 if message.files.count > 1 {
                     TextButton("Tout enregistrer…") { model.saveAll(of: message) }.padding(.leading, Space.s)
                 }
@@ -1010,7 +1054,8 @@ struct AttachmentTile: View {
         .onHover { hovering = $0 }
         .animation(Motion.quick, value: hovering)
         .contextMenu { Button("Enregistrer…", action: save) }
-        .help(AttachmentSafety.canOpen(name: file.filename) ? "Aperçu" : "Ce type de fichier ne s'ouvre pas dans Polhub : il s'enregistre.")
+        // What a click does, a verb and its object, without a period (lot 10, 20/11).
+        .help(AttachmentSafety.canOpen(name: file.filename) ? "Ouvrir l'aperçu" : "Enregistrer le fichier : il ne s'ouvre pas dans Polhub")
     }
 }
 
@@ -1067,33 +1112,36 @@ struct MailSubscriptionsView: View {
         let method = mails.unsubscribeMethod(subscription)
         let left = mails.unsubscribed[subscription.sender.email]
         let density = MailDensity(rawValue: density) ?? .defaut
-        let unread = subscription.unread > 0 ? " · \(subscription.unread) non lu\(subscription.unread > 1 ? "s" : "")" : ""
+        // Counted and accorded by `Words` (lot 10, 20/11).
+        let unread = subscription.unread > 0 ? " · \(Words.count(subscription.unread, "non lu"))" : ""
         return MailGridLine(stripe: nil, endWidth: nil) {
             Avatar(String(subscription.sender.display.prefix(1)).uppercased(), size: MailGrid.lineHeight, tint: MailText.tint(for: subscription.sender.email))
         } senders: {
             Text(subscription.sender.display).font(.rowTitle.weight(.medium)).lineLimit(1)
         } subject: {
-            Text("\(subscription.count) mail\(subscription.count > 1 ? "s" : "")\(unread) · dernier \(MailText.date(subscription.lastAt)) · \(subscription.sender.email)")
+            Text("\(Words.count(subscription.count, "mail"))\(unread) · dernier \(MailText.date(subscription.lastAt)) · \(subscription.sender.email)")
                 .font(.meta).foregroundStyle(.secondary).lineLimit(1)
         } end: {
             // No glass in the content: secondary buttons (design system v2, 19/11), small, in the line's height.
             HStack(spacing: Space.s) {
                 if !subscription.inboxThreads.isEmpty {
-                    Button("Tout archiver (\(subscription.inboxThreads.count))") { mails.archiveAll(subscription) }
+                    Button("Tout archiver (\(Words.number(subscription.inboxThreads.count)))") { mails.archiveAll(subscription) }
                         .buttonStyle(.secondary)
                         .help("Archiver ses mails encore en boîte de réception")
                 }
                 if let left {
-                    Label("Désabonné le \(left.formatted(.dateTime.day().month(.abbreviated).locale(MailText.locale)))", systemImage: "checkmark.circle")
+                    // « 18 nov. », by `Words` (lot 10, 20/11).
+                    Label("Désabonné le \(Words.shortDate(left, now: Date()))", systemImage: "checkmark.circle")
                         .font(.meta).foregroundStyle(.secondary)
                 } else if let method {
-                    Button("Se désabonner") { mails.askUnsubscribe(sender: subscription.sender, method: method) }
+                    // « … »: a confirmation follows; the bubble says how, a verb first (lot 10, 20/11).
+                    Button("Se désabonner…") { mails.askUnsubscribe(sender: subscription.sender, method: method) }
                         .buttonStyle(.secondary)
                         .help({
                             switch method {
-                            case .oneClick: "En un clic, auprès de \(method.domain)"
-                            case .mail: "Par un mail que tu enverras toi-même"
-                            case .page: "Sur la page de \(method.domain)"
+                            case .oneClick: "Se désabonner en un clic, auprès \(Words.of(method.domain))"
+                            case .mail: "Se désabonner par un mail que tu enverras toi-même"
+                            case .page: "Se désabonner sur la page \(Words.of(method.domain))"
                             }
                         }())
                 }

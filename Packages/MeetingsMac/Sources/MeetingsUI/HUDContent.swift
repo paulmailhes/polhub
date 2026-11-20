@@ -1,11 +1,13 @@
 import Foundation
 import Pipeline
+import PolhubDesign
 
 /// What a pop-up shows. The prompt goes first, then an alert, then a short notice.
 public enum HUDContent: Equatable, Sendable {
     case prompt(title: String, deadline: Date)
     case toast(title: String, subtitle: String)
-    case alert(title: String, message: String, action: String)
+    /// `action`: the button that goes with « Fermer », none when closing is all there is to do (lot 10, 20/11).
+    case alert(title: String, message: String, action: String?)
 
     var priority: Int {
         switch self {
@@ -74,7 +76,9 @@ public struct ToastCoalescer: Sendable {
 /// The words of every pop-up.
 public enum HUDText {
     public static func promptTitle(_ title: String) -> String { "Google Meet · \(title)" }
-    public static func countdown(_ seconds: Int) -> String { "Enregistrement dans \(max(0, seconds)) s" }
+    /// « S'enregistre seule dans 7 s »: the HUD's and « Coup d'œil »'s words, the same (lot 10, 20/11: « Enregistrement dans
+    /// 7 s » here), the seconds by `Words.preciseDuration`.
+    public static func countdown(_ seconds: Int) -> String { "S'enregistre seule dans " + Words.preciseDuration(seconds) }
     /// The seconds left before the detected meeting records by itself, rounded up as the pop-up counts them: the
     /// pop-up, the menu bar and « Coup d'œil » show the same number.
     public static func remaining(until deadline: Date, now: Date) -> Int {
@@ -87,22 +91,26 @@ public enum HUDText {
             let parts = [mic.map { "Micro : \($0)" }, output.map { "Sortie : \($0)" }].compactMap { $0 }
             return ("L'enregistrement continue", parts.isEmpty ? "Périphériques changés" : parts.joined(separator: " · "))
         case .ended(let title, let seconds):
-            return ("Réunion enregistrée", "\(title) · \(DurationText.short(seconds))")
+            // « 42 min », « 1 h 05 », « 2 h » (`Words.duration`, lot 10, 20/11).
+            return ("Réunion enregistrée", "\(title) · \(Words.duration(seconds))")
         case .resumed(let title):
             return ("Enregistrement repris", title)
         }
     }
 
-    public static func alert(_ alert: AppAlert) -> (title: String, message: String, action: String) {
+    /// `action`: the button beside « Fermer », which opens the Diagnostic; `nil` when there is nothing to open (lot 10,
+    /// 20/11: the HUD hid a button by its title, « OK »). A button is a verb and its object, never « Diagnostic »; no word
+    /// of the code on screen, never « une piste » (lot 10, 20/11).
+    public static func alert(_ alert: AppAlert) -> (title: String, message: String, action: String?) {
         switch alert {
         case .tabsUnreadable:
-            ("Polhub ne lit plus les onglets de Dia", "Les réunions sont détectées par le micro seul.", "Diagnostic")
+            ("Polhub ne lit plus les onglets de Dia", "Les réunions sont détectées par le micro seul.", "Ouvrir le Diagnostic")
         case .selfTestFailed:
-            ("Le son des autres n'est pas capté", "Vérifie l'autorisation « Enregistrement de l'audio du système ».", "Diagnostic")
+            ("Le son des autres n'est pas capté", "Vérifie l'autorisation « Enregistrement de l'audio du système ».", "Ouvrir le Diagnostic")
         case .diskLow(let freeGB):
-            ("Disque presque plein", "Il reste \(freeGB) Go. Une heure de réunion en prend environ 1,4.", "OK")
+            ("Disque presque plein", "Il reste \(Words.number(freeGB)) Go. Une heure de réunion en prend environ 1,4.", nil)
         case .trackFailed(let message):
-            ("Une piste s'est interrompue", message, "OK")
+            ("L'enregistrement s'est interrompu", message, nil)
         }
     }
 }

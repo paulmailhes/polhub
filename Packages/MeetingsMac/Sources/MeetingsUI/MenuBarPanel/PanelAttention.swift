@@ -22,7 +22,8 @@ struct PanelAttention: View {
                             .font(.rowTitle.weight(.medium))
                             .foregroundStyle(Tint.attention)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(issue.title)
+                            // French typography, as a band's (`Words.typeset`, lot 10, 20/11).
+                            Text(Words.typeset(issue.title))
                                 .font(.meta.weight(.semibold))
                                 .foregroundStyle(.primary)
                                 .lineLimit(2)
@@ -31,7 +32,7 @@ struct PanelAttention: View {
                                 // Two lines, whatever the number of causes: cut to one, « par le micro seul » lost
                                 // its « seul », the very word that says what is wrong (finding of 16/11). Three causes
                                 // at most keep the card short.
-                                Text(detail)
+                                Text(Words.typeset(detail))
                                     .font(.meta)
                                     .foregroundStyle(.secondary)
                                     .lineLimit(2)

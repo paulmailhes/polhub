@@ -53,7 +53,7 @@ struct SettingsScreenTests {
         try mailStore.remember(address: "camille@studio-exemple.fr", tab: .some("personnes"), images: true, at: Date())
 
         let meetings = MeetingStore(database)
-        try meetings.addJournal(JournalEntry(createdAt: Date().addingTimeInterval(-7_200), kind: .info, message: "Polhub mis à jour : 0.41.0 → 0.42.0."))
+        try meetings.addJournal(JournalEntry(createdAt: Date().addingTimeInterval(-7_200), kind: .info, message: "Polhub est passé de 0.41.0 à 0.42.0."))
         try meetings.addJournal(JournalEntry(createdAt: Date().addingTimeInterval(-3_600), kind: .missed,
                                              message: "Réunion « Point hebdo » manquée : Polhub n'était pas ouvert."))
         try meetings.addJournal(JournalEntry(createdAt: Date().addingTimeInterval(-600), kind: .alert,
@@ -75,7 +75,7 @@ struct SettingsScreenTests {
                                     missingModels: { [] })
         // Set by hand: the page never runs a check of its own (no micro, no sound).
         for item in [ChecklistItem.microphone, .systemAudio, .models, .relaunch] { model.set(item, .ok) }
-        model.set(.diaAutomation, .denied("Dia n'est pas ouvert"))
+        model.set(.diaAutomation, .notRunning)
         let logosFolder = world.root.appending(path: "logos", directoryHint: .isDirectory)
         let quiet = try #require(UserDefaults(suiteName: "reglages-lot7-logos-\(UUID().uuidString)"))
         quiet.set(false, forKey: Preferences.Key.projectLogos)

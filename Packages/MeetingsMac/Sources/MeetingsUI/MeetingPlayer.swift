@@ -1,6 +1,7 @@
 import AVFoundation
 import Combine
 import Foundation
+import PolhubDesign
 import Recording
 
 /// Plays a meeting: « Moi » and « Les autres » on two tracks of one composition, in phase, each of which
@@ -25,9 +26,9 @@ public final class MeetingPlayer: ObservableObject {
     /// How long « −15 s » and « +15 s » jump.
     public static let skipSeconds: Double = 15
 
-    /// « 1× », « 1,25× ».
+    /// « 1× », « 1,25× »: French, fixed once by `Words` (lot 10, 20/11).
     public static func rateLabel(_ rate: Float) -> String {
-        rate.formatted(.number.precision(.fractionLength(0...2)).locale(Locale(identifier: "fr_FR"))) + "×"
+        rate.formatted(.number.precision(.fractionLength(0...2)).locale(Words.locale)) + "×"
     }
 
     let composition: AVMutableComposition

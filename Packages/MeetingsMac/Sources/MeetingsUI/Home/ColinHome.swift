@@ -2,7 +2,7 @@ import Colin
 import PolhubDesign
 import SwiftUI
 
-/// What Colin is, said at the head of his panel (lot 5, 19/11): his real state — prêt, répond…, attend ton call, se
+/// What Colin is, said at the head of his panel (lot 5, 19/11): his real state — prêt, répond…, attend ta visio, se
 /// réveille, en panne, à l'arrêt —, never « en marche » during a call or a breakdown, as the switch alone said before.
 enum ColinState: Equatable {
     case ready, answering, waitingCall, waking, broken, off
@@ -33,7 +33,8 @@ enum ColinState: Equatable {
         switch self {
         case .ready: "prêt"
         case .answering: "répond…"
-        case .waitingCall: "attend ton call"
+        // « visio », never « call » (lot 10, 20/11).
+        case .waitingCall: "attend ta visio"
         case .waking: "se réveille"
         case .broken: "en panne"
         case .off: "à l'arrêt"
@@ -96,11 +97,13 @@ struct ColinHeader: View {
             ColinStateDot(state: state)
             Text(state.label).font(.meta).foregroundStyle(.secondary)
             Spacer(minLength: Space.s)
-            IconMenu("ellipsis", help: "Colin") {
+            // « Plus d'actions », the help of every « … » (lot 10, 20/11: `IconMenu`'s own).
+            IconMenu("ellipsis") {
                 if thread.isOn { Button("Mettre à l'arrêt") { thread.turnOff() } }
                 Button("Réglages…") { router.openSettings(.colin) }
             }
-            if let close { IconButton("xmark", help: "Fermer (Échap)", action: close) }
+            // « Fermer (Échap) » in the bubble, « Fermer » for VoiceOver (lot 10, 20/11).
+            if let close { IconButton("xmark", help: "Fermer", shortcut: .escape, action: close) }
         }
     }
 }

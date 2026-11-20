@@ -26,8 +26,8 @@ struct EventEditor: View {
     @State private var dismissed = false
     @FocusState private var guestFocused: Bool
     @State private var saving = false
-    @State private var failure: GoogleError?
-    @State private var otherFailure: String?
+    /// What did not work, Polhub's sentence (`Words.problem`), never the system's text (lot 10, 20/11).
+    @State private var failure: String?
     @State private var confirmingDelete = false
     /// What the event was, and what Google holds, read before changing it (review of 14/11).
     @State private var original: EventDraft?
@@ -52,7 +52,8 @@ struct EventEditor: View {
             _draft = State(initialValue: draft)
             let remembered = UserDefaults.standard.string(forKey: "dernierAgenda") ?? ""
             let accounts = agenda.accounts.map(\.email)
-            let work = accounts.first { AccountStyle.label(for: $0) != "Perso" }
+            // A work account: by its state, never by its label « Perso » (lot 10, 20/11).
+            let work = accounts.first { !AccountStyle.isPersonal($0) }
             let chosen = settings.defaultAccount.flatMap { accounts.contains($0) ? $0 : nil }
             _account = State(initialValue: chosen ?? (accounts.contains(remembered) ? remembered : (work ?? accounts.first ?? "")))
         }
@@ -123,7 +124,8 @@ struct EventEditor: View {
                                 if contact != nil { Text(email).font(.meta).foregroundStyle(.secondary) }
                             }
                             Spacer()
-                            IconButton("xmark.circle.fill", help: "Retirer") { draft.guests.removeAll { $0 == email } }
+                            // A verb and its object, for the bubble and VoiceOver (lot 10, 20/11).
+                            IconButton("xmark.circle.fill", help: "Retirer \(contact?.name ?? email)") { draft.guests.removeAll { $0 == email } }
                         }
                     }
                     let matches = suggestions
@@ -167,19 +169,16 @@ struct EventEditor: View {
 
     private var footer: some View {
         VStack(alignment: .leading, spacing: Space.s) {
-            // A failure: said by `ErrorLine` (design system v2, 19/11).
+            // A failure: said by `ErrorLine` (design system v2, 19/11), in Polhub's words (lot 10, 20/11).
             if let failure {
-                HStack(spacing: Space.s) {
-                    ErrorLine(failure.description)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            } else if let otherFailure {
-                ErrorLine(otherFailure)
+                ErrorLine(failure)
+                    .fixedSize(horizontal: false, vertical: true)
             } else if editing?.recurringEventID != nil {
-                Label("Ce rendez-vous fait partie d'une série : seul celui-ci change.", systemImage: "repeat")
+                Label(Words.typeset("Ce rendez-vous fait partie d'une série : seul celui-ci change."), systemImage: "repeat")
                     .font(.tag).foregroundStyle(.secondary)
             } else if editing != nil, detailsRead, details == nil {
-                Label("Google n'a pas pu être lu : la description et les invités ne changent que si tu les modifies.", systemImage: "info.circle")
+                Label(Words.typeset("Google n'a pas pu être lu : la description et les invités ne changent que si tu les modifies."),
+                      systemImage: "info.circle")
                     .font(.tag).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             HStack {
@@ -248,11 +247,11 @@ struct EventEditor: View {
 
     private func save() {
         failure = nil
-        otherFailure = nil
         // What is typed and not yet taken goes with the event when it is an address; anything else stops « Créer »
-        // (audit of 19/11).
+        // (audit of 19/11). What did not work, then what to do, as every problem (lot 10, 20/11).
         guard let guests = Self.guests(draft.guests, pending: guestQuery) else {
-            otherFailure = "« \(guestQuery.trimmingCharacters(in: .whitespaces)) » n'est pas une adresse : choisis l'invité dans la liste, ou efface-le."
+            failure = Words.problem("L'adresse « \(guestQuery.trimmingCharacters(in: .whitespaces)) » n'est pas valide",
+                                    remedy: "Choisis l'invité dans la liste, ou efface-le.").sentence
             return
         }
         var sent = draft
@@ -266,10 +265,12 @@ struct EventEditor: View {
                 try await agenda.save(sent, account: account, editing: editing, original: original, details: details)
                 if editing == nil { lastAccount = account }
                 dismiss()
-            } catch let error as GoogleError {
-                failure = error
             } catch {
-                otherFailure = "\(error.localizedDescription)"
+                // Polhub's sentence on screen, the system's text in the journal (lot 10, 20/11).
+                let problem = Words.problem(editing == nil ? "Le rendez-vous n'a pas pu être créé" : "Le rendez-vous n'a pas pu être enregistré",
+                                            error)
+                failure = problem.sentence
+                agenda.database.journal(problem)
             }
         }
     }
@@ -282,10 +283,11 @@ struct EventEditor: View {
             do {
                 try await agenda.delete(editing)
                 dismiss()
-            } catch let error as GoogleError {
-                failure = error
             } catch {
-                otherFailure = "\(error.localizedDescription)"
+                // Polhub's sentence on screen, the system's text in the journal (lot 10, 20/11).
+                let problem = Words.problem("Le rendez-vous n'a pas pu être supprimé", error)
+                failure = problem.sentence
+                agenda.database.journal(problem)
             }
         }
     }

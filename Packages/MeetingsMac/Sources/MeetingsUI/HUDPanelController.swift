@@ -101,8 +101,10 @@ public final class HUDPanelController {
         }
     }
 
-    public func showAlert(title: String, message: String, action: String, onAction: @escaping () -> Void, onClose: @escaping () -> Void) {
-        prepare(.alert, title: title, subtitle: message)
+    public func showAlert(title: String, message: String, action: String?, onAction: @escaping () -> Void, onClose: @escaping () -> Void) {
+        // Polhub's own sentence, its French typography laid here: « … » and « : » never part from their words
+        // (`Words.typeset`, lot 10, 20/11).
+        prepare(.alert, title: title, subtitle: Words.typeset(message))
         model.actionTitle = action
         model.onAction = { [weak self] in self?.close(); onAction(); onClose() }
         model.onClose = { [weak self] in self?.close(); onClose() }
@@ -233,7 +235,8 @@ final class HUDModel: ObservableObject {
     @Published var title = ""
     @Published var subtitle = ""
     @Published var remaining = 0
-    @Published var actionTitle = ""
+    /// The button beside « Fermer »; none when there is nothing to open (lot 10, 20/11).
+    @Published var actionTitle: String?
     var deadline: Date?
     var onAccept: () -> Void = {}
     var onDecline: () -> Void = {}
@@ -277,8 +280,8 @@ struct HUDView: View {
                 case .alert:
                     Button("Fermer") { model.onClose() }
                         .buttonStyle(.secondary)
-                    if model.actionTitle != "OK" {
-                        Button(model.actionTitle) { model.onAction() }
+                    if let action = model.actionTitle {
+                        Button(action) { model.onAction() }
                             .buttonStyle(.primary)
                     }
                 case .toast:

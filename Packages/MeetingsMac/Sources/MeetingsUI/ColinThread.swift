@@ -13,7 +13,7 @@ import PolhubDesign
 public final class ColinThread: ObservableObject {
     public enum Status: Equatable, Sendable {
         case off
-        /// « Colin attend la fin de ton call ».
+        /// « Colin attend la fin de ta visio ».
         case waitingCall
         /// The Mac woke a moment ago: the question waits.
         case settling
@@ -220,14 +220,14 @@ public final class ColinThread: ObservableObject {
     // MARK: - What the app tells
 
     public func meetingBegan() {
-        cut("Arrêté : ton call commence.")
+        cut(.call)
         guard isOn else { return }
         status = .waitingCall
         watchCall()
     }
 
     public func macWillSleep() {
-        cut("Arrêté : le Mac s'endort.")
+        cut(.sleep)
     }
 
     // MARK: - Pieces
@@ -323,15 +323,15 @@ public final class ColinThread: ObservableObject {
         }
     }
 
-    /// Claude Code goes now; an answer under way keeps what came, and why it stopped.
-    private func cut(_ note: String) {
+    /// Claude Code goes now; an answer under way keeps what came, and why it stopped, in the words the base keeps.
+    private func cut(_ stop: ColinStop) {
         epoch += 1
         guard let runner else { return }
         Task { await runner.stop() }
         if case .working = status { status = isOn ? .idle : .off }
         if status == .starting || status == .settling { status = isOn ? .idle : .off }
         guard var row = answer else { return }
-        row.text = streaming.isEmpty ? note : streaming + "\n\n" + note
+        row.text = streaming.isEmpty ? stop.stored : streaming + "\n\n" + stop.stored
         row.state = .interrupted
         row.steps = Self.ended(liveSteps)
         liveSteps = []
@@ -346,7 +346,7 @@ public final class ColinThread: ObservableObject {
         if isOn {
             if status == .off { status = .idle }
         } else if status != .off {
-            cut("Arrêté : Colin est à l'arrêt.")
+            cut(.off)
             status = .off
         }
     }
@@ -492,8 +492,8 @@ public final class ColinThread: ObservableObject {
         case .notConnected: return "Claude Code n'est pas connecté sur ton compte."
         case .limit(let resetsAt):
             guard let resetsAt else { return "Limite atteinte." }
-            let parts = calendar.dateComponents([.hour, .minute], from: resetsAt)
-            return String(format: "Limite atteinte · reprend à %02d:%02d", parts.hour ?? 0, parts.minute ?? 0)
+            // « reprend à 9:05 », the hour by `Words.time` (lot 10, 20/11: never « 09:05 »).
+            return "Limite atteinte · reprend à " + Words.time(resetsAt, calendar: calendar)
         case .launch: return "Claude Code n'a pas pu se lancer."
         case .noAnswer: return "Claude Code n'a pas répondu."
         case .isolation: return "Claude Code a chargé plus que ce que Polhub lui demande : Colin s'est arrêté."

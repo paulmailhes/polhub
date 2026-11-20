@@ -66,12 +66,12 @@ import Testing
         let call = event(martin, day: 19, hour: 9, minute: 30)
         let byColin = lines([martin], events: [call]).first
         #expect(byColin?.call == at(19, 9, 30))
-        #expect(when(byColin) == "call demain 9:30")
+        #expect(when(byColin) == "visio demain 9:30")
         // Set before the journal: no one known, a call all the same.
-        #expect(when(lines([martin], events: [call]).first) == "call demain 9:30")
+        #expect(when(lines([martin], events: [call]).first) == "visio demain 9:30")
         // On the day, and a few days off.
-        #expect(when(lines([martin], events: [call]).first, at: at(19, 8)) == "call aujourd'hui 9:30")
-        #expect(when(lines([martin], events: [call]).first, at: at(16, 8)) == "call jeudi 9:30")
+        #expect(when(lines([martin], events: [call]).first, at: at(19, 8)) == "visio aujourd'hui 9:30")
+        #expect(when(lines([martin], events: [call]).first, at: at(16, 8)) == "visio jeudi 9:30")
     }
 
     /// Review Focus 1: a deadline Paul set himself stays one, whatever meeting falls that day.
@@ -159,13 +159,13 @@ import Testing
     @Test func deliveredNextSaysTheCall() {
         let martin = project("Cabinet Martin")
         #expect(TodoRules.deliveredNext(event(martin, day: 19, hour: 9, minute: 30), now: now, calendar: calendar)
-                == "Livré, prochaine échéance : call demain 9:30")
+                == "Livré, prochaine échéance : visio demain 9:30")
         #expect(TodoRules.deliveredNext(event(martin, day: 23, hour: 10), now: now, calendar: calendar)
-                == "Livré, prochaine échéance : call lundi 10:00")
+                == "Livré, prochaine échéance : visio lundi 10:00")
     }
 
     @Test func deliveredSaysTheDay() {
-        #expect(TodoRules.delivered(now, calendar: calendar) == "Livré le 18/11")
+        #expect(TodoRules.delivered(now, calendar: calendar) == "Livré le 18 nov.")
     }
 
     @Test func datedKeepsTheProjectsWithADate() {

@@ -28,7 +28,8 @@ struct TranscriptHeader: View {
                     if problem {
                         ErrorLine(text)
                     } else {
-                        Text(text).foregroundStyle(.secondary)
+                        // French typography, laid at display: « 42 % » (lot 10, 20/11).
+                        Text(Words.typeset(text)).foregroundStyle(.secondary)
                     }
                 }
                 .fixedSize(horizontal: false, vertical: true)
@@ -137,10 +138,15 @@ struct DialogueParagraph: View {
                 .lineSpacing(3)
                 .frame(maxWidth: .infinity, alignment: .leading)
             if paragraph.doubtful {
-                // To check: the color of attention (design system v2, 19/11).
-                Image(systemName: "exclamationmark.triangle")
-                    .foregroundStyle(Tint.attention)
-                    .help("À vérifier : le moteur a peut-être inventé un passage.")
+                // To check: the color of attention (design system v2, 19/11), and « à vérifier » written after the passage;
+                // the bubble says why, without a period, never alone (lot 10, 20/11).
+                HStack(alignment: .firstTextBaseline, spacing: Space.xs) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(Tint.attention)
+                    Text("à vérifier").font(.meta).foregroundStyle(.secondary)
+                }
+                .fixedSize()
+                .help("La transcription a peut-être inventé ce passage")
             }
         }
         .padding(.vertical, Space.s)

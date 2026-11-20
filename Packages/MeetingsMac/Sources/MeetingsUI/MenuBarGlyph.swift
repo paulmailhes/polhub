@@ -63,7 +63,8 @@ public enum MenuBarGlyph {
     }
 
     static func description(style: Style, badge: Bool) -> String {
-        let state = style == .filled ? "Polhub" : "Polhub, détection arrêtée"
+        // The detection is active or suspended, never « arrêtée » (lot 10, 20/11).
+        let state = style == .filled ? "Polhub" : "Polhub, détection suspendue"
         return badge ? "\(state), un enregistrement est menacé" : state
     }
 

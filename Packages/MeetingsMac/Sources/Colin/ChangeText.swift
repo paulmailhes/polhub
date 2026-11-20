@@ -1,3 +1,4 @@
+import Domain
 import Foundation
 import Persistence
 
@@ -22,10 +23,12 @@ public enum ChangeText {
         line.rows.compactMap { row in
             switch row.field {
             // A new project's card says « Nouveau projet » and its name above: here, its column.
-            case .created: ChangeField(label: "Statut", before: nil, after: row.detail)
-            case .status: ChangeField(label: "Statut", before: row.before, after: row.after)
+            // A status as the board names it, « Priorité 1 » (lot 10, 20/11: the value kept, « priorité 1 »).
+            case .created: ChangeField(label: "Statut", before: nil, after: row.detail.map(statusTitle))
+            case .status: ChangeField(label: "Statut", before: row.before.map(statusTitle), after: row.after.map(statusTitle))
             case .dueDate: ChangeField(label: "Échéance", before: row.before.flatMap { day($0, calendar) }, after: row.after.flatMap { day($0, calendar) })
-            case .todo: ChangeField(label: "Tâche", before: text(row.before), after: text(row.after))
+            // « Tâche du moment », the field's name (lot 10, 20/11: « Tâche »).
+            case .todo: ChangeField(label: "Tâche du moment", before: text(row.before), after: text(row.after))
             case .client: ChangeField(label: "Client", before: text(row.before), after: text(row.after))
             case .notes: ChangeField(label: "Notes", before: nil, after: "réécrites")
             case .actionAdded: ChangeField(label: "Action", before: nil, after: row.after)
@@ -52,11 +55,11 @@ public enum ChangeText {
                 switch row.field {
                 case .dueDate: if let after = row.after.flatMap({ day($0, calendar) }) { said.append("échéance \(after)") }
                 case .client: if let after = text(row.after) { said.append("client « \(after) »") }
-                case .todo: if let after = text(row.after) { said.append("tâche « \(after) »") }
+                case .todo: if let after = text(row.after) { said.append("tâche du moment « \(after) »") }
                 default: continue
                 }
             }
-            return "Nouveau projet « \(line.projectName) » : " + said.filter { !$0.isEmpty }.joined(separator: ", ") + "."
+            return "Nouveau projet « \(line.projectName) » : " + ended(said.filter { !$0.isEmpty }.joined(separator: ", "))
         }
         for field in ProjectChangeField.allCases {
             let of = rows.filter { $0.field == field }
@@ -72,7 +75,7 @@ public enum ChangeText {
                 case let (before?, after?): parts.append("échéance \(before) → \(after)")
                 }
             case .todo:
-                parts.append(text(of.last?.after).map { "tâche « \($0) »" } ?? "tâche retirée")
+                parts.append(text(of.last?.after).map { "tâche du moment « \($0) »" } ?? "tâche du moment retirée")
             case .client:
                 parts.append(text(of.last?.after).map { "client « \($0) »" } ?? "client retiré")
             case .notes:
@@ -95,7 +98,17 @@ public enum ChangeText {
                 continue
             }
         }
-        return "« \(line.projectName) » : " + parts.joined(separator: ", ") + "."
+        return "« \(line.projectName) » : " + ended(parts.joined(separator: ", "))
+    }
+
+    /// The sentence's period, once: « échéance 19 nov. » ends on its own (lot 10, 20/11).
+    private static func ended(_ said: String) -> String {
+        said.hasSuffix(".") ? said : said + "."
+    }
+
+    /// « Priorité 1 », the board's name of a status the base keeps as « priorité 1 ».
+    private static func statusTitle(_ value: String) -> String {
+        ProjectStatus(rawValue: value)?.title ?? value
     }
 
     /// Why it was made, said apart in small: a rule's event.

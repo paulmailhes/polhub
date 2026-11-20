@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import PolhubDesign
 
 // Polhub's own list of the notifications it sent (Paul, 15/11: « un système de notification dans l'outil »): every
 // notification macOS showed is kept here too, in a small file outside the base, so Paul finds it again in the app.
@@ -222,7 +223,7 @@ public enum NoticeFeed {
         public var id: Date { start }
     }
 
-    public static func days(_ notices: [InboxNotice], now: Date, calendar: Calendar = .current) -> [Day] {
+    public static func days(_ notices: [InboxNotice], now: Date, calendar: Calendar = Words.calendar) -> [Day] {
         var days: [Day] = []
         for notice in notices.sorted(by: { $0.date > $1.date }) {
             let start = calendar.startOfDay(for: notice.date)
@@ -240,26 +241,16 @@ public enum NoticeFeed {
         return days
     }
 
-    /// « Aujourd'hui », « Hier », « Mercredi » within the week, then « Mercredi 5 novembre ».
-    public static func title(of day: Date, now: Date, calendar: Calendar = .current) -> String {
-        let today = calendar.startOfDay(for: now), start = calendar.startOfDay(for: day)
-        if start == today { return "Aujourd'hui" }
-        let ago = calendar.dateComponents([.day], from: start, to: today).day ?? 0
-        if ago == 1 { return "Hier" }
-        let style = format(calendar)
-        let text = day.formatted(ago < 7 ? style.weekday(.wide) : style.weekday(.wide).day().month(.wide))
-        return text.prefix(1).uppercased() + text.dropFirst()
+    /// « Aujourd'hui », « Hier », « Mercredi » within the week, then « Mercredi 5 novembre » (`Words`, lot 10, 20/11; « … 2025 »
+    /// another year).
+    public static func title(of day: Date, now: Date, calendar: Calendar = Words.calendar) -> String {
+        let away = Words.days(from: now, to: day, calendar: calendar)
+        return Words.capitalizedFirst(away >= -6 ? Words.day(day, now: now, calendar: calendar) : Words.fullDate(day, now: now, calendar: calendar))
     }
 
-    /// « À l'instant », « il y a 5 min », then the time: the day is in the heading.
-    public static func time(of date: Date, now: Date, calendar: Calendar = .current) -> String {
-        let seconds = now.timeIntervalSince(date)
-        if seconds < 60 { return "À l'instant" }
-        if seconds < 3_600 { return "il y a \(Int(seconds / 60)) min" }
-        return date.formatted(format(calendar).hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
-    }
-
-    private static func format(_ calendar: Calendar) -> Date.FormatStyle {
-        Date.FormatStyle(locale: Locale(identifier: "fr_FR"), calendar: calendar, timeZone: calendar.timeZone)
+    /// « à l'instant », « il y a 5 min », then the time, « 9:16 »: the day is in the heading. A meta, in small letters
+    /// (`Words`, lot 10, 20/11: « À l'instant », « 09:16 »).
+    public static func time(of date: Date, now: Date, calendar: Calendar = Words.calendar) -> String {
+        now.timeIntervalSince(date) < 3_600 ? Words.ago(date, now: now) : Words.time(date, calendar: calendar)
     }
 }

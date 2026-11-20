@@ -97,15 +97,16 @@ struct MeetingDetailView: View {
         .alert("Export impossible", isPresented: Binding(get: { exportError != nil }, set: { if !$0 { exportError = nil } })) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(exportError ?? "")
+            // French typography, laid at display (lot 10, 20/11).
+            Text(Words.typeset(exportError ?? ""))
         }
     }
 
     // MARK: - Header
 
+    /// « Lundi 16 novembre à 14:30 », the year when it is not this one's, by `Words` (lot 10, 20/11).
     private var dateText: String {
-        let text = row.startedAt.formatted(.dateTime.weekday(.wide).day().month(.wide).hour().minute().locale(Locale(identifier: "fr_FR")))
-        return text.prefix(1).uppercased() + text.dropFirst()
+        Words.capitalizedFirst(Words.fullDate(row.startedAt, now: Date()) + " à " + Words.time(row.startedAt))
     }
 
     private var header: some View {
@@ -237,7 +238,8 @@ struct MeetingDetailView: View {
     @ViewBuilder
     private func transcript(_ scroll: ScrollViewProxy) -> some View {
         if row.source == .imported {
-            Label("Réunion importée d'Obsidian : pas d'audio, transcription sans distinction des voix.", systemImage: "tray.and.arrow.down")
+            // Short, no name of the past (lot 10, 20/11).
+            Label(Words.typeset("Réunion importée : pas d'audio, voix non distinguées."), systemImage: "tray.and.arrow.down")
                 .foregroundStyle(.secondary)
         } else if row.status.isUnfinished {
             // Being recorded: its own red; a meeting that does not play: said by `ErrorLine` (design system v2, 19/11).
@@ -278,7 +280,8 @@ struct MeetingDetailView: View {
                 .frame(maxWidth: .infinity)
         } else if row.audioPurgedAt != nil, row.source != .imported {
             FloatingBar {
-                Label("L'audio a été effacé (30 jours après la transcription).", systemImage: "trash")
+                // « Supprimer » destroys; « Effacer » empties a list (lot 10, 20/11).
+                Label("L'audio a été supprimé (30 jours après la transcription).", systemImage: "trash")
                     .font(.callout).foregroundStyle(.secondary)
             }
         }
@@ -287,13 +290,15 @@ struct MeetingDetailView: View {
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
-            // The summary and the dialogue in one Markdown page, to send (Paul, 16/11).
+            // The summary and the dialogue in one Markdown page, to send (Paul, 16/11). A bubble: a verb and its object,
+            // 60 characters at most, the parentheses for a shortcut only (lot 10, 20/11).
             Button(action: export) { Label("Exporter", systemImage: "square.and.arrow.up") }
-                .help("Exporter le compte rendu et la transcription en Markdown (.md)")
+                .help("Exporter le compte rendu et la transcription")
                 .disabled(lines.isEmpty && summary?.isEmpty != false)
             if row.source != .imported {
-                Button { showingDetails = true } label: { Label("Enregistrement", systemImage: "info.circle") }
-                    .help("Comment s'est passé l'enregistrement")
+                // An icon alone: the same words for its bubble and VoiceOver (lot 10, 20/11).
+                Button { showingDetails = true } label: { Label("Voir les détails de l'enregistrement", systemImage: "info.circle") }
+                    .help("Voir les détails de l'enregistrement")
                     .popover(isPresented: $showingDetails, arrowEdge: .bottom) { recordingDetails }
             }
             Menu {
@@ -307,7 +312,8 @@ struct MeetingDetailView: View {
                 Menu("Retranscrire") {
                     Button("En français") { retranscribe("fr") }
                     Button("En anglais") { retranscribe("en") }
-                    Button("Langue détectée par le moteur") { retranscribe(nil) }
+                    // No word of the code on screen: « le moteur » (lot 10, 20/11).
+                    Button("Détection automatique") { retranscribe(nil) }
                 }
                 .disabled(queue == nil || row.audioPurgedAt != nil || row.status.isUnfinished || row.source == .imported)
                 Divider()
@@ -316,21 +322,29 @@ struct MeetingDetailView: View {
                 Button("Supprimer…", role: .destructive) { confirmingDelete = true }
                     .disabled(row.status.isUnfinished)
             } label: {
-                Label("Plus", systemImage: "ellipsis")
+                // « Plus d'actions », the words of every « … » (lot 10, 20/11: no bubble before).
+                Label(Words.moreActions, systemImage: "ellipsis")
             }
+            .help(Words.moreActions)
         }
     }
 
     /// « Exporter »: where to save, then the page (« Lundi 16 novembre 2026 à 14:30 · 27 min », the summary, the
     /// actions, the dialogue).
     private func export() {
-        let date = row.startedAt.formatted(.dateTime.weekday(.wide).day().month(.wide).year().hour().minute().locale(Locale(identifier: "fr_FR")))
+        // By `Words`, the year always: the page is read by others, later (lot 10, 20/11).
+        let start = row.startedAt
+        let day = Words.fullDate(start, now: start) + " \(Words.calendar.component(.year, from: start))"
+        let date = Words.capitalizedFirst(day + " à " + Words.time(start))
         let duration = row.status.isUnfinished || row.endedAt == nil ? "" : MeetingListModel.durationText(row, now: .now)
-        let page = MeetingExport.markdown(title: row.title, date: date.prefix(1).uppercased() + date.dropFirst(), duration: duration,
+        let page = MeetingExport.markdown(title: row.title, date: date, duration: duration,
                                           participants: participants.map(\.name), summary: summary, actions: actions, lines: lines,
                                           me: MeetingExport.firstName())
         if case .failure(let error) = MeetingExport.save(page, suggestedName: MeetingExport.fileName(title: row.title, date: row.startedAt)) {
-            exportError = "Le fichier n'a pas pu être écrit : \(error.localizedDescription)"
+            // Polhub's sentence in the alert, the system's text in the journal (lot 10, 20/11).
+            let problem = Words.problem("Le fichier n'a pas pu être écrit", error)
+            exportError = problem.sentence
+            store.database.journal(problem)
         }
     }
 
@@ -406,7 +420,8 @@ struct MeetingDetailView: View {
         case .safetyElapsed: "micro rendu, fin confirmée 10 min après"
         case .diaQuit: "Dia quitté"
         case .userStopped: "arrêtée à la main"
-        case .interrupted: "interrompue (l'app s'était arrêtée)"
+        // Polhub by its name, never « l'app » (lot 10, 20/11).
+        case .interrupted: "interrompue (Polhub s'était arrêté)"
         case .nextMeeting: "une autre réunion a commencé"
         }
     }
@@ -498,6 +513,8 @@ struct PlayerView: View {
     var body: some View {
         HStack(spacing: Space.s) {
             IconButton("gobackward.15", help: "Reculer de 15 secondes", size: 16) { player.skip(by: -MeetingPlayer.skipSeconds) }
+            // A verb, and Espace, which plays and pauses here; VoiceOver says the verb alone (lot 10, 20/11).
+            let playLabel = player.isPlaying ? "Mettre en pause" : "Lire"
             Button {
                 player.isPlaying ? player.pause() : player.play()
             } label: {
@@ -508,8 +525,8 @@ struct PlayerView: View {
             }
             .buttonStyle(.hover(.circle))
             .keyboardShortcut(.space, modifiers: [])
-            .help(player.isPlaying ? "Pause" : "Lecture")
-            .accessibilityLabel(player.isPlaying ? "Pause" : "Lecture")
+            .help(Words.help(playLabel, .space))
+            .accessibilityLabel(playLabel)
             IconButton("goforward.15", help: "Avancer de 15 secondes", size: 16) { player.skip(by: MeetingPlayer.skipSeconds) }
 
             Slider(
@@ -521,7 +538,8 @@ struct PlayerView: View {
                     scrubbing = nil
                 }
             }
-            Text("\(DurationText.clock(Int(scrubbing ?? player.currentSeconds))) / \(DurationText.clock(Int(player.durationSeconds)))")
+            // « 12:34 / 47:05 », the clock by `Words` (lot 10, 20/11).
+            Text("\(Words.clock(Int(scrubbing ?? player.currentSeconds))) / \(Words.clock(Int(player.durationSeconds)))")
                 .font(.callout.monospacedDigit())
                 .foregroundStyle(.secondary)
                 .fixedSize()
@@ -538,7 +556,8 @@ struct PlayerView: View {
             .buttonStyle(.hover(.capsule))
             .menuIndicator(.hidden)
             .fixedSize()
-            .help("La vitesse de lecture")
+            // A verb and its object, never a name (lot 10, 20/11).
+            .help("Changer la vitesse")
             Menu {
                 Toggle("Moi", isOn: $player.moiEnabled)
                 Toggle("Les autres", isOn: $player.autresEnabled)
@@ -549,7 +568,9 @@ struct PlayerView: View {
             .buttonStyle(.hover(.capsule))
             .menuIndicator(.hidden)
             .fixedSize()
-            .help("Les voix à écouter")
+            // An icon alone: the same words for its bubble and VoiceOver (lot 10, 20/11).
+            .help("Choisir les voix")
+            .accessibilityLabel("Choisir les voix")
         }
     }
 }

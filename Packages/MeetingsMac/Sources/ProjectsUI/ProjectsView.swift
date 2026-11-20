@@ -35,10 +35,12 @@ public struct ProjectsView: View {
                 ContentUnavailableView {
                     Label("Aucun projet", systemImage: "square.grid.3x2")
                 } description: {
-                    Text("Crée ton premier projet : il prendra place dans le Kanban.")
+                    // « kanban » in a sentence, the French typography laid (lot 10, 20/11).
+                    Text(Words.typeset("Crée ton premier projet : il prendra place dans le kanban."))
                 } actions: {
-                    // The screen's one action: the principal button, no glass in the content (design system v2, 19/11).
-                    Button("Nouveau projet") { creating = .priorite1 }
+                    // The screen's one action: the principal button, no glass in the content (design system v2, 19/11); a verb,
+                    // as the « + » says it (lot 10, 20/11).
+                    Button("Créer un projet") { creating = .priorite1 }
                         .buttonStyle(.primary)
                         .controlSize(.large)
                 }
@@ -60,8 +62,9 @@ public struct ProjectsView: View {
                         .fixedSize()
                     }
                     ToolbarItem(placement: .primaryAction) {
-                        Button { creating = .priorite1 } label: { Label("Nouveau projet", systemImage: "plus") }
-                            .help("Nouveau projet")
+                        // A verb and its object, and ⌘N, which does the same (`WindowKeys`) (lot 10, 20/11).
+                        Button { creating = .priorite1 } label: { Label("Créer un projet", systemImage: "plus") }
+                            .help(Words.help("Créer un projet", .command("n")))
                     }
                 }
                 .searchable(text: $query, placement: .toolbar, prompt: "Chercher un projet")

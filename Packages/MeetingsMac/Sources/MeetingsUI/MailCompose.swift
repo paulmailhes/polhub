@@ -104,7 +104,8 @@ struct RecipientField: View {
                         // symbol says which (lot 6, 19/11).
                         .background(mark == .known ? Surface.raised : Tint.attention.opacity(mark == .invalid ? 0.18 : 0.16), in: Capsule())
                         .foregroundStyle(mark == .known ? Color.primary : Tint.attention)
-                        .help(mark == .invalid ? "« \(address.email) » n'est pas une adresse valide"
+                        // One sentence for a wrong address, everywhere (lot 10, 20/11).
+                        .help(mark == .invalid ? "L'adresse « \(address.email) » n'est pas valide"
                               : (mark == .known ? address.email : "\(address.email) : tu n'as jamais écrit à cette adresse, vérifie-la"))
                     }
                     TextField("", text: $text)
@@ -205,14 +206,16 @@ struct ComposeView: View {
                         Text(signature).font(.meta).foregroundStyle(.secondary).lineLimit(3)
                     }
                     .toggleStyle(.checkbox)
-                    .help("Ta signature Gmail, ajoutée sous ton texte")
+                    // What the box does, a verb first (lot 10, 20/11).
+                    .help("Ajouter ta signature Gmail sous ton texte")
                     .disabled(planned != nil)
                 }
                 if let quote = draft.quoteText, draft.isFormattedGmailDraft {
                     // A draft written in Gmail with formatting (bold, lists, links): its text is the draft itself, shown
                     // whole, never folded as a quote (Paul, 16/11: « je vois pas le texte de mon brouillon »).
                     VStack(alignment: .leading, spacing: Space.xs) {
-                        Text("Écrit dans Gmail, avec sa mise en forme : il part tel quel, sous ce que tu ajoutes.")
+                        // French typography, laid at display (lot 10, 20/11).
+                        Text(Words.typeset("Écrit dans Gmail, avec sa mise en forme : il part tel quel, sous ce que tu ajoutes."))
                             .font(.meta).foregroundStyle(.secondary)
                         Text(quote).font(.system(size: TextSize.reading)).textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -332,15 +335,17 @@ struct ComposeView: View {
         HStack(spacing: 6) {
             ColorDot(mails.color(for: draft.account), size: 8)
             if choose {
-                // A choice to make: the app's accent, ink (design system v2, 19/11).
-                Text("Choisir la boîte…").foregroundStyle(Tint.accent)
+                // A choice to make: the app's accent, ink (design system v2, 19/11). The account sends, its mailbox holds the
+                // mails (lot 10, 20/11).
+                Text("Choisir le compte…").foregroundStyle(Tint.accent)
             } else {
                 Text(AccountStyle.label(for: draft.account)).fontWeight(.medium)
                 Text(draft.account).foregroundStyle(.secondary)
             }
             if draft.mode == .new { Image(systemName: "chevron.up.chevron.down").font(.caption2).foregroundStyle(.secondary) }
         }
-        .help(draft.mode == .new ? "La boîte d'envoi" : "Une réponse part de la boîte du fil")
+        // « La boîte d'envoi » is the folder of the mails leaving, not an account (lot 10, 20/11).
+        .help(draft.mode == .new ? "Choisir le compte qui envoie" : "Une réponse part du compte du fil")
     }
 
     private func files(_ draft: MailDraftRow) -> some View {
@@ -355,7 +360,8 @@ struct ComposeView: View {
                         Image(systemName: "xmark").font(.caption2.bold()).frame(width: 16, height: 16)
                     }
                     .buttonStyle(.hover(.circle))
-                    .help("Retirer")
+                    // The bubble and VoiceOver say the same thing (lot 10, 20/11).
+                    .help("Retirer \(file.filename)")
                     .accessibilityLabel("Retirer \(file.filename)")
                 }
                 .font(.meta)
@@ -506,7 +512,8 @@ struct MailDraftLine: View {
                 .lineLimit(1)
         } subject: {
             HStack(spacing: Space.s) {
-                (Text(subject.isEmpty ? "(sans objet)" : subject).font(.rowTitle)
+                // The screen's « (sans objet) » (lot 10, 20/11).
+                (Text(subject.isEmpty ? Words.noSubject : subject).font(.rowTitle)
                     + Text(extract.isEmpty ? "" : " — \(extract.replacingOccurrences(of: "\n", with: " "))").font(.rowBody).foregroundStyle(.secondary))
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -514,7 +521,10 @@ struct MailDraftLine: View {
                 if agent {
                     Label("préparé par un agent", systemImage: "sparkles").font(.meta).foregroundStyle(Tint.agent).fixedSize()
                 }
-                if error != nil { Image(systemName: "exclamationmark.triangle").font(.meta).foregroundStyle(Tint.attention).help(error ?? "") }
+                // An icon that informs: its sentence in the bubble and for VoiceOver (lot 10, 20/11).
+                if let error {
+                    Image(systemName: "exclamationmark.triangle").font(.meta).foregroundStyle(Tint.attention).help(error).accessibilityLabel(error)
+                }
             }
         } end: {
             Text(MailText.date(date)).font(.meta).foregroundStyle(.secondary).monospacedDigit().lineLimit(1)

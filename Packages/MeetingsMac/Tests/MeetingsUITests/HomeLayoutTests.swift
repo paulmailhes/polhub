@@ -92,11 +92,15 @@ import Testing
 
     /// Lot 5 (19/11): under the date, one line says what came since Paul last came, then « Voir › ».
     @Test func theLineUnderTheDateSaysWhatCameSince() {
-        #expect(BriefingText.since(["Cette semaine : 3 rendez-vous, le prochain demain 10:00.", "Depuis hier 19:40 : 1 mail de client, 2 projets ont bougé."])
+        let week = Briefing.Line(.week, label: "Cette semaine", text: "3 rendez-vous, le prochain demain 10:00.")
+        #expect(BriefingText.since([week, Briefing.Line(.since, label: "Depuis hier 19:40", text: "1 mail de client, 2 projets ont bougé.")])
                 == "Depuis hier 19:40 · 1 mail de client, 2 projets ont bougé")
-        #expect(BriefingText.since(["Depuis 8:05 : 3 mails de clients."]) == "Depuis 8:05 · 3 mails de clients")
-        #expect(BriefingText.since(["Cette semaine : aucun rendez-vous.", "À toi de jouer : Studio Nord."]) == nil)
+        #expect(BriefingText.since([Briefing.Line(.since, label: "Depuis 8:05", text: "3 mails de clients.")]) == "Depuis 8:05 · 3 mails de clients")
+        #expect(BriefingText.since([week, Briefing.Line(.yours, label: "À toi de jouer", text: "Studio Nord.")]) == nil)
         #expect(BriefingText.since([]) == nil)
+        // Lot 10 (20/11): found by its kind, whatever its first word says.
+        #expect(BriefingText.since([Briefing.Line(.since, label: "Ce matin", text: "rien de neuf.")]) == "Ce matin · rien de neuf")
+        #expect(BriefingText.since([Briefing.Line(.week, label: "Depuis lundi", text: "rien.")]) == nil)
     }
 
     /// Lot 5 (19/11): when « Le point » was prepared is said under the pointer, as the day is said elsewhere.
@@ -139,13 +143,12 @@ import Testing
         #expect(TodoText.menu(dated: false) == ["Ouvrir le projet"])
     }
 
+    /// Lot 10 (20/11): a sentence of the point is its label and its text, kept apart: never cut at its « : », which the
+    /// hour of « depuis » has too.
     @Test func aSentenceOfThePointIsItsLabelAndItsText() {
-        #expect(BriefingText.parts("Cette semaine : 5 rendez-vous, le prochain demain 10:00.") == BriefingText.Part(label: "Cette semaine", text: "5 rendez-vous, le prochain demain 10:00."))
-        // The hour of « depuis » has its own colon: only the one that ends the label counts.
-        #expect(BriefingText.parts("Depuis hier 19:40 : 4 mails de clients.") == BriefingText.Part(label: "Depuis hier 19:40", text: "4 mails de clients."))
-        // The text begins with a capital, as a sentence of its own.
-        #expect(BriefingText.parts("Cette semaine : aucun rendez-vous.") == BriefingText.Part(label: "Cette semaine", text: "Aucun rendez-vous."))
-        #expect(BriefingText.parts("Rien à dire.") == BriefingText.Part(label: nil, text: "Rien à dire."))
+        let since = Briefing.Line(.since, label: "Depuis hier 19:40", text: "4 mails de clients.")
+        #expect(since.sentence == "Depuis hier 19:40 : 4 mails de clients.")
+        #expect(Briefing.Line(.week, label: "Cette semaine", text: "aucun rendez-vous.").sentence == "Cette semaine : aucun rendez-vous.")
     }
 }
 
@@ -283,7 +286,7 @@ import Testing
         let ask = "Écris ou dicte à Colin…"
         #expect(ColinThreadText.bar(.off) == .turnOn)
         // The Accueil's pass (18/11): why it waits is said above the field, not only in its empty text.
-        #expect(ColinThreadText.bar(.waitingCall) == .field(placeholder: ask, enabled: false, note: "Colin attend la fin de ton call."))
+        #expect(ColinThreadText.bar(.waitingCall) == .field(placeholder: ask, enabled: false, note: "Colin attend la fin de ta visio."))
         #expect(ColinThreadText.bar(.idle) == .field(placeholder: ask, enabled: true, note: nil))
         #expect(ColinThreadText.bar(.working("Colin lit tes mails…")) == .field(placeholder: ask, enabled: true, note: nil))
         #expect(ColinThreadText.bar(.settling) == .field(placeholder: ask, enabled: true, note: "Le Mac vient de se réveiller : Colin répond dans un instant."))
@@ -292,10 +295,16 @@ import Testing
 
     @Test func theEndOfAnAnswerIsSaidApart() {
         func answer(_ text: String, _ state: ColinMessageRow.State) -> ColinMessageRow { ColinMessageRow(author: .colin, text: text, state: state, createdAt: now) }
-        #expect(ColinThreadText.note(of: answer("Marc t'a écrit\n\nArrêté : ton call commence.", .interrupted)) == ("Marc t'a écrit", "Arrêté : ton call commence."))
+        #expect(ColinThreadText.note(of: answer("Marc t'a écrit\n\nArrêté : ton call commence.", .interrupted)) == ("Marc t'a écrit", "Arrêté : ta visio commence."))
         #expect(ColinThreadText.note(of: answer("Arrêté : le Mac s'endort.", .interrupted)) == ("", "Arrêté : le Mac s'endort."))
         #expect(ColinThreadText.note(of: answer("Marc t'a", .interrupted)) == ("Marc t'a", "Arrêté."))
         #expect(ColinThreadText.note(of: answer("Mar", .failed)) == ("Mar", "Colin n'a pas pu finir."))
+        // Lot 10 (20/11): the stop is found by the words the base keeps, never reworded, whatever the thread says of it.
+        #expect(ColinStop.ending("Marc t'a écrit\n\nArrêté : ton call commence.").map { [$0.said] } == ["Marc t'a écrit"])
+        #expect(ColinStop.ending("Arrêté : Colin est à l'arrêt.")?.stop == .off && ColinStop.ending("Arrêté : le Mac s'endort.")?.stop == .sleep)
+        #expect(ColinStop.ending("Marc t'a") == nil && ColinStop.ending("Arrêté : autre chose.") == nil)
+        #expect(ColinStop.call.stored == "Arrêté : ton call commence." && ColinStop.sleep.stored == "Arrêté : le Mac s'endort."
+                && ColinStop.off.stored == "Arrêté : Colin est à l'arrêt.")
         #expect(ColinThreadText.note(of: answer("Trois projets.", .done)) == ("Trois projets.", nil))
     }
 
@@ -313,7 +322,7 @@ import Testing
         // A question on its way, before its first word.
         #expect(ColinState(.idle, answering: true) == .answering)
         #expect(ColinState(.broken("Limite atteinte."), answering: true) == .answering)
-        #expect(ColinState(.waitingCall) == .waitingCall && ColinState.waitingCall.label == "attend ton call")
+        #expect(ColinState(.waitingCall) == .waitingCall && ColinState.waitingCall.label == "attend ta visio")
         #expect(ColinState(.settling) == .waking && ColinState.waking.label == "se réveille")
         #expect(ColinState(.broken("Limite atteinte.")) == .broken && ColinState.broken.label == "en panne")
         #expect(ColinState(.off) == .off && ColinState(.off, answering: true) == .off && ColinState.off.label == "à l'arrêt")
@@ -331,7 +340,7 @@ import Testing
         #expect(ColinState.barLine(.ready, lastAnswer: "Marc t'a écrit lundi.") == "Marc t'a écrit lundi.")
         #expect(ColinState.barLine(.ready, lastAnswer: nil) == "prêt")
         #expect(ColinState.barLine(.answering, lastAnswer: "Marc t'a écrit lundi.") == "répond…")
-        #expect(ColinState.barLine(.waitingCall, lastAnswer: "Marc t'a écrit lundi.") == "attend ton call")
+        #expect(ColinState.barLine(.waitingCall, lastAnswer: "Marc t'a écrit lundi.") == "attend ta visio")
         #expect(ColinState.barLine(.off, lastAnswer: "Marc t'a écrit lundi.") == "à l'arrêt")
     }
 
@@ -358,7 +367,7 @@ import Testing
         let card = ColinThreadText.foot(of: answer("Voilà, court.\n```message\nSalut Marc !\n```\n```retenir\nMarc préfère WhatsApp.\n```"), colinOn: true)
         #expect(card == ColinThreadText.Foot(note: nil, copy: false, retry: false) && card.isEmpty)
         #expect(ColinThreadText.foot(of: answer("Marc t'a\n\nArrêté : ton call commence.", .interrupted), colinOn: true)
-                == ColinThreadText.Foot(note: "Arrêté : ton call commence.", copy: true, retry: true))
+                == ColinThreadText.Foot(note: "Arrêté : ta visio commence.", copy: true, retry: true))
         #expect(ColinThreadText.foot(of: answer("Arrêté : le Mac s'endort.", .interrupted), colinOn: false)
                 == ColinThreadText.Foot(note: "Arrêté : le Mac s'endort.", copy: false, retry: false))
         #expect(ColinThreadText.foot(of: answer("", .failed), colinOn: true) == ColinThreadText.Foot(note: "Colin n'a pas pu finir.", copy: false, retry: true))

@@ -6,13 +6,14 @@ import FoundationModels
 public struct AppleSummaryEngine: SummaryEngine {
     public init() {}
 
+    /// « l'IA d'Apple », never « le modèle » (lot 10, 20/11); « Apple Intelligence », the setting of macOS.
     public var unavailableReason: String? {
         switch SystemLanguageModel.default.availability {
         case .available: nil
         case .unavailable(.appleIntelligenceNotEnabled): "Active Apple Intelligence dans Réglages Système pour avoir les comptes rendus."
-        case .unavailable(.modelNotReady): "Le modèle d'Apple se prépare (macOS le télécharge) : les comptes rendus suivront."
-        case .unavailable(.deviceNotEligible): "Ce Mac ne peut pas faire tourner le modèle d'Apple."
-        case .unavailable: "Le modèle d'Apple n'est pas disponible pour l'instant."
+        case .unavailable(.modelNotReady): "L'IA d'Apple se prépare (macOS le télécharge) : les comptes rendus suivront."
+        case .unavailable(.deviceNotEligible): "Ce Mac ne peut pas faire tourner l'IA d'Apple."
+        case .unavailable: "L'IA d'Apple n'est pas disponible pour l'instant."
         }
     }
 
@@ -110,7 +111,7 @@ public struct AppleSummaryEngine: SummaryEngine {
         }
     }
 
-    static let busy = "Le modèle d'Apple est occupé : le compte rendu reprendra un peu plus tard."
+    static let busy = "L'IA d'Apple est occupé : le compte rendu reprendra un peu plus tard."
 
     /// macOS 27 names the model's errors anew (`LanguageModelError`); the older names are kept, in case. A limit of
     /// the moment (too many requests, another one under way) waits a minute and is never a failure (15/11).
@@ -120,20 +121,22 @@ public struct AppleSummaryEngine: SummaryEngine {
             case .contextSizeExceeded: return SummaryError.tooLong
             case .guardrailViolation, .refusal: return SummaryError.refused
             case .rateLimited: return SummaryError.unavailable(busy)
-            case .unsupportedLanguageOrLocale: return SummaryError.model("Le modèle d'Apple ne prend pas cette langue.")
-            default: return SummaryError.model("Le modèle d'Apple n'a pas répondu : \(error.localizedDescription)")
+            case .unsupportedLanguageOrLocale: return SummaryError.model("L'IA d'Apple ne prend pas cette langue.")
+            default: // The system's own text never shows (lot 10, 20/11).
+            return SummaryError.model("L'IA d'Apple n'a pas répondu.")
             }
         }
         if let error = error as? LanguageModelSession.Error, error == .concurrentRequests { return SummaryError.unavailable(busy) }
-        if error is SystemLanguageModel.Error { return SummaryError.unavailable("Le modèle d'Apple n'est pas disponible pour l'instant.") }
+        if error is SystemLanguageModel.Error { return SummaryError.unavailable("L'IA d'Apple n'est pas disponible pour l'instant.") }
         if let error = error as? LanguageModelSession.GenerationError {
             switch error {
             case .exceededContextWindowSize: return SummaryError.tooLong
             case .guardrailViolation, .refusal: return SummaryError.refused
             case .rateLimited, .concurrentRequests: return SummaryError.unavailable(busy)
-            case .unsupportedLanguageOrLocale: return SummaryError.model("Le modèle d'Apple ne prend pas cette langue.")
-            case .assetsUnavailable: return SummaryError.unavailable("Le modèle d'Apple n'est pas disponible pour l'instant.")
-            default: return SummaryError.model("Le modèle d'Apple n'a pas répondu : \(error.localizedDescription)")
+            case .unsupportedLanguageOrLocale: return SummaryError.model("L'IA d'Apple ne prend pas cette langue.")
+            case .assetsUnavailable: return SummaryError.unavailable("L'IA d'Apple n'est pas disponible pour l'instant.")
+            default: // The system's own text never shows (lot 10, 20/11).
+            return SummaryError.model("L'IA d'Apple n'a pas répondu.")
             }
         }
         return error

@@ -98,3 +98,11 @@ import Testing
         #expect(ComposeView.agentNotice.detail.contains("?") && !ComposeView.agentNotice.detail.contains("orange"))
     }
 }
+
+/// Lot 10 (20/11): the details of a message find their rows of people by their field, never by their title.
+@Suite struct MessageDetailTests {
+    @Test func thePeopleAreInTheirFieldsRows() {
+        #expect(MessageDetail.allCases.filter(\.listsPeople) == [.to, .cc])
+        #expect(MessageDetail.allCases.map(\.title) == ["De", "À", "Cc", "Date", "Boîte", "Expéditeur"])
+    }
+}

@@ -46,6 +46,84 @@ public enum GoogleError: Error, Equatable, CustomStringConvertible {
     }
 }
 
+extension GoogleError {
+    /// An error Paul must act on, by reconnecting the account or having it approved: a connection expired, refused or too
+    /// narrow. A network error passes by itself (lot 10, 20/11: Coup d'œil read it in the first words of its text).
+    public var needsReconnecting: Bool {
+        switch self {
+        case .expired, .needsWrite, .refused, .missingScope: true
+        case .noKey, .badKey, .badAnswer, .http, .timeout, .notOrganizer, .rateLimited, .notFound, .readOnlyBuild: false
+        }
+    }
+
+    /// The error a text the base kept says — an account's or a mailbox's `lastError`, written `"\(error)"` —, found by the
+    /// error's own words, here only, whatever they become; `nil` for any other text (the network's, the system's). A text
+    /// written before its words changed is found again once the account is read again (lot 10, 20/11).
+    public init?(stored text: String) {
+        let fixed: [GoogleError] = [.noKey, .badKey, .badAnswer, .expired, .timeout, .needsWrite, .notOrganizer, .rateLimited, .notFound,
+                                    .readOnlyBuild, .refused("admin_policy_enforced"), .refused("access_denied")]
+            + GoogleScope.allCases.map { .missingScope($0) }
+        if let known = fixed.first(where: { $0.description == text }) {
+            self = known
+        } else if let reason = Self.value(in: text, template: GoogleError.refused("\u{1}").description, marker: "\u{1}") {
+            self = .refused(reason)
+        } else if let code = Self.value(in: text, template: GoogleError.http(987_654_321).description, marker: "987654321").flatMap({ Int($0) }) {
+            self = .http(code)
+        } else {
+            return nil
+        }
+    }
+
+    /// What a text says in the place of `marker`, when it is `template` around it.
+    private static func value(in text: String, template: String, marker: String) -> String? {
+        let parts = template.components(separatedBy: marker)
+        guard parts.count == 2, text.count > parts[0].count + parts[1].count, text.hasPrefix(parts[0]), text.hasSuffix(parts[1]) else { return nil }
+        return String(text.dropFirst(parts[0].count).dropLast(parts[1].count))
+    }
+}
+
+/// A Google error in Paul's words, for `Words.problem` (lot 10, 20/11): the reason alone, a fragment that follows « : »,
+/// and what to do, a sentence. `description` does not move: the base keeps it, `GoogleError(stored:)` reads it again.
+extension GoogleError: LocalizedError {
+    public var failureReason: String? {
+        switch self {
+        case .noKey: "la clé Google n'est pas encore en place"
+        case .badKey: "la clé Google n'est pas une clé « application de bureau »"
+        case .refused("admin_policy_enforced"): "l'administrateur de ce compte bloque Polhub"
+        case .refused("access_denied"): "l'autorisation a été refusée ou annulée"
+        case .refused(let reason): "Google a refusé la connexion (\(reason))"
+        case .badAnswer: "la réponse de Google est illisible"
+        case .expired: "la connexion à ce compte a expiré"
+        case .http(let code): "Google répond \(code)"
+        case .timeout: "la connexion n'a pas été faite à temps dans le navigateur"
+        case .needsWrite: "ce compte n'a autorisé que la lecture"
+        case .notOrganizer: "seul l'organisateur peut modifier ce rendez-vous"
+        case .missingScope(.gmailModify): "ce compte n'a pas encore autorisé les mails"
+        case .missingScope(.calendarEvents): "ce compte n'a pas autorisé l'agenda"
+        case .rateLimited: "Google demande de ralentir"
+        case .notFound: "Google ne trouve plus cet élément"
+        case .readOnlyBuild: "la version de développement n'écrit jamais dans une vraie boîte"
+        }
+    }
+
+    /// `nil`: « Réessaie. ».
+    public var recoverySuggestion: String? {
+        switch self {
+        case .noKey: "Lance « configurer-google.command », dans le dossier scripts de Polhub."
+        case .badKey: "Crée une clé « application de bureau » dans la console Google."
+        case .refused("admin_policy_enforced"): "Il doit l'approuver dans la console d'administration Google (Sécurité › Commandes des API)."
+        case .refused("access_denied"): "Rien n'a changé."
+        case .refused, .expired, .missingScope(.calendarEvents): "Reconnecte le compte dans Réglages › Comptes Google."
+        case .needsWrite: "Reconnecte-le pour modifier ses rendez-vous."
+        case .missingScope(.gmailModify): "Autorise les mails dans Réglages › Comptes Google."
+        case .notOrganizer: "Demande à l'organisateur de le modifier."
+        case .rateLimited: "Réessaie dans un instant."
+        case .readOnlyBuild: "Fais-le dans Polhub installé."
+        case .badAnswer, .http, .timeout, .notFound: nil
+        }
+    }
+}
+
 /// The key of the « Polhub » Google project, a desktop app: never in the repository, never shown. The file gives the
 /// client's identifier and secret only; where the browser and the tokens go is written here (audit of 19/11): a
 /// program that rewrites the file cannot send a refresh token to its own server, nor open a consent page of its own.

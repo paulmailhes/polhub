@@ -299,7 +299,11 @@ public enum MailHTML {
         var button = document.createElement('button');
         button.setAttribute('data-polhub-fold', kind);
         button.textContent = label + ' ▾';
-        button.title = kind === 'quote' ? 'Afficher les messages précédents cités' : 'Afficher la signature';
+        // Its bubble follows the state: « Masquer… » once unfolded (lot 10, 20/11).
+        function title(shown) {
+          return (shown ? 'Masquer ' : 'Afficher ') + (kind === 'quote' ? 'les messages précédents cités' : 'la signature');
+        }
+        button.title = title(false);
         button.setAttribute('style', 'display:block;width:max-content;margin:0;padding:1px 10px;border:0;border-radius:999px;background:rgba(128,128,128,0.16);color:inherit;opacity:0.8;font:12px/1.6 -apple-system,sans-serif;cursor:pointer');
         // Room above and below inside its holder, never as a margin: a margin at the end of the page escapes the
         // measured height and the button was cut.
@@ -312,6 +316,7 @@ public enum MailHTML {
           var show = nodes[0].classList.contains('polhub-folded');
           setFolded(nodes, !show);
           button.textContent = label + (show ? ' ▴' : ' ▾');
+          button.title = title(show);
           post();
         });
       }

@@ -35,7 +35,8 @@ struct NewProjectSheet: View {
                         }
                     }
                     TextField("Client", text: text(\.client))
-                    TextField("Prochaine étape", text: text(\.todo), prompt: Text("La prochaine chose à faire"))
+                    // The field's one name, « tâche du moment », said as Paul says it (lot 10, 20/11).
+                    TextField("Tâche du moment", text: text(\.todo), prompt: Text("Ce que tu fais en ce moment sur ce projet"))
                     Toggle("Échéance", isOn: $hasDue)
                         // The date shown is the one saved, even untouched (review of 14/11).
                         .onChange(of: hasDue) { _, on in draft.dueDate = on ? (draft.dueDate ?? Calendar.current.startOfDay(for: Date())) : nil }
@@ -116,8 +117,9 @@ struct ColorChoices: View {
                 .padding(3)
         }
         .buttonStyle(.hover(.circle))
-        .help(name?.capitalizedFirst ?? "Aucune")
-        .accessibilityLabel(name?.capitalizedFirst ?? "Aucune couleur")
+        // The color's name, the same words for the bubble and VoiceOver (lot 10, 20/11).
+        .help(name.map(Words.capitalizedFirst) ?? "Aucune couleur")
+        .accessibilityLabel(name.map(Words.capitalizedFirst) ?? "Aucune couleur")
         .accessibilityAddTraits(chosen ? .isSelected : [])
     }
 }

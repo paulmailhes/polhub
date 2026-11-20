@@ -50,7 +50,6 @@ struct ProjectPage: View {
         _draft = State(initialValue: project)
     }
 
-    static let locale = Locale(identifier: "fr_FR")
     /// The rows of a side card before « Voir les N autres ».
     static let sideRows = 5
 
@@ -84,14 +83,16 @@ struct ProjectPage: View {
         .confirmationDialog("Supprimer « \(draft.name) » ?", isPresented: $confirmingDelete) {
             Button("Supprimer le projet", role: .destructive) { library.trash(draft.id); close?() }
         } message: {
-            Text("Le projet quitte le Kanban et les listes. Ses réunions, ses mails et ses contacts restent.")
+            // « kanban » in a sentence, « Kanban » only as the tab's title (lot 10, 20/11).
+            Text("Le projet quitte le kanban et les listes. Ses réunions, ses mails et ses contacts restent.")
         }
         .toolbar {
             if close == nil {
                 ToolbarItem(placement: .navigation) {
-                    // Back where the project was opened from, the Accueil included (lot 4, 19/11).
+                    // Back where the project was opened from, the Accueil included (lot 4, 19/11); the bubble by `Words`
+                    // (lot 10, 20/11).
                     Button { library.closePage() } label: { Label("Projets", systemImage: "chevron.left") }
-                        .help(library.returnHelp?() ?? "Revenir à Projets (Échap)")
+                        .help(library.returnHelp?() ?? Words.help("Revenir à Projets", .escape))
                 }
             }
         }
@@ -150,8 +151,9 @@ struct ProjectPage: View {
                     .menuIndicator(.hidden)
                     .fixedSize()
                     .help("Changer le statut")
-                    if let label = ProjectViews.dueLabel(draft.dueDate, today: Date()) {
-                        Chip(label, systemImage: "calendar", tint: ProjectViews.dueTint(label))
+                    // The color from the days left, never from the words (lot 10, 20/11).
+                    if let due = ProjectViews.dueState(draft.dueDate, today: Date()) {
+                        Chip(due.label, systemImage: "calendar", tint: due.role?.color)
                     }
                     if let client = draft.client, !client.isEmpty { Chip(client, systemImage: "building.2") }
                 }
@@ -191,16 +193,18 @@ struct ProjectPage: View {
         .tint(nil)
         .menuIndicator(.hidden)
         .fixedSize()
-        .help("Statut, dossier, supprimer le projet")
-        .accessibilityLabel("Plus d'options du projet")
+        // The bubble of every « … » menu, and the same words for VoiceOver (lot 10, 20/11).
+        .help(Words.moreActions)
+        .accessibilityLabel(Words.moreActions)
     }
 
-    /// The next thing to do, the page's first line, in neutral colors: a red or green project must not look like
+    /// The task of the moment, the page's first line, in neutral colors: a red or green project must not look like
     /// a problem or a success here (Paul, 15/11).
     private var nextStep: some View {
         HStack(spacing: Space.m) {
             Image(systemName: "arrow.forward.circle.fill").font(.title2).foregroundStyle(.secondary)
-            TextField("La prochaine chose à faire", text: optional(\.todo), axis: .vertical)
+            // The field's one name, « tâche du moment », said as Paul says it (lot 10, 20/11).
+            TextField("Ce que tu fais en ce moment sur ce projet", text: optional(\.todo), axis: .vertical)
                 .font(.title3.weight(.medium))
                 .textFieldStyle(.plain)
         }
@@ -247,7 +251,8 @@ struct ProjectPage: View {
                     DispatchQueue.main.async { notesFocused = true }
                 }
                 .pointerStyle(.horizontalText)
-                .help("Cliquer pour écrire")
+                // What it does, never the gesture (lot 10, 20/11).
+                .help("Écrire les notes")
             }
         }
     }
@@ -260,7 +265,8 @@ struct ProjectPage: View {
             let done = actions.filter(\.done)
             SectionTitle("Actions", systemImage: "checklist", count: open.count) {
                 if !done.isEmpty {
-                    TextButton(showingDone ? "Masquer les faites" : "Voir les faites") {
+                    // What is hidden, shown or hidden: « Afficher » and « Masquer », a pair (lot 10, 20/11).
+                    TextButton(showingDone ? "Masquer les faites" : "Afficher les faites") {
                         withAnimation(Motion.standard) { showingDone.toggle() }
                     }
                 }
@@ -290,8 +296,9 @@ struct ProjectPage: View {
             })) {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(action.text).font(.rowBody).strikethrough(action.done).foregroundStyle(action.done ? .secondary : .primary)
+                    // The day by `Words`, its year when it is not this one (lot 10, 20/11).
                     let detail = [action.owner, action.meetingID != nil ? "d'une réunion" : nil,
-                                  action.addedOn?.formatted(.dateTime.day().month(.abbreviated).locale(Self.locale))].compactMap { $0 }
+                                  action.addedOn.map { Words.shortDate($0, now: Date()) }].compactMap { $0 }
                     if !detail.isEmpty { Text(detail.joined(separator: " · ")).font(.tag).foregroundStyle(.secondary) }
                 }
             }
@@ -315,7 +322,8 @@ struct ProjectPage: View {
     private var journalCard: some View {
         Card {
             SectionTitle("Journal", systemImage: "book.closed", count: journal.count) {
-                IconButton(addingEntry ? "xmark" : "plus", help: addingEntry ? "Ne pas ajouter" : "Ajouter au journal", size: 13) {
+                // « Annuler » closes without doing anything (lot 10, 20/11).
+                IconButton(addingEntry ? "xmark" : "plus", help: addingEntry ? "Annuler" : "Ajouter au journal", size: 13) {
                     withAnimation(Motion.standard) { addingEntry.toggle() }
                 }
             }
@@ -330,7 +338,8 @@ struct ProjectPage: View {
                 }
                 .transition(.opacity)
             }
-            if journal.isEmpty && !addingEntry { EmptyLine("Rien encore : les sessions de Claude Code y écrivent ce qu'elles font.") }
+            // How it fills, as the side cards say it (lot 10, 20/11).
+            if journal.isEmpty && !addingEntry { EmptyLine("Les sessions de Claude Code écrivent ici ce qu'elles font.") }
             ShowMoreList(journal, limit: 3) { entry in journalRow(entry) }
         }
     }
@@ -346,7 +355,8 @@ struct ProjectPage: View {
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-                        Text(entry.date.formatted(.dateTime.day().month(.abbreviated).locale(Self.locale)))
+                        // The day by `Words`, its year when it is not this one (lot 10, 20/11).
+                        Text(Words.shortDate(entry.date, now: Date()))
                             .font(.meta.monospacedDigit()).foregroundStyle(.secondary).frame(width: 58, alignment: .leading)
                         Text(entry.title).font(.rowTitle.weight(.semibold)).foregroundStyle(.primary).lineLimit(open ? nil : 1)
                         Spacer(minLength: 0)
@@ -407,7 +417,8 @@ struct ProjectPage: View {
                         if draft.dueDate != nil {
                             DatePicker("", selection: Binding(get: { draft.dueDate ?? Date() }, set: { draft.dueDate = $0 }), displayedComponents: .date)
                                 .labelsHidden()
-                            IconButton("xmark.circle.fill", help: "Sans échéance", size: 13) { draft.dueDate = nil }
+                            // A verb and its object, never a name on a gesture (lot 10, 20/11).
+                            IconButton("xmark.circle.fill", help: "Retirer l'échéance", size: 13) { draft.dueDate = nil }
                         } else {
                             TextButton("Ajouter") { draft.dueDate = Date() }
                         }
@@ -420,8 +431,9 @@ struct ProjectPage: View {
                     ColorChoices(selection: optional(\.color))
                 }
                 LabeledContent("Dossier") {
+                    // The whole path when one is chosen; else what the button does, and why (lot 10, 20/11).
                     TextButton(draft.codeFolder.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Choisir…") { choosingFolder = true }
-                        .help(draft.codeFolder ?? "Le dossier de code, pour que Claude Code reconnaisse le projet")
+                        .help(draft.codeFolder ?? Words.help("Choisir le dossier de code", detail: "Claude Code reconnaît le projet"))
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }
                 // A link reads by its underline, in the accent's ink, no longer by its color (design system v2, 19/11).
@@ -454,7 +466,8 @@ struct ProjectPage: View {
                     RowButton(action: { library.openMeeting?(meeting.id) }) {
                         VStack(alignment: .leading, spacing: 1) {
                             Text(meeting.title).font(.rowBody.weight(.medium)).lineLimit(1).foregroundStyle(.primary)
-                            Text(meeting.startedAt.formatted(.dateTime.day().month(.abbreviated).hour().minute().locale(Self.locale)))
+                            // A meta with its hour, by `Words`: « hier 14:00 », « lun. 9:30 », « 12 nov. 14:00 » (lot 10, 20/11).
+                            Text(Words.shortMoment(meeting.startedAt, now: Date()))
                                 .font(.meta).foregroundStyle(.secondary)
                             if let line = summaries[meeting.id] {
                                 Text(line).font(.meta).foregroundStyle(.secondary).lineLimit(2)
@@ -471,8 +484,9 @@ struct ProjectPage: View {
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(thread.subject).font(.rowBody).fontWeight(thread.unread ? .semibold : .regular).lineLimit(1)
                                     .foregroundStyle(.primary)
+                                // The day by `Words`, its year when it is not this one (lot 10, 20/11).
                                 Text("\(thread.senders.last { $0.email.lowercased() == thread.lastSender }?.display ?? thread.lastSender ?? "Moi") · "
-                                     + thread.lastMessageAt.formatted(.dateTime.day().month(.abbreviated).locale(Self.locale)))
+                                     + Words.shortDate(thread.lastMessageAt, now: Date()))
                                     .font(.meta).foregroundStyle(.secondary).lineLimit(1)
                             }
                         }
@@ -487,7 +501,10 @@ struct ProjectPage: View {
                         RowButton(action: { library.openEvent?(event.id) }) {
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(event.title).font(.rowBody).lineLimit(1).foregroundStyle(.primary)
-                                Text(event.startAt.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).hour().minute().locale(Self.locale)))
+                                // A meta with its hour, by `Words`: « demain 9:00 », « jeu. 14:00 », « 24 nov. 14:00 »; a whole
+                                // day, « demain, toute la journée », no longer « 00:00 » (lot 10, 20/11).
+                                Text(event.allDay ? Words.shortDay(event.startAt, now: Date()) + ", " + Words.allDay
+                                                  : Words.shortMoment(event.startAt, now: Date()))
                                     .font(.meta).foregroundStyle(.secondary)
                             }
                         }
@@ -536,7 +553,8 @@ struct ProjectLogoEditor: View {
             if let site = logos.site(for: project.id) {
                 Divider()
                 if !logos.hasOwnImage(project.id) {
-                    Button("Rafraîchir le logo") { logos.refresh(project) }
+                    // « Actualiser » reads again what comes from outside (lot 10, 20/11).
+                    Button("Actualiser le logo") { logos.refresh(project) }
                 }
                 if let url = URL(string: "https://\(site.domain)/") {
                     Button("Ouvrir \(site.domain)") { NSWorkspace.shared.open(url) }
@@ -563,8 +581,9 @@ struct ProjectLogoEditor: View {
         .fileImporter(isPresented: $choosing, allowedContentTypes: [.image]) { result in
             if case .success(let url) = result { Task { await logos.setImage(from: url, for: project.id) } }
         }
-        .help("Le logo du projet : glisse une image dessus, ou clique pour en choisir une")
-        .accessibilityLabel("Logo du projet")
+        // What it does, never the gesture; the same words for VoiceOver (lot 10, 20/11).
+        .help("Changer le logo")
+        .accessibilityLabel("Changer le logo")
     }
 }
 
@@ -612,7 +631,8 @@ struct SiteField: View {
                 .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
-        .help("Le site du client : Polhub y prend son logo. Deviné d'après l'adresse de ses contacts, tant que tu n'en choisis pas un.")
+        // One line, without a period (lot 10, 20/11): « (deviné) » and the ✕'s bubble say the rest.
+        .help("Le site du client, d'où Polhub prend son logo")
     }
 
     private func save() {

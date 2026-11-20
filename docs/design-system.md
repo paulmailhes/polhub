@@ -315,6 +315,63 @@ rien** : il change un fond, une ombre, une échelle, jamais une marge ni la plac
   soutenu au survol, un peu plus petit à l'appui.
 - Le mouvement respecte « Réduire les animations » : sans échelle, les fondus restent.
 
+## Les mots
+
+Lot 10 du plan d'affinage (20/11). **Un mot par chose et par geste**, écrit à un seul endroit : les formats, les accords,
+les bulles et les erreurs sortent de `Words` (module `PolhubDesign`, `Words.swift`), qui fixe le français une fois. Un
+nouveau mot entre ici avant d'entrer dans le code.
+
+- **Les choses.** **Rendez-vous** : une entrée d'agenda. **Visio** : un rendez-vous avec un lien Google Meet. **Réunion** :
+  ce que Polhub a enregistré. Ni « call », ni « RDV », ni « le Meet » : « Google Meet » nomme le service. **Compte rendu** :
+  ce que Polhub écrit après une réunion (« Résumé » n'en est que la première partie) ; **la transcription**, jamais « le
+  moteur ». **Mail**, **fil** (la conversation), **message** (un mail d'un fil), **adresse** (jamais « e-mail »).
+  **Compte** Google, sa **boîte** (ses mails), son **agenda** ; **Calendrier** est la page. **Tâche du moment**, **action**,
+  **échéance**. **Colin** est en marche ou à l'arrêt ; **la détection**, active ou suspendue. **L'IA d'Apple**.
+- **Les gestes.** **Ouvrir** mène à une chose ; **Voir** déplie sur place (« Voir les 3 autres », « Voir moins ») ;
+  **Afficher** et **Masquer** règlent ce qui est caché. **Supprimer** détruit, et se rattrape par « Annuler » ; **Retirer**
+  défait un lien ; **Effacer** vide une liste ; **Annuler** défait le dernier geste, ou ferme sans rien faire.
+  **Actualiser** relit Google ; **Connecter**, **Déconnecter**, **Reconnecter** un compte ; **Ajouter à « P »**, **Retirer
+  de « P »** ; **Ranger** met dans un projet ou une case, **Archiver** sort de la boîte de réception ; **Réessayer** après
+  un échec.
+- **La voix.** Tutoiement, quinze mots au plus par phrase, aucun point d'exclamation ; l'app se nomme « Polhub ». Aucun mot
+  du code à l'écran (geste, ligne, piste, sonde, moteur, copie). Un mot anglais ne reste que s'il nomme un produit
+  (Google Meet, LinkedIn, Dia) ou si Paul l'a choisi.
+- **Un bouton** : un verbe à l'infinitif, une majuscule au premier mot, sans point ; « … » s'il reste un choix à faire.
+  **Un titre** n'a pas de point, **une phrase** en a un, **une méta** est un fragment en minuscule sans point (« dans
+  2 min · Google Meet »). **Un état vide** : « Aucun … », une phrase qui dit comment la page se remplit, un bouton s'il
+  existe un geste.
+- **Une bulle** : « Verbe + objet (raccourci) », sans point, 60 caractères au plus, par `Words.help` (« Répondre (⌘R) »,
+  « Supprimer (⌫) », « Arrêter la réponse (Échap) ») ou par `IconButton(_:help:shortcut:)`, qui donne à VoiceOver le
+  libellé sans le raccourci. Elle ne dit que le raccourci qui marche là, jamais « cliquer », jamais seule un libellé
+  visible. Un menu « … » : « Plus d'actions » (`Words.moreActions`, par défaut d'`IconMenu`). « Rejoindre » :
+  « Rejoindre dans Dia avec le compte X » (`Words.joinHelp`).
+- **Une erreur** dit ce qui n'a pas marché, puis quoi faire, par `Words.problem` : « Le fil n'a pas pu être rangé : pas
+  de connexion à Internet. Vérifie la connexion du Mac, puis réessaie. » Le texte du système ne s'affiche jamais : il va
+  au journal (`Problem.journal`). Une erreur de Polhub dit sa raison en français par `LocalizedError` (`failureReason`,
+  `recoverySuggestion`).
+
+| Format (`Words`) | Écriture |
+|---|---|
+| L'heure, une heure seule, une plage | « 9:05 », « 14:00 » (`time`) ; « 9 h » (`hour`) ; « 9:30 – 10:00 » (`timeRange`) |
+| Un jour dans une phrase | « aujourd'hui », « demain », « hier », « jeudi », « lundi 30 », « le 2 novembre » (`day`) ; avec l'heure, « demain 10:00 », « mercredi 25 à 9:00 » (`moment`) |
+| Un jour dans une méta | « aujourd'hui », « jeu. », « 12 nov. », « 12 nov. 2025 » (`shortDay`, `shortDate`) ; avec l'heure, « 16:30 » le jour même, « jeu. 8:00 » (`shortMoment`). Jamais « 18/11 » |
+| La date d'un titre | « mercredi 18 novembre » (`fullDate`), « Mercredi… » en tête de ligne (`capitalizedFirst`) |
+| Il y a, dans | « à l'instant », « il y a 4 min » (`ago`) ; « hier », « il y a 3 jours » (`daysAgo`) ; « maintenant », « dans 12 min » (`until`) |
+| Une durée | « 45 min », « 1 h 05 », « 2 h » (`duration`) ; « 7 s », « 2 min 05 » (`preciseDuration`) ; « 12:47 » (`clock`) ; « 6 jours », « 6 j » dans une méta (`dayCount`) |
+| Un nombre | « 1 contact », « 3 contacts » (`count`, `plural` : le pluriel commence à 2) ; « 1 234 » (`number`) ; « 42 % » (`percent`) |
+
+- **La ponctuation.** « » avec des espaces insécables, une insécable avant « : ; ? », une fine avant « % », un nombre
+  jamais séparé de ce qu'il compte, une plage d'heures jamais coupée (« 9:30 – 10:00 ») : `Words.typeset` les pose à
+  l'affichage ; les composants l'appellent (`Chip`, `Banner`, `ErrorLine`, `EmptyLine`, `TextButton`, `SectionTitle`,
+  `PageHeader`, `SettingRow`, `SettingHelp`), jamais sur une adresse, un lien ou ce que Paul tape. L'apostrophe reste
+  droite : elle ne se courbera que lorsque tous les textes passeront par `typeset` (une page mêlait « d’affichage »
+  et « Aujourd'hui »). « · » sépare deux métas, « – » deux heures, « › » deux niveaux d'un chemin ; ni « — » ni « → ».
+- **Aucune logique ne teste un texte affiché** : un état typé accompagne le texte (`TranscriptBadge`,
+  `ProjectViews.DueState`, `Briefing.Line`, `ItemState.notRunning`, `GoogleError.needsReconnecting`,
+  `AccountStyle.isPersonal`). Un texte que la base garde et que le code relit est un format, jamais reformulé
+  (`CalendarEventRow.untitledTitle`, `MailMessageRow.noSubject`, `ColinStop.stored`, les titres « ## Résumé » d'un compte
+  rendu). Le garde-fou des mots (`WordsGuardTests`) compte ce qui doit disparaître : le nombre ne peut que baisser.
+
 ## Le logo de la barre des menus
 
 Une image monochrome de 18 × 16 (22 de large avec la pastille) que la barre colore seule (`MenuBarGlyph`,
@@ -367,8 +424,8 @@ Lot 5 du plan d'affinage (19/11), « Colin à droite » : ta journée est la pag
 ### Le panneau de Colin
 
 - **L'en-tête** reste en haut, hors du défilement : « Colin » en 17 points, puis son état réel avec son point
-  (`ColinState`) : « prêt » (vert), « répond… » (le point bat), « attend ton call », « se réveille », « en panne » (à la
-  couleur d'attention), « à l'arrêt » ; jamais « en marche » pendant un call ou une panne. Un menu « … » avec « Mettre à
+  (`ColinState`) : « prêt » (vert), « répond… » (le point bat), « attend ta visio », « se réveille », « en panne » (à la
+  couleur d'attention), « à l'arrêt » ; jamais « en marche » pendant une visio ou une panne. Un menu « … » avec « Mettre à
   l'arrêt » et « Réglages… ». Un filet dessous ; le fil passe sous lui en fondu de 16 points.
 - **Le fil** (`ColinThreadView`) est une colonne de lecture de 680 points au plus. Les jours entre deux traits fins
   (`DaySeparator`). Les questions de Paul en bulles à droite (`PaulBubble` : 15 points, rayon 16, `Surface.bubble`,
@@ -400,10 +457,10 @@ Lot 5 du plan d'affinage (19/11), « Colin à droite » : ta journée est la pag
   (`safeAreaBar`) : 44 points sur une ligne, rayon 16, jusqu'à huit lignes, le texte en 15 points, à son pied un rond
   de 28 points pour envoyer (pas de bouton pour dicter : la dictée de Polhub viendra, sur Whisper), plein d'encre quand
   il y a du texte, ■ gris pendant une réponse. Entrée envoie, Maj+Entrée va à la ligne, Échap arrête ; un mot en cours
-  de dictée n'est jamais envoyé. Ce qui la retient (« Colin attend la fin de ton call. », un réveil du Mac, une panne) se
+  de dictée n'est jamais envoyé. Ce qui la retient (« Colin attend la fin de ta visio. », un réveil du Mac, une panne) se
   dit au-dessus du champ, dans le verre. Au-dessus de la barre, tant que Paul n'a rien demandé aujourd'hui, trois
   suggestions tirées de sa journée ; un clic remplit la barre, rien ne part. Colin à l'arrêt : la barre devient « Colin
-  est à l'arrêt » et « Allumer Colin » (secondaire, petit), dans le même verre (opaque, elle faisait dessiner un trait en
+  est à l'arrêt » et « Mettre Colin en marche » (secondaire, petit), dans le même verre (opaque, elle faisait dessiner un trait en
   travers du panneau).
 
 ### Ta journée
@@ -432,20 +489,20 @@ Lot 5 du plan d'affinage (19/11), « Colin à droite » : ta journée est la pag
 - **« À faire »** (`TodoCard`, règles `TodoRules`, 0.36.0) : les projets en priorité 2 et ceux dont l'échéance est
   passée ou à sept jours, groupés « En retard », « Aujourd'hui », « Demain », « Cette semaine », « Ensuite » (aucun
   groupe s'il n'y en a qu'un). Une ligne : le projet en `.rowTitle` et « · client » en gris, le quand à droite
-  (« depuis 6 j » en rouge de retard semi-gras, « vendredi », « lundi 30 », « call demain 9:30 »), la tâche du moment
+  (« depuis 6 j » en rouge de retard semi-gras, « vendredi », « lundi 30 », « visio demain 9:30 »), la tâche du moment
   dessous, entière (sinon la première action). « Reporter » (un menu : demain, lundi, dans une semaine, une date) et
   « Livré » apparaissent au survol à la place du quand, gardée pour eux, sur toute ligne datée, en retard comprise ; au
   clic droit, avec « Ouvrir le projet » (`TodoText`). Un chevron devant le projet : un clic déplie la ligne sur place
-  (une à la fois) — « Tâche · … », les actions ouvertes du projet en puces (huit, puis « + N autres »), « Ouvrir le
+  (une à la fois) — « Tâche du moment · … », les actions ouvertes du projet en puces (huit, puis « + 1 autre », « + N autres »), « Ouvrir le
   projet » en mot gris, « Reporter » et « Livré ». L'échéance est la prochaine étape datée : un rendez-vous du projet ce
-  jour-là en fait un call, sauf si Paul a posé la date lui-même ; le call passé, l'étape est faite. Quand le projet a un
-  prochain call, « Livré » est un menu (0.37.0) : « Livré, prochaine échéance : call jeudi 9:30 » ou « Livré, sans
+  jour-là en fait une visio, sauf si Paul a posé la date lui-même ; la visio passée, l'étape est faite. Quand le projet a
+  une prochaine visio, « Livré » est un menu (0.37.0) : « Livré, prochaine échéance : visio jeudi 9:30 » ou « Livré, sans
   échéance ». Après l'un d'eux, « Cabinet Martin livré · Annuler » en tête de liste pendant huit secondes. Six lignes,
   celles d'aujourd'hui et de demain toujours, puis « Voir les N autres ». Vide : « Rien à faire. ».
 - **« Comptes Claude »** (`ClaudeAccountsCard`, 0.36.0) : seulement si Vigie est là et répond au jeton de lecture
   qu'il réserve à Polhub ; sinon rien, ni titre ni erreur. Une ligne par compte connecté : le nom (80 points), une
   barre de six points (`Surface.fill`, le plein en gris) du quota le plus serré (la semaine, ou celle d'un modèle si
-  elle est plus haute), le pourcentage ; dessous « tient · lun. 20 h », ou « plein jeu. 14 h » à la couleur d'attention, et la
+  elle est plus haute), le pourcentage ; dessous « tient · lun. 20:00 », ou « plein jeu. 14:00 » à la couleur d'attention, et la
   session de cinq heures au-delà de 75 %. Sans relevé récent : la barre vide, « pas de relevé récent ».
 - **Une ligne par personne, une ligne par projet** (`ReviewRules`) : « attend ta réponse » se lit sur l'échange avec
   la personne dans tous les fils et toutes les boîtes (`Exchanges`), « ne répond plus » sur le projet entier. Lues
@@ -535,7 +592,7 @@ Centre de contrôle. La logique vit à part, testée sans écran (`PanelModel`).
 - **En haut à droite de l'écran de la barre des menus**, sous la barre ou l'encoche, comme les notifications de
   macOS, au-dessus de toutes les apps et sur tous les bureaux (`MeetingCardPresenter`, le panneau du HUD).
 - **Une carte en verre par rendez-vous** (trois au plus, le plus proche d'abord) : un rond à la couleur du compte, le
-  titre, « Dans 2 min · Google Meet » à la seconde, « Rejoindre » plein à l'encre (la couleur du compte reste dans son
+  titre, « dans 2 min · Google Meet » à la seconde, « Rejoindre » plein à l'encre (la couleur du compte reste dans son
   rond), la croix. Elle se lit comme Coup d'œil (lot 9, 20/11 ; `FloatingMetrics`) : le titre en 15 points semi-gras,
   sa ligne en 13, à 16 du bord ; « Rejoindre » est le bouton principal de l'app (`.primary`, dessiné à la main : le
   panneau ne prend jamais la main, un bouton proéminent du système y deviendrait gris), la croix un `IconButton`.

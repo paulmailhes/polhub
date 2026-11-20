@@ -6,13 +6,15 @@ enum ColinSettingsText {
     /// Under the switch (security audit of 19/11, M8): what Colin reads to answer leaves the Mac.
     static let help = "Pour te répondre, Colin envoie à Anthropic ce qu'il lit : mails, transcriptions, agenda."
 
-    /// What leaves the Mac when Colin is on, in full: the switch's « ⓘ ».
-    static let footer = "Colin allumé, ce que tu lui écris, « Ce que Colin sait », vos derniers échanges, les lignes de l'Accueil et ce qu'il lit pour te répondre partent chez Anthropic par ton Claude Code. Jamais l'audio ni les pièces jointes. Il n'envoie rien : un brouillon t'attend toujours. Il change le kanban quand tu le lui demandes, et chaque changement s'annule depuis l'Accueil."
+    /// What leaves the Mac when Colin is on, in full: the switch's « ⓘ ». Colin is « en marche », never « allumé » (lot 10,
+    /// 20/11).
+    static let footer = "Colin en marche, ce que tu lui écris, « Ce que Colin sait », vos derniers échanges, les lignes de l'Accueil et ce qu'il lit pour te répondre partent chez Anthropic par ton Claude Code. Jamais l'audio ni les pièces jointes. Il n'envoie rien : un brouillon t'attend toujours. Il change le kanban quand tu le lui demandes, et chaque changement s'annule depuis l'Accueil."
 
     static let kanbanHelp = "Après un mail envoyé ou un rendez-vous pris dans un projet ; chaque changement s'annule."
 
-    /// « Colin tient le kanban seul » (step 3, 18/11): its two rules, made on the Mac, with no model; its « ⓘ ».
-    static let kanban = "Colin en marche, après un mail que tu envoies dans un fil de projet : priorité 1 et « En attente retour de … ». Un rendez-vous pris dans un projet devient l'échéance si elle est vide ou passée. Jamais un projet en pause ou terminé, ni ce que tu as changé toi-même depuis 24 h. Chaque changement s'affiche dans le fil de Colin, avec « Annuler »."
+    /// « Colin tient le kanban seul » (step 3, 18/11): its two rules, made on the Mac, with no model; its « ⓘ ». The task it
+    /// writes, as `KanbanRules` says it (lot 10, 20/11: « En attente retour de … » before).
+    static let kanban = "Colin en marche, après un mail que tu envoies dans un fil de projet : priorité 1 et « Attend le retour de … ». Un rendez-vous pris dans un projet devient l'échéance si elle est vide ou passée. Jamais un projet en pause ou terminé, ni ce que tu as changé toi-même depuis 24 h. Chaque changement s'affiche dans le fil de Colin, avec « Annuler »."
 
     static let knowledgeHelp = "Ce qu'il relit au début de chaque échange ; il ne le change jamais lui-même."
     static let knowledgeDetail = "Ta façon d'écrire, ton lien de rendez-vous, ce qu'il doit savoir de tes clients. « Garder », dans le fil, y ajoute une ligne."
@@ -25,11 +27,12 @@ enum ColinSettingsText {
     /// Every help of the page, for its test.
     static let helps = [help, kanbanHelp, knowledgeHelp, replyHelp, silentHelp]
 
-    /// The read-only line: what Colin did this week, and what the API would have charged for it.
+    /// The read-only line: what Colin did this week, and what the API would have charged for it. The count accorded and the
+    /// French decimal comma by `Words` (lot 10, 20/11).
     static func week(count: Int, costUSD: Double) -> String {
         guard count > 0 else { return "Cette semaine : aucune réponse de Colin." }
-        let cost = String(format: "%.2f", costUSD).replacingOccurrences(of: ".", with: ",")
-        return "Cette semaine : \(count) réponse\(count > 1 ? "s" : "") de Colin, l'équivalent de \(cost) $."
+        let cost = String(format: "%.2f", locale: Words.locale, costUSD)
+        return "Cette semaine : \(Words.count(count, "réponse")) de Colin, l'équivalent de \(cost) $."
     }
 }
 
@@ -48,11 +51,13 @@ struct ColinSettingsPane: View {
         Form {
             if let thread {
                 Section {
-                    SettingRow("Colin", help: ColinSettingsText.help, detail: ColinSettingsText.footer) {
+                    // The switch says what it does: Colin « en marche », or at rest (lot 10, 20/11).
+                    SettingRow("Colin en marche", help: ColinSettingsText.help, detail: ColinSettingsText.footer) {
                         ColinSwitch(thread: thread)
                     }
                     if let probe { ColinAccountRow(control: probe) }
-                    Text(week).font(.meta).foregroundStyle(.secondary)
+                    // French typography, laid at display (lot 10, 20/11).
+                    Text(Words.typeset(week)).font(.meta).foregroundStyle(.secondary)
                 }
                 Section {
                     SettingRow("Colin tient le kanban seul", help: ColinSettingsText.kanbanHelp, detail: ColinSettingsText.kanban) {
@@ -76,15 +81,16 @@ struct ColinSettingsPane: View {
             }
             Section {
                 SettingRow("Signaler un mail sans réponse après", help: ColinSettingsText.replyHelp, detail: ColinSettingsText.replyDetail) {
+                    // « 3 jours »: the count accorded by `Words` (lot 10, 20/11).
                     Picker("Signaler un mail sans réponse après",
                            selection: shown($replyDays, among: Preferences.Default.colinReplyChoices, or: Preferences.Default.colinReplyDays)) {
-                        ForEach(Preferences.Default.colinReplyChoices, id: \.self) { Text("\($0) jours").tag($0) }
+                        ForEach(Preferences.Default.colinReplyChoices, id: \.self) { Text(Words.dayCount($0)).tag($0) }
                     }
                 }
                 SettingRow("Signaler un client muet après", help: ColinSettingsText.silentHelp, detail: ColinSettingsText.silentDetail) {
                     Picker("Signaler un client muet après",
                            selection: shown($silentDays, among: Preferences.Default.colinSilentChoices, or: Preferences.Default.colinSilentDays)) {
-                        ForEach(Preferences.Default.colinSilentChoices, id: \.self) { Text("\($0) jours").tag($0) }
+                        ForEach(Preferences.Default.colinSilentChoices, id: \.self) { Text(Words.dayCount($0)).tag($0) }
                     }
                 }
             } header: {
@@ -106,11 +112,11 @@ struct ColinSettingsPane: View {
     }
 }
 
-/// The one switch of Colin, the same as the Accueil's.
+/// The one switch of Colin, the same as the Accueil's. VoiceOver says what its row says (lot 10, 20/11).
 private struct ColinSwitch: View {
     @ObservedObject var thread: ColinThread
 
     var body: some View {
-        Toggle("Colin", isOn: Binding(get: { thread.status != .off }, set: { $0 ? thread.turnOn() : thread.turnOff() }))
+        Toggle("Colin en marche", isOn: Binding(get: { thread.status != .off }, set: { $0 ? thread.turnOn() : thread.turnOff() }))
     }
 }

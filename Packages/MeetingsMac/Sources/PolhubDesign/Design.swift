@@ -180,8 +180,9 @@ public struct PageHeader<Accessory: View>: View {
     public var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: Space.l) {
             VStack(alignment: .leading, spacing: Space.xs) {
-                Text(title).font(.largeTitle.weight(.bold)).fixedSize(horizontal: false, vertical: true)
-                if let subtitle { Text(subtitle).font(.title3).foregroundStyle(.secondary) }
+                // French typography, laid at display (`Words.typeset`, lot 10, 20/11).
+                Text(Words.typeset(title)).font(.largeTitle.weight(.bold)).fixedSize(horizontal: false, vertical: true)
+                if let subtitle { Text(Words.typeset(subtitle)).font(.title3).foregroundStyle(.secondary) }
             }
             Spacer(minLength: 0)
             accessory
@@ -231,10 +232,11 @@ public struct SectionTitle<Trailing: View>: View {
 
     public var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+            // French typography, laid at display (`Words.typeset`, lot 10, 20/11).
             if let systemImage {
-                Label(title, systemImage: systemImage).font(.headline)
+                Label(Words.typeset(title), systemImage: systemImage).font(.headline)
             } else {
-                Text(title).font(.headline)
+                Text(Words.typeset(title)).font(.headline)
             }
             if let count { Text("\(count)").font(.callout.monospacedDigit()).foregroundStyle(.secondary) }
             Spacer(minLength: 0)
@@ -264,7 +266,8 @@ public struct Chip: View {
         HStack(spacing: Space.xs) {
             if let dot { ColorDot(dot, size: 8) }
             if let systemImage { Image(systemName: systemImage) }
-            Text(text).lineLimit(1)
+            // French typography, laid at display (`Words.typeset`, lot 10, 20/11).
+            Text(Words.typeset(text)).lineLimit(1)
         }
         .font(.tag.weight(.semibold))
         .padding(.horizontal, Space.s)
@@ -280,6 +283,7 @@ public struct Avatar: View {
     let initials: String
     let size: CGFloat
     let tint: Color
+    @Environment(\.self) private var environment
 
     public init(_ initials: String, size: CGFloat = 30, tint: Color = .secondary) {
         self.initials = initials
@@ -291,7 +295,9 @@ public struct Avatar: View {
         Text(initials.isEmpty ? "?" : initials)
             .font(.system(size: size * 0.4, weight: .semibold))
             .frame(width: size, height: size)
-            .foregroundStyle(tint)
+            // The initials in a shade of their color that reads on its circle, as a chip's text (lot 10, 20/11: the raw
+            // color, a yellow or an orange under 4.5:1); the grey of nobody stays as it is.
+            .foregroundStyle(tint == .secondary ? tint : tint.readable(in: environment))
             .background(tint.opacity(0.16), in: Circle())
     }
 }
@@ -420,7 +426,8 @@ public struct PanelCloseButton: View {
             .buttonBorderShape(.circle)
             // Neutral glass, whatever the tint around (measured on 19/11: a tinted glass button looks like a principal one).
             .tint(nil)
-            .help("Fermer (Échap)")
+            // « Fermer (Échap) », by `Words.help` (lot 10, 20/11).
+            .help(Words.help("Fermer", .escape))
             .keyboardShortcut(.cancelAction)
     }
 }

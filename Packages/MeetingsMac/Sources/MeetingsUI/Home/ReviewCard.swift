@@ -45,8 +45,9 @@ enum ReviewText {
         }
     }
 
+    /// « aujourd'hui », « 1 jour », « 9 jours » (lot 10, 20/11: the count by `Words.dayCount`).
     static func days(_ count: Int) -> String {
-        count <= 0 ? "aujourd'hui" : count == 1 ? "1 jour" : "\(count) jours"
+        count <= 0 ? "aujourd'hui" : Words.dayCount(count)
     }
 
     static func action(_ kind: ReviewRules.Kind) -> String {
@@ -143,9 +144,11 @@ struct ReviewCard: View {
                 VStack(alignment: .leading, spacing: 1) {
                     title(line).font(.rowBody).foregroundStyle(.primary).lineLimit(1)
                     if let detail = ReviewText.detail(line) {
-                        Text(detail).font(.meta)
-                            // Late: red (design system v2, 19/11).
-                            .foregroundStyle(ReviewText.late(line, thresholds: thresholds) ? AnyShapeStyle(Tint.late) : AnyShapeStyle(.secondary))
+                        let late = ReviewText.late(line, thresholds: thresholds)
+                        // Late: red (design system v2, 19/11), and said in a word, never by the color alone — « 9 jours ·
+                        // en retard » (lot 10, 20/11).
+                        Text(late ? detail + " · en retard" : detail).font(.meta)
+                            .foregroundStyle(late ? AnyShapeStyle(Tint.late) : AnyShapeStyle(.secondary))
                             .lineLimit(1)
                     }
                 }
@@ -158,7 +161,8 @@ struct ReviewCard: View {
             // At the card's edge, the « … » on its left (lot 5, 19/11).
             HStack(spacing: Space.xs) {
                 if !gestures.dismissals.isEmpty {
-                    IconMenu("ellipsis", help: "Écarter cette ligne") { dismissals(line, gestures.dismissals) }
+                    // « Écarter », the gesture of « À valider »; never « ligne », a word of the code (lot 10, 20/11).
+                    IconMenu("ellipsis", help: "Écarter") { dismissals(line, gestures.dismissals) }
                 }
                 action(line)
             }

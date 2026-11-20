@@ -82,7 +82,10 @@ public final class AgendaLibrary: ObservableObject {
             message = "Compte \(email) connecté."
             await syncAll()
         } catch {
-            message = "Connexion impossible : \(error)"
+            // What did not work, then what to do; the system's text in the journal (lot 10, 20/11).
+            let problem = Words.problem("Le compte n'a pas pu être connecté", error)
+            message = problem.sentence
+            database.journal(problem)
         }
     }
 
@@ -117,7 +120,10 @@ public final class AgendaLibrary: ObservableObject {
             }
             await syncAll()
         } catch {
-            message = "Autorisation impossible : \(error)"
+            // What did not work, then what to do; the system's text in the journal (lot 10, 20/11).
+            let problem = Words.problem("Les mails n'ont pas pu être autorisés", error)
+            message = problem.sentence
+            database.journal(problem)
         }
     }
 
@@ -148,6 +154,7 @@ public final class AgendaLibrary: ObservableObject {
                 let token = try await session.accessToken(for: account.email)
                 try await sync.sync(account: account.email, accessToken: token, store: store, now: Date())
             } catch {
+                // A format the base keeps, read again by `GoogleError(stored:)`: never shown as it is (lot 10, 20/11).
                 try? store.recordSync(email: account.email, syncToken: nil, error: "\(error)", at: Date())
             }
         }
@@ -252,8 +259,8 @@ public final class AgendaLibrary: ObservableObject {
     /// The calendar's name for a recording that starts: the event of the same Meet code at that time (14/11).
     public nonisolated static func eventTitle(in database: AppDatabase, code: String?, at date: Date) -> String? {
         guard let code, let events = try? CalendarStore(database).events(meetCode: code) else { return nil }
-        // An untitled event leaves the tab's title (review of 14/11).
-        return Linker.event(forCode: code, at: date, among: events).map(\.title).flatMap { $0 == "(sans titre)" ? nil : $0 }
+        // An untitled event leaves the tab's title (review of 14/11), told by its state (lot 10, 20/11).
+        return Linker.event(forCode: code, at: date, among: events).flatMap { $0.isUntitled ? nil : $0.title }
     }
 
     /// The loop of 13/11, away from the main thread.

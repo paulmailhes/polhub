@@ -197,8 +197,9 @@ final class FakeFactory: RecorderFactory, @unchecked Sendable {
         let recorder = try #require(factory.made.first?.recorder)
         recorder.continuation.yield(.trackFailed(track: "moi", message: "Le micro a lâché"))
         await settle()
-        #expect(presenter.alerts == [.trackFailed("Le micro a lâché")])
-        #expect(try store.journal(limit: 10).contains { $0.kind == .alert })
+        // The screen says what stopped; the recorder's words go to the journal (lot 10, 20/11).
+        #expect(presenter.alerts == [.trackFailed("Ta voix n'est plus enregistrée.")])
+        #expect(try store.journal(limit: 10).contains { $0.kind == .alert && $0.message.contains("Le micro a lâché") })
         #expect(recorder.stops == 0)
     }
 

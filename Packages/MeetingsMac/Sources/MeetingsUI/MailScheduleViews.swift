@@ -35,54 +35,29 @@ enum SchedulePresets {
     static let margin: TimeInterval = 5 * 60
 }
 
+/// The hours and the days of a programmed mail, by `Words` (lot 10, 20/11): the formatter of the system and the hours
+/// made by hand are gone.
 extension MailText {
-    static func format(_ date: Date, _ pattern: String, calendar: Calendar) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.calendar = calendar
-        formatter.timeZone = calendar.timeZone
-        formatter.dateFormat = pattern
-        return formatter.string(from: date)
-    }
-
     /// « 8:00 », « 13:30 ».
-    static func clock(_ date: Date, calendar: Calendar = .current) -> String {
-        let parts = calendar.dateComponents([.hour, .minute], from: date)
-        return "\(parts.hour ?? 0):" + String(format: "%02d", parts.minute ?? 0)
+    static func clock(_ date: Date, calendar: Calendar = Words.calendar) -> String {
+        Words.time(date, calendar: calendar)
     }
 
-    /// When a programmed mail leaves: « aujourd'hui 18:30 », « demain 8:00 », « lundi 8:00 » within the week,
-    /// « lundi 24 novembre 8:00 » beyond; « hier 8:00 » for one late.
-    static func scheduled(_ date: Date, now: Date = Date(), calendar: Calendar = .current) -> String {
-        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: calendar.startOfDay(for: date)).day ?? 0
-        let time = clock(date, calendar: calendar)
-        switch days {
-        case 0: return "aujourd'hui \(time)"
-        case 1: return "demain \(time)"
-        case -1: return "hier \(time)"
-        case -6...6: return "\(format(date, "EEEE", calendar: calendar)) \(time)"
-        default:
-            let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: now)
-            return "\(format(date, sameYear ? "EEEE d MMMM" : "EEEE d MMMM y", calendar: calendar)) \(time)"
-        }
+    /// When a programmed mail leaves, in a sentence: « aujourd'hui 18:30 », « demain 8:00 », « lundi 8:00 » within the
+    /// week, « mardi 1er décembre à 8:00 » beyond; « hier 8:00 » for one late (`Words.moment`).
+    static func scheduled(_ date: Date, now: Date = Date(), calendar: Calendar = Words.calendar) -> String {
+        Words.moment(date, now: now, calendar: calendar)
     }
 
-    /// The same, short, at the end of a line: « 18:30 », « demain 8:00 », « lun. 8:00 », « 24 nov. 8:00 ».
-    static func scheduledShort(_ date: Date, now: Date = Date(), calendar: Calendar = .current) -> String {
-        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: calendar.startOfDay(for: date)).day ?? 0
-        let time = clock(date, calendar: calendar)
-        switch days {
-        case 0: return time
-        case 1: return "demain \(time)"
-        case -1: return "hier \(time)"
-        case -6...6: return "\(format(date, "EEE", calendar: calendar)) \(time)"
-        default: return "\(format(date, "d MMM", calendar: calendar)) \(time)"
-        }
+    /// The same, short, at the end of a line: « 18:30 », « demain 8:00 », « lun. 8:00 », « 1er déc. 8:00 »
+    /// (`Words.shortMoment`).
+    static func scheduledShort(_ date: Date, now: Date = Date(), calendar: Calendar = Words.calendar) -> String {
+        Words.shortMoment(date, now: now, calendar: calendar)
     }
 
     /// Under a choice of the menu: « sam. 21 nov. 8:00 ».
-    static func presetDate(_ date: Date, calendar: Calendar = .current) -> String {
-        "\(format(date, "EEE d MMM", calendar: calendar)) \(clock(date, calendar: calendar))"
+    static func presetDate(_ date: Date, calendar: Calendar = Words.calendar) -> String {
+        "\(Words.weekday(date, short: true, calendar: calendar)) \(Words.shortDate(date, now: date, calendar: calendar)) \(Words.time(date, calendar: calendar))"
     }
 }
 
@@ -117,6 +92,9 @@ struct ScheduleMenu: View {
 
 /// « Choisir une date et une heure… »: the day on a calendar, the hour beside; five minutes from now at least.
 struct SchedulePicker: View {
+    /// What a programmed mail needs, written once: under the picker and over « Programmés » (lot 10, 20/11).
+    static let note = "Le Mac doit être allumé et Polhub ouvert à l'heure prévue. Sinon le mail part à ton retour."
+
     @State private var date: Date
     private let earliest: Date
     let done: (Date?) -> Void
@@ -145,7 +123,7 @@ struct SchedulePicker: View {
                 Text(MailText.scheduled(date)).foregroundStyle(.secondary).monospacedDigit()
             }
             .font(.rowBody)
-            Text("Ton Mac doit être allumé et Polhub ouvert à cette heure-là. Sinon, le mail part à ton retour, ou attend ton accord après 12 h de retard.")
+            Text(Self.note)
                 .font(.meta).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: Space.m) {
@@ -177,7 +155,8 @@ struct ScheduledBanner: View {
         // is told, not called), the late's red once it waits for Paul, as « En retard » in the bar and the list.
         Banner(held ? .late : .information,
                held ? "Pas encore parti : programmé pour \(MailText.scheduled(entry.sendAt))" : "Programmé pour \(MailText.scheduled(entry.sendAt))",
-               detail: held ? "\(MailLibrary.lateReason(entry).prefix(1).uppercased() + MailLibrary.lateReason(entry).dropFirst()) : il attend ton accord."
+               // The capital by `Words` (lot 10, 20/11).
+               detail: held ? "\(Words.capitalizedFirst(MailLibrary.lateReason(entry))) : il attend ton accord."
                    : entry.state == .leaving ? "Envoi en cours…" : "Il ne se modifie plus. Changé dans Gmail ou sur ton téléphone, il ne partira pas.",
                systemImage: held ? "exclamationmark.circle.fill" : "clock.fill") {
             if entry.state == .leaving {
@@ -187,7 +166,8 @@ struct ScheduledBanner: View {
                 Button("Envoyer maintenant") { mails.sendScheduledNow(draftID) }
                     .buttonStyle(.primary)
                     .disabled(mails.sending != nil)
-                    .help("Il part dans quelques secondes, que tu peux encore annuler")
+                    // « Verbe + objet : conséquence » (lot 10, 20/11).
+                    .help(Words.help("Envoyer maintenant", detail: "quelques secondes pour annuler"))
                 cancel
             } else {
                 cancel
@@ -198,7 +178,8 @@ struct ScheduledBanner: View {
     private var cancel: some View {
         Button("Annuler l'envoi programmé") { mails.unschedule(draftID) }
             .buttonStyle(.secondary)
-            .help("Le mail redevient un brouillon, que tu peux modifier")
+            // « Verbe + objet : conséquence » (lot 10, 20/11).
+            .help(Words.help("Annuler l'envoi programmé", detail: "le mail redevient un brouillon"))
     }
 }
 
@@ -215,8 +196,8 @@ struct MailScheduledListView: View {
         let density = MailDensity(rawValue: density) ?? .defaut
         let stripes = MailGrid.showsStripes(accounts: mails.accounts.map(\.email), hidden: mails.hidden)
         VStack(spacing: 0) {
-            MailSearchLine(text: "Ton Mac doit être allumé et Polhub ouvert à l'heure prévue ; sinon le mail part à ton retour, ou attend ton accord après 12 h de retard.",
-                           searching: false, icon: "clock")
+            // The same sentence as under the picker, written once (lot 10, 20/11).
+            MailSearchLine(text: SchedulePicker.note, searching: false, icon: "clock")
             if waiting.isEmpty {
                 MailEmptyView(state: mails.emptyState, mails: mails)
             } else {
@@ -266,13 +247,15 @@ struct MailScheduledLine: View {
                 .font(.rowTitle)
                 .lineLimit(1)
         } subject: {
-            (Text(draft.subject.isEmpty ? "(sans objet)" : draft.subject).font(.rowTitle)
+            // The screen's « (sans objet) » (lot 10, 20/11).
+            (Text(draft.subject.isEmpty ? Words.noSubject : draft.subject).font(.rowTitle)
                 + Text(draft.body.isEmpty ? "" : " — \(draft.body.replacingOccurrences(of: "\n", with: " "))").font(.rowBody).foregroundStyle(.secondary))
                 .lineLimit(1)
         } end: {
             Text(MailText.scheduledShort(entry.sendAt))
                 .font(.meta.weight(.medium)).foregroundStyle(held ? Tint.late : Color.primary).monospacedDigit().lineLimit(1)
-                .help("Part \(MailText.scheduled(entry.sendAt))")
+                // An information, never a verb conjugated (lot 10, 20/11).
+                .help("Départ \(MailText.scheduled(entry.sendAt))")
                 .opacity(gestures ? 0 : 1)
                 .frame(maxWidth: .infinity, alignment: .trailing)
                 .overlay(alignment: .trailing) {

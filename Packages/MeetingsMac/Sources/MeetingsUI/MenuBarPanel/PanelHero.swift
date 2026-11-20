@@ -61,7 +61,8 @@ struct PanelHero: View {
                 eyebrow
                 Spacer(minLength: Space.s)
                 TimelineView(countdown) { timeline in
-                    Text("\(HUDText.remaining(until: deadline, now: timeline.date)) s")
+                    // « 7 s » (`Words.preciseDuration`, lot 10, 20/11).
+                    Text(Words.preciseDuration(HUDText.remaining(until: deadline, now: timeline.date)))
                         .font(HeroMetrics.clock)
                         .contentTransition(reduceMotion ? .identity : .numericText(countsDown: true))
                         .animation(Motion.quick, value: HUDText.remaining(until: deadline, now: timeline.date))
@@ -69,21 +70,23 @@ struct PanelHero: View {
             }
             HeroTitle(title)
             TimelineView(countdown) { timeline in
-                HeroDetail("S'enregistre seule dans \(HUDText.remaining(until: deadline, now: timeline.date)) s")
+                // The HUD's own words, from one place (`HUDText.countdown`, lot 10, 20/11).
+                HeroDetail(HUDText.countdown(HUDText.remaining(until: deadline, now: timeline.date)))
                     .monospacedDigit()
             }
             HStack(spacing: Space.s) {
                 Button { actions.user(.decline) } label: { Text("Pas cette fois").frame(maxWidth: .infinity) }
                     .buttonStyle(.secondary)
                     .keyboardShortcut(.delete, modifiers: [])
-                    .help("Ne pas enregistrer cette réunion (⌫)")
+                    // « Verbe + objet (raccourci) », by `Words.help` (lot 10, 20/11).
+                    .help(Words.help("Ne pas enregistrer cette réunion", .delete))
                 Button { actions.user(.accept) } label: {
                     Label("Enregistrer", systemImage: "record.circle").frame(maxWidth: .infinity)
                 }
                 // The panel's ink, as every main action but Arrêter (design system v2, 19/11).
                 .buttonStyle(.primary)
                 .keyboardShortcut(.defaultAction)
-                .help("Enregistrer maintenant (↩)")
+                .help(Words.help("Enregistrer maintenant", .return))
             }
             .controlSize(HeroMetrics.buttons)
             .padding(.top, HeroMetrics.aboveButtons)
@@ -103,7 +106,8 @@ struct PanelHero: View {
                 eyebrow.pulsing()
                 Spacer(minLength: Space.s)
                 TimelineView(.periodic(from: since, by: 1)) { timeline in
-                    Text(DurationText.clock(Int(timeline.date.timeIntervalSince(since))))
+                    // « 12:47 » (`Words.clock`, lot 10, 20/11).
+                    Text(Words.clock(Int(timeline.date.timeIntervalSince(since))))
                         .font(HeroMetrics.clock)
                 }
             }
@@ -111,7 +115,8 @@ struct PanelHero: View {
             if let detail { HeroDetail(detail) }
             HeroButtons {
                 if let meetingID {
-                    Button("Voir la réunion") { context.open(.meeting(meetingID)) }.buttonStyle(.secondary)
+                    // « Ouvrir » goes to a thing; « Voir » unfolds in place (lot 10, 20/11).
+                    Button("Ouvrir la réunion") { context.open(.meeting(meetingID)) }.buttonStyle(.secondary)
                 }
             } primary: {
                 Button { actions.user(.stop) } label: { Label("Arrêter", systemImage: "stop.fill") }
@@ -126,13 +131,15 @@ struct PanelHero: View {
         HeroCard(tint: Tint.attention) {
             eyebrow
             HeroTitle(title)
-            HeroDetail(stopsAt.map { "S'arrête seule à \(PanelModel.clock($0)), sauf si l'on reparle" }
+            // « 16:30 » (`Words.time`, lot 10, 20/11).
+            HeroDetail(stopsAt.map { "S'arrête seule à \(Words.time($0)), sauf si l'on reparle" }
                        ?? "S'arrête seule, sauf si l'on reparle", lines: 2)
             HeroButtons {
                 if canForget {
                     PanelLink("Jamais pour ce lien", help: "Ne plus jamais enregistrer ce lien Meet") { actions.user(.neverForThisLink) }
                 } else if let meetingID {
-                    Button("Voir la réunion") { context.open(.meeting(meetingID)) }.buttonStyle(.secondary)
+                    // « Ouvrir » goes to a thing (lot 10, 20/11: « Voir la réunion »).
+                    Button("Ouvrir la réunion") { context.open(.meeting(meetingID)) }.buttonStyle(.secondary)
                 }
             } primary: {
                 Button { actions.user(.stop) } label: { Label("Arrêter maintenant", systemImage: "stop.fill") }
@@ -162,7 +169,8 @@ struct PanelHero: View {
             HeroTitle(event.title)
             HeroDetail(upcoming.detail)
             if upcoming.pausedThrough {
-                HeroWarning("Détection suspendue : elle ne s'enregistrera pas")
+                // A sentence, its period (lot 10, 20/11).
+                HeroWarning("Détection suspendue : elle ne s'enregistrera pas.")
             }
             HeroButtons {
                 if upcoming.started {
@@ -171,19 +179,21 @@ struct PanelHero: View {
                         .disabled(context.app.status != .idle)
                         .help("Enregistrer le son du Mac maintenant")
                 } else if event.meetCode != nil {
-                    Button("Détails") { context.open(.event(event.id)) }.buttonStyle(.secondary)
+                    // A verb and its object, never « Détails » (lot 10, 20/11).
+                    Button("Ouvrir le rendez-vous") { context.open(.event(event.id)) }.buttonStyle(.secondary)
                 }
             } primary: {
                 if event.meetCode != nil {
                     Button { agenda?.join(event) } label: { Label("Rejoindre", systemImage: "video.fill") }
                         .buttonStyle(.primary)
                         .keyboardShortcut(.defaultAction)
-                        .help("Ouvrir le Meet dans Dia avec le compte \(event.account) (↩ ou J)")
+                        // « Rejoindre dans Dia avec le compte Pro (↩ ou J) »: the account's label, never its address (lot 10, 20/11).
+                        .help(Words.help(Words.joinHelp(account: AccountStyle.label(for: event.account)), .return, .key("J")))
                 } else {
-                    Button("Détails") { context.open(.event(event.id)) }
+                    Button("Ouvrir le rendez-vous") { context.open(.event(event.id)) }
                         .buttonStyle(.secondary)
                         .keyboardShortcut(.defaultAction)
-                        .help("Ouvrir le rendez-vous (↩)")
+                        .help(Words.help("Ouvrir le rendez-vous", .return))
                 }
             }
         }
@@ -194,7 +204,8 @@ struct PanelHero: View {
         HeroCard(tint: nil) {
             eyebrow
             HStack(alignment: .center, spacing: Space.m) {
-                HeroTitle("Jusqu'à \(PanelModel.clock(until))")
+                // « 16:30 » (`Words.time`, lot 10, 20/11).
+                HeroTitle("Jusqu'à \(Words.time(until))")
                 Spacer(minLength: Space.s)
                 // The panel's ink, as every main action but Arrêter, and as the lit round Reprendre under it: one
                 // action, one color (design system v2, 19/11).
@@ -203,12 +214,13 @@ struct PanelHero: View {
                     .controlSize(HeroMetrics.buttons)
                     .fixedSize()
                     .keyboardShortcut(.defaultAction)
-                    .help("Reprendre la détection (↩)")
+                    .help(Words.help("Reprendre la détection", .return))
             }
+            // Sentences, their period (lot 10, 20/11).
             if let missed {
-                HeroWarning("« \(missed.title) » à \(PanelModel.clock(missed.startAt)) ne sera pas enregistrée")
+                HeroWarning("« \(missed.title) » à \(Words.time(missed.startAt)) ne sera pas enregistrée.")
             } else {
-                HeroDetail("Les réunions ne s'enregistrent pas toutes seules", lines: 2)
+                HeroDetail("Les réunions ne s'enregistrent pas toutes seules.", lines: 2)
             }
         }
     }
@@ -232,7 +244,8 @@ struct PanelHero: View {
                 if let since = report.since, !report.isPreparing {
                     Text(PanelModel.ago(since, now: now)).font(.meta).foregroundStyle(.secondary).lineLimit(1)
                 } else if let seconds = report.seconds {
-                    Text(DurationText.short(seconds)).font(.meta).foregroundStyle(.secondary).lineLimit(1)
+                    // « 38 min », « 1 h 05 », « 2 h » (`Words.duration`, lot 10, 20/11).
+                    Text(Words.duration(seconds)).font(.meta).foregroundStyle(.secondary).lineLimit(1)
                 }
                 // Paul, 16/11: a summary already dealt with goes with a click, for good. The app's discreet button (lot 9,
                 // 20/11); its circle spills into the margins, the line keeps the eyebrow's height.
@@ -245,9 +258,13 @@ struct PanelHero: View {
             case .ready(let overview):
                 HeroDetail(overview, lines: 2)
             case .transcriptReady(let reason):
-                HeroDetail(reason ?? "Pas de résumé pour cette réunion", lines: 2)
-            case .transcriptionFailed(let message), .summaryFailed(let message):
-                HeroDetail(message, lines: 2)
+                HeroDetail(reason ?? "Pas de compte rendu pour cette réunion", lines: 2)
+            // Polhub's sentence, then what to do (`Words.problem`, lot 10, 20/11): the text a job kept may be the system's,
+            // it never shows.
+            case .transcriptionFailed:
+                HeroDetail(Words.problem("La transcription a échoué").sentence, lines: 2)
+            case .summaryFailed:
+                HeroDetail(Words.problem("Le compte rendu n'a pas pu se faire", remedy: "Refais-le depuis la réunion.").sentence, lines: 2)
             default:
                 if let progress = report.progress {
                     HeroProgress(value: progress, tint: .secondary).padding(.vertical, 4)
@@ -281,41 +298,46 @@ struct PanelHero: View {
         }
     }
 
-    /// Where a summary on its way stands: « Transcription 58 % », and « Puis le résumé » under it.
+    /// Where a summary on its way stands: « Transcription 58 % », and « Puis le compte rendu » under it (lot 10, 20/11:
+    /// « Puis le résumé »).
     private func stage(_ report: PanelModel.Report) -> some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text(report.stageText).font(.meta.weight(.semibold).monospacedDigit()).lineLimit(1)
+            // French typography: « Compte rendu : partie 2 sur 3 », « 58 % » (`Words.typeset`, lot 10, 20/11).
+            Text(Words.typeset(report.stageText)).font(.meta.weight(.semibold).monospacedDigit()).lineLimit(1)
             if case .transcribing = report.stage, report.summaryToCome {
-                Text("Puis le résumé").font(.meta).foregroundStyle(.secondary).lineLimit(1)
+                Text("Puis le compte rendu").font(.meta).foregroundStyle(.secondary).lineLimit(1)
             }
         }
     }
 
+    /// « Ouvrir » goes to a thing (lot 10, 20/11: « Lire le compte rendu », « Lire la transcription »); its bubble, the same
+    /// words and the key, by `Words.help`.
     @ViewBuilder
     private func reportAction(_ report: PanelModel.Report) -> some View {
         let open = { context.open(.meeting(report.meetingID)) }
         // The panel's ink, as every main action but Arrêter (design system v2, 19/11).
         switch report.stage {
         case .ready:
-            Button("Lire le compte rendu", action: open)
+            Button("Ouvrir le compte rendu", action: open)
                 .buttonStyle(.primary)
-                .keyboardShortcut(.defaultAction).help("Ouvrir la réunion sur son compte rendu (↩)")
+                .keyboardShortcut(.defaultAction).help(Words.help("Ouvrir le compte rendu", .return))
         case .transcriptReady:
-            Button("Lire la transcription", action: open)
+            Button("Ouvrir la transcription", action: open)
                 .buttonStyle(.primary)
-                .keyboardShortcut(.defaultAction).help("Ouvrir la réunion (↩)")
+                .keyboardShortcut(.defaultAction).help(Words.help("Ouvrir la transcription", .return))
         case .transcriptionFailed:
             if let queue = library?.queue {
                 Button { Task { await queue.retry(meetingID: report.meetingID) } } label: { Label("Réessayer", systemImage: "arrow.clockwise") }
                     .buttonStyle(.primary)
-                    .keyboardShortcut(.defaultAction).help("Relancer la transcription (↩)")
+                    .keyboardShortcut(.defaultAction).help(Words.help("Réessayer la transcription", .return))
             } else {
-                Button("Ouvrir la réunion", action: open).buttonStyle(.secondary).keyboardShortcut(.defaultAction)
+                Button("Ouvrir la réunion", action: open).buttonStyle(.secondary)
+                    .keyboardShortcut(.defaultAction).help(Words.help("Ouvrir la réunion", .return))
             }
         default:
             Button("Ouvrir la réunion", action: open)
                 .buttonStyle(.secondary)
-                .keyboardShortcut(.defaultAction).help("Ouvrir la réunion (↩)")
+                .keyboardShortcut(.defaultAction).help(Words.help("Ouvrir la réunion", .return))
         }
     }
 
@@ -326,7 +348,8 @@ struct PanelHero: View {
     private func day(title: String, line: String?) -> some View {
         HeroCard(tint: nil, centered: true) {
             eyebrow
-            HeroTitle(line ?? (context.app.isWatching ? "Polhub guette les réunions" : "La détection est coupée"))
+            // The detection is active or suspended, never « coupée » (lot 10, 20/11).
+            HeroTitle(line ?? (context.app.isWatching ? "Polhub guette les réunions" : "La détection est suspendue"))
         }
     }
 }
@@ -401,7 +424,8 @@ private struct HeroProgress: View {
         .animation(Motion.standard, value: value)
         .accessibilityElement()
         .accessibilityLabel("Avancement")
-        .accessibilityValue("\(Int((value * 100).rounded())) %")
+        // « 58 % » (`Words.percent`, lot 10, 20/11).
+        .accessibilityValue(Words.percent(value))
     }
 }
 
@@ -449,7 +473,8 @@ private struct HeroEyebrow: View {
                     .symbolEffect(.pulse, isActive: pulse && !reduceMotion)
                     .foregroundStyle(eyebrow.colored == .symbol ? tint : AnyShapeStyle(.secondary))
             }
-            Text(eyebrow.text)
+            // French typography: « Fin de réunion ? » never breaks before its « ? » (`Words.typeset`, lot 10, 20/11).
+            Text(Words.typeset(eyebrow.text))
                 .lineLimit(1)
                 .foregroundStyle(eyebrow.colored == .words ? tint : AnyShapeStyle(.secondary))
         }

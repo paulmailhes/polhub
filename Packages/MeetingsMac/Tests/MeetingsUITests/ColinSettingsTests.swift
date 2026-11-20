@@ -11,7 +11,7 @@ import Testing
 
     /// Step 3 (18/11): the switch says its two rules, what they never touch, and where they are undone.
     @Test func theKanbanSwitchSaysItsTwoRules() {
-        #expect(ColinSettingsText.kanban.contains("« En attente retour de … »") && ColinSettingsText.kanban.contains("l'échéance"))
+        #expect(ColinSettingsText.kanban.contains("« Attend le retour de … »") && ColinSettingsText.kanban.contains("l'échéance"))
         #expect(ColinSettingsText.kanban.contains("en pause ou terminé") && ColinSettingsText.kanban.contains("Annuler"))
         #expect(ColinSettingsText.footer.contains("quand tu le lui demandes"))
     }

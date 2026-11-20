@@ -37,16 +37,19 @@ struct ProjectListView: View {
             TableColumn("Client", value: \.clientSort) { row in Text(row.project.client ?? "").foregroundStyle(.secondary) }
                 .width(min: 90, ideal: 150)
             TableColumn("Échéance", value: \.dueSort) { row in
-                if let label = ProjectViews.dueLabel(row.project.dueDate, today: Date()) {
-                    Text(label).foregroundStyle(ProjectViews.dueTint(label) ?? .secondary)
+                // The color from the days left, never from the words (lot 10, 20/11).
+                if let due = ProjectViews.dueState(row.project.dueDate, today: Date()) {
+                    Text(due.label).foregroundStyle(due.role?.color ?? .secondary)
                 }
             }
             .width(min: 80, ideal: 100)
             TableColumn("Dernière activité", value: \.activitySort) { row in
-                Text(row.lastSign.formatted(.relative(presentation: .named).locale(Locale(identifier: "fr_FR")))).foregroundStyle(.secondary)
+                // By days, as everywhere: « hier », « il y a 3 jours » (lot 10, 20/11).
+                Text(Words.daysAgo(row.lastSign, now: Date())).foregroundStyle(.secondary)
             }
             .width(min: 110, ideal: 140)
-            TableColumn("Prochaine étape") { row in Text(row.project.todo ?? "").lineLimit(2).foregroundStyle(.secondary) }
+            // The field's one name (lot 10, 20/11).
+            TableColumn("Tâche du moment") { row in Text(row.project.todo ?? "").lineLimit(2).foregroundStyle(.secondary) }
         }
         .contextMenu(forSelectionType: ProjectRow.ID.self) { _ in } primaryAction: { ids in
             library.selected = ids.first
@@ -63,7 +66,8 @@ struct ProjectListView: View {
                     }
                     .pickerStyle(.inline)
                 } label: {
-                    Label("Filtrer", systemImage: status == nil ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill")
+                    // One name for the bubble and VoiceOver (lot 10, 20/11).
+                    Label("Filtrer par statut", systemImage: status == nil ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill")
                 }
                 .help("Filtrer par statut")
             }

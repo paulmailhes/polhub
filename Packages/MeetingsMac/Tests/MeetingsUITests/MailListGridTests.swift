@@ -77,7 +77,7 @@ import Testing
         #expect(empty(.inbox) == MailEmptyState(title: "Boîte de réception vide", systemImage: "tray",
                                                 detail: "Les mails des personnes arrivent ici. ⌘N pour écrire.", action: nil))
         #expect(empty(.notifications).title == "Aucune notification"
-            && empty(.notifications).detail == "Les reçus, les alertes et les lettres d'information arrivent ici.")
+            && empty(.notifications).detail == "Les reçus, les alertes et les newsletters arrivent ici.")
         #expect(empty(.sent).title == "Aucun mail envoyé" && empty(.sent).detail == "⌘N pour écrire un mail.")
         #expect(empty(.drafts).detail == "Un mail commencé et pas encore envoyé t'attend ici. ⌘N pour écrire.")
         #expect(empty(.scheduled).detail == "La flèche à côté d'« Envoyer » programme un mail : il attend ici son heure.")

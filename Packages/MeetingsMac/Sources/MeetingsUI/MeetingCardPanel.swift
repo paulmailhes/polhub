@@ -1,3 +1,4 @@
+import Agenda
 import AppKit
 import Notifications
 import Persistence
@@ -138,6 +139,7 @@ struct MeetingCardView: View {
                     .lineLimit(1)
                     .help(event.title)
                 TimelineView(.periodic(from: .now, by: 1)) { context in
+                    // A meta, in small letters: « dans 2 min · Google Meet » (`MeetingCardPlan.when`, lot 10, 20/11).
                     Text(MeetingCardPlan.when(event.startAt, now: context.date) + " · Google Meet")
                         .font(FloatingMetrics.meta)
                         .foregroundStyle(.secondary)
@@ -154,7 +156,9 @@ struct MeetingCardView: View {
             Button("Rejoindre", action: join)
                 .buttonStyle(.primary)
                 .fixedSize()
-                .help("Ouvrir le Meet dans Dia avec le compte \(event.account)")
+                // « Rejoindre dans Dia avec le compte Pro »: the account's label, never its address; no key, the card never
+                // takes the keyboard (`Words.joinHelp`, lot 10, 20/11).
+                .help(Words.joinHelp(account: AccountStyle.label(for: event.account)))
             IconButton("xmark", help: "Fermer le rappel", size: 13, action: close)
         }
         .padding(.leading, FloatingMetrics.margin)

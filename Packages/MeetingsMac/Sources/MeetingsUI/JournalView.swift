@@ -9,15 +9,17 @@ struct JournalView: View {
 
     var body: some View {
         if entries.isEmpty {
-            ContentUnavailableView("Journal vide", systemImage: "checkmark.circle",
-                                   description: Text("Aucune réunion manquée, aucune alerte."))
+            // An empty state: « Aucun … », then how the page fills (lot 10, 20/11).
+            ContentUnavailableView("Aucune alerte", systemImage: "checkmark.circle",
+                                   description: Text("Polhub note ici les réunions manquées et ce qui n'a pas marché."))
         } else {
             List(entries) { entry in
                 HStack(alignment: .firstTextBaseline, spacing: Space.m) {
                     icon(entry.kind)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(entry.message).font(.rowBody).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
-                        Text(entry.createdAt.formatted(date: .abbreviated, time: .shortened))
+                        // A meta: « 9:04 » today, « hier 9:04 », « 18 nov. 9:04 », by `Words` (lot 10, 20/11).
+                        Text(Words.shortMoment(entry.createdAt, now: Date()))
                             .font(.meta.monospacedDigit())
                             .foregroundStyle(.secondary)
                     }

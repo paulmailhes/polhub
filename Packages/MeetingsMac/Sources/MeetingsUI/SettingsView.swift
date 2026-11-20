@@ -1,5 +1,6 @@
 import AppKit
 import Agenda
+import Notifications
 import PolhubDesign
 import ProjectsUI
 import SwiftUI
@@ -112,7 +113,8 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
             if let updates {
                 UpdatesSettingsView(updates: updates)
             } else {
-                ContentUnavailableView("Pas de mise à jour", systemImage: "arrow.down.circle",
+                // An empty state says « Aucun … » (lot 10, 20/11).
+                ContentUnavailableView("Aucune mise à jour", systemImage: "arrow.down.circle",
                                        description: Text("La version de développement ne se met jamais à jour."))
             }
         case .diagnostic:
@@ -173,17 +175,18 @@ enum SettingsText {
     static let startupDetail = "Polhub reste dans la barre des menus quand sa fenêtre est fermée : les réunions s'enregistrent et les notifications arrivent."
     static let floating = "Ouvrir un mail ou un projet"
     static let floatingHelp = "En fenêtre flottante, la liste reste visible derrière."
-    static let meetMinutes = "Minutes avant un Meet dans la barre des menus"
-    static let meetMinutesHelp = "« 8 min » à côté du logo, dans le quart d'heure avant un rendez-vous avec Meet."
+    // « Visio »: a rendez-vous with a Google Meet link, never « un Meet » (lot 10, 20/11).
+    static let meetMinutes = "Minutes avant une visio dans la barre des menus"
+    static let meetMinutesHelp = "« 8 min » à côté du logo, dans le quart d'heure avant une visio."
 
     // Notifications
     static let reminders = "Rappels avant un rendez-vous"
-    static let remindersHelp = "Un clic sur un rappel rejoint le Meet avec le bon compte."
-    static let remindersDetail = "Le Meet s'ouvre dans Dia, où la réunion s'enregistre. Les rappels arrivent même si Polhub est fermé."
+    static let remindersHelp = "Un clic sur un rappel rejoint la visio avec le bon compte."
+    static let remindersDetail = "La visio s'ouvre dans Dia, où la réunion s'enregistre. Les rappels arrivent même si Polhub est fermé."
     static let card = "Carte qui reste à l'écran avant une visio"
     static let cardHelp = "En haut à droite, jusqu'à ce que tu rejoignes ou la fermes, dix minutes après le début au plus."
-    static let unrecorded = "Réunion de l'agenda commencée sans enregistrement"
-    static let unrecordedHelp = "Cinq minutes après le début d'un rendez-vous avec Meet, si rien n'enregistre."
+    static let unrecorded = "Visio commencée sans enregistrement"
+    static let unrecordedHelp = "Cinq minutes après le début d'une visio, si rien n'enregistre."
     static let mailNotices = "Nouveau mail dans la Boîte de réception"
     static let mailNoticesHelp = "Jamais pour le dossier Notifications, ni pendant la première lecture d'une boîte."
     static let draftReady = "Un brouillon est prêt"
@@ -191,7 +194,8 @@ enum SettingsText {
 
     // Réunions
     static let summaries = "Comptes rendus automatiques"
-    static let summariesHelp = "Écrits sur le Mac par le modèle d'Apple, après la transcription, jamais pendant une réunion."
+    // « L'IA d'Apple », never « le modèle » (lot 10, 20/11).
+    static let summariesHelp = "Écrits sur le Mac par l'IA d'Apple, après la transcription, jamais pendant une réunion."
     static let language = "Langue des réunions"
     static let languageHelp = "Pour les prochaines réunions ; « Retranscrire » en change une seule."
 
@@ -200,13 +204,20 @@ enum SettingsText {
     static let autoInstallHelp = "Jamais pendant une réunion ni une transcription : elle attend que tout soit au repos."
 
     // Calendrier
-    static let eventMeetHelp = "Chaque nouveau rendez-vous reçoit un lien Meet."
+    // « Google Meet » names the service (lot 10, 20/11).
+    static let eventMeetHelp = "Chaque nouveau rendez-vous reçoit un lien Google Meet."
     static let dayStartHelp = "La semaine s'ouvre sur cette heure."
     static let tomorrowHelp = "Une fois fini ton dernier rendez-vous du jour."
 
     // Comptes Google
     static let colorHelp = "La couleur d'un compte marque ses rendez-vous dans le Calendrier et l'Accueil."
     static let mailGrantDetail = "« Autoriser les mails » ouvre la page de Google ; l'agenda du compte reste connecté quoi que tu répondes."
+    /// Each color of an account by its name, the swatch's bubble and VoiceOver's word, as a project's (lot 10, 20/11:
+    /// « Prendre cette couleur » and « Couleur 3 sur 8 » before).
+    static let accountColors: [String: String] = Dictionary([
+        (AccountStyle.violet, "Violet"), (AccountStyle.green, "Vert"), (AccountStyle.orange, "Orange"), (AccountStyle.blue, "Bleu"),
+        (AccountStyle.pink, "Rose"), (AccountStyle.teal, "Sarcelle"), (AccountStyle.red, "Rouge"), (AccountStyle.gray, "Gris"),
+    ], uniquingKeysWith: { first, _ in first })
 
     /// Every help of these pages, for their test: one line each, two on screen at most.
     static let helps = [startupHelp, floatingHelp, meetMinutesHelp, remindersHelp, cardHelp, unrecordedHelp, mailNoticesHelp, draftReadyHelp,
@@ -307,12 +318,13 @@ struct StartupSwitch: View {
         .confirmationDialog("Ne plus ouvrir Polhub à l'ouverture de session ?", isPresented: $confirmingOff) {
             Button("Ne plus l'ouvrir", role: .destructive) { startup.set(false) }
         } message: {
-            Text("Polhub se ferme aussitôt et ne se relance plus seul après un arrêt : les réunions ne s'enregistrent que s'il est ouvert. Tu le rouvres depuis Applications.")
+            // French typography, laid at display (lot 10, 20/11).
+            Text(Words.typeset("Polhub se ferme aussitôt et ne se relance plus seul après un arrêt : les réunions ne s'enregistrent que s'il est ouvert. Tu le rouvres depuis Applications."))
         }
         .confirmationDialog("Ouvrir Polhub à l'ouverture de session ?", isPresented: $confirmingOn) {
             Button("Ouvrir à la session") { startup.set(true) }
         } message: {
-            Text("macOS prend Polhub sous sa garde : cette fenêtre se ferme, rouvre-la par l'icône de la barre des menus.")
+            Text(Words.typeset("macOS prend Polhub sous sa garde : cette fenêtre se ferme, rouvre-la par l'icône de la barre des menus."))
         }
     }
 }
@@ -322,16 +334,17 @@ struct StartupSwitch: View {
 enum ReminderMenu {
     static var choices: [Int] { Preferences.Default.reminderChoices }
 
-    static func item(_ minute: Int) -> String { "\(minute) min avant" }
+    /// « 15 min avant »: the length by `Words` (lot 10, 20/11).
+    static func item(_ minute: Int) -> String { Words.duration(minute * 60) + " avant" }
 
     /// « Rappel : 10 min avant », « Rappels : 30, 10 et 1 min avant », « Rappel : aucun ».
     static func title(_ minutes: [Int]) -> String {
         "\(label(minutes)) : \(value(minutes))"
     }
 
-    /// The row's word: « Rappel », « Rappels » for several.
+    /// The row's word: « Rappel », « Rappels » for several, accorded by `Words` (lot 10, 20/11).
     static func label(_ minutes: [Int]) -> String {
-        Set(minutes).count > 1 ? "Rappels" : "Rappel"
+        Words.plural(Set(minutes).count, "Rappel")
     }
 
     /// The menu's word: « 10 min avant », « 30, 10 et 1 min avant », « aucun ».
@@ -374,7 +387,8 @@ struct NotificationsSettingsPane: View {
                 }
                 if reminders {
                     reminderMenu
-                    Toggle("Seulement les rendez-vous avec une visio", isOn: $meetOnly)
+                    // A visio is a rendez-vous with a Google Meet link: said once (lot 10, 20/11).
+                    Toggle("Seulement les visios", isOn: $meetOnly)
                 }
                 SettingRow(SettingsText.card, help: SettingsText.cardHelp) {
                     Toggle(SettingsText.card, isOn: $meetingCard)
@@ -382,7 +396,8 @@ struct NotificationsSettingsPane: View {
                 if meetingCard {
                     Picker("Quand", selection: $meetingCardMinutes) {
                         ForEach(Preferences.Default.meetingCardChoices, id: \.self) { minute in
-                            Text("\(minute) min avant").tag(minute)
+                            // The length by `Words` (lot 10, 20/11).
+                            Text(Words.duration(minute * 60) + " avant").tag(minute)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -456,9 +471,10 @@ struct NotificationStatus: View {
 
     var body: some View {
         HStack {
-            Text("Notifications \(hub.authorization.isEmpty ? "…" : hub.authorization)").foregroundStyle(.secondary)
+            Text("Notifications \(hub.authorization?.text ?? "…")").foregroundStyle(.secondary)
             Spacer()
-            if hub.authorization.hasPrefix("refusées") {
+            // By the state, never by its words (lot 10, 20/11).
+            if hub.authorization == .denied {
                 Button("Ouvrir Réglages Système") {
                     NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension")!)
                 }
@@ -488,7 +504,8 @@ struct MeetingsSettingsPane: View {
                     Picker(SettingsText.language, selection: $language) {
                         Text("Français").tag("fr")
                         Text("Anglais").tag("en")
-                        Text("Détectée par le moteur").tag("auto")
+                        // No word of the code on screen: « le moteur » (lot 10, 20/11).
+                        Text("Détection automatique").tag("auto")
                     }
                 }
             }
@@ -505,8 +522,9 @@ struct UpdatesSettingsView: View {
         Form {
             Section {
                 LabeledContent("Version installée", value: updates.current.description)
+                // A meta: « 9:04 » today, « hier 9:04 », « 18 nov. 9:04 », by `Words` (lot 10, 20/11).
                 LabeledContent("Dernière vérification", value: updates.lastCheck.map {
-                    $0.formatted(date: .abbreviated, time: .shortened)
+                    Words.shortMoment($0, now: Date())
                 } ?? "pas encore")
                 SettingRow(SettingsText.autoInstall, help: SettingsText.autoInstallHelp) {
                     Toggle(SettingsText.autoInstall, isOn: $updates.autoInstall)

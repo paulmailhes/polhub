@@ -36,7 +36,9 @@ public enum AccountStyle {
         Linker.company(forEmail: email) ?? "Perso"
     }
 
-    static func isPersonal(_ email: String) -> Bool {
+    /// A public mailbox (Gmail, iCloud…): the personal account. The code asks this, never whether the label says
+    /// « Perso » (lot 10, 20/11).
+    public static func isPersonal(_ email: String) -> Bool {
         Linker.company(forEmail: email) == nil
     }
 }

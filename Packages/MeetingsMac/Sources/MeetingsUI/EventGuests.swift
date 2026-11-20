@@ -4,7 +4,7 @@ import PolhubDesign
 import SwiftUI
 
 /// The guests of an event, in its card (15/11): who is a contact, who is in the event's project, and the click to
-/// change it without leaving the calendar. « Lier les invités à « P » » when some are missing from the project.
+/// change it without leaving the calendar. « Ajouter les invités à « P » » when some are missing from the project.
 struct EventGuests: View {
     let event: CalendarEventRow
     @ObservedObject var agenda: AgendaLibrary
@@ -47,7 +47,9 @@ struct EventGuests: View {
                         }
                         Task { await agenda.runLinks() }
                     } label: {
-                        Label("Lier les invités à « \(project.name) »", systemImage: "person.2.badge.plus")
+                        // A person and a project: « Ajouter à « P » », never « Lier »; the typography of the chips beside
+                        // it (lot 10, 20/11).
+                        Label(Words.typeset("Ajouter les invités à « \(project.name) »"), systemImage: "person.2.badge.plus")
                     }
                     .buttonStyle(.secondary)
                     .controlSize(.small)
@@ -119,7 +121,8 @@ struct GuestRow: View {
             .buttonStyle(.plain)
             .menuIndicator(.hidden)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .help("\(guest.email) — cliquer pour ses gestes")
+            // What the click does, never the gesture nor « cliquer » (lot 10, 20/11).
+            .help("Voir les actions pour \(guest.email)")
             standing(link, person: person)
         }
         .padding(.vertical, 2)
@@ -132,16 +135,18 @@ struct GuestRow: View {
     private func standing(_ link: PersonLink, person: MailAddress) -> some View {
         if let project {
             if link == .member {
-                // Neutral, the project's color in its dot: an identity never colors a text (lot 8, 19/11).
+                // Neutral, the project's color in its dot: an identity never colors a text (lot 8, 19/11). The bubble gives the
+                // whole of a name the chip may cut (lot 10, 20/11).
                 Chip("Dans « \(project.name) »", dot: PeopleStyle.color(of: project))
-                    .help("Contact lié au projet « \(project.name) »")
+                    .help("Dans « \(project.name) »")
             } else {
-                // A gesture to make, at the app's accent (design system v2, 19/11).
+                // A gesture to make, at the app's accent (design system v2, 19/11). « Ajouter à « P » », whether a contact
+                // already or not (lot 10, 20/11).
                 Button { add(person) } label: { Label("Ajouter au projet", systemImage: "plus") }
                     .buttonStyle(.hover(.capsule))
                     .font(.meta.weight(.medium))
                     .foregroundStyle(Tint.accent)
-                    .help(link == .stranger ? "En faire un contact du projet « \(project.name) »" : "Lier ce contact au projet « \(project.name) »")
+                    .help("Ajouter à « \(project.name) »")
             }
         } else if link == .stranger {
             Button { add(person) } label: { Label("Ajouter aux contacts", systemImage: "plus") }
@@ -153,13 +158,14 @@ struct GuestRow: View {
         }
     }
 
+    /// The answer, an icon alone: its bubble and VoiceOver say it in the same words, one form for the three (lot 10, 20/11).
     @ViewBuilder
     private var answer: some View {
         switch guest.response {
-        case "declined": Image(systemName: "xmark.circle").font(.meta).foregroundStyle(.secondary).help("A refusé")
+        case "declined": Image(systemName: "xmark.circle").font(.meta).foregroundStyle(.secondary).help("A refusé").accessibilityLabel("A refusé")
         // Accepted: the color of « done » (design system v2, 19/11).
-        case "accepted": Image(systemName: "hand.thumbsup.fill").font(.meta).foregroundStyle(Tint.done).help("A accepté l'invitation")
-        case "tentative": Image(systemName: "questionmark.circle").font(.meta).foregroundStyle(.secondary).help("Peut-être")
+        case "accepted": Image(systemName: "hand.thumbsup.fill").font(.meta).foregroundStyle(Tint.done).help("A accepté").accessibilityLabel("A accepté")
+        case "tentative": Image(systemName: "questionmark.circle").font(.meta).foregroundStyle(.secondary).help("Peut-être").accessibilityLabel("Peut-être")
         default: EmptyView()
         }
     }

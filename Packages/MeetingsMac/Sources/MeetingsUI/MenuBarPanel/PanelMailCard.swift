@@ -48,7 +48,8 @@ struct PanelMailCard: View {
                 .padding(.horizontal, -Space.s)
                 // Its capsule spills into the card's padding: the line costs only its text, a third mail fits at rest.
                 .padding(.vertical, -2)
-                .help("Ouvrir la boîte de réception" + (SidebarItem.mails.shortcut.map { " (⌘\($0))" } ?? ""))
+                // « Ouvrir la boîte de réception (⌘5) », by `Words.help` (lot 10, 20/11).
+                .help(Words.help("Ouvrir la boîte de réception", shortcuts: SidebarItem.mails.shortcut.map { [Words.Shortcut.command("\($0)")] } ?? []))
             }
         }
         // 12 on the sides, as the tiles above; 8 above and under, which the rows' own 4 bring to 12 (lot 9, 20/11).

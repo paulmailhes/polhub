@@ -36,7 +36,9 @@ struct ContactsView: View {
         }
         // The sidebar's word; never the name the page writes large (lot 4, 19/11).
         .windowTitle("Contacts")
-        .searchable(text: $query, placement: .toolbar, prompt: "Nom, adresse, entreprise, projet")
+        // « Chercher » and what is found, as every page says it (lot 10, 20/11); the fields searched are said when
+        // nothing answers.
+        .searchable(text: $query, placement: .toolbar, prompt: "Chercher un contact")
         .task(id: agenda.contacts.map(\.email)) { await loadActivity() }
         .onAppear { openFirst(sections) }
         .onChange(of: agenda.contacts.isEmpty) { _, _ in openFirst(visibleSections(projects: projects, last: last, now: now)) }
@@ -83,13 +85,24 @@ struct ContactsView: View {
     @ViewBuilder
     private func list(_ sections: [ContactsModel.Section], projects: [UUID: [ProjectRow]], last: [UUID: LastContact], now: Date) -> some View {
         if agenda.contacts.isEmpty {
+            // An empty page: « Aucun … », then how it fills, in fifteen words at most (lot 10, 20/11).
             ContentUnavailableView {
-                Label("Pas encore de contacts", systemImage: "person.2")
+                Label("Aucun contact", systemImage: "person.2")
             } description: {
-                Text("Ils arrivent tout seuls des invités de tes agendas, et d'un clic depuis un mail ou un rendez-vous.")
+                Text("Ils arrivent seuls de tes agendas, et d'un clic depuis un mail ou un rendez-vous.")
             }
         } else if sections.isEmpty {
-            ContentUnavailableView.search(text: query)
+            // Polhub's words, no longer the system's (« vous ») (lot 10, 20/11): what was searched, what is searched in, and
+            // the gesture that empties the search. The typography laid around what Paul typed, never inside it.
+            ContentUnavailableView {
+                Label(Words.typeset("Aucun résultat pour « ") + query + Words.typeset(" »"), systemImage: "magnifyingglass")
+            } description: {
+                Text("La recherche porte sur le nom, l'adresse, l'entreprise et les projets.")
+            } actions: {
+                // No glass in the content: a secondary action (design system v2, 19/11).
+                Button("Effacer la recherche") { query = "" }
+                    .buttonStyle(.secondary)
+            }
         } else {
             List(selection: $router.contactSelection) {
                 ForEach(sections) { section in
@@ -163,7 +176,7 @@ struct ContactListRow: View {
                             Chip(project.name, dot: ProjectViews.tint(project))
                         }
                         if projects.count > Self.chips {
-                            Chip("+\(projects.count - Self.chips)").fixedSize()
+                            Chip("+" + Words.number(projects.count - Self.chips)).fixedSize()
                                 .help(projects.dropFirst(Self.chips).map(\.name).joined(separator: ", "))
                         }
                     }
@@ -340,7 +353,8 @@ struct ContactPage: View {
                     // The page's principal action; no glass in the content (design system v2, 19/11).
                     .buttonStyle(.primary)
                     .controlSize(.large)
-                    .help("Un nouveau mail à \(person.email)")
+                    // A verb and its object (lot 10, 20/11).
+                    .help("Écrire à \(person.email)")
                 }
                 Button {
                     MailLibrary.copy(person.email)
@@ -422,7 +436,7 @@ struct ContactPage: View {
                                 HStack(alignment: .firstTextBaseline, spacing: Space.xs) {
                                     Text(thread.subject).font(.rowBody.weight(thread.unread ? .semibold : .medium)).foregroundStyle(.primary).lineLimit(1)
                                     if thread.messageCount > 1 {
-                                        Text("\(thread.messageCount)").font(.meta.monospacedDigit()).foregroundStyle(.secondary)
+                                        Text(Words.number(thread.messageCount)).font(.meta.monospacedDigit()).foregroundStyle(.secondary)
                                     }
                                 }
                                 if !thread.snippet.isEmpty {
@@ -491,7 +505,8 @@ struct ContactPage: View {
         Card {
             SectionTitle("Coordonnées", systemImage: "person.text.rectangle")
             field("Entreprise", text: optional(\.company))
-            field("E-mail", text: Binding(get: { contact.email ?? "" }, set: {
+            // « Adresse », as everywhere else, never « E-mail » (lot 10, 20/11).
+            field("Adresse", text: Binding(get: { contact.email ?? "" }, set: {
                 contact.email = $0.isEmpty ? nil : $0.lowercased()
                 addressRefused = nil
             }))
@@ -518,7 +533,7 @@ struct ContactPage: View {
     private var notesCard: some View {
         Card {
             SectionTitle("Notes", systemImage: "note.text")
-            TextField("Ce qu'il faut savoir de \(firstName)", text: $contact.notes, axis: .vertical)
+            TextField("Ce qu'il faut savoir \(Words.of(firstName))", text: $contact.notes, axis: .vertical)
                 .font(.rowBody)
                 .textFieldStyle(.plain)
                 .lineLimit(2...12)
@@ -556,7 +571,14 @@ struct ContactPage: View {
             // rest is saved at the next pass, and the page says why.
             if addressChanged {
                 let owner = clean.email.flatMap { agenda.contact(email: $0) }.flatMap { $0.id == clean.id ? nil : $0 }
-                addressRefused = owner.map { "Cette adresse est déjà celle de « \($0.name) »." } ?? "Cette adresse n'a pas pu être enregistrée."
+                if let owner {
+                    addressRefused = "Cette adresse est déjà celle de « \(owner.name) »."
+                } else {
+                    // What failed, why when Polhub knows it, what to do; the system's text to the journal (lot 10, 20/11).
+                    let problem = Words.problem("Cette adresse n'a pas pu être enregistrée", error)
+                    addressRefused = problem.sentence
+                    agenda.database.journal(problem)
+                }
                 contact.email = saved.email
             }
             return
@@ -607,7 +629,8 @@ struct ContactProjectChip: View {
             .buttonStyle(.hover(.circle))
             .foregroundStyle(.secondary)
             .padding(.trailing, 3)
-            .help("Retirer de « \(project.name) » : le lien ne reviendra pas tout seul.")
+            // A verb and its object, without a period; the same words for VoiceOver (lot 10, 20/11).
+            .help("Retirer de « \(project.name) »")
             .accessibilityLabel("Retirer de « \(project.name) »")
         }
         .background(Surface.fill, in: Capsule())

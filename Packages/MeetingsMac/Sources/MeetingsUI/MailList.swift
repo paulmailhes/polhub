@@ -55,7 +55,8 @@ struct MailListView: View {
             }
             if let progress = mails.progress {
                 Divider()
-                Text(progress).font(.meta).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+                // French typography, laid at display (lot 10, 20/11).
+                Text(Words.typeset(progress)).font(.meta).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, Space.xl).padding(.vertical, Space.s)
             }
         }
@@ -70,8 +71,9 @@ struct MailListView: View {
                 }
             }
         }
-        // One bar (15/11): the copy is filtered as Paul types; Enter also asks Gmail, which reads the bodies.
-        .searchable(text: $mails.query, placement: .toolbar, prompt: "Chercher dans tes mails")
+        // One bar (15/11): the copy is filtered as Paul types; Enter also asks Gmail, which reads the bodies. « Chercher » and
+        // what it finds, as every search of Polhub (lot 10, 20/11).
+        .searchable(text: $mails.query, placement: .toolbar, prompt: "Chercher un mail")
         .onSubmit(of: .search) { Task { await mails.search(mails.query) } }
         .windowTitle("Mails", subtitle: subtitle)
     }
@@ -80,7 +82,8 @@ struct MailListView: View {
         Button { mails.writeNewMail(router: router) } label: {
             Label { Text("Nouveau mail") } icon: { AppIconImage(.newMail, size: 16) }.labelStyle(.titleAndIcon)
         }
-        .help("Écrire un nouveau mail (⌘N)")
+        // The key, written by `Words.help` (lot 10, 20/11).
+        .help(Words.help("Écrire un nouveau mail", .command("n")))
     }
 
     @ViewBuilder
@@ -90,7 +93,11 @@ struct MailListView: View {
                 // A mailbox that fails: the icon at the attention's color, the sentence grey (design system v2, 19/11).
                 HStack(spacing: Space.s) {
                     Image(systemName: "exclamationmark.triangle").foregroundStyle(Tint.attention)
-                    Text("\(AccountStyle.label(for: failure.account)) : \(failure.text)").foregroundStyle(.secondary).lineLimit(2)
+                    // The base keeps the error's own text; the screen says its reason in Paul's words, never that text
+                    // (lot 10, 20/11).
+                    Text(Words.typeset("\(AccountStyle.label(for: failure.account)) : "
+                                       + Words.problem("La boîte ne se met plus à jour", GoogleError(stored: failure.text)).fragment))
+                        .foregroundStyle(.secondary).lineLimit(2)
                     Spacer(minLength: Space.m)
                     Button("Comptes Google") { router.openSettings(.accounts) }
                         .buttonStyle(.secondary)
@@ -303,7 +310,8 @@ struct MailSearchLine: View {
             }
             .frame(width: MailGrid.boxWidth)
             .padding(.leading, MailGrid.boxStart)
-            Text(text).foregroundStyle(.secondary).lineLimit(1)
+            // French typography, laid at display (lot 10, 20/11).
+            Text(Words.typeset(text)).foregroundStyle(.secondary).lineLimit(1)
             Spacer(minLength: 0)
         }
         .font(.meta)
@@ -356,7 +364,8 @@ struct MailEmptyState: Equatable {
     private static func own(_ folder: MailFolder) -> (title: String, detail: String?) {
         switch folder {
         case .inbox: ("Boîte de réception vide", "Les mails des personnes arrivent ici. ⌘N pour écrire.")
-        case .notifications: ("Aucune notification", "Les reçus, les alertes et les lettres d'information arrivent ici.")
+        // « newsletter », never « lettre d'information » (lot 10, 20/11).
+        case .notifications: ("Aucune notification", "Les reçus, les alertes et les newsletters arrivent ici.")
         case .sent: ("Aucun mail envoyé", "⌘N pour écrire un mail.")
         case .drafts: ("Aucun brouillon", "Un mail commencé et pas encore envoyé t'attend ici. ⌘N pour écrire.")
         case .scheduled: ("Aucun envoi programmé", "La flèche à côté d'« Envoyer » programme un mail : il attend ici son heure.")
@@ -385,7 +394,8 @@ struct MailEmptyView: View {
         ContentUnavailableView {
             Label(state.title, systemImage: state.systemImage)
         } description: {
-            if let detail = state.detail { Text(detail) }
+            // French typography, laid at display (lot 10, 20/11).
+            if let detail = state.detail { Text(Words.typeset(detail)) }
         } actions: {
             if let action = state.action {
                 Button(action.title) { perform(action) }.buttonStyle(.secondary)
@@ -435,7 +445,9 @@ struct MailListBar: View {
                         .frame(width: 30, height: 32)
                 }
                 .buttonStyle(.hover(.circle))
-                .help(count == 0 ? "Tout sélectionner (⌘A)" : "Tout désélectionner (Échap)")
+                // The keys written by `Words.help`; an icon alone gets VoiceOver's name too, the same words (lot 10, 20/11).
+                .help(count == 0 ? Words.help("Tout sélectionner", .command("a")) : Words.help("Tout désélectionner", .escape))
+                .accessibilityLabel(count == 0 ? "Tout sélectionner" : "Tout désélectionner")
                 Menu {
                     Button("Tous") { mails.selectAll() }
                     Button("Aucun") { mails.endSelection() }
@@ -450,6 +462,8 @@ struct MailListBar: View {
                 }
                 .menuStyle(.button).buttonStyle(.hover(.capsule)).menuIndicator(.hidden).fixedSize()
                 .help("Sélectionner les lus, les non lus")
+                // An icon alone: VoiceOver's name, the bubble's words (lot 10, 20/11).
+                .accessibilityLabel("Sélectionner les lus, les non lus")
             }
             // Nothing to tick in the drafts, the programmed mails or the senders: greyed, never gone (lot 6, 19/11).
             .disabled(!ticks)
@@ -464,10 +478,14 @@ struct MailListBar: View {
                             .padding(.horizontal, Space.m).frame(height: 32)
                     }
                     .buttonStyle(.hover(.capsule))
-                    .help(aside == .spam ? "Remettre en boîte de réception : Gmail apprend que ce n'est pas un spam" : "Remettre en boîte de réception")
+                    // A verb, then the consequence; 60 characters at most (lot 10, 20/11).
+                    .help(aside == .spam ? Words.help("Sortir du spam", detail: "Gmail apprend que ce n'est pas un spam") : "Remettre en boîte de réception")
                 } else {
                     ForEach(mails.folder.selectionGestures, id: \.self) { kind in
-                        IconButton(kind.icon, help: kind.title(plural: true)) { mails.performOnSelection(kind) }
+                        // ⌫ deletes the ticked threads here: said in the bubble (lot 10, 20/11).
+                        IconButton(kind.icon, help: kind.title(plural: true), shortcut: kind == .trash ? Words.Shortcut.delete : nil) {
+                            mails.performOnSelection(kind)
+                        }
                     }
                 }
                 // 15/11: the ticked threads in one case, one « Annuler » for all; never from the trash or the spam.
@@ -476,10 +494,12 @@ struct MailListBar: View {
                         MailFilingMenu(selection: mails.selectedThreads, mails: mails)
                     }
                 }
-                Text("\(count) sélectionné\(count > 1 ? "s" : "")").font(.meta).foregroundStyle(.secondary).padding(.leading, Space.s)
+                // Accorded by `Words` (lot 10, 20/11).
+                Text(Words.count(count, "sélectionné")).font(.meta).foregroundStyle(.secondary).padding(.leading, Space.s)
             } else {
-                IconButton("arrow.clockwise", help: "Relever les mails maintenant") { mails.refresh() }
-                IconMenu("ellipsis", help: "Tout marquer comme lu, tout archiver, réglages") {
+                // « Actualiser » reads Google again, everywhere; « Plus d'actions », `IconMenu`'s own (lot 10, 20/11).
+                IconButton("arrow.clockwise", help: "Actualiser les mails") { mails.refresh() }
+                IconMenu("ellipsis") {
                     if mails.folder == .inbox || mails.folder == .notifications, !searching {
                         Button("Tout marquer comme lu dans « \(mails.tab.title) »") { mails.markAllRead() }
                             .disabled(mails.unread(in: mails.tab) == 0)
@@ -594,7 +614,8 @@ struct MailRow: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.hover(.rounded))
-                .help("Sélectionner")
+                // The bubble and VoiceOver say the same thing; Espace ticks the line the arrows are on (lot 10, 20/11).
+                .help(Words.help(ticked ? "Désélectionner" : "Sélectionner", .space))
                 .accessibilityLabel(ticked ? "Désélectionner" : "Sélectionner")
             } senders: {
                 senders
@@ -602,7 +623,8 @@ struct MailRow: View {
                 HStack(spacing: Space.s) {
                     // No case from the trash or the spam (wave B).
                     if mails.folder.aside == nil { MailFilingChip(thread: thread, mails: mails) }
-                    (Text(thread.subject.isEmpty ? "(sans objet)" : thread.subject).font(.rowTitle.weight(thread.unread ? .bold : .regular))
+                    // The screen's « (sans objet) » (lot 10, 20/11).
+                    (Text(thread.subject.isEmpty ? Words.noSubject : thread.subject).font(.rowTitle.weight(thread.unread ? .bold : .regular))
                         + Text(thread.snippet.isEmpty ? "" : " — \(thread.snippet)").font(.rowBody).foregroundStyle(.secondary))
                         .lineLimit(1)
                 }
@@ -659,7 +681,8 @@ struct MailRow: View {
             if mails.folder.aside == nil {
                 Menu("Ranger dans") { MailFilingMenu(thread: thread, mails: mails) }
                 if let sender = thread.lastSender {
-                    Button("Tous les mails de cet expéditeur") { mails.showAll(from: sender) }
+                    // A verb first, as every button: it searches his mails (lot 10, 20/11).
+                    Button("Chercher les mails de cet expéditeur") { mails.showAll(from: sender) }
                 }
                 Button("Signaler comme spam") { mails.reportSpam(thread) }
                 Divider()
@@ -770,10 +793,11 @@ struct MailFileChip: View {
             .overlay(Capsule().strokeBorder(Color.primary.opacity(0.16)))
         }
         .buttonStyle(.hover(.capsule))
-        .help(previews ? "Aperçu de \(file.filename) · \(MailText.size(file.size))"
-            : "\(file.filename) · \(MailText.size(file.size)) : ce type de fichier ne s'ouvre pas dans Polhub, il s'enregistre")
+        // What a click does, a verb first, and the whole name the chip cuts (lot 10, 20/11).
+        .help(previews ? "Ouvrir l'aperçu de \(file.filename) · \(MailText.size(file.size))"
+            : "Enregistrer \(file.filename) · \(MailText.size(file.size)) : il ne s'ouvre pas dans Polhub")
         .contextMenu {
-            if previews { Button("Aperçu", action: open) }
+            if previews { Button("Ouvrir l'aperçu", action: open) }
             Button("Enregistrer…", action: save)
         }
     }
