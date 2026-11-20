@@ -3,6 +3,19 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.59.0 — 20 novembre 2026
+
+**Réglages › Add-ons : ce que hub sait faire, à installer ou à retirer.**
+
+- Une nouvelle page, en tête de Réglages : Projets, Réunions, Calendrier, Mails, Inspiration, Colin et iPhone, chacun
+  avec « Installer » ou « Installé ». Ce qui n'est pas installé n'apparaît nulle part et ne tourne pas : ni dans la
+  barre latérale, ni dans Réglages, ni dans les outils de tes agents, ni sur l'iPhone.
+- Chez toi, tout est installé : rien ne change.
+- Installer ou retirer relance hub, jamais pendant une réunion, et dit ce qui vient avec (Colin a besoin de Mails et de
+  Calendrier). Les données restent : réinstaller remet tout comme avant.
+- Sur un Mac neuf, hub s'ouvre sur cette page, et installer Réunions télécharge son modèle (1,6 Go), vérifié fichier
+  par fichier.
+
 ## 0.58.0 — 20 novembre 2026
 
 **Polhub s'appelle maintenant hub.**
