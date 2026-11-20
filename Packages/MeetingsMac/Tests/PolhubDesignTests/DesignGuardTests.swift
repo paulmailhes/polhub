@@ -21,10 +21,14 @@ import Testing
              ceiling: 0),
         // The typography of the screens moves at their lots (5 to 9). Lot 5 (19/11): the Accueil has none left, 57 → 42.
         // Lot 6 (19/11): the mails' bands, the programmed line and two chevrons, 42 → 37; lot 7: Réglages has none left, → 36.
-        // Lot 8: the name of a card of the Kanban and the seal of a decision take the type's sizes, → 34.
-        Rule(name: "une taille de texte écrite à la main", pattern: #"\.system\(size:\s*[0-9]"#, ceiling: 34),
+        // Lot 8: the name of a card of the Kanban and the seal of a decision take the type's sizes (→ 34); lot 9 (20/11):
+        // « Coup d'œil » keeps only its round buttons' glyphs, the bell, the card and the HUD none (→ 15 with both).
+        Rule(name: "une taille de texte écrite à la main", pattern: #"\.system\(size:\s*[0-9]"#, ceiling: 15),
         // Lot 5 (19/11): the lines of the Accueil take the secondary role, small; one outline in the whole app.
         Rule(name: "le bouton bordé d'avant (.subtle)", pattern: #"\.buttonStyle\(\.subtle\)"#, ceiling: 0),
+        // Lot 9 (20/11): no more capitals in a heading, the panel's included (« DANS 8 MIN » → « Dans 8 min »); left, the
+        // calendar's days.
+        Rule(name: "un texte mis en capitales", pattern: #"Text\(.*\.uppercased\(\)\)|\.textCase\(\.uppercase\)"#, ceiling: 1),
     ]
 
     static let folders = ["Packages/MeetingsMac/Sources/MeetingsUI", "Packages/MeetingsMac/Sources/ProjectsUI", "App/Polhub"]

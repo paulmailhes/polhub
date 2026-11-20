@@ -3,6 +3,27 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.46.0 — 20 novembre 2026
+
+**Coup d'œil, la cloche et la carte avant une visio : rien n'est dit deux fois, les mêmes cartes que dans l'app.**
+
+- **Rien n'est dit deux fois** dans Coup d'œil : la carte des nouveaux mails n'a plus d'en-tête, et la tuile Mails ne
+  redit plus les expéditeurs qu'elle liste. La tuile Calendrier donne le titre du prochain rendez-vous en entier, puis
+  son heure ; sous « Libre jusqu'à 16:30 », elle ne redit pas 16:30. Un compte à reconnecter n'est dit que dans « À
+  régler ». La carte de la journée se lit : « Ouvrir Polhub » est le seul chemin vers l'Accueil.
+- **Plus de capitales** : « Dans 8 min », « Enregistrement », « Vendredi 20 novembre », en casse normale et en petit
+  gris. Une seule chose y prend la couleur : le point de l'enregistrement, l'icône d'un problème, ou « Dans 8 min ».
+- **Les cartes de l'app** : Coup d'œil et la cloche prennent le fond et le trait des cartes de la fenêtre, sans ombre.
+  « À régler » se dessine comme les bandeaux de l'app, seule son icône en couleur. Une notification porte l'icône de sa
+  section dans sa couleur, sans carré.
+- **Plus d'air, à l'échelle de l'app** : 16 points autour du panneau et à l'intérieur de la vedette, 8 entre les
+  cartes ; les boutons de la vedette ensemble à droite, plus collés au texte, et plus jamais coupés sur deux lignes
+  (« Arrêter maintenant », « Ouvrir la réunion »).
+- **La carte avant une visio** se lit comme Coup d'œil : son titre en 15 points, sa ligne en 13 (13 et 11 avant) ;
+  « Rejoindre » répond au survol.
+- **Le HUD** parle de même, et sa hauteur suit ses mots : le titre d'une réunion détectée et une alerte longue (« Polhub
+  ne lit plus les onglets de Dia ») ne sont plus coupés.
+
 ## 0.45.0 — 20 novembre 2026
 
 **Projets, Réunions, Calendrier, Contacts, Inspiration : un Kanban lisible, des erreurs en français, des en-têtes

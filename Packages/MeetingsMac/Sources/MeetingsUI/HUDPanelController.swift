@@ -31,7 +31,9 @@ public final class HUDPanelController {
         ]
     }()
 
-    public nonisolated static let panelSize = CGSize(width: 440, height: 76)
+    /// 480 wide (lot 9, 20/11: 440 before, where the panel's 15 and 13 points put « Enregistrement dans 7 s » on two lines
+    /// beside its two buttons), 76 tall at least.
+    public nonisolated static let panelSize = CGSize(width: 480, height: 76)
 
     private let style: Style
     private var panel: NSPanel?
@@ -129,10 +131,15 @@ public final class HUDPanelController {
         }
     }
 
-    /// The start pop-up's title, once the tab's real title is known.
+    /// The start pop-up's title, once the tab's real title is known. A longer one may take a second line: the panel
+    /// follows, once SwiftUI has laid it out (lot 9, 20/11).
     public func updatePromptTitle(_ title: String) {
-        guard panel != nil else { return }
+        guard let panel else { return }
         model.title = HUDText.promptTitle(title)
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.panel === panel else { return }
+            self.place(panel, on: panel.screen)
+        }
     }
 
     public func close() {
@@ -161,20 +168,33 @@ public final class HUDPanelController {
         let panel = Self.makePanel(style: style)
         panel.contentView = FirstMouseHostingView(rootView: HUDView(model: model))
         let pointer = NSEvent.mouseLocation
-        let screen = NSScreen.screens.first { $0.frame.contains(pointer) } ?? NSScreen.main ?? NSScreen.screens.first
-        if let screen {
-            panel.setFrame(
-                HUDPlacement.frame(
-                    screenFrame: screen.frame,
-                    safeAreaTop: screen.safeAreaInsets.top,
-                    menuBarHeight: screen.frame.maxY - screen.visibleFrame.maxY,
-                    size: Self.panelSize
-                ),
-                display: true
-            )
-        }
+        place(panel, on: NSScreen.screens.first { $0.frame.contains(pointer) } ?? NSScreen.main ?? NSScreen.screens.first)
         panel.orderFrontRegardless()
         self.panel = panel
+    }
+
+    /// Under the menu bar of `screen`, as tall as its words need.
+    private func place(_ panel: NSPanel, on screen: NSScreen?) {
+        guard let screen, let content = panel.contentView else { return }
+        panel.setFrame(
+            HUDPlacement.frame(
+                screenFrame: screen.frame,
+                safeAreaTop: screen.safeAreaInsets.top,
+                menuBarHeight: screen.frame.maxY - screen.visibleFrame.maxY,
+                size: Self.size(fitting: content)
+            ),
+            display: true
+        )
+    }
+
+    /// The tallest the HUD grows to.
+    nonisolated static let maxHeight: CGFloat = 120
+
+    /// The HUD's size (lot 9, 20/11): 480 wide, as tall as its words need, from 76 to 120. In the panel's 15 and 13 points,
+    /// a long alert (« Polhub ne lit plus les onglets de Dia ») takes two lines and its explanation two more: cut to one
+    /// line, its title lost « onglets de Dia ».
+    static func size(fitting content: NSView) -> CGSize {
+        CGSize(width: panelSize.width, height: min(maxHeight, max(panelSize.height, content.fittingSize.height.rounded(.up))))
     }
 
     private func tickEverySecond(_ body: @escaping @MainActor () -> Void) {
@@ -183,6 +203,14 @@ public final class HUDPanelController {
             MainActor.assumeIsolated { body() }
         }
     }
+}
+
+/// What floats over every app, the HUD and the card before a visio (lot 9, 20/11): it reads as « Coup d'œil », a title
+/// of 15 points and its line of 13 (13 and 11 before, under the app's floor of 12), 16 points from its edge.
+enum FloatingMetrics {
+    static let title = Font.rowTitle.weight(.semibold)
+    static let meta = Font.meta
+    static let margin = Space.l
 }
 
 /// A borderless panel cannot become key by default; this one can, but only when a control needs it.
@@ -196,8 +224,9 @@ final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
+/// Internal for the captures (lot 9, 20/11: the HUD had none).
 @MainActor
-private final class HUDModel: ObservableObject {
+final class HUDModel: ObservableObject {
     enum Kind { case prompt, toast, alert }
 
     @Published var kind: Kind = .toast
@@ -212,44 +241,57 @@ private final class HUDModel: ObservableObject {
     var onClose: () -> Void = {}
 }
 
-private struct HUDView: View {
+/// The HUD: what happens, in the panel's words (lot 9, 20/11: its title in 15 points and two lines at most, its line in
+/// 13), and its buttons.
+struct HUDView: View {
     @ObservedObject var model: HUDModel
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: Space.m) {
             icon
             VStack(alignment: .leading, spacing: 2) {
                 Text(model.title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .lineLimit(1)
+                    .font(FloatingMetrics.title)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(model.kind == .prompt ? HUDText.countdown(model.remaining) : model.subtitle)
-                    .font(.system(size: 11))
+                    .font(FloatingMetrics.meta)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer(minLength: 8)
+            // The words take all the room the buttons leave (lot 9, 20/11: the stack gave them an even share with the
+            // space beside them, and cut « Google Meet · Rev… » with room to spare).
+            .layoutPriority(1)
+            Spacer(minLength: Space.s)
             // The principal and secondary roles (design system v2, 19/11): drawn by hand, they keep their ink in a panel
             // that never becomes key, where the system's prominent button turned grey (the meeting card's, the same
-            // panel, 16/11).
-            switch model.kind {
-            case .prompt:
-                Button("Pas cette fois") { model.onDecline() }
-                    .buttonStyle(.secondary)
-                Button("Enregistrer") { model.onAccept() }
-                    .buttonStyle(.primary)
-            case .alert:
-                Button("Fermer") { model.onClose() }
-                    .buttonStyle(.secondary)
-                if model.actionTitle != "OK" {
-                    Button(model.actionTitle) { model.onAction() }
+            // panel, 16/11). Never squeezed.
+            HStack(spacing: Space.s) {
+                switch model.kind {
+                case .prompt:
+                    Button("Pas cette fois") { model.onDecline() }
+                        .buttonStyle(.secondary)
+                    Button("Enregistrer") { model.onAccept() }
                         .buttonStyle(.primary)
+                case .alert:
+                    Button("Fermer") { model.onClose() }
+                        .buttonStyle(.secondary)
+                    if model.actionTitle != "OK" {
+                        Button(model.actionTitle) { model.onAction() }
+                            .buttonStyle(.primary)
+                    }
+                case .toast:
+                    EmptyView()
                 }
-            case .toast:
-                EmptyView()
             }
+            .fixedSize()
         }
-        .padding(.horizontal, 14)
-        .frame(width: HUDPanelController.panelSize.width, height: HUDPanelController.panelSize.height)
+        .padding(.horizontal, FloatingMetrics.margin)
+        .padding(.vertical, Space.m)
+        // 480 wide, and as tall as its words, 76 at least (`HUDPanelController.size(fitting:)`).
+        .frame(width: HUDPanelController.panelSize.width)
+        .frame(minHeight: HUDPanelController.panelSize.height)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         // The HUD's root: Polhub's accent, ink, whatever the Mac's (design system v2, 19/11).
         .tint(Tint.control.color)
@@ -260,11 +302,11 @@ private struct HUDView: View {
         case .prompt:
             // Grey while nothing records, as the logo's outlined circle: the red starts with the recording (design system
             // v2, 19/11).
-            Image(systemName: "record.circle").font(.system(size: 22)).foregroundStyle(.secondary)
+            Image(systemName: "record.circle").font(.title).foregroundStyle(.secondary)
         case .toast:
-            Image(systemName: "waveform").font(.system(size: 20)).foregroundStyle(.secondary)
+            Image(systemName: "waveform").font(.title).foregroundStyle(.secondary)
         case .alert:
-            Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 20)).foregroundStyle(Tint.attention)
+            Image(systemName: "exclamationmark.triangle.fill").font(.title).foregroundStyle(Tint.attention)
         }
     }
 }

@@ -51,19 +51,10 @@ extension NoticeSection {
     }
 
     var title: String { item?.title ?? "Polhub" }
-    var icon: String { item?.icon ?? "bell.fill" }
+    /// Its icon, the sidebar's (Phosphor), as on « Coup d'œil »'s tiles (lot 9, 20/11: an SF Symbol on a gradient square
+    /// before, an app's icon of iOS).
+    var appIcon: AppIcon { item?.appIcon ?? .bell }
     var tint: Color { Color(hex: item?.tint ?? Palette.gray) }
-}
-
-/// The cards of the panel: the brightest ground of the app, calm under the popover's glass.
-enum NoticeSurface {
-    static let card = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.isDark ? NSColor(srgbRed: 0.19, green: 0.19, blue: 0.205, alpha: 1) : .white
-    })
-    /// A card under the pointer: a touch deeper, nothing moves.
-    static let cardHover = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.isDark ? NSColor(srgbRed: 0.225, green: 0.225, blue: 0.24, alpha: 1) : NSColor(white: 0.975, alpha: 1)
-    })
 }
 
 // MARK: - The bell
@@ -214,29 +205,23 @@ public struct NotificationPanel: View {
         .tint(Tint.control.color)
     }
 
+    /// The panel's title, as a card's (17 semibold, 17 bold before), and « Tout effacer » in a grey word (lot 9, 20/11:
+    /// a capsule always drawn before), 16 from the edges.
     private var header: some View {
-        HStack(alignment: .center, spacing: Space.s) {
-            Text("Notifications").font(.title2.weight(.bold))
+        HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+            Text("Notifications").font(.title2.weight(.semibold))
             Spacer(minLength: 0)
             if !inbox.notices.isEmpty {
-                Button {
+                TextButton("Tout effacer", quiet: true) {
                     withAnimation(Motion.standard) {
                         inbox.removeAll()
                         expanded = []
                     }
-                } label: {
-                    Text("Tout effacer")
-                        .font(.meta.weight(.medium))
-                        .padding(.horizontal, Space.m - 2)
-                        .padding(.vertical, Space.xs + 1)
-                        .background(Surface.fill, in: Capsule())
                 }
-                .buttonStyle(.hover(.capsule))
-                .foregroundStyle(.secondary)
                 .help("Effacer toutes les notifications")
             }
         }
-        .padding(.horizontal, Space.l + 2)
+        .padding(.horizontal, Space.l)
         .padding(.top, Space.l)
         .padding(.bottom, Space.s)
     }
@@ -244,7 +229,7 @@ public struct NotificationPanel: View {
     private var empty: some View {
         VStack(spacing: Space.s) {
             Image(systemName: "bell")
-                .font(.system(size: 30, weight: .light))
+                .font(.largeTitle.weight(.light))
                 .foregroundStyle(.tertiary)
                 .padding(.bottom, Space.xs)
             Text("Aucune notification").font(.rowTitle.weight(.semibold)).foregroundStyle(.secondary)
@@ -265,12 +250,13 @@ public struct NotificationPanel: View {
         return ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(days) { day in
+                    // A group's label, as « En retard » on the Accueil: 12 points, semibold, grey (lot 9, 20/11), on the
+                    // title's edge.
                     Text(day.title)
-                        .font(.meta.weight(.semibold))
+                        .font(.tag.weight(.semibold))
                         .foregroundStyle(.secondary)
-                        .padding(.horizontal, Space.xs + 2)
                         .padding(.top, day.id == days.first?.id ? Space.xs : Space.m)
-                        .padding(.bottom, Space.s - 2)
+                        .padding(.bottom, Space.s)
                     ForEach(day.groups) { group in
                         groupView(group, now: now)
                             .padding(.bottom, Space.s)
@@ -278,8 +264,9 @@ public struct NotificationPanel: View {
                     }
                 }
             }
-            .padding(.horizontal, Space.m)
-            .padding(.bottom, Space.m)
+            // 16 from the panel's edges, as its title (lot 9, 20/11: 12 and 18 before).
+            .padding(.horizontal, Space.l)
+            .padding(.bottom, Space.s)
             .padding(.top, Space.xs)
         }
         .scrollBounceBehavior(.basedOnSize)
@@ -295,25 +282,18 @@ public struct NotificationPanel: View {
         if group.notices.count == 1 {
             card(group.notices[0], now: now)
         } else if !expanded.isDisjoint(with: ids) {
-            VStack(alignment: .leading, spacing: Space.s - 2) {
-                HStack(spacing: Space.s) {
-                    Label(group.section.title, systemImage: group.section.icon)
-                        .font(.meta.weight(.semibold))
+            VStack(alignment: .leading, spacing: Space.s) {
+                // The stack opened: its section's label, as the days', and « Afficher moins » in a grey word (lot 9,
+                // 20/11: a capsule always drawn before).
+                HStack(alignment: .firstTextBaseline, spacing: Space.s) {
+                    Text(group.section.title)
+                        .font(.tag.weight(.semibold))
                         .foregroundStyle(.secondary)
                     Spacer(minLength: 0)
-                    Button {
+                    TextButton("Afficher moins", quiet: true) {
                         withAnimation(Motion.standard) { expanded.subtract(ids) }
-                    } label: {
-                        Text("Afficher moins")
-                            .font(.meta.weight(.medium))
-                            .padding(.horizontal, Space.m - 2)
-                            .padding(.vertical, Space.xs + 1)
-                            .background(Surface.fill, in: Capsule())
                     }
-                    .buttonStyle(.hover(.capsule))
-                    .foregroundStyle(.secondary)
                 }
-                .padding(.leading, Space.xs + 2)
                 ForEach(group.notices) { notice in
                     card(notice, now: now)
                         .transition(.asymmetric(insertion: .opacity, removal: .move(edge: .trailing).combined(with: .opacity)))
@@ -346,7 +326,7 @@ public struct NotificationPanel: View {
 
 // MARK: - A card
 
-/// One notification: the section's symbol on its color, the title, two lines, the time; a dot while it is new.
+/// One notification: the section's icon in its color, the title, two lines, the time; a dot while it is new.
 /// A click opens it; the pointer shows its ×; a swipe sideways lets it go. A stack shows the others under it.
 struct NoticeCard: View {
     let notice: InboxNotice
@@ -380,16 +360,17 @@ struct NoticeCard: View {
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
-        HStack(alignment: .top, spacing: Space.xs + 1) {
-            // What is new, in Polhub's ink, as the bell's count (design system v2, 19/11).
+        HStack(alignment: .top, spacing: Space.xs) {
+            // What is new, in Polhub's ink, as the bell's count (design system v2, 19/11), 8 from the card's edge (lot 9,
+            // 20/11: 4 before).
             Circle()
                 .fill(Tint.accent)
                 .frame(width: 8, height: 8)
                 .opacity(new ? 1 : 0)
-                .frame(width: 10, height: SectionTile.size)
+                .frame(height: NoticeIcon.size)
                 .accessibilityHidden(true)
-            HStack(alignment: .top, spacing: Space.m - 2) {
-                SectionTile(section: notice.kind.section)
+            HStack(alignment: .top, spacing: Space.m) {
+                NoticeIcon(section: notice.kind.section)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(alignment: .firstTextBaseline, spacing: Space.s) {
                         Text(notice.title)
@@ -411,24 +392,22 @@ struct NoticeCard: View {
                         Text(more)
                             .font(.meta)
                             .foregroundStyle(.secondary)
-                            .padding(.top, 1)
                     }
                 }
             }
         }
-        .padding(.leading, Space.xs)
-        .padding(.trailing, Space.m + 2)
+        .padding(.leading, Space.s)
+        .padding(.trailing, Space.m)
         .padding(.vertical, Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
+        // The panel's card, as « Coup d'œil »'s and the app's: its fill and its one stroke, no shadow (lot 9, 20/11: a
+        // white card with a shadow before); a step deeper under the pointer.
+        .background(hovering ? Surface.raised : PanelSurface.card, in: shape)
+        .overlay(shape.strokeBorder(PanelSurface.edge))
         .background {
-            shape.fill(hovering ? NoticeSurface.cardHover : NoticeSurface.card)
-                .shadow(color: .black.opacity(0.07), radius: 2, y: 1)
+            if hidden > 0 { stack }
         }
-        .overlay(shape.strokeBorder(Surface.stroke))
-        .background(alignment: .bottom) {
-            if hidden > 0 { stack(shape) }
-        }
-        .padding(.bottom, hidden > 1 ? 12 : hidden == 1 ? 6 : 0)
+        .padding(.bottom, StackedCard.drop * CGFloat(min(hidden, 2)))
         .overlay(alignment: .topLeading) {
             if hovering {
                 DismissButton(help: hidden > 0 ? "Effacer ces notifications" : "Effacer", action: dismiss)
@@ -450,20 +429,16 @@ struct NoticeCard: View {
         .accessibilityAction(named: "Effacer", dismiss)
     }
 
-    /// The cards under a closed stack: narrower, a little lower.
-    private func stack(_ shape: RoundedRectangle) -> some View {
-        ZStack(alignment: .bottom) {
-            if hidden > 1 {
-                shape.fill(NoticeSurface.card.opacity(0.55))
-                    .overlay(shape.strokeBorder(Surface.stroke))
-                    .padding(.horizontal, Space.l + 2)
-                    .offset(y: 12)
+    /// The cards under a closed stack: narrower, a little lower, without a shadow; the farther one fainter.
+    private var stack: some View {
+        ZStack {
+            ForEach(1...min(hidden, 2), id: \.self) { depth in
+                StackedCard(depth: depth)
+                    .fill(PanelSurface.card.opacity(depth == 1 ? 1 : 0.6))
+                    .overlay {
+                        StackedCard.Outline(depth: depth).stroke(PanelSurface.edge, lineWidth: 1).clipShape(StackedCard(depth: depth))
+                    }
             }
-            shape.fill(NoticeSurface.card.opacity(0.85))
-                .overlay(shape.strokeBorder(Surface.stroke))
-                .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
-                .padding(.horizontal, Space.s + 1)
-                .offset(y: 6)
         }
     }
 
@@ -489,22 +464,52 @@ struct NoticeCard: View {
     }
 }
 
-/// The section's symbol, white on its color, as an app's icon in macOS's Notification Center.
-struct SectionTile: View {
+/// A card under a closed stack (lot 9, 20/11), narrower and lower, by `depth`. The cards are see-through, as the app's:
+/// only what shows under the cards above it is drawn, so neither its fill nor its edge shows through them.
+struct StackedCard: Shape {
+    /// 1 under the card, 2 under that one.
+    let depth: Int
+
+    /// Each card of the stack is narrower by `inset` on each side and lower by `drop` than the one above it.
+    static let inset: CGFloat = Space.s
+    static let drop: CGFloat = 6
+
+    func path(in rect: CGRect) -> Path {
+        (0..<depth).reduce(Self.card(depth, in: rect)) { path, above in path.subtracting(Self.card(above, in: rect)) }
+    }
+
+    static func card(_ depth: Int, in rect: CGRect, inset edge: CGFloat = 0) -> Path {
+        let level = CGFloat(depth)
+        return Path(roundedRect: rect.insetBy(dx: inset * level + edge, dy: edge).offsetBy(dx: 0, dy: drop * level),
+                    cornerRadius: NoticeCard.radius - edge, style: .continuous)
+    }
+
+    /// Its whole edge, half a point inside, as a card's stroke: clipped to what shows of it, it draws no line across the
+    /// card above.
+    struct Outline: Shape {
+        let depth: Int
+
+        func path(in rect: CGRect) -> Path {
+            StackedCard.card(depth, in: rect, inset: 0.5)
+        }
+    }
+}
+
+/// A notification's section (lot 9, 20/11): its Phosphor icon in its color, without a square, as « Coup d'œil »'s tiles.
+struct NoticeIcon: View {
     let section: NoticeSection
-    static let size: CGFloat = 32
+    static let size: CGFloat = 20
 
     var body: some View {
-        Image(systemName: section.icon)
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(.white)
+        AppIconImage(section.appIcon, size: 17)
+            .foregroundStyle(section.tint)
             .frame(width: Self.size, height: Self.size)
-            .background(section.tint.gradient, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
             .accessibilityLabel(section.title)
     }
 }
 
-/// The × of a card, shown under the pointer: a small round button on its corner.
+/// The × of a card, shown under the pointer: a small round button on its corner, opaque over the card's edge, without a
+/// shadow (lot 9, 20/11).
 struct DismissButton: View {
     let help: String
     let action: () -> Void
@@ -513,12 +518,11 @@ struct DismissButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "xmark")
-                .font(.system(size: 9, weight: .bold))
+                .font(.caption2.weight(.bold))
                 .foregroundStyle(hovering ? Color.primary : Color.secondary)
                 .frame(width: 22, height: 22)
-                .background(hovering ? NoticeSurface.cardHover : NoticeSurface.card, in: Circle())
-                .overlay(Circle().strokeBorder(Color.primary.opacity(0.12)))
-                .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
+                .background(Color(nsColor: .windowBackgroundColor), in: Circle())
+                .overlay(Circle().strokeBorder(PanelSurface.edge))
         }
         .buttonStyle(.hover(.circle))
         .onHover { hovering = $0 }

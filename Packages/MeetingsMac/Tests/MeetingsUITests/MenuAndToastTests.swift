@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import Pipeline
+import SwiftUI
 import Testing
 @testable import MeetingsUI
 
@@ -111,6 +112,26 @@ import Testing
         #expect(HUDText.toast(.ended(title: "Point hebdo", seconds: 2520)) == ("Réunion enregistrée", "Point hebdo · 42 min"))
         #expect(HUDText.alert(.diskLow(freeGB: 15)).message == "Il reste 15 Go. Une heure de réunion en prend environ 1,4.")
         #expect(HUDText.alert(.selfTestFailed).title == "Le son des autres n'est pas capté")
+    }
+
+    /// The HUD as tall as its words (lot 9, 20/11): in the panel's 15 and 13 points, a prompt keeps its 76 points, and a
+    /// long alert takes two lines for its title and two for its explanation instead of « Polhub ne lit plus les… ».
+    @Test func theHUDIsAsTallAsItsWords() {
+        _ = NSApplication.shared
+        func size(_ kind: HUDModel.Kind, _ title: String, _ subtitle: String, action: String = "") -> CGSize {
+            let model = HUDModel()
+            model.kind = kind
+            model.title = title
+            model.subtitle = subtitle
+            model.actionTitle = action
+            model.remaining = 7
+            return HUDPanelController.size(fitting: NSHostingView(rootView: HUDView(model: model)))
+        }
+        #expect(size(.prompt, HUDText.promptTitle("Point"), "") == HUDPanelController.panelSize)
+        #expect(size(.toast, "Réunion enregistrée", "Point hebdo · 42 min") == HUDPanelController.panelSize)
+        let alert = HUDText.alert(.tabsUnreadable)
+        let tall = size(.alert, alert.title, alert.message, action: alert.action)
+        #expect(tall.width == HUDPanelController.panelSize.width && tall.height > 76 && tall.height <= HUDPanelController.maxHeight, "\(tall)")
     }
 
     // Review Focus 5

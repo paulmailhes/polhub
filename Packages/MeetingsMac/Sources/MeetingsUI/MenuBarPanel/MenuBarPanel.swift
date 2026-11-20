@@ -25,9 +25,9 @@ public struct MenuBarPanel: View {
     @Environment(\.panelNow) private var fixedNow
 
     public static let width: CGFloat = 360
-    /// Margins and gaps of the panel (Control Center's).
-    static let margin: CGFloat = 14
-    static let gap: CGFloat = 10
+    /// Margins and gaps of the panel, on the app's scale (lot 9, 20/11: 14 and 10 before).
+    static let margin: CGFloat = Space.l
+    static let gap: CGFloat = Space.s
     /// The panel's tallest: past it, only the mails' card gives way, by whole rows.
     static let maxHeight: CGFloat = 640
 
@@ -117,7 +117,7 @@ struct PanelBody: View {
         let issues = ready ? PanelModel.issues(alerts: app.alerts, accounts: agenda?.accounts ?? [],
                                                mailFailure: mailState?.failure, updates: updateState) : []
         let lines = mailLines(mailState)
-        // The mails' rows under the cap, whole; nil when not even the card's header fits (then it goes, the tile says it).
+        // The mails' rows under the cap, whole; nil when not one fits (then the card goes, the tile names the senders).
         let fixed = topHeight + bottomHeight + 2 * MenuBarPanel.margin + MenuBarPanel.gap
         let mailRows = PanelModel.mailRowsShown(cap: MenuBarPanel.heightCap, fixed: fixed, chrome: mailChrome, gap: MenuBarPanel.gap,
                                                 rowHeight: mailRowHeight, count: min(lines.count, PanelModel.mailLimit))
@@ -129,9 +129,11 @@ struct PanelBody: View {
                 }
                 PanelHero(hero: hero, now: now, context: context, agenda: agenda, library: library)
                 if ready {
+                    // Nothing said twice (lot 9, 20/11): the tiles leave out what the hero, the mails' card and « À
+                    // régler » say.
                     PanelTiles(context: context,
-                               calendar: PanelModel.calendarTile(agenda?.shown, hiding: hero.eventID, now: now),
-                               mails: PanelModel.mailsTile(mailState),
+                               calendar: PanelModel.calendarTile(agenda?.shown, hero: hero, now: now),
+                               mails: PanelModel.mailsTile(mailState, listed: showMails, issues: issues),
                                hasAgenda: agenda != nil, hasMailboxes: mailState?.hasMailboxes ?? false)
                 }
             }
@@ -251,15 +253,12 @@ enum PanelTint {
     static func edge(_ tint: Color, dark: Bool) -> Color { tint.opacity(dark ? 0.26 : 0.18) }
 }
 
-/// The panel's calm cards (the tiles, the day, the mails): the panel sits on the system's material, not on the
-/// window, so its cards are a light platter over it, as Control Center's modules, in light and dark alike.
+/// The calm cards of the panel (the hero, the tiles, « À régler », the mails) and of the bell's notifications: the
+/// app's own cards, its fill and its one stroke, without a shadow (lot 9, 20/11: a white platter here, white cards with
+/// a shadow in the bell, a grey card in the window before).
 enum PanelSurface {
-    static let card = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.isDark ? NSColor(white: 1, alpha: 0.07) : NSColor(white: 1, alpha: 0.5)
-    })
-    static let edge = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.isDark ? NSColor(white: 1, alpha: 0.08) : NSColor(white: 0, alpha: 0.06)
-    })
+    static let card = Surface.fill
+    static let edge = Surface.stroke
 }
 
 /// A card of the panel that is a button (the tiles, the day): it rises under the pointer (`cardHover`) and sinks a

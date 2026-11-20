@@ -93,6 +93,7 @@ Le lot 4 (19/11) a posé ces règles ; le code navigue par les méthodes du rout
 | Ligne d'une liste : deuxième ligne (objet, extrait) | `.rowBody` (14 pt) |
 | Détail, méta (dates, adresses, nombres) | `.meta` (13 pt) ou `.callout`, `.secondary` |
 | Étiquette (`Chip`), plus petit texte de l'app | `.tag` (12 pt) |
+| Sur-titre, titre d'un groupe (« En retard », « Dans 8 min », « Aujourd'hui ») | `.tag`, semi-gras, gris, en casse normale : jamais de capitales |
 | Corps d'un mail | 15 px (`TextSize.reading`) |
 | Heures, durées | `.monospacedDigit()` |
 
@@ -241,7 +242,7 @@ ne va jamais seule : toujours un mot ou un symbole avec elle.
 | `IconMenu("ellipsis", help: "Plus") { }` | Un menu derrière une icône ronde, dessiné comme `IconButton` |
 | `SettingRow("Titre", help:, detail:, problem:) { contrôle }` | Un réglage dans sa carte : le titre, l'aide d'une ligne dessous, « ⓘ » pour le détail, le contrôle à droite ; `.settingsForm()` pour la page |
 | `SettingHelp("Phrase", detail:)`, `InfoBubble("Détail")` | L'aide d'une ligne seule (sous une liste, un éditeur), et « ⓘ » avec sa bulle |
-| `NotificationBell(inbox:perform:)` (module `MeetingsUI`) | La cloche des notifications, dans la barre d'outils près du bouton de la barre latérale, et au pied de Coup d'œil : le nombre de nouvelles en pastille à l'encre ; un clic ouvre le panneau (popover en verre) : cartes calmes à la couleur de leur section, par jour, les rafales en pile, un point bleu tant qu'elles sont nouvelles, × au survol ou glissé pour en effacer une, « Tout effacer » |
+| `NotificationBell(inbox:perform:)` (module `MeetingsUI`) | La cloche des notifications, dans la barre d'outils près du bouton de la barre latérale, et au pied de Coup d'œil : le nombre de nouvelles en pastille à l'encre ; un clic ouvre le panneau (popover en verre, « Notifications » en 17 semi-gras, 16 de marge) : les cartes de Coup d'œil (le fond et le trait de l'app, sans ombre, rayon 16), l'icône de leur section dans sa couleur (Phosphor, sans carré), par jour (étiquette de 12 points), les rafales en pile (les cartes du dessous ne se voient que sous celle du dessus), un point à l'encre tant qu'elles sont nouvelles, × au survol ou glissé pour en effacer une, « Tout effacer » en mot gris |
 | `ProjectLogo(projet, size:)` (module `ProjectsUI`) | Le logo d'un projet : l'icône du site du client sur une plaque blanche, sinon ses initiales sur sa couleur (le monogramme, aussi dans les tests et les captures) |
 
 Les personnes (module `MeetingsUI`, `PeopleViews.swift`), partout où Paul croise quelqu'un, jamais en passant par
@@ -462,44 +463,63 @@ Le panneau qui s'ouvre d'un clic sur le logo (`MenuBarPanel`, dossier `MeetingsU
 Centre de contrôle. La logique vit à part, testée sans écran (`PanelModel`).
 
 - **De haut en bas** : « À régler » (seulement s'il y a une cause), la vedette, deux tuiles fixes (Calendrier, Mails),
-  « Nouveaux mails », trois boutons ronds (Enregistrer, Nouveau mail, Suspendre), le pied (Ouvrir Polhub, la cloche,
+  les nouveaux mails, trois boutons ronds (Enregistrer, Nouveau mail, Suspendre), le pied (Ouvrir Polhub, la cloche,
   Réglages, « ⋯ »). Les tuiles et les boutons ne bougent jamais ; le bandeau, le contenu de la vedette et les mails
   partent quand ils n'ont rien à dire.
 - **Rien n'est dit deux fois** (« Tuiles allégées », Paul, 16/11) : une tuile Réunions redisait la vedette, une tuile
   Projets donnait un nombre sur lequel on n'agit pas, « Arrêter » était à la fois dans la vedette et en bouton rond.
-  Avant d'ajouter une chose au panneau, vérifier qu'aucune autre ne la dit déjà.
-- **Mesures** : 360 points de large, marges de 14, écarts de 10 ; tuiles de 161 × 80 (rayon 16), vedette de rayon 16 et
-  de 90 à 130 points de haut, jamais écrasée sous son contenu (une exception : « Réunion détectée » avec un lien Meet, les cinq lignes de la maquette,
-  environ 146 points pendant ses 10 secondes) ; hauteur selon le contenu, au plus 640 points (ou l'écran moins 40).
+  Le lot 9 (20/11) a retiré les derniers doublons : « Mails » et le nombre n'ont qu'une place (la tuile ; la carte des
+  mails n'a plus d'en-tête et la tuile ne nomme plus les expéditeurs qu'elle liste), l'heure n'en a qu'une (sous « Libre
+  jusqu'à 16:30 », la tuile Calendrier ne redit pas 16:30), une boîte à reconnecter n'est dite que dans « À régler », et
+  l'Accueil ne s'ouvre que par « Ouvrir Polhub » (la carte de la journée se lit, elle ne se clique plus). Avant
+  d'ajouter une chose au panneau, vérifier qu'aucune autre ne la dit déjà.
+- **Mesures** (lot 9, 20/11 : sur l'échelle de l'app) : 360 points de large, marges de 16, écarts de 8 ; tuiles de
+  160 × 80 (rayon 16, 12 à l'intérieur) ; vedette de rayon 16, 16 à l'intérieur de chaque côté, ses boutons 8 sous le
+  texte, de 90 à 145 points de haut, jamais écrasée sous son contenu (une exception : « Réunion détectée » avec un lien
+  Meet, les cinq lignes de la maquette, environ 160 points pendant ses 10 secondes) ; carte des mails et « À régler » à
+  12 sur les côtés ; hauteur selon le contenu, au plus 640 points (ou l'écran moins 40).
   Le panneau prend toujours sa hauteur entière (`fixedSize`) : souple, il laissait la fenêtre de la barre des menus
   garder une hauteur plus ancienne, et les boutons de la vedette débordaient sur les tuiles (16/11).
   Au-delà, seule la carte des mails cède, par lignes entières (jamais un mail coupé à travers son objet) : les mails
-  qui tiennent, puis son seul en-tête avec « Voir les N nouveaux » ; si même cela ne tient plus, elle part et la tuile
-  Mails garde le nombre.
+  qui tiennent ; si aucun ne tient, elle part et la tuile Mails nomme les expéditeurs.
+- **Les cartes** sont celles de l'app : `Surface.fill` et son trait (`Surface.stroke`), sans ombre (`PanelSurface`),
+  la vedette, les tuiles, « À régler », les mails et les notifications de la cloche.
 - **La vedette** montre la première situation vraie, dans cet ordre : réunion détectée (le même décompte que le HUD),
-  enregistrement (rouge d'enregistrement, l'horloge), fin présumée (attention), rendez-vous dans 15 min (neutre, « dans
+  enregistrement (rouge d'enregistrement, l'horloge), fin présumée (attention), rendez-vous dans 15 min (neutre, « Dans
   8 min » à la couleur d'attention) ou Meet commencé sans enregistrement (attention), détection suspendue (neutre),
-  compte rendu en préparation ou prêt depuis moins de 2 h (neutre), sinon la journée (« Libre jusqu'à 16:30 », « Plus rien aujourd'hui »). Une carte calme teintée à 10 %
-  (16 % en sombre), titre en 17 points, horloge en 22 points à chiffres fixes ; une action principale en
-  `.primary` (↩), au plus une secondaire en `.secondary`, de taille normale ; « Arrêter » en `.primary(.recording)`. Elle change en fondu (`Motion.gentle`).
+  compte rendu en préparation ou prêt depuis moins de 2 h (neutre), sinon la journée (« Libre jusqu'à 16:30 », « Plus
+  rien aujourd'hui »), une carte à lire. Une carte calme teintée à 10 % (16 % en sombre), titre en 17 points, horloge
+  en 22 points à chiffres fixes ; une action principale en `.primary` (↩), au plus une secondaire en `.secondary`, de
+  taille normale, ensemble à droite, la principale en dernier, chacune à sa largeur (jamais un libellé sur deux lignes ;
+  à court de place, le bouton d'un compte rendu en préparation passe sous son état) ; « Arrêter » en
+  `.primary(.recording)`. Elle change en fondu (`Motion.gentle`).
   « Réunion détectée » suit la maquette : le décompte, le titre, « S'enregistre seule dans 7 s », les deux réponses,
   puis « Jamais pour ce lien » dessous, seulement pour un lien Meet. Un Meet enregistré puis fini dans son créneau n'est
   jamais « pas enregistrée » : son compte rendu en préparation prend la place.
   Le compte rendu (en cours ou prêt) a une croix en haut à droite qui le range pour de bon ; il se range aussi seul dès
   que la réunion est ouverte dans Polhub une fois transcrite (Paul, 16/11 : « je l'ai déjà traité, j'ai plus besoin
   qu'il s'affiche »). Les comptes rendus rangés sont gardés d'un lancement à l'autre (`AppModel.reportsPutAway`).
+- **Le sur-titre de la vedette** (`PanelModel.eyebrow`) est une étiquette grise de 12 points semi-gras, en casse
+  normale (« Dans 8 min », « Enregistrement », « Vendredi 20 novembre » ; lot 9, 20/11 : en capitales de 13 avant). Une
+  seule chose y prend la couleur, jamais toute la ligne : le symbole d'un état (le point de l'enregistrement, l'icône
+  d'une fin présumée ou d'un problème) ou les mots d'un délai (« Dans 8 min », comme sur l'Accueil).
 - **Les tuiles** : l'icône de la section dans sa couleur et son nom (13 points), la valeur (15 points), une ligne de
-  détail (13 points), un nombre en haut à droite pour Calendrier. Un plateau clair sur le verre du panneau
-  (`PanelSurface`), `.cardHover` au survol ; un clic ouvre la page puis la fenêtre (⌘1 à ⌘7 dans l'ordre de la barre
-  latérale, les mêmes que dans la fenêtre).
-- **« À régler »** : une carte calme à la couleur d'attention, une ligne par cause, trois au plus, la plus risquée pour les
-  enregistrements d'abord (alertes, compte Google à reconnecter, mise à jour en échec ou en attente de Paul) ; le
-  détail de chaque cause sur deux lignes au plus. Une erreur de réseau n'y va jamais. Une version qui attend la fin
-  d'une réunion est une ligne grise du pied.
-- **« Nouveaux mails »** : les non-lus de la Boîte de réception (jamais Notifications), ceux d'un projet d'abord (le
-  point à sa couleur), puis les contacts connus, puis les autres ; trois au plus, puis « Voir les N autres », qui
-  compte tous ceux qu'elle ne montre pas. Au survol, « Marquer comme lu » se pose sur l'heure, sur la ligne de
-  l'expéditeur, sans rien décaler ni couvrir l'objet. Cachée pendant une réunion.
+  détail (13 points), un nombre en haut à droite pour Calendrier (les rendez-vous qui restent aujourd'hui). La carte de
+  l'app, `.cardHover` au survol ; un clic ouvre la page puis la fenêtre (⌘1 à ⌘7 dans l'ordre de la barre latérale, les
+  mêmes que dans la fenêtre). Les deux valeurs partent du même haut ; sans ligne de détail dessous, une valeur prend deux
+  lignes. **Calendrier** : le prochain rendez-vous, son titre puis son heure (« 16:30 – 17:00 ») ; « Ensuite à 17:30 »
+  sous celui que montre la vedette ; son titre seul, entier, sous « Libre jusqu'à 16:30 ». **Mails** : « 5 nouveaux » et
+  les prénoms des derniers expéditeurs, le nombre seul quand la carte des mails les liste.
+- **« À régler »** : dessinée comme les bandeaux de l'app (`Banner`) : la carte calme du panneau, seule l'icône porte la
+  couleur d'attention, le titre en 13 points semi-gras, le détail en gris ; une ligne par cause, trois au plus, la plus
+  risquée pour les enregistrements d'abord (alertes, compte Google à reconnecter, mise à jour en échec ou en attente de
+  Paul) ; le détail de chaque cause sur deux lignes au plus. Une erreur de réseau n'y va jamais. Une version qui attend
+  la fin d'une réunion est une ligne grise du pied.
+- **Les nouveaux mails** : une carte sans en-tête, sous la tuile Mails qui les compte ; les non-lus de la Boîte de
+  réception (jamais Notifications), ceux d'un projet d'abord (le point à sa couleur), puis les contacts connus, puis les
+  autres ; trois au plus, puis « Voir les N autres », qui compte tous ceux qu'elle ne montre pas. Au survol, « Marquer
+  comme lu » se pose sur l'heure, sur la ligne de l'expéditeur, sans rien décaler ni couvrir l'objet. Cachée pendant
+  une réunion.
 - **Les boutons ronds** : 44 points de verre, leur nom en 12 points dessous, pleins de leur couleur quand ils sont
   allumés (Reprendre à l'encre, comme le Reprendre de la vedette). Enregistrer ne sert qu'au repos : une réunion détectée
   ou enregistrée se règle dans la vedette, et Arrêter n'est que là, au clic, jamais au clavier.
@@ -515,10 +535,16 @@ Centre de contrôle. La logique vit à part, testée sans écran (`PanelModel`).
 - **En haut à droite de l'écran de la barre des menus**, sous la barre ou l'encoche, comme les notifications de
   macOS, au-dessus de toutes les apps et sur tous les bureaux (`MeetingCardPresenter`, le panneau du HUD).
 - **Une carte en verre par rendez-vous** (trois au plus, le plus proche d'abord) : un rond à la couleur du compte, le
-  titre, « Dans 2 min · Google Meet » à la seconde, « Rejoindre » plein à l'encre (la couleur du compte reste dans son rond) (le panneau ne prend
-  jamais la main : un bouton proéminent y deviendrait gris), la croix.
+  titre, « Dans 2 min · Google Meet » à la seconde, « Rejoindre » plein à l'encre (la couleur du compte reste dans son
+  rond), la croix. Elle se lit comme Coup d'œil (lot 9, 20/11 ; `FloatingMetrics`) : le titre en 15 points semi-gras,
+  sa ligne en 13, à 16 du bord ; « Rejoindre » est le bouton principal de l'app (`.primary`, dessiné à la main : le
+  panneau ne prend jamais la main, un bouton proéminent du système y deviendrait gris), la croix un `IconButton`.
 - **Elle reste** jusqu'à « Rejoindre » ou la croix, dix minutes après le début au plus ; jamais pour la réunion que
   Polhub enregistre déjà. Réglages › Notifications : activée, 2 min avant (1, 2 ou 5).
+- **Le HUD** (la réunion détectée, un message, une alerte) flotte dans le même panneau et parle de même : son titre en
+  15 points semi-gras (deux lignes au plus), sa ligne en 13 (deux lignes au plus), à 16 du bord ; 480 points de large
+  (440 avant) et la hauteur de ses mots, de 76 à 120 (lot 9, 20/11 : « Google Meet · Rev… » et « Polhub ne lit plus
+  les ongl… » étaient coupés).
 
 ## Inspiration
 
@@ -621,6 +647,8 @@ Les captures hors écran ne dessinent ni le verre ni la barre d'outils. Pour voi
 POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter DesignCatalogueScreenTests # les couleurs et les boutons, avant / après
 POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter "WindowSnapshotTests|MailScreenTests/theMailScreens|PeopleScreenTests"
 POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter CoupDoeilScreenTests   # Coup d'œil et le logo
+POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter NotificationCenterScreenTests  # la cloche
+POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter MeetingCardScreenTests  # la carte avant une visio, le HUD
 POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter InspirationScreenTests  # Inspiration, données inventées
 POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter HomeScreenTests         # l'Accueil, données inventées
 POLHUB_LIVE=1 POLHUB_SNAPSHOTS=/tmp/captures swift test --filter SettingsScreenTests     # Réglages, chaque page, clair et sombre
@@ -638,5 +666,5 @@ cours (19/11), puis le système prend son image seule (il faut l'autorisation d'
 terminal). Hors de tout écran, rien ne se dessine : elle reste donc sur un écran, en dessous.
 
 **Le garde-fou** (`DesignGuardTests`) compte dans le code de l'interface ce qui doit disparaître : `Color.accentColor`,
-les rayons écrits à la main, les boutons en verre hors des barres et des panneaux. Le nombre ne peut que baisser :
-un lot qui en retire abaisse le plafond.
+les rayons écrits à la main, les boutons en verre hors des barres et des panneaux, les tailles de texte écrites à la
+main, les textes mis en capitales. Le nombre ne peut que baisser : un lot qui en retire abaisse le plafond.

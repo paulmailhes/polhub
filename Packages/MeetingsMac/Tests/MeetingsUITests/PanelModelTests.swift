@@ -236,20 +236,40 @@ import Updates
 
     // MARK: - The tiles
 
-    @Test func theCalendarTileShowsTheNextTwoWithoutTheHerosOne() {
+    /// The Calendrier tile (lot 9, 20/11): the next event's title, whole, then its time under it; « 16:30 Revue de… » was
+    /// cut on its 161 points (audit of 19/11). The hero's event is left out: « Ensuite à ».
+    @Test func theCalendarTileSaysTheNextEventTitleFirst() {
         let first = event("Revue de maquettes", at(16, 30)), second = event("Appel Hugo", at(17, 30)), third = event("Point", at(18, 0))
-        let tile = PanelModel.calendarTile([second, first, third], hiding: nil, now: now, calendar: calendar)
-        #expect(tile == PanelModel.Tile(value: "16:30 Revue de maquettes", detail: "17:30 Appel Hugo", count: 3))
+        // A hero that says nothing of the calendar.
+        let elsewhere = PanelModel.Hero.paused(until: at(16, 0), missed: nil)
+        #expect(PanelModel.calendarTile([second, first, third], hero: elsewhere, now: now, calendar: calendar)
+            == PanelModel.Tile(value: "Revue de maquettes", detail: "16:30 – 17:00", count: 3))
         // The hero already shows the first: « Ensuite ».
-        #expect(PanelModel.calendarTile([first, second], hiding: first.id, now: now, calendar: calendar)
+        let upcoming = PanelModel.Hero.upcoming(PanelModel.Upcoming(event: first, started: false, detail: "16:30 – 17:00", pausedThrough: false))
+        #expect(PanelModel.calendarTile([first, second], hero: upcoming, now: now, calendar: calendar)
             == PanelModel.Tile(value: "Appel Hugo", detail: "Ensuite à 17:30", count: 2))
-        #expect(PanelModel.calendarTile([second], hiding: nil, now: now, calendar: calendar)
-            == PanelModel.Tile(value: "Appel Hugo", detail: "17:30 – 18:00", count: 1))
         // Nothing left today: the next one, tomorrow.
-        #expect(PanelModel.calendarTile([event("Atelier", at(9, 30, day: 16))], hiding: nil, now: now, calendar: calendar)
+        #expect(PanelModel.calendarTile([event("Atelier", at(9, 30, day: 16))], hero: elsewhere, now: now, calendar: calendar)
             == PanelModel.Tile(value: "Atelier", detail: "Demain 9:30", count: nil))
-        #expect(PanelModel.calendarTile([], hiding: nil, now: now, calendar: calendar) == PanelModel.Tile(value: "Rien de prévu"))
-        #expect(PanelModel.calendarTile(nil, hiding: nil, now: now, calendar: calendar).value == "Aucun agenda")
+        #expect(PanelModel.calendarTile([], hero: elsewhere, now: now, calendar: calendar) == PanelModel.Tile(value: "Rien de prévu"))
+        #expect(PanelModel.calendarTile(nil, hero: elsewhere, now: now, calendar: calendar).value == "Aucun agenda")
+    }
+
+    /// « Libre jusqu'à 16:30 », then « 16:30 Revue de… » just under it: the same hour twice (audit of 19/11). The day
+    /// gives the next event's start, the tile its title (lot 9, 20/11).
+    @Test func theHourIsSaidOnce() {
+        let first = event("Revue de maquettes", at(16, 30)), second = event("Appel Hugo", at(18, 30))
+        let hero = PanelModel.hero(meeting: PanelModel.Meeting(), events: [first, second], meetings: PanelModel.Meetings(), now: now, calendar: calendar)
+        #expect(hero == .day(title: "Dimanche 15 novembre", line: "Libre jusqu'à 16:30"))
+        let tile = PanelModel.calendarTile([first, second], hero: hero, now: now, calendar: calendar)
+        #expect(tile == PanelModel.Tile(value: "Revue de maquettes", detail: nil, count: 2))
+        #expect(![tile.value, tile.detail ?? ""].joined().contains("16:30"))
+        // During an event, the day says when it ends: the tile keeps the next one's time.
+        let lunch = event("Déjeuner", at(15, 0), minutes: 60, meet: false)
+        let busy = PanelModel.hero(meeting: PanelModel.Meeting(), events: [lunch, first], meetings: PanelModel.Meetings(), now: now, calendar: calendar)
+        #expect(busy == .day(title: "Dimanche 15 novembre", line: "Déjeuner, jusqu'à 16:00"))
+        #expect(PanelModel.calendarTile([lunch, first], hero: busy, now: now, calendar: calendar)
+            == PanelModel.Tile(value: "Revue de maquettes", detail: "16:30 – 17:00", count: 2))
     }
 
     func thread(_ id: String, from name: String?, _ email: String, subject: String, at date: Date, unread: Bool = true,
@@ -279,6 +299,26 @@ import Updates
         #expect(PanelModel.mailsTile(PanelModel.Mails(unread: unread, hasMailboxes: true, failure: expired)).value == "Atelier Nord déconnecté")
         let offline = PanelModel.Mails.Failure(account: "paul@atelier-nord.fr", text: "The Internet connection appears to be offline.")
         #expect(PanelModel.mailsTile(PanelModel.Mails(unread: unread, hasMailboxes: true, failure: offline)).value == "3 nouveaux")
+    }
+
+    /// « Mails » said once (lot 9, 20/11): the tile « 5 nouveaux · Camille, Julien », then the card « Nouveaux mails 5 »
+    /// and Camille's mail under it (audit of 19/11). While the card lists the mails, the tile keeps their number and the
+    /// card has no header; without the card (a meeting under way, no room), the tile names the latest senders.
+    @Test func theMailsAreSaidOnce() {
+        let camille = thread("a", from: "Camille Martin", "camille@exemple-studio.fr", subject: "Devis révisé", at: at(10, 42))
+        let julien = thread("c", from: nil, "julien.dupont@exemple.fr", subject: "Accès", at: at(9, 15))
+        let mails = PanelModel.Mails(unread: [camille, julien], hasMailboxes: true)
+        #expect(PanelModel.mailsTile(mails, listed: true) == PanelModel.Tile(value: "2 nouveaux"))
+        #expect(PanelModel.mailsTile(mails, listed: false) == PanelModel.Tile(value: "2 nouveaux", detail: "Camille, julien.dupont"))
+        // A mailbox to reconnect is said by « À régler »: the tile does not say it again.
+        let expired = PanelModel.Mails.Failure(account: "paul@atelier-nord.fr", text: GoogleError.expired.description)
+        let broken = PanelModel.Mails(unread: [camille, julien], hasMailboxes: true, failure: expired)
+        let issues = PanelModel.issues(alerts: [], mailFailure: expired)
+        #expect(issues.map(\.title) == ["Compte Atelier Nord à reconnecter"])
+        #expect(PanelModel.mailsTile(broken, listed: true, issues: issues) == PanelModel.Tile(value: "2 nouveaux"))
+        // Pushed out of « À régler » by three alerts, it stays on the tile.
+        let crowded = PanelModel.issues(alerts: [.tabsUnreadable, .selfTestFailed, .diskLow(freeGB: 9)], mailFailure: expired)
+        #expect(PanelModel.mailsTile(broken, listed: true, issues: crowded).value == "Atelier Nord déconnecté")
     }
 
     // MARK: - « À régler »
@@ -331,8 +371,8 @@ import Updates
     }
 
     /// Under the cap of 640 points, only the mails' card gives way, by whole rows (finding of 16/11: a row cut through
-    /// its subject): the rows that fit, then only its header and « Voir les N nouveaux »; the card goes only when not
-    /// even that fits.
+    /// its subject): the rows that fit; with not one, the card goes, as it has no header left to keep (lot 9, 20/11), and
+    /// the Mails tile names the senders.
     @Test func onlyTheMailsCardGivesWayUnderTheCapByWholeRows() {
         // Room for all three.
         #expect(PanelModel.mailRowsShown(cap: 640, fixed: 400, chrome: 66, gap: 10, rowHeight: 45, count: 3) == 3)
@@ -342,9 +382,8 @@ import Updates
         #expect(PanelModel.mailRowsShown(cap: 640, fixed: 474, chrome: 66, gap: 10, rowHeight: 45, count: 3) == 2)
         // A row of 45 points fits in 45, whatever the rounding of the measures.
         #expect(PanelModel.mailRowsShown(cap: 640, fixed: 518.6, chrome: 66.2, gap: 10, rowHeight: 45.3, count: 3) == 1)
-        // Not one row: the header and its link stay; the Mails tile still counts them.
-        #expect(PanelModel.mailRowsShown(cap: 640, fixed: 541, chrome: 66, gap: 10, rowHeight: 45, count: 3) == 0)
-        // Not even the header: the card goes.
+        // Not one row: the card goes; the Mails tile still counts them and names their senders.
+        #expect(PanelModel.mailRowsShown(cap: 640, fixed: 541, chrome: 66, gap: 10, rowHeight: 45, count: 3) == nil)
         #expect(PanelModel.mailRowsShown(cap: 640, fixed: 580, chrome: 66, gap: 10, rowHeight: 45, count: 3) == nil)
         // Before the rows were measured: all of them, the panel measures them next.
         #expect(PanelModel.mailRowsShown(cap: 640, fixed: 580, chrome: 66, gap: 10, rowHeight: 0, count: 2) == 2)
@@ -356,9 +395,48 @@ import Updates
         #expect(PanelModel.moreMails(total: 5, shown: 1) == "Voir les 4 autres")
         #expect(PanelModel.moreMails(total: 4, shown: 3) == "Voir l'autre")
         #expect(PanelModel.moreMails(total: 3, shown: 3) == nil)
-        // Only the header left: the link names them all.
-        #expect(PanelModel.moreMails(total: 5, shown: 0) == "Voir les 5 nouveaux")
-        #expect(PanelModel.moreMails(total: 1, shown: 0) == "Voir le nouveau")
+    }
+
+    // MARK: - The hero's first line
+
+    /// The hero's first line in its own case, as the Accueil writes « Jeudi 19 novembre » (lot 9, 20/11: « DANS 8 MIN »,
+    /// « ENREGISTRE » in capitals before), and one thing of it in color, never the whole line: the symbol of a state (the
+    /// recording's dot, a problem's icon), or the words of a delay (« Dans 8 min »).
+    @Test func theEyebrowIsInItsOwnCaseAndColorsOneThing() {
+        let soon = event("Revue de maquettes", at(15, 30))
+        func report(_ stage: PanelModel.Report.Stage) -> PanelModel.Hero {
+            .report(PanelModel.Report(meetingID: UUID(), title: "Point", stage: stage, summaryToCome: true))
+        }
+        let heroes: [(PanelModel.Hero, PanelModel.Eyebrow)] = [
+            (.detected(title: "Point", deadline: now, canForget: false),
+             PanelModel.Eyebrow(text: "Réunion détectée", systemImage: "record.circle", tint: nil, colored: .nothing)),
+            (.recording(title: "Point", since: now, detail: nil, meetingID: nil),
+             PanelModel.Eyebrow(text: "Enregistrement", systemImage: "circle.fill", tint: .recording, colored: .symbol)),
+            (.presumedEnded(title: "Point", stopsAt: nil, meetingID: nil, canForget: false),
+             PanelModel.Eyebrow(text: "Fin de réunion ?", systemImage: "record.circle", tint: .attention, colored: .symbol)),
+            (.upcoming(PanelModel.Upcoming(event: soon, started: false, detail: "", pausedThrough: false)),
+             PanelModel.Eyebrow(text: "Dans 8 min", systemImage: "calendar", tint: .attention, colored: .words)),
+            (.upcoming(PanelModel.Upcoming(event: soon, started: true, detail: "", pausedThrough: false)),
+             PanelModel.Eyebrow(text: "En cours · pas enregistrée", systemImage: "exclamationmark.circle.fill", tint: .attention, colored: .symbol)),
+            (.paused(until: at(16, 0), missed: nil),
+             PanelModel.Eyebrow(text: "Détection suspendue", systemImage: "pause.circle.fill", tint: nil, colored: .nothing)),
+            (report(.transcribing(0.4)), PanelModel.Eyebrow(text: "Compte rendu en cours", systemImage: "sparkles", tint: nil, colored: .nothing)),
+            (report(.ready(overview: "Tout est validé.")),
+             PanelModel.Eyebrow(text: "Résumé prêt", systemImage: "checkmark.circle.fill", tint: nil, colored: .nothing)),
+            (report(.transcriptReady(reason: nil)),
+             PanelModel.Eyebrow(text: "Transcription prête", systemImage: "checkmark.circle.fill", tint: nil, colored: .nothing)),
+            (report(.transcriptionFailed("moteur absent")),
+             PanelModel.Eyebrow(text: "Transcription échouée", systemImage: "exclamationmark.triangle.fill", tint: .attention, colored: .symbol)),
+            (report(.summaryFailed("trop court")),
+             PanelModel.Eyebrow(text: "Résumé impossible", systemImage: "exclamationmark.triangle.fill", tint: .attention, colored: .symbol)),
+            (.day(title: "Dimanche 15 novembre", line: nil),
+             PanelModel.Eyebrow(text: "Dimanche 15 novembre", systemImage: nil, tint: nil, colored: .nothing)),
+        ]
+        for (hero, expected) in heroes {
+            let eyebrow = PanelModel.eyebrow(hero, now: now)
+            #expect(eyebrow == expected, "\(hero.kind)")
+            #expect(eyebrow.text != eyebrow.text.uppercased(), "\(hero.kind) : en capitales")
+        }
     }
 
     // MARK: - Buttons and keys
