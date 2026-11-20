@@ -285,3 +285,147 @@ public struct LinkMeetingDetail: Codable, Sendable, Equatable {
         self.turns = turns
     }
 }
+
+// MARK: - Writing (lot 3, 20/11)
+
+/// A reply under a thread, to its last message: its sender, or everyone (`all`).
+public struct LinkReply: Codable, Sendable, Equatable {
+    public var thread: String
+    public var all: Bool
+    public var text: String
+
+    public init(thread: String, all: Bool, text: String) {
+        self.thread = thread
+        self.all = all
+        self.text = text
+    }
+}
+
+/// A new mail, from `account` (else the Mac's first mailbox).
+public struct LinkNewMail: Codable, Sendable, Equatable {
+    public var account: String?
+    public var to: [String]
+    public var cc: [String]
+    public var subject: String
+    public var text: String
+
+    public init(account: String?, to: [String], cc: [String], subject: String, text: String) {
+        self.account = account
+        self.to = to
+        self.cc = cc
+        self.subject = subject
+        self.text = text
+    }
+}
+
+/// The mail that leaves, while it can still be called back: « Envoi dans 8 s · Annuler ».
+public struct LinkSending: Codable, Sendable, Equatable {
+    public var draftID: String
+    public var subject: String
+    /// When it leaves.
+    public var at: Date
+    /// On its way: too late to call it back.
+    public var leaving: Bool
+
+    public init(draftID: String, subject: String, at: Date, leaving: Bool) {
+        self.draftID = draftID
+        self.subject = subject
+        self.at = at
+        self.leaving = leaving
+    }
+}
+
+/// A draft to call back.
+public struct LinkCancel: Codable, Sendable, Equatable {
+    public var draftID: String
+
+    public init(draftID: String) { self.draftID = draftID }
+}
+
+/// A question for Colin.
+public struct LinkQuestion: Codable, Sendable, Equatable {
+    public var text: String
+
+    public init(text: String) { self.text = text }
+}
+
+/// A change of Colin's to undo.
+public struct LinkUndo: Codable, Sendable, Equatable {
+    public var id: String
+
+    public init(id: String) { self.id = id }
+}
+
+public struct LinkColinMessage: Codable, Sendable, Equatable, Identifiable {
+    public var id: String
+    public var fromPaul: Bool
+    public var text: String
+    /// `done`, `answering`, `interrupted`, `failed`.
+    public var state: String
+    public var date: Date
+
+    public init(id: String, fromPaul: Bool, text: String, state: String, date: Date) {
+        self.id = id
+        self.fromPaul = fromPaul
+        self.text = text
+        self.state = state
+        self.date = date
+    }
+}
+
+/// A field of a change: « Statut · Priorité 2 → Priorité 1 ».
+public struct LinkChangeField: Codable, Sendable, Equatable {
+    public var label: String
+    public var before: String?
+    public var after: String?
+
+    public init(label: String, before: String?, after: String?) {
+        self.label = label
+        self.before = before
+        self.after = after
+    }
+}
+
+/// What Colin changed on a project, with « Annuler ».
+public struct LinkChange: Codable, Sendable, Equatable, Identifiable {
+    public var id: String
+    public var project: String
+    public var at: Date
+    /// « Après ton mail à Marc, 9:50 ».
+    public var note: String?
+    public var created: Bool
+    public var fields: [LinkChangeField]
+    public var undone: Bool
+
+    public init(id: String, project: String, at: Date, note: String?, created: Bool, fields: [LinkChangeField], undone: Bool) {
+        self.id = id
+        self.project = project
+        self.at = at
+        self.note = note
+        self.created = created
+        self.fields = fields
+        self.undone = undone
+    }
+}
+
+/// Colin's thread, as on the Accueil: his state, the messages, what he is writing, what he changed.
+public struct LinkColin: Codable, Sendable, Equatable {
+    /// « prêt », « répond… », « attend ta visio », « se réveille », « en panne », « à l'arrêt ».
+    public var state: String
+    public var answering: Bool
+    /// The answer being written.
+    public var streaming: String
+    /// Why he cannot answer, when he cannot.
+    public var problem: String?
+    public var messages: [LinkColinMessage]
+    public var changes: [LinkChange]
+
+    public init(state: String, answering: Bool, streaming: String, problem: String?, messages: [LinkColinMessage], changes: [LinkChange]) {
+        self.state = state
+        self.answering = answering
+        self.streaming = streaming
+        self.problem = problem
+        self.messages = messages
+        self.changes = changes
+    }
+}

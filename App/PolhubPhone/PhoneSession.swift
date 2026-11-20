@@ -79,6 +79,61 @@ final class PhoneSession {
     func refreshStatus() async {
         status = try? await fetch(LinkStatus.self, LinkAPI.Path.status).value
     }
+
+    // MARK: - Writing (lot 3, 20/11)
+
+    /// The mail leaving from the Mac, while it can be called back: the pill at the bottom.
+    private(set) var sending: LinkSending?
+    private var watching: Task<Void, Never>?
+
+    /// A POST to the Mac; in the demonstration, nothing leaves.
+    func post<Value: Decodable & Sendable>(_ type: Value.Type, _ path: String, body: some Encodable & Sendable) async throws(LinkFailure) -> Value {
+        if demo {
+            guard let data = LinkDemo.answer(path, query: [:]), let value = try? LinkAPI.decoder.decode(type, from: data) else {
+                throw .refused("La démonstration n'envoie rien.")
+            }
+            return value
+        }
+        guard let client else { throw .notPaired("Relie d'abord cet iPhone à ton Mac.") }
+        return try await client.post(type, path, body: body)
+    }
+
+    /// A reply or a new mail, handed to the Mac, which sends it after its delay; nil when it left, else why not.
+    func send(reply: LinkReply? = nil, mail: LinkNewMail? = nil) async -> String? {
+        do throws(LinkFailure) {
+            let leaving = if let reply { try await post(LinkSending.self, LinkAPI.Path.reply, body: reply) }
+                          else { try await post(LinkSending.self, LinkAPI.Path.newMail, body: mail) }
+            sending = leaving
+            watch()
+            return nil
+        } catch {
+            return error.message
+        }
+    }
+
+    /// « Annuler »: the mail stays a draft on the Mac.
+    func cancelSending() async {
+        guard let sending else { return }
+        _ = try? await post(LinkSending?.self, LinkAPI.Path.cancel, body: LinkCancel(draftID: sending.draftID))
+        self.sending = nil
+    }
+
+    /// The pill follows the Mac until the mail left.
+    private func watch() {
+        watching?.cancel()
+        watching = Task { [weak self] in
+            while let self, self.sending != nil, !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard !self.demo else {
+                    if let at = self.sending?.at, at < Date() { self.sending = nil }
+                    continue
+                }
+                if let client = self.client {
+                    self.sending = try? await client.get(LinkSending?.self, LinkAPI.Path.sending)
+                }
+            }
+        }
+    }
 }
 
 /// The address and the key of the Mac, in the iPhone's Keychain, never synced elsewhere.

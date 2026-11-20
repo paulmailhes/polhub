@@ -32,6 +32,7 @@ struct CalendarScreen: View {
                 }
             }
             .navigationTitle("Calendrier")
+            .toolbar { SettingsButton() }
             .safeAreaInset(edge: .top, spacing: 0) { StateLine(keptAt: keptAt, problem: problem) }
             .refreshable { await load() }
             .task { await load() }

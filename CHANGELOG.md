@@ -3,6 +3,16 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.52.0 — 20 novembre 2026
+
+**Depuis l'iPhone, on écrit et on parle à Colin.**
+
+- Une réponse ou un nouveau mail écrit sur l'iPhone part du Mac, avec sa signature, après le délai de Réglages › Mails :
+  l'iPhone montre « Envoi dans 8 s · Annuler ».
+- Colin sur l'iPhone, c'est le fil de l'Accueil : la question part au Mac, la réponse s'écrit sous les yeux, et ses
+  changements de projets arrivent avec « Annuler ». Son verrou reste celui du Mac.
+- L'app iPhone a ses cinq onglets : Mails, Calendrier, Colin, Projets, Réunions ; Réglages derrière la roue dentée.
+
 ## 0.51.1 — 20 novembre 2026
 
 - Réglages › iPhone donne la commande Tailscale avec son chemin entier

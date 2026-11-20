@@ -50,10 +50,15 @@ public struct LinkClient: Sendable {
         return components.url ?? connection.address
     }
 
-    /// The answer's bytes, as they came.
-    public func data(_ path: String, query: [String: String] = [:]) async throws(LinkFailure) -> Data {
+    /// The answer's bytes, as they came. With a `body`, a POST (lot 3, 20/11).
+    public func data(_ path: String, query: [String: String] = [:], body: Data? = nil) async throws(LinkFailure) -> Data {
         var request = URLRequest(url: url(path, query: query), cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: Self.timeout)
         request.setValue(LinkAPI.bearer(connection.token), forHTTPHeaderField: LinkAPI.authorization)
+        if let body {
+            request.httpMethod = "POST"
+            request.httpBody = body
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
         let data: Data, response: URLResponse
         do {
             (data, response) = try await session.data(for: request)
@@ -66,6 +71,13 @@ public struct LinkClient: Sendable {
             throw status == 401 ? .notPaired(message) : .refused(message)
         }
         return data
+    }
+
+    /// A POST: `body` in JSON, its answer read.
+    public func post<Value: Decodable>(_ type: Value.Type, _ path: String, body: some Encodable & Sendable) async throws(LinkFailure) -> Value {
+        guard let encoded = try? LinkAPI.encoder.encode(body) else { throw .unreadable }
+        let data = try await data(path, body: encoded)
+        do { return try LinkAPI.decoder.decode(type, from: data) } catch { throw .unreadable }
     }
 
     public func get<Value: Decodable>(_ type: Value.Type, _ path: String, query: [String: String] = [:]) async throws(LinkFailure) -> Value {

@@ -1,6 +1,7 @@
 import Domain
 import Foundation
 import LocalServer
+import Mail
 import Persistence
 import PolhubLink
 import Testing
@@ -130,6 +131,38 @@ import Testing
         #expect(try LinkAPI.decoder.decode(LinkStatus.self, from: data).appVersion == "0.51.0")
         let (_, refused) = try await URLSession.shared.data(from: try #require(URL(string: "http://127.0.0.1:\(port)\(LinkAPI.Path.status)")))
         #expect((refused as? HTTPURLResponse)?.statusCode == 401)
+    }
+
+    /// Lot 3 (20/11): a mail written on the iPhone leaves from the Mac, with its delay and « Annuler ».
+    @Test func aNewMailLeavesWithItsDelayAndComesBack() async throws {
+        let database = try AppDatabase.inMemory()
+        let calendar = CalendarStore(database)
+        try calendar.addAccount(email: "moi@exemple.fr", at: Date())
+        try calendar.setGrantedScopes(email: "moi@exemple.fr", scopes: "openid https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.modify")
+        let root = FileManager.default.temporaryDirectory.appending(path: "iphone-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let suite = try defaults()
+        let mails = MailLibrary(agenda: AgendaLibrary(database: database), root: root, defaults: suite, flavor: .prod,
+                                send: { [silent = SilentGmail()] _ in silent.send }, vault: MemoryScheduleVault())
+        for _ in 0..<150 where mails.accounts.isEmpty { try await Task.sleep(for: .milliseconds(20)) }
+        let devices = PhoneDevices(defaults: suite)
+        let (_, token) = devices.pair()
+        let api = PhoneAPI(devices: devices, database: database, agenda: nil, mails: mails, appVersion: "0.52.0")
+        func post(_ path: String, _ body: some Encodable) async throws -> HTTPResponse {
+            await api.respond(HTTPRequest(method: "POST", path: path, headers: ["authorization": LinkAPI.bearer(token)],
+                                          body: try LinkAPI.encoder.encode(body)))
+        }
+        let nobody = try await post(LinkAPI.Path.newMail, LinkNewMail(account: nil, to: [], cc: [], subject: "Devis", text: "Bonjour"))
+        let refusal = try LinkAPI.decoder.decode(LinkError.self, from: nobody.body)
+        #expect(nobody.status == 409 && refusal.message == "Ajoute un destinataire.")
+        let sent = try await post(LinkAPI.Path.newMail, LinkNewMail(account: nil, to: ["jules@exemple.fr"], cc: [], subject: "Devis", text: "Bonjour"))
+        let sending = try LinkAPI.decoder.decode(LinkSending.self, from: sent.body)
+        #expect(sent.status == 200 && sending.subject == "Devis" && mails.sending?.draftID == sending.draftID)
+        let back = try await post(LinkAPI.Path.cancel, LinkCancel(draftID: sending.draftID))
+        #expect(back.status == 200 && mails.sending == nil)
+        // Without Colin on this Mac, a question says so.
+        let question = try await post(LinkAPI.Path.colin, LinkQuestion(text: "Où on en est ?"))
+        #expect(question.status == 409)
     }
 
     @Test func theAddressMustBeHTTPS() {

@@ -22,6 +22,14 @@ public enum LinkAPI {
         public static let project = "/v1/project"
         public static let meetings = "/v1/meetings"
         public static let meeting = "/v1/meeting"
+        // Writing (lot 3, 20/11): POST, a JSON body.
+        public static let accounts = "/v1/mail/accounts"
+        public static let reply = "/v1/mail/reply"
+        public static let newMail = "/v1/mail/new"
+        public static let sending = "/v1/mail/sending"
+        public static let cancel = "/v1/mail/cancel"
+        public static let colin = "/v1/colin"
+        public static let colinUndo = "/v1/colin/undo"
     }
 
     /// The header of the token: `Authorization: Bearer <token>`.

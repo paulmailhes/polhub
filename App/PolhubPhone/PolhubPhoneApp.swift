@@ -27,15 +27,49 @@ struct PolhubPhoneApp: App {
     }
 }
 
-/// The tabs, as on the Mac's sidebar.
+/// The tabs, as on the Mac's sidebar; Réglages behind the gear of each page. `-calendrier`, `-colin`, `-projets`,
+/// `-reunions`: the tab open at launch (the captures).
 struct RootTabs: View {
-    @State private var tab = ProcessInfo.processInfo.arguments.contains("-calendrier") ? 1 : (ProcessInfo.processInfo.arguments.contains("-reglages") ? 2 : 0)
+    @Environment(PhoneSession.self) private var session
+    @State private var tab = Self.launchTab
+    @State private var settings = ProcessInfo.processInfo.arguments.contains("-reglages")
+
+    static var launchTab: Int {
+        let arguments = ProcessInfo.processInfo.arguments
+        return ["-calendrier", "-colin", "-projets", "-reunions"].firstIndex { arguments.contains($0) }.map { $0 + 1 } ?? 0
+    }
 
     var body: some View {
         TabView(selection: $tab) {
             Tab("Mails", systemImage: "envelope", value: 0) { MailsScreen() }
             Tab("Calendrier", systemImage: "calendar", value: 1) { CalendarScreen() }
-            Tab("Réglages", systemImage: "gearshape", value: 2) { PhoneSettingsScreen() }
+            Tab("Colin", systemImage: "sparkles", value: 2) { ColinScreen() }
+            Tab("Projets", systemImage: "square.grid.2x2", value: 3) { ProjectsScreen() }
+            Tab("Réunions", systemImage: "waveform", value: 4) { MeetingsScreen() }
+        }
+        .overlay(alignment: .bottom) { SendingPill().animation(.snappy, value: session.sending?.draftID) }
+        .environment(\.openSettings, OpenSettings { settings = true })
+        .sheet(isPresented: $settings) { PhoneSettingsScreen() }
+    }
+}
+
+/// The gear of each page, which opens Réglages.
+struct OpenSettings {
+    let action: () -> Void
+    func callAsFunction() { action() }
+}
+
+extension EnvironmentValues {
+    @Entry var openSettings = OpenSettings {}
+}
+
+/// The gear at the head of each tab's first page.
+struct SettingsButton: ToolbarContent {
+    @Environment(\.openSettings) private var openSettings
+
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Button { openSettings() } label: { Label("Réglages", systemImage: "gearshape") }
         }
     }
 }

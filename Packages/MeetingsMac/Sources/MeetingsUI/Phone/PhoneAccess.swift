@@ -43,12 +43,12 @@ public final class PhoneAccess: ObservableObject {
     private var server: HTTPServer?
     private let port: UInt16
 
-    public init(database: AppDatabase, agenda: AgendaLibrary?, mails: MailLibrary?, appVersion: String, defaults: UserDefaults = .standard,
-                port: UInt16 = LinkAPI.port) {
+    public init(database: AppDatabase, agenda: AgendaLibrary?, mails: MailLibrary?, colin: ColinThread? = nil, appVersion: String,
+                defaults: UserDefaults = .standard, port: UInt16 = LinkAPI.port) {
         self.defaults = defaults
         self.port = port
         store = PhoneDevices(defaults: defaults)
-        api = PhoneAPI(devices: store, database: database, agenda: agenda, mails: mails, appVersion: appVersion)
+        api = PhoneAPI(devices: store, database: database, agenda: agenda, mails: mails, colin: colin, appVersion: appVersion)
         address = defaults.string(forKey: Self.addressKey) ?? ""
         devices = store.all
     }

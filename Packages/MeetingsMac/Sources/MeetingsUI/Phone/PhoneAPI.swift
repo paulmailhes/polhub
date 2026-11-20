@@ -1,3 +1,4 @@
+import Colin
 import Domain
 import Foundation
 import LocalServer
@@ -14,21 +15,25 @@ final class PhoneAPI {
     let database: AppDatabase
     let agenda: AgendaLibrary?
     let mails: MailLibrary?
+    /// Colin's thread, the Accueil's (lot 3, 20/11).
+    let colin: ColinThread?
     let appVersion: String
     let now: () -> Date
 
-    init(devices: PhoneDevices, database: AppDatabase, agenda: AgendaLibrary?, mails: MailLibrary?, appVersion: String,
+    init(devices: PhoneDevices, database: AppDatabase, agenda: AgendaLibrary?, mails: MailLibrary?, colin: ColinThread? = nil, appVersion: String,
          now: @escaping () -> Date = Date.init) {
         self.devices = devices
         self.database = database
         self.agenda = agenda
         self.mails = mails
+        self.colin = colin
         self.appVersion = appVersion
         self.now = now
     }
 
-    /// The only method of this version: it reads.
+    /// To read; to write (lot 3, 20/11).
     static let read = "GET"
+    static let write = "POST"
 
     /// The message of a token the Mac does not know.
     static let notPaired = "Cet iPhone n'est plus relié au Mac : relie-le de nouveau depuis Réglages › iPhone sur le Mac."
@@ -37,8 +42,9 @@ final class PhoneAPI {
         guard let device = devices.device(for: LinkAPI.token(fromAuthorization: request.header(LinkAPI.authorization)), now: now()) else {
             return Self.error(Self.notPaired, status: 401)
         }
-        guard request.method == Self.read else { return Self.error("Cette demande n'existe pas.", status: 405) }
         do {
+            if request.method == Self.write { return try await written(request) }
+            guard request.method == Self.read else { return Self.error("Cette demande n'existe pas.", status: 405) }
             switch request.path {
             case LinkAPI.Path.status:
                 return try Self.json(LinkStatus(appVersion: appVersion, device: device.name))
@@ -60,11 +66,18 @@ final class PhoneAPI {
                 return try Self.json(try meetings(limit: Int(request.query["limite"] ?? "") ?? 50))
             case LinkAPI.Path.meeting:
                 return try Self.json(try meeting(request.query["id"] ?? ""))
+            case LinkAPI.Path.accounts:
+                return try Self.json(mails?.accounts.map(\.email) ?? [])
+            case LinkAPI.Path.sending:
+                return try Self.json(sending())
+            case LinkAPI.Path.colin:
+                return try Self.json(try colinThread())
             default:
                 return Self.error("Cette demande n'existe pas.", status: 404)
             }
         } catch let error as LinkError {
-            return Self.error(error.message, status: 404)
+            // A thing that is not there, or a mail that cannot leave as it is.
+            return Self.error(error.message, status: request.method == Self.write ? 409 : 404)
         } catch {
             return Self.error("Le Mac n'a pas pu répondre. Réessaie dans un instant.", status: 503)
         }
@@ -135,6 +148,107 @@ final class PhoneAPI {
 
     static func person(_ address: MailAddress) -> LinkPerson {
         LinkPerson(name: address.name, email: address.email)
+    }
+
+    // MARK: - Writing (lot 3, 20/11)
+
+    /// What a POST asks: a reply, a new mail, a call back, a question for Colin, a change undone.
+    func written(_ request: HTTPRequest) async throws -> HTTPResponse {
+        func body<Value: Decodable>(_ type: Value.Type) throws -> Value {
+            guard let value = try? LinkAPI.decoder.decode(type, from: request.body) else { throw LinkError("Cette demande est illisible.") }
+            return value
+        }
+        switch request.path {
+        case LinkAPI.Path.reply:
+            return try Self.json(try await reply(try body(LinkReply.self)))
+        case LinkAPI.Path.newMail:
+            return try Self.json(try newMail(try body(LinkNewMail.self)))
+        case LinkAPI.Path.cancel:
+            let cancel = try body(LinkCancel.self)
+            if let mails, mails.sending?.draftID == cancel.draftID { mails.cancelSend(quietly: true) }
+            return try Self.json(sending())
+        case LinkAPI.Path.colin:
+            let question = try body(LinkQuestion.self)
+            guard let colin else { throw LinkError("Colin n'est pas sur ce Mac.") }
+            let text = question.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { throw LinkError("La question est vide.") }
+            guard !colin.isAnswering else { throw LinkError("Colin répond déjà : attends la fin de sa réponse.") }
+            colin.draft = text
+            colin.send()
+            return try Self.json(try colinThread())
+        case LinkAPI.Path.colinUndo:
+            let undo = try body(LinkUndo.self)
+            guard let colin, let line = colin.changes.first(where: { $0.id == undo.id }) else { throw LinkError("Ce changement n'existe plus.") }
+            colin.undo(line)
+            return try Self.json(try colinThread())
+        default:
+            return Self.error("Cette demande n'existe pas.", status: 404)
+        }
+    }
+
+    /// The mail leaving, while it can be called back.
+    func sending() -> LinkSending? {
+        mails?.sending.map { LinkSending(draftID: $0.draftID, subject: $0.subject, at: $0.at, leaving: $0.leaving) }
+    }
+
+    /// A reply under the thread's last message, written as on the Mac (its people, its quote, its signature), then sent
+    /// with the delay of Réglages › Mails.
+    func reply(_ reply: LinkReply) async throws -> LinkSending {
+        guard let mails, let thread = try mails.store.thread(reply.thread), let last = try mails.store.messages(threadKey: reply.thread).last else {
+            throw LinkError("Ce fil n'existe plus.")
+        }
+        guard !reply.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw LinkError("La réponse est vide.") }
+        guard let draftID = await mails.startReply(reply.all ? .replyAll : .reply, to: last, in: thread) else {
+            throw LinkError(mails.message ?? "La réponse n'a pas pu être préparée.")
+        }
+        mails.edit(draftID) { $0.body = reply.text }
+        return try send(draftID)
+    }
+
+    func newMail(_ mail: LinkNewMail) throws -> LinkSending {
+        guard let mails else { throw LinkError("Les mails ne sont pas sur ce Mac.") }
+        let accounts = mails.accounts.map(\.email)
+        guard let account = mail.account.flatMap({ accounts.contains($0) ? $0 : nil }) ?? accounts.first else {
+            throw LinkError("Aucune boîte mail n'est reliée au Mac.")
+        }
+        func people(_ list: [String]) -> [MailAddress] {
+            list.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }.map { MailAddress(name: nil, email: $0) }
+        }
+        let draft = MailDraftRow(account: account, mode: .new, to: people(mail.to), cc: people(mail.cc), subject: mail.subject, body: mail.text,
+                                 createdAt: now())
+        try mails.store.saveDraft(draft)
+        return try send(draft.id)
+    }
+
+    /// Sent as on the Mac; what stops it (no one to write to, a bad address) said in Polhub's words.
+    func send(_ draftID: String) throws -> LinkSending {
+        guard let mails else { throw LinkError("Les mails ne sont pas sur ce Mac.") }
+        if let other = mails.sending, other.draftID != draftID { throw LinkError("Un autre mail part en ce moment : réessaie dans quelques secondes.") }
+        mails.send(draftID)
+        guard let sending = sending(), sending.draftID == draftID else {
+            throw LinkError(mails.message ?? "Le mail n'est pas parti : il t'attend dans Brouillons sur le Mac.")
+        }
+        return sending
+    }
+
+    // MARK: - Colin (lot 3, 20/11)
+
+    func colinThread() throws -> LinkColin {
+        guard let colin else { throw LinkError("Colin n'est pas sur ce Mac.") }
+        let state = ColinState(colin.status, answering: colin.isAnswering)
+        let problem: String? = if case .broken(let sentence) = colin.status { sentence } else { nil }
+        let calendar = Words.calendar
+        let messages = colin.messages.suffix(60).map { message in
+            LinkColinMessage(id: message.id, fromPaul: message.author == .paul, text: message.text, state: message.state.rawValue,
+                             date: message.createdAt)
+        }
+        let changes = colin.changes.suffix(30).map { line in
+            LinkChange(id: line.id, project: line.projectName, at: line.at, note: ChangeText.note(line), created: ChangeText.isCreation(line),
+                       fields: ChangeText.fields(line, calendar: calendar).map { LinkChangeField(label: $0.label, before: $0.before, after: $0.after) },
+                       undone: line.undoneAt != nil)
+        }
+        return LinkColin(state: state.label, answering: colin.isAnswering, streaming: colin.visible, problem: problem, messages: Array(messages),
+                         changes: Array(changes))
     }
 
     // MARK: - Calendar

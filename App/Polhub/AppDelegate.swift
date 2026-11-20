@@ -406,12 +406,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let mails = MailLibrary(agenda: agenda, root: paths.root, schedules: .keychain)
         self.mails = mails
         mails.start()
-        // Polhub on the iPhone (20/11): the development build listens one port further, so both can run.
-        let phone = PhoneAccess(database: database, agenda: agenda, mails: mails,
-                                appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0",
-                                port: isDevelopment ? LinkAPI.port + 1 : LinkAPI.port)
-        self.phone = phone
-        Task { await phone.resume() }
         // What waits for Paul's click and « Le point » (18/11): rules alone, no model, nothing leaves the Mac.
         colin = ColinLibrary(agenda: agenda, mails: mails)
         // Colin's bar (18/11): the Claude Code of this Mac, on the account of Réglages › Colin (empty: Claude Code's own),
@@ -432,6 +426,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                                       return min(uptime, ColinProbeControl.systemSinceWake() ?? uptime)
                                   },
                                   newDrafts: { [weak mails] in Set(mails?.drafts.filter { $0.origin == .agent }.map(\.id) ?? []) })
+        // Polhub on the iPhone (20/11): mails, agenda, projects, meetings and Colin's thread. The development build listens one
+        // port further, so both can run.
+        let phone = PhoneAccess(database: database, agenda: agenda, mails: mails, colin: colinThread,
+                                appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0",
+                                port: isDevelopment ? LinkAPI.port + 1 : LinkAPI.port)
+        self.phone = phone
+        Task { await phone.resume() }
         // Polhub comes back in front on the Accueil: Paul is there.
         presenceObserver = NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.accueilMayBeSeen() }

@@ -47,9 +47,47 @@ public enum LinkDemo {
             ])
         case LinkAPI.Path.projects:
             return try? encoder.encode(projects(at: at))
+        case LinkAPI.Path.project:
+            let project = projects(at: at).first { $0.id.uuidString == query["id"] } ?? projects(at: at)[0]
+            return try? encoder.encode(LinkProjectDetail(project: project, notes: "Refonte du site : six pages, livraison avant la fin du mois.",
+                actions: [LinkAction(id: UUID(), text: "Envoyer la maquette v2", done: true, due: nil),
+                          LinkAction(id: UUID(), text: "Valider la page contact avec Camille", done: false, due: at(1, 0, 0))],
+                journal: [LinkJournalEntry(id: UUID(), date: at(-1, 18, 0), title: "Maquette v2 envoyée", text: "")],
+                events: []))
+        case LinkAPI.Path.meetings:
+            return try? encoder.encode(meetings(at: at))
+        case LinkAPI.Path.meeting:
+            let meeting = meetings(at: at).first { $0.id.uuidString == query["id"] } ?? meetings(at: at)[0]
+            return try? encoder.encode(LinkMeetingDetail(meeting: meeting,
+                summary: "## Décisions\n\n- La maquette v2 est validée.\n- La page contact garde son formulaire.\n\n## Prochaines étapes\n\n- Camille envoie les textes jeudi.",
+                turns: [LinkTurn(speaker: "Moi", start: 4, text: "On reprend la maquette ?", doubtful: false),
+                        LinkTurn(speaker: "Les autres", start: 9, text: "Oui, j'ai corrigé la page contact.", doubtful: false)]))
+        case LinkAPI.Path.reply, LinkAPI.Path.newMail:
+            return try? encoder.encode(LinkSending(draftID: "demo", subject: "Maquette v2 du site", at: now.addingTimeInterval(8), leaving: false))
+        case LinkAPI.Path.cancel, LinkAPI.Path.sending:
+            return try? encoder.encode(LinkSending?.none)
+        case LinkAPI.Path.accounts:
+            return try? encoder.encode(["moi@exemple.fr", "perso@exemple.fr"])
+        case LinkAPI.Path.colin:
+            return try? encoder.encode(LinkColin(state: "prêt", answering: false, streaming: "", problem: nil, messages: [
+                LinkColinMessage(id: "c1", fromPaul: true, text: "Mets à jour mes projets d'après mes derniers mails.", state: "done", date: at(0, 8, 40)),
+                LinkColinMessage(id: "c2", fromPaul: false, text: "C'est fait pour **deux projets** : Site vitrine passe en priorité 2, et Maison Leroy attend le retour d'Anne.", state: "done", date: at(0, 8, 41)),
+            ], changes: [
+                LinkChange(id: "x1", project: "Site vitrine", at: at(0, 8, 41), note: "Après le mail de Camille, 8:31", created: false,
+                           fields: [LinkChangeField(label: "Statut", before: "Priorité 1", after: "Priorité 2")], undone: false),
+            ]))
         default:
             return nil
         }
+    }
+
+    static func meetings(at: (Int, Int, Int) -> Date) -> [LinkMeeting] {
+        [
+            LinkMeeting(id: UUID(uuidString: "44444444-4444-4444-4444-444444444444")!, title: "Point Studio Nord", start: at(0, 9, 30), seconds: 1_820,
+                        project: "Studio Nord", hasSummary: true),
+            LinkMeeting(id: UUID(uuidString: "55555555-5555-5555-5555-555555555555")!, title: "Appel découverte", start: at(-2, 15, 0), seconds: 2_700,
+                        project: nil, hasSummary: true),
+        ]
     }
 
     static func threads(now: Date, at: (Int, Int, Int) -> Date) -> [LinkThread] {

@@ -14,6 +14,7 @@ struct MailsScreen: View {
     @State private var loaded = false
     /// The thread open; `-fil` opens the first one at launch (the captures).
     @State private var path: [LinkThread] = []
+    @State private var composing = ProcessInfo.processInfo.arguments.contains("-ecrire")
 
     private var title: String { folders.first { $0.id == folder }?.title ?? "Boîte de réception" }
 
@@ -31,6 +32,10 @@ struct MailsScreen: View {
             .navigationTitle(title)
             .navigationDestination(for: LinkThread.self) { ThreadScreen(thread: $0) }
             .toolbar {
+                SettingsButton()
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { composing = true } label: { Label("Nouveau mail", systemImage: "square.and.pencil") }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Picker("Dossier", selection: $folder) {
@@ -46,6 +51,7 @@ struct MailsScreen: View {
             .safeAreaInset(edge: .top, spacing: 0) { StateLine(keptAt: keptAt, problem: problem) }
             .refreshable { await load() }
             .task(id: folder) { await load() }
+            .sheet(isPresented: $composing) { ComposeSheet(reply: nil) }
         }
     }
 
@@ -101,6 +107,8 @@ struct ThreadScreen: View {
     @State private var keptAt: Date?
     @State private var problem: String?
     @State private var preview: URL?
+    /// « Répondre » (false) or « Répondre à tous » (true), while its sheet is open.
+    @State private var replying: Bool?
 
     var body: some View {
         ScrollView {
@@ -126,6 +134,21 @@ struct ThreadScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .top, spacing: 0) { StateLine(keptAt: keptAt, problem: problem) }
         .quickLookPreview($preview)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button("Répondre à tous", systemImage: "arrowshape.turn.up.left.2") { replying = true }
+                } label: {
+                    Label("Répondre", systemImage: "arrowshape.turn.up.left")
+                } primaryAction: {
+                    replying = false
+                }
+                .disabled(keptAt != nil)
+            }
+        }
+        .sheet(isPresented: Binding(get: { replying != nil }, set: { if !$0 { replying = nil } })) {
+            ComposeSheet(reply: (thread, replying ?? false))
+        }
         .task(id: scheme) {
             do throws(LinkFailure) {
                 let fetched = try await session.fetch(LinkThreadDetail.self, LinkAPI.Path.thread,
