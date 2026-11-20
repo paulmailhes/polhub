@@ -1,5 +1,6 @@
 import Foundation
 import Persistence
+import PolhubDesign
 import Yams
 
 /// The controlled vocabulary of a collection's categories (16/11): its families (`secteur`, `style`…), the tags
@@ -44,7 +45,8 @@ public struct InspirationVocabulary: Sendable, Equatable {
 
         public var id: String { name }
         /// « Secteur », as the vault's tag bar wrote it.
-        public var title: String { name.prefix(1).uppercased() + name.dropFirst() }
+        // `Words`' capital, the same everywhere (lot 10, 20/11).
+        public var title: String { Words.capitalizedFirst(name) }
 
         public func contains(_ tag: String) -> Bool { values.contains(tag.lowercased()) }
 

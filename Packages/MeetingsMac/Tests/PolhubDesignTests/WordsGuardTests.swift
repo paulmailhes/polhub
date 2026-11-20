@@ -27,7 +27,7 @@ import Testing
         // An error is said by `Words.problem`: the system's text goes to the journal, never to the screen.
         DesignGuardTests.Rule(name: "une erreur brute", pattern: #"\\\(error\)|\.localizedDescription"#, ceiling: 18),
         // A capital at a line's head: `Words.capitalizedFirst`.
-        DesignGuardTests.Rule(name: "une majuscule refaite à la main", pattern: #"\.prefix\(1\)\.uppercased\(\)"#, ceiling: 2),
+        DesignGuardTests.Rule(name: "une majuscule refaite à la main", pattern: #"\.prefix\(1\)\.uppercased\(\)"#, ceiling: 0),
         // A help bubble says what a button does, never the gesture.
         DesignGuardTests.Rule(name: "une bulle qui dit « cliquer »", pattern: #"\.help\(.*[Cc]liqu|help: ".*[Cc]liqu"#, ceiling: 0),
         // « rendez-vous », « visio », « réunion »: neither « call » nor « RDV » (the base keeps one « call » in the stop of an

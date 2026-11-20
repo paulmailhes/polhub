@@ -1,6 +1,7 @@
 import Domain
 import Foundation
 import Persistence
+import PolhubDesign
 
 /// A meeting's summary: what was said, what matters, what was decided, what is to be done (design of 12/11,
 /// « Points clés » 15/11).
@@ -333,8 +334,9 @@ public enum SummaryChecks {
         fold(text).split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
     }
 
+    /// `Words`' capital, the same everywhere (lot 10, 20/11).
     static func capitalized(_ text: String) -> String {
-        text.prefix(1).uppercased() + text.dropFirst()
+        Words.capitalizedFirst(text)
     }
 }
 
