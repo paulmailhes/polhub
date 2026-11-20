@@ -202,7 +202,41 @@ targets:
         DEVELOPMENT_TEAM: CQ43U6XX4Z
         ENABLE_HARDENED_RUNTIME: YES
         SKIP_INSTALL: YES
+  # Polhub on the iPhone (20/11): the same name on screen, its own identifier, TestFlight.
+  PolhubPhone:
+    type: application
+    platform: iOS
+    deploymentTarget: "27.0"
+    sources:
+      - path: App/PolhubPhone
+        excludes:
+          - "*.plist"
+      - path: App/Polhub/AppIcon.icon
+    dependencies:
+      - package: Link
+        product: PolhubLink
+    settings:
+      base:
+        PRODUCT_NAME: Polhub
+        PRODUCT_BUNDLE_IDENTIFIER: fr.paulmailhes.polhub.ios
+        IPHONEOS_DEPLOYMENT_TARGET: "27.0"
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: App/PolhubPhone/Info.plist
+        MARKETING_VERSION: "1.0.0"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: CQ43U6XX4Z
+        CODE_SIGN_INJECT_BASE_ENTITLEMENTS: YES
+        OTHER_CODE_SIGN_FLAGS: ""
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
 schemes:
+  PolhubPhone:
+    build:
+      targets:
+        PolhubPhone: all
+    run:
+      config: Debug
   Polhub:
     build:
       targets:

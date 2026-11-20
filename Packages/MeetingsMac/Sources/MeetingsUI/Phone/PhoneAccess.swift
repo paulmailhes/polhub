@@ -11,8 +11,9 @@ import PolhubLink
 public final class PhoneAccess: ObservableObject {
     static let enabledKey = "iphone.acces"
     static let addressKey = "iphone.adresse"
-    /// The command that publishes the server on the tailnet, once, by Paul.
-    public static let serveCommand = "tailscale serve --bg --https=\(LinkAPI.publishedPort) http://127.0.0.1:\(LinkAPI.port)"
+    /// The command that publishes the server on the tailnet, once, by Paul: the Tailscale app's own command line, which
+    /// the Terminal does not know by its short name (measured on 20/11).
+    public static let serveCommand = "/Applications/Tailscale.app/Contents/MacOS/Tailscale serve --bg --https=\(LinkAPI.publishedPort) http://127.0.0.1:\(LinkAPI.port)"
     /// Where the Tailscale app keeps its command line.
     nonisolated static let tailscale = URL(fileURLWithPath: "/Applications/Tailscale.app/Contents/MacOS/Tailscale")
 

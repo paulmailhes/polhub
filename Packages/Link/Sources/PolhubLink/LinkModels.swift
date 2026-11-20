@@ -52,7 +52,7 @@ public struct LinkPerson: Codable, Sendable, Equatable, Hashable {
 }
 
 /// A line of a folder's list.
-public struct LinkThread: Codable, Sendable, Equatable, Identifiable {
+public struct LinkThread: Codable, Sendable, Hashable, Identifiable {
     /// The Mac's key of the thread (`account|threadID`).
     public var id: String
     public var account: String
@@ -137,7 +137,7 @@ public struct LinkThreadDetail: Codable, Sendable, Equatable {
 
 // MARK: - Calendar
 
-public struct LinkEvent: Codable, Sendable, Equatable, Identifiable {
+public struct LinkEvent: Codable, Sendable, Hashable, Identifiable {
     public var id: String
     public var title: String
     public var start: Date
@@ -168,7 +168,7 @@ public struct LinkEvent: Codable, Sendable, Equatable, Identifiable {
 
 // MARK: - Projects
 
-public struct LinkProject: Codable, Sendable, Equatable, Identifiable {
+public struct LinkProject: Codable, Sendable, Hashable, Identifiable {
     public var id: UUID
     public var name: String
     /// « priorité 2 », « priorité 1 », « en pause », « terminé »: the Mac's columns, in this order.
@@ -237,7 +237,7 @@ public struct LinkProjectDetail: Codable, Sendable, Equatable {
 
 // MARK: - Meetings
 
-public struct LinkMeeting: Codable, Sendable, Equatable, Identifiable {
+public struct LinkMeeting: Codable, Sendable, Hashable, Identifiable {
     public var id: UUID
     public var title: String
     public var start: Date

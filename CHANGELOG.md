@@ -3,6 +3,13 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.51.1 — 20 novembre 2026
+
+- Réglages › iPhone donne la commande Tailscale avec son chemin entier
+  (`/Applications/Tailscale.app/Contents/MacOS/Tailscale serve …`) : le Terminal du Mac ne connaît pas `tailscale` tout
+  court.
+- L'app iPhone avance (mails, fils, calendrier, copie hors ligne) ; elle arrive par TestFlight.
+
 ## 0.51.0 — 20 novembre 2026
 
 **Polhub s'ouvre à l'iPhone (première étape).**
