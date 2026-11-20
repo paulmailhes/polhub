@@ -19,7 +19,7 @@ public enum MailTab: String, Hashable, Sendable, CaseIterable {
     public var title: String {
         switch self {
         case .personnes: "Personnes"
-        case .notifications: "Notifications"
+        case .notifications: "Automatiques"
         }
     }
 

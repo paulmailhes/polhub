@@ -24,7 +24,7 @@ public enum MailFolder: String, Hashable, Sendable, CaseIterable {
         case .sent: "Envoyés"
         case .drafts: "Brouillons"
         case .scheduled: "Programmés"
-        case .notifications: "Notifications"
+        case .notifications: "Automatiques"
         case .all: "Tous les messages"
         case .subscriptions: "Abonnements"
         case .spam: "Spam"

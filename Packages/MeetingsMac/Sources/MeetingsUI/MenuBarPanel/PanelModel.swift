@@ -147,7 +147,7 @@ enum PanelModel {
             case .transcribing(let value): "Transcription " + Words.percent(value)
             case .summaryWaiting: "Compte rendu en attente"
             case .summarizing(let progress?) where progress.finishing: "Compte rendu : dernière étape"
-            case .summarizing(let progress?) where progress.total > 1: "Compte rendu : partie \(min(progress.done + 1, progress.total)) sur \(progress.total)"
+            case .summarizing(let progress?) where progress.total > 1: "Partie \(min(progress.done + 1, progress.total)) sur \(progress.total)"
             case .summarizing: "Compte rendu en cours d'écriture"
             case .ready: "Compte rendu prêt"
             case .transcriptReady: "Transcription prête"

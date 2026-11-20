@@ -120,7 +120,7 @@ import Testing
             #expect(!text.contains("onglet") && !text.contains("Personnes"), "« \(text) »")
         }
         #expect(SettingsText.mailNotices == "Nouveau mail dans la Boîte de réception")
-        #expect(MailSortingSections.place(.personnes) == "la Boîte de réception" && MailSortingSections.place(.notifications) == "Notifications")
+        #expect(MailSortingSections.place(.personnes) == "la Boîte de réception" && MailSortingSections.place(.notifications) == "Automatiques")
     }
 
     // MARK: - The guards of Général, for the Diagnostic's relaunch too

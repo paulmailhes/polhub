@@ -19,7 +19,7 @@ enum MailSettingsText {
     static var rules: String {
         "La première règle qui répond l'emporte :\n"
             + MailSortingSections.steps.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n")
-            + "\nUne personne ne doit jamais finir cachée dans Notifications : si ça arrive, clic droit sur le mail › « Ranger dans »."
+            + "\nUne personne ne doit jamais finir cachée dans Automatiques : si ça arrive, clic droit sur le mail › « Ranger dans »."
     }
 
     /// Every help of the page, for its test.
@@ -98,8 +98,8 @@ struct MailSortingSections: View {
         "Ton choix pour ce fil, puis pour son expéditeur (clic droit › « Ranger dans »).",
         "Un fil où tu as écrit, un de tes contacts ou quelqu'un à qui tu as écrit : la Boîte de réception. Un contact d'un seul projet range le fil dans ce projet.",
         // « newsletter », never « lettre » (lot 10, 20/11).
-        "Un mail automatique : Notifications, avec sa case, Newsletters (une newsletter, une promotion), Paiements (un reçu, une facture) ou Services (le reste).",
-        "Sinon, la catégorie de Gmail : Notifications, Promotions et Réseaux sociaux vont dans Notifications ; le reste dans la Boîte de réception.",
+        "Un mail automatique : Automatiques, avec sa case, Newsletters (une newsletter, une promotion), Paiements (un reçu, une facture) ou Services (le reste).",
+        "Sinon, la catégorie de Gmail : Notifications, Promotions et Réseaux sociaux vont dans Automatiques ; le reste dans la Boîte de réception.",
     ]
 
     /// The folder a sender's mails always go to.

@@ -208,7 +208,7 @@ import Updates
         meetings.summaryJobs[row.id] = SummaryJobRow(meetingID: row.id, state: .running, updatedAt: now)
         meetings.summaryProgress[row.id] = SummaryProgress(done: 2, total: 5)
         let writing = PanelModel.report(meetings, now: now)
-        #expect(writing?.stageText == "Compte rendu : partie 3 sur 5")
+        #expect(writing?.stageText == "Partie 3 sur 5")
         meetings.summaryJobs[row.id] = SummaryJobRow(meetingID: row.id, state: .done, updatedAt: at(15, 18))
         meetings.overviews[row.id] = "Maquettes validées ; reste la page tarifs."
         let ready = PanelModel.report(meetings, now: now)

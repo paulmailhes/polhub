@@ -139,7 +139,7 @@ import Testing
         #expect(TodoText.hoverActions(dated: true, unfolded: false))
         #expect(!TodoText.hoverActions(dated: true, unfolded: true))
         #expect(!TodoText.hoverActions(dated: false, unfolded: false))
-        #expect(TodoText.menu(dated: true) == ["Ouvrir le projet", "Reporter", "Livré"])
+        #expect(TodoText.menu(dated: true) == ["Ouvrir le projet", "Reporter", "Livrer"])
         #expect(TodoText.menu(dated: false) == ["Ouvrir le projet"])
     }
 

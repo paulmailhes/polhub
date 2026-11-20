@@ -89,7 +89,7 @@ struct MeetingDetailView: View {
         .onChange(of: router.seekRequest?.seconds) { _, _ in seekIfAsked() }
         .onDisappear { player?.pause() }
         .confirmationDialog("Supprimer « \(row.title) » ?", isPresented: $confirmingDelete) {
-            Button("Mettre à la Corbeille", role: .destructive) { delete() }
+            Button("Supprimer", role: .destructive) { delete() }
             Button("Annuler", role: .cancel) {}
         } message: {
             Text("L'audio va à la Corbeille, d'où tu peux encore le récupérer.")

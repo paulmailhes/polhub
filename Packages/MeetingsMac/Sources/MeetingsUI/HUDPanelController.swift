@@ -32,8 +32,8 @@ public final class HUDPanelController {
     }()
 
     /// 480 wide (lot 9, 20/11: 440 before, where the panel's 15 and 13 points put « Enregistrement dans 7 s » on two lines
-    /// beside its two buttons), 76 tall at least.
-    public nonisolated static let panelSize = CGSize(width: 480, height: 76)
+    /// beside its two buttons), 77 tall at least (20/11: « Ne pas enregistrer », Paul's word, took the prompt to 77).
+    public nonisolated static let panelSize = CGSize(width: 480, height: 77)
 
     private let style: Style
     private var panel: NSPanel?
@@ -273,7 +273,7 @@ struct HUDView: View {
             HStack(spacing: Space.s) {
                 switch model.kind {
                 case .prompt:
-                    Button("Pas cette fois") { model.onDecline() }
+                    Button("Ne pas enregistrer") { model.onDecline() }
                         .buttonStyle(.secondary)
                     Button("Enregistrer") { model.onAccept() }
                         .buttonStyle(.primary)

@@ -75,7 +75,7 @@ struct PanelHero: View {
                     .monospacedDigit()
             }
             HStack(spacing: Space.s) {
-                Button { actions.user(.decline) } label: { Text("Pas cette fois").frame(maxWidth: .infinity) }
+                Button { actions.user(.decline) } label: { Text("Ne pas enregistrer").frame(maxWidth: .infinity) }
                     .buttonStyle(.secondary)
                     .keyboardShortcut(.delete, modifiers: [])
                     // « Verbe + objet (raccourci) », by `Words.help` (lot 10, 20/11).

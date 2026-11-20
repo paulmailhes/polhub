@@ -3,6 +3,16 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.47.1 — 20 novembre 2026
+
+**Les mots choisis par Paul.**
+
+- « Supprimer » une réunion (était « Mettre à la Corbeille » ; elle va toujours à la Corbeille).
+- « Ne pas enregistrer » une réunion détectée (était « Pas cette fois »).
+- « Livrer » dans À faire (était « Livré »).
+- Le dossier de mails « Notifications » s'appelle « Automatiques » : plus de confusion avec la cloche.
+- Coup d'œil dit « Partie 3 sur 5 » pendant un compte rendu en plusieurs parties.
+
 ## 0.47.0 — 20 novembre 2026
 
 **Les mots : les mêmes partout, et des erreurs qui disent quoi faire.**

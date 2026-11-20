@@ -13,7 +13,7 @@ enum TodoText {
 
     /// The right click: « Ouvrir le projet », then « Reporter » and « Livré » on a dated line.
     static func menu(dated: Bool) -> [String] {
-        dated ? ["Ouvrir le projet", "Reporter", "Livré"] : ["Ouvrir le projet"]
+        dated ? ["Ouvrir le projet", "Reporter", "Livrer"] : ["Ouvrir le projet"]
     }
 }
 
@@ -149,9 +149,9 @@ struct TodoCard: View {
                 if dated {
                     Menu("Reporter") { postponeItems(line) }
                     if TodoRules.nextCall(line.id, events: agenda.shown, now: Date()) != nil {
-                        Menu("Livré") { deliverItems(line) }
+                        Menu("Livrer") { deliverItems(line) }
                     } else {
-                        Button("Livré") { todo.deliver(line) }
+                        Button("Livrer") { todo.deliver(line) }
                     }
                 }
             }
@@ -221,7 +221,7 @@ struct TodoCard: View {
                 .fixedSize()
                 .help("Reporter l'échéance \(Words.of(line.name))")
             if TodoRules.nextCall(line.id, events: agenda.shown, now: Date()) != nil {
-                Menu { deliverItems(line) } label: { Text("Livré") }
+                Menu { deliverItems(line) } label: { Text("Livrer") }
                     .menuStyle(.button)
                     .buttonStyle(.secondary)
                     .menuIndicator(.hidden)
@@ -229,7 +229,7 @@ struct TodoCard: View {
                     // « Verbe + objet », 60 characters at most, « visio » (lot 10, 20/11).
                     .help("Noter la livraison, puis la prochaine visio")
             } else {
-                Button("Livré") { todo.deliver(line) }
+                Button("Livrer") { todo.deliver(line) }
                     .buttonStyle(.secondary)
                     .fixedSize()
                     // An échéance is « retirée », never « effacée » (lot 10, 20/11).
@@ -260,7 +260,7 @@ struct TodoCard: View {
             Button(TodoRules.deliveredNext(next, now: Date(), calendar: calendar)) { todo.deliver(line, next: next) }
             Button("Livré, sans échéance") { todo.deliver(line) }
         } else {
-            Button("Livré") { todo.deliver(line) }
+            Button("Livrer") { todo.deliver(line) }
         }
     }
 }

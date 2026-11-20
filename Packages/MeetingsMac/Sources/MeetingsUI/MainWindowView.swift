@@ -844,7 +844,7 @@ struct MeetingListView: View {
         .onChange(of: library.rows) { previous, _ in openNewest(previous: previous) }
         .confirmationDialog("Supprimer « \(deleting?.title ?? "") » ?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
                             presenting: deleting) { row in
-            Button("Mettre à la Corbeille", role: .destructive) { delete(row) }
+            Button("Supprimer", role: .destructive) { delete(row) }
             Button("Annuler", role: .cancel) {}
         } message: { _ in
             Text("L'audio va à la Corbeille, d'où tu peux encore le récupérer.")
