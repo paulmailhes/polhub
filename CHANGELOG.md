@@ -3,6 +3,20 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.57.0 — 20 novembre 2026
+
+**Un nombre sur l'icône de Polhub, et des mails plus propres sur l'iPhone.**
+
+- L'icône de Polhub porte un nombre, dans le Dock et sur l'iPhone : les mails non lus de la boîte de réception, plus
+  ce que Polhub t'a signalé et que tu n'as pas encore vu (comptes rendus, brouillons, rappels). Sur l'iPhone, il suit
+  chaque notification, et change seul quand tu lis tes mails sur le Mac.
+- Sur l'iPhone, un mail replie sa signature et l'historique cité, comme sur le Mac : un bouton les affiche.
+- Sur l'iPhone, glisser un mail vers la gauche le supprime (jusqu'au bout) ou l'archive ; vers la droite, il passe en
+  lu ou non lu. Une corbeille dans le fil le supprime aussi.
+- Sur l'iPhone, plus de chevron au bout des mails ; un message replié montre ses premiers mots ; la liste se met à jour
+  au retour d'un fil.
+- Les notifications de l'iPhone ne dépendent plus de l'interrupteur « Accès depuis l'iPhone ».
+
 ## 0.56.0 — 20 novembre 2026
 
 **Chaque nouveau mail sonne sur l'iPhone, comme dans Gmail.**

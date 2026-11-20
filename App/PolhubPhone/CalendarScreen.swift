@@ -136,7 +136,8 @@ struct DaysTimeline: View {
                     .frame(height: 24 * Self.hourHeight)
                     .padding(.top, 8)
                 }
-                .onAppear { proxy.scrollTo(Self.firstHour(events: events, days: days), anchor: .top) }
+                // A little under the top: the hour's label, drawn above its line, shows whole.
+                .onAppear { proxy.scrollTo(Self.firstHour(events: events, days: days), anchor: UnitPoint(x: 0, y: 0.04)) }
             }
         }
     }

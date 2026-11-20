@@ -20,11 +20,11 @@ struct PhoneSettingsScreen: View {
                 Section {
                     LabeledContent("Notifications", value: notificationsText)
                     if notifications == .denied {
-                        Button("Ouvrir les Réglages de l'iPhone") {
+                        Button("Ouvrir les Réglages de l'iPhone", systemImage: "gear") {
                             if let url = URL(string: UIApplication.openNotificationSettingsURLString) { UIApplication.shared.open(url) }
                         }
                     } else if notifications == .notDetermined {
-                        Button("Activer les notifications") {
+                        Button("Activer les notifications", systemImage: "bell.badge") {
                             Task {
                                 await PhoneAppDelegate.ask()
                                 notifications = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
@@ -44,6 +44,7 @@ struct PhoneSettingsScreen: View {
                     Text("L'iPhone oublie le Mac et efface sa copie. Pour le relier de nouveau, scanne un nouveau code sur le Mac.")
                 }
             }
+            .tint(PhoneStyle.unread)
             .navigationTitle("Réglages")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("OK") { dismiss() } } }
             .task {
@@ -60,6 +61,7 @@ struct PhoneSettingsScreen: View {
         switch notifications {
         case .authorized?, .provisional?, .ephemeral?: "Activées"
         case .denied?: "Refusées"
+        case .notDetermined?: "Pas encore demandées"
         default: "—"
         }
     }

@@ -69,6 +69,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     /// Polhub on the iPhone (20/11): Réglages › iPhone, and the server on the loopback when Paul switched it on.
     private var phone: PhoneAccess?
 
+    /// The number on Polhub's icon (Paul, 20/11): the unread mails of the main tab and what Polhub told that was not
+    /// seen yet, in the Dock, and on the iPhone's icon with each notification or alone when it changes.
+    private func watchBadge(_ hub: NotificationHub) {
+        let count: @MainActor () -> Int = { [weak self] in
+            AppBadge.count(unreadMails: self?.mails?.unread(in: .personnes) ?? 0, notices: hub.inbox?.notices ?? [])
+        }
+        phone?.badge = count
+        var changes: [AnyPublisher<Void, Never>] = []
+        if let mails { changes.append(mails.objectWillChange.map { _ in () }.eraseToAnyPublisher()) }
+        if let inbox = hub.inbox { changes.append(inbox.objectWillChange.map { _ in () }.eraseToAnyPublisher()) }
+        badgeObserver = Publishers.MergeMany(changes)
+            .debounce(for: .seconds(1), scheduler: RunLoop.main)
+            .sink { [weak self] in
+                MainActor.assumeIsolated {
+                    let value = count()
+                    NSApp.dockTile.badgeLabel = AppBadge.label(value)
+                    Task { await self?.phone?.badgeChanged(value) }
+                }
+            }
+        NSApp.dockTile.badgeLabel = AppBadge.label(count())
+    }
+
     /// Whether this build carries iCloud's rights: the release does, the development build not. CloudKit stops an app
     /// that asks for a container it has no right to.
     static var carriesICloud: Bool {
@@ -116,6 +138,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var diagnostic: DiagnosticModel?
     private var externalChanges: ExternalChangeSignal.Listener?
     private var checklistObserver: AnyCancellable?
+    /// The number on Polhub's icon, in the Dock and on the iPhone (20/11).
+    private var badgeObserver: AnyCancellable?
     private var terminationSource: DispatchSourceSignal?
     private var guideObserver: AnyCancellable?
 
@@ -538,6 +562,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         mails?.onArrival = { arrived in Task { await hub.mailsArrived(arrived) } }
         // Every new mail on the iPhone, as Gmail would show it (20/11).
         mails?.onPhoneArrival = { arrived in Task { await hub.phoneMailsArrived(arrived) } }
+        watchBadge(hub)
         mails?.onSendFailed = { subject, thread in Task { await hub.mailNotSent(subject: subject, threadKey: thread) } }
         // A programmed mail that left late, waits for Paul or did not leave (wave B).
         mails?.onScheduleNotice = { notice in Task { await hub.mailScheduleNotice(notice) } }

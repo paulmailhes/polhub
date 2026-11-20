@@ -22,6 +22,24 @@ struct MailsScreen: View {
         NavigationStack(path: $path) {
             List(threads) { thread in
                 NavigationLink(value: thread) { ThreadRow(thread: thread) }
+                    // As in Mail: no chevron at the end of each line.
+                    .navigationLinkIndicatorVisibility(.hidden)
+                    // Swiped from the right: delete (all the way) or archive; from the left: read or unread (20/11).
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) { Task { await swipe(thread, LinkGesture.trash) } } label: {
+                            Label("Supprimer", systemImage: "trash")
+                        }
+                        Button { Task { await swipe(thread, LinkGesture.archive) } } label: {
+                            Label("Archiver", systemImage: "archivebox")
+                        }
+                        .tint(PhoneStyle.violet)
+                    }
+                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                        Button { Task { await swipe(thread, thread.unread ? LinkGesture.read : LinkGesture.unread) } } label: {
+                            Label(thread.unread ? "Lu" : "Non lu", systemImage: thread.unread ? "envelope.open" : "envelope.badge")
+                        }
+                        .tint(PhoneStyle.unread)
+                    }
             }
             .listStyle(.plain)
             .overlay {
@@ -51,6 +69,8 @@ struct MailsScreen: View {
             .safeAreaInset(edge: .top, spacing: 0) { StateLine(keptAt: keptAt, problem: problem) }
             .refreshable { await load() }
             .task(id: folder) { await load() }
+            // Back from a thread: it is read, or deleted, and the list says so.
+            .onChange(of: path.isEmpty) { _, back in if back { Task { await load() } } }
             .sheet(isPresented: $composing) { ComposeSheet(reply: nil) }
             // A touched notification of a mail opens its thread.
             .onChange(of: session.opening, initial: true) { _, opening in
@@ -59,6 +79,22 @@ struct MailsScreen: View {
                                    hasFiles: false, project: nil)]
                 session.opening = nil
             }
+        }
+    }
+
+    /// The list changes at once; if the Mac does not do it, the line comes back and says why.
+    private func swipe(_ thread: LinkThread, _ kind: String) async {
+        let before = threads
+        withAnimation {
+            switch kind {
+            case LinkGesture.trash, LinkGesture.archive: threads.removeAll { $0.id == thread.id }
+            default:
+                if let index = threads.firstIndex(where: { $0.id == thread.id }) { threads[index].unread = kind == LinkGesture.unread }
+            }
+        }
+        if let refusal = await session.gesture(thread.id, kind) {
+            withAnimation { threads = before }
+            problem = refusal
         }
     }
 
@@ -126,6 +162,7 @@ struct ThreadScreen: View {
     @State private var preview: URL?
     /// « Répondre » (false) or « Répondre à tous » (true), while its sheet is open.
     @State private var replying: Bool?
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ScrollView {
@@ -137,7 +174,7 @@ struct ThreadScreen: View {
                 }
                 if let detail {
                     ForEach(Array(detail.messages.enumerated()), id: \.element.id) { index, message in
-                        MessageView(message: message, open: index >= detail.messages.count - 1) { file in
+                        MessageView(message: message, reader: detail.reader, open: index >= detail.messages.count - 1) { file in
                             Task {
                                 do throws(LinkFailure) { preview = try await session.file(message: message.id, part: file.id, name: file.name) }
                                 catch { problem = error.message }
@@ -155,6 +192,14 @@ struct ThreadScreen: View {
         .safeAreaInset(edge: .top, spacing: 0) { StateLine(keptAt: keptAt, problem: problem) }
         .quickLookPreview($preview)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                // Deleted from inside, as in Mail (20/11): back to the list, where it no longer is.
+                Button("Supprimer", systemImage: "trash") {
+                    Task {
+                        if let refusal = await session.gesture(thread.id, LinkGesture.trash) { problem = refusal } else { dismiss() }
+                    }
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button("Répondre à tous", systemImage: "arrowshape.turn.up.left.2") { replying = true }
@@ -185,12 +230,14 @@ struct ThreadScreen: View {
 /// One message: who, when, and its body; an older one folded to its first line until touched.
 struct MessageView: View {
     let message: LinkMessage
+    let reader: String?
     @State var open: Bool
     let openFile: (LinkFile) -> Void
     @State private var height: CGFloat = 60
 
-    init(message: LinkMessage, open: Bool, openFile: @escaping (LinkFile) -> Void) {
+    init(message: LinkMessage, reader: String?, open: Bool, openFile: @escaping (LinkFile) -> Void) {
         self.message = message
+        self.reader = reader
         _open = State(initialValue: open)
         self.openFile = openFile
     }
@@ -207,6 +254,9 @@ struct MessageView: View {
                         }
                         if open, !message.to.isEmpty {
                             Text("à " + message.to.map(\.shown).joined(separator: ", ")).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                        } else if !open, let snippet = message.snippet, !snippet.isEmpty {
+                            // Folded, as in Mail: its first words.
+                            Text(snippet).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
                         }
                     }
                     Spacer()
@@ -216,7 +266,7 @@ struct MessageView: View {
             }
             .buttonStyle(.plain)
             if open {
-                MailBody(html: message.html, height: $height).frame(height: height)
+                MailBody(html: message.html, reader: reader, height: $height).frame(height: height)
                 ForEach(message.files) { file in
                     Button { openFile(file) } label: {
                         Label("\(file.name) · \(ByteCountFormatStyle(style: .file, locale: LinkWords.locale).format(Int64(file.size)))",
@@ -233,14 +283,22 @@ struct MessageView: View {
 /// A body as the Mac made it safe: no script, no remote image (its policy); a link opens in Safari. As tall as its text.
 struct MailBody: UIViewRepresentable {
     let html: String
+    /// The Mac's reading script (20/11): the signature and the quoted history fold behind a button, as on the Mac; it
+    /// runs in the app's own world and says the height, the mail's own scripts staying off.
+    var reader: String? = nil
     @Binding var height: CGFloat
 
-    func makeCoordinator() -> Coordinator { Coordinator(height: $height) }
+    func makeCoordinator() -> Coordinator { Coordinator(height: $height, measures: reader == nil) }
 
     func makeUIView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.defaultWebpagePreferences.allowsContentJavaScript = false
         configuration.websiteDataStore = .nonPersistent()
+        if let reader {
+            configuration.userContentController.addUserScript(WKUserScript(source: reader, injectionTime: .atDocumentEnd,
+                                                                           forMainFrameOnly: true, in: .defaultClient))
+            configuration.userContentController.add(context.coordinator, contentWorld: .defaultClient, name: "polhub")
+        }
         let view = WKWebView(frame: .zero, configuration: configuration)
         view.isOpaque = false
         view.backgroundColor = .clear
@@ -266,18 +324,29 @@ struct MailBody: UIViewRepresentable {
         return style + html
     }
 
-    final class Coordinator: NSObject, WKNavigationDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var height: Binding<CGFloat>
         var loaded: String?
+        /// Without the reading script, the height is read once loaded.
+        let measures: Bool
 
-        init(height: Binding<CGFloat>) {
+        init(height: Binding<CGFloat>, measures: Bool) {
             self.height = height
+            self.measures = measures
         }
 
         func watch(_ view: WKWebView) {}
 
+        /// The script's word: the page's height, again each time a signature or a history unfolds.
+        func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard let body = message.body as? [String: Any], let value = body["height"] as? Double, value > 0 else { return }
+            let fitted = min(CGFloat(value), 60_000)
+            if abs(height.wrappedValue - fitted) > 0.5 { height.wrappedValue = fitted }
+        }
+
         /// The text's own height, read in the app's own world: the page's scripts stay off.
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            guard measures else { return }
             Task { @MainActor in
                 let value = try? await webView.callAsyncJavaScript("return document.body.scrollHeight", arguments: [:], in: nil,
                                                                    contentWorld: .defaultClient)

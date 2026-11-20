@@ -148,7 +148,7 @@ import PolhubLink
         func put(_ key: String, _ value: (some Encodable)?) {
             if let value, let data = try? LinkAPI.encoder.encode(value) { plan.answers[key] = data }
         }
-        put(LinkAPI.Path.status, LinkStatus(appVersion: api.appVersion, device: "iCloud"))
+        put(LinkAPI.Path.status, LinkStatus(appVersion: api.appVersion, device: "iCloud", badge: api.badge?()))
         let projects = try? api.projects()
         put(LinkAPI.Path.projects, projects)
         for project in projects ?? [] {

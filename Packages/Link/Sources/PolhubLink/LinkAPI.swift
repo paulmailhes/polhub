@@ -37,6 +37,8 @@ public enum LinkAPI {
         public static let colinUndo = "/v1/colin/undo"
         /// The iPhone's push token (20/11).
         public static let push = "/v1/push"
+        /// A swipe on a mail: delete, archive, read, unread (20/11).
+        public static let gesture = "/v1/mail/gesture"
     }
 
     /// The header of the token: `Authorization: Bearer <token>`.

@@ -7,11 +7,31 @@ public struct LinkStatus: Codable, Sendable, Equatable {
     public var appVersion: String
     /// The paired iPhone's name, as the Mac knows it.
     public var device: String
+    /// The number on Polhub's icon (20/11): the unread mails and what Polhub told that was not seen yet.
+    public var badge: Int?
 
-    public init(version: Int = LinkAPI.version, appVersion: String, device: String) {
+    public init(version: Int = LinkAPI.version, appVersion: String, device: String, badge: Int? = nil) {
         self.version = version
         self.appVersion = appVersion
         self.device = device
+        self.badge = badge
+    }
+}
+
+/// A swipe on a mail of the iPhone (20/11): the Mac does it as its own gesture.
+public struct LinkGesture: Codable, Sendable, Equatable {
+    public static let trash = "supprimer"
+    public static let archive = "archiver"
+    public static let read = "lu"
+    public static let unread = "non-lu"
+
+    /// The thread's key.
+    public var thread: String
+    public var kind: String
+
+    public init(thread: String, kind: String) {
+        self.thread = thread
+        self.kind = kind
     }
 }
 
@@ -116,9 +136,12 @@ public struct LinkMessage: Codable, Sendable, Equatable, Identifiable {
     public var files: [LinkFile]
     /// « Vérifié par Gmail ».
     public var authenticated: Bool
+    /// Its first words, shown while it is folded (20/11).
+    public var snippet: String?
 
     public init(id: String, from: LinkPerson?, to: [LinkPerson], cc: [LinkPerson], date: Date, html: String, files: [LinkFile],
-                authenticated: Bool) {
+                authenticated: Bool, snippet: String? = nil) {
+        self.snippet = snippet
         self.id = id
         self.from = from
         self.to = to
@@ -133,10 +156,14 @@ public struct LinkMessage: Codable, Sendable, Equatable, Identifiable {
 public struct LinkThreadDetail: Codable, Sendable, Equatable {
     public var thread: LinkThread
     public var messages: [LinkMessage]
+    /// The Mac's reading script (20/11): it folds each message's signature and quoted history behind a button, and
+    /// says the page's height. Run in the app's own world, the mail's own scripts staying off.
+    public var reader: String?
 
-    public init(thread: LinkThread, messages: [LinkMessage]) {
+    public init(thread: LinkThread, messages: [LinkMessage], reader: String? = nil) {
         self.thread = thread
         self.messages = messages
+        self.reader = reader
     }
 }
 

@@ -33,6 +33,8 @@ struct PolhubPhoneApp: App {
                 delegate.session = session
                 if !session.demo { await PhoneAppDelegate.ask() }
                 await session.refreshCloud()
+                // The icon's number, as the Mac counts it now.
+                await session.refreshStatus()
             }
             // Paired: the notifications are asked once, and their token goes to the Mac at each launch.
             .task(id: session.connection?.token) {

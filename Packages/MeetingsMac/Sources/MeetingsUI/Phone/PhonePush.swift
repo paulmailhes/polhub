@@ -65,10 +65,11 @@ final class PhonePush {
         }
     }
 
-    static func payload(_ notice: PlannedNotice) -> Data {
+    static func payload(_ notice: PlannedNotice, badge: Int? = nil) -> Data {
         var alert = ["title": notice.title, "body": notice.body]
         if let subtitle = notice.subtitle { alert["subtitle"] = subtitle }
         var aps: [String: Any] = ["alert": alert, "sound": "default"]
+        if let badge { aps["badge"] = badge }
         if let thread = notice.threadKey { aps["thread-id"] = thread }
         var payload: [String: Any] = ["aps": aps]
         if let thread = notice.threadKey { payload["fil"] = thread }
@@ -76,11 +77,28 @@ final class PhonePush {
         return (try? JSONSerialization.data(withJSONObject: payload)) ?? Data()
     }
 
-    /// Sent now to every paired iPhone; a token Apple no longer knows is forgotten.
+    /// The number on the icon, read when a notice leaves (20/11).
+    var badge: (@MainActor () -> Int)?
+
+    /// The number alone, without a sound: what was read on the Mac goes off the iPhone's icon too.
+    static func badgePayload(_ count: Int) -> Data {
+        (try? JSONSerialization.data(withJSONObject: ["aps": ["badge": count]])) ?? Data()
+    }
+
+    /// Sent now to every iPhone; a token Apple no longer knows is forgotten.
     func send(_ notice: PlannedNotice) async {
+        let count = badge?()
+        await post(Self.payload(notice, badge: count), collapse: notice.id, priority: 10)
+    }
+
+    /// The icon's number changed: it goes alone.
+    func sendBadge(_ count: Int) async {
+        await post(Self.badgePayload(count), collapse: "badge", priority: 5)
+    }
+
+    private func post(_ body: Data, collapse: String, priority: Int) async {
         let targets = Self.targets(devices.all)
         guard !targets.isEmpty, let token = providerToken() else { return }
-        let body = Self.payload(notice)
         for (id, device) in targets {
             guard let url = URL(string: "https://api.push.apple.com/3/device/\(device)") else { continue }
             var request = URLRequest(url: url, timeoutInterval: 15)
@@ -89,7 +107,8 @@ final class PhonePush {
             request.setValue("bearer \(token)", forHTTPHeaderField: "authorization")
             request.setValue(Self.topic, forHTTPHeaderField: "apns-topic")
             request.setValue("alert", forHTTPHeaderField: "apns-push-type")
-            request.setValue(String(notice.id.prefix(64)).addingPercentEncoding(withAllowedCharacters: .alphanumerics), forHTTPHeaderField: "apns-collapse-id")
+            request.setValue(String(priority), forHTTPHeaderField: "apns-priority")
+            request.setValue(String(collapse.prefix(64)).addingPercentEncoding(withAllowedCharacters: .alphanumerics), forHTTPHeaderField: "apns-collapse-id")
             guard let (_, response) = try? await session.data(for: request) else { continue }
             if [400, 410].contains((response as? HTTPURLResponse)?.statusCode) { devices.setPushToken(nil, for: id) }
         }

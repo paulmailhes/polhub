@@ -10,8 +10,8 @@ public enum LinkDemo {
         }
         let encoder = LinkAPI.encoder
         switch path {
-        case LinkAPI.Path.status:
-            return try? encoder.encode(LinkStatus(appVersion: "0.52.0", device: "iPhone"))
+        case LinkAPI.Path.status, LinkAPI.Path.gesture:
+            return try? encoder.encode(LinkStatus(appVersion: "0.57.0", device: "iPhone", badge: 2))
         case LinkAPI.Path.folders:
             return try? encoder.encode([LinkFolder(id: "inbox", title: "Boîte de réception", unread: 2),
                                         LinkFolder(id: "notifications", title: "Automatiques", unread: 5),
@@ -27,9 +27,11 @@ public enum LinkDemo {
             return try? encoder.encode(LinkThreadDetail(thread: thread, messages: [
                 LinkMessage(id: "m1", from: camille, to: [me], cc: [], date: at(-1, 17, 20),
                             html: page("Bonjour,<br><br>Voici la deuxième version de la maquette, avec la page contact revue.<br><br>Camille", dark: dark),
-                            files: [LinkFile(id: "2", name: "maquette-v2.pdf", mimeType: "application/pdf", size: 1_240_000)], authenticated: true),
+                            files: [LinkFile(id: "2", name: "maquette-v2.pdf", mimeType: "application/pdf", size: 1_240_000)], authenticated: true,
+                            snippet: "Bonjour, voici la deuxième version de la maquette, avec la page contact revue."),
                 LinkMessage(id: "m2", from: me, to: [camille], cc: [], date: at(-1, 18, 2),
-                            html: page("Merci, je regarde ça demain matin.", dark: dark), files: [], authenticated: true),
+                            html: page("Merci, je regarde ça demain matin.", dark: dark), files: [], authenticated: true,
+                            snippet: "Merci, je regarde ça demain matin."),
                 LinkMessage(id: "m3", from: camille, to: [me], cc: [], date: at(0, 8, 31),
                             html: page("Parfait. J'ai aussi corrigé la page contact, dis-moi si le formulaire te convient.", dark: dark),
                             files: [], authenticated: true),

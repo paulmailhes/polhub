@@ -17,6 +17,8 @@ final class PhoneAPI {
     let mails: MailLibrary?
     /// Colin's thread, the Accueil's (lot 3, 20/11).
     let colin: ColinThread?
+    /// The number on Polhub's icon (20/11), set by the app.
+    var badge: (@MainActor () -> Int)?
     let appVersion: String
     let now: () -> Date
 
@@ -47,7 +49,7 @@ final class PhoneAPI {
             guard request.method == Self.read else { return Self.error("Cette demande n'existe pas.", status: 405) }
             switch request.path {
             case LinkAPI.Path.status:
-                return try Self.json(LinkStatus(appVersion: appVersion, device: device.name))
+                return try Self.json(LinkStatus(appVersion: appVersion, device: device.name, badge: badge?()))
             case LinkAPI.Path.folders:
                 return try Self.json(try folders())
             case LinkAPI.Path.threads:
@@ -131,12 +133,12 @@ final class PhoneAPI {
             messages.append(LinkMessage(id: message.id, from: message.sender.map(Self.person), to: message.to.map(Self.person),
                                         cc: message.cc.map(Self.person), date: message.date, html: html,
                                         files: message.files.map { LinkFile(id: $0.partID, name: $0.filename, mimeType: $0.mimeType, size: $0.size) },
-                                        authenticated: message.authenticated))
+                                        authenticated: message.authenticated, snippet: message.snippet))
         }
         if row.unread { mails.markRead(row) }
         var thread = link(row)
         thread.unread = false
-        return LinkThreadDetail(thread: thread, messages: messages)
+        return LinkThreadDetail(thread: thread, messages: messages, reader: MailHTML.readerScript)
     }
 
     func file(message key: String, part: String) async throws -> HTTPResponse {
@@ -177,12 +179,26 @@ final class PhoneAPI {
             colin.draft = text
             colin.send()
             return try Self.json(try colinThread())
+        case LinkAPI.Path.gesture:
+            // A swipe on the iPhone (20/11): the Mac's own gesture, sent to Gmail as it does for its own.
+            let gesture = try body(LinkGesture.self)
+            let kind: MailGestureKind? = switch gesture.kind {
+            case LinkGesture.trash: .trash
+            case LinkGesture.archive: .archive
+            case LinkGesture.read: .markRead
+            case LinkGesture.unread: .markUnread
+            default: nil
+            }
+            guard let kind else { throw LinkError("Ce geste n'existe pas.") }
+            guard let mails, let row = try mails.store.thread(gesture.thread) else { throw LinkError("Ce fil n'existe plus.") }
+            mails.perform(kind, on: row, undoable: false)
+            return try Self.json(LinkStatus(appVersion: appVersion, device: device.name, badge: badge?()))
         case LinkAPI.Path.push:
             let push = try body(LinkPushToken.self)
             let token = push.token.filter(\.isHexDigit)
             guard token.count >= 32 else { throw LinkError("Ce jeton de notifications est illisible.") }
             devices.setPushToken(token, for: device.id)
-            return try Self.json(LinkStatus(appVersion: appVersion, device: device.name))
+            return try Self.json(LinkStatus(appVersion: appVersion, device: device.name, badge: badge?()))
         case LinkAPI.Path.colinUndo:
             let undo = try body(LinkUndo.self)
             guard let colin, let line = colin.changes.first(where: { $0.id == undo.id }) else { throw LinkError("Ce changement n'existe plus.") }

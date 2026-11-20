@@ -65,13 +65,31 @@ public final class PhoneAccess: ObservableObject {
 
     /// What the Mac notifies, on the iPhone too.
     public func notify(_ notice: PlannedNotice) async {
-        guard enabled, notifies else { return }
+        // The notifications no longer need Tailscale (20/11): the iPhone gives its address through iCloud too.
+        guard notifies else { return }
         await push.send(notice)
     }
 
     /// The reminders before the events, at their time.
     public func plan(_ reminders: [PlannedNotice]) {
-        push.plan(enabled && notifies ? reminders : [])
+        push.plan(notifies ? reminders : [])
+    }
+
+    /// The number on Polhub's icon (20/11), read by each notification, and in the Mac's answers.
+    public var badge: (@MainActor () -> Int)? {
+        didSet {
+            push.badge = badge
+            api.badge = badge
+        }
+    }
+
+    private var lastBadge: Int?
+
+    /// The number changed on the Mac: the iPhone's icon follows.
+    public func badgeChanged(_ count: Int) async {
+        guard notifies, count != lastBadge else { return }
+        lastBadge = count
+        await push.sendBadge(count)
     }
     private let defaults: UserDefaults
     private var server: HTTPServer?

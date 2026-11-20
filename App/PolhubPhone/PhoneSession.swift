@@ -5,6 +5,7 @@ import PolhubLink
 import Security
 import SwiftUI
 import UIKit
+import UserNotifications
 
 /// The iPhone's link to its Mac (20/11): the address and the key, kept in the Keychain; the last answers, kept on the
 /// iPhone. In the demonstration mode (`-demo`), made-up answers and nothing leaves the iPhone.
@@ -113,6 +114,24 @@ final class PhoneSession {
 
     func refreshStatus() async {
         status = try? await fetch(LinkStatus.self, LinkAPI.Path.status).value
+        showBadge(status?.badge)
+    }
+
+    /// The number on Polhub's icon, as the Mac counts it (20/11): the unread mails and what it told not yet seen.
+    func showBadge(_ badge: Int?) {
+        guard let badge, !demo else { return }
+        UNUserNotificationCenter.current().setBadgeCount(badge)
+    }
+
+    /// A swipe on a mail (20/11): the Mac does it; nil when done, else why not.
+    func gesture(_ thread: String, _ kind: String) async -> String? {
+        do throws(LinkFailure) {
+            let status = try await post(LinkStatus.self, LinkAPI.Path.gesture, body: LinkGesture(thread: thread, kind: kind))
+            showBadge(status.badge)
+            return nil
+        } catch {
+            return error.message
+        }
     }
 
     // MARK: - Notifications (20/11)
