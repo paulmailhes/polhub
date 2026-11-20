@@ -220,24 +220,28 @@ import Testing
         #expect(try ProjectStore(world.fixture.database).project(id: world.other.id)?.status == .priorite1)
     }
 
-    @Test func colinCannotWriteAnotherProjectAfterAMail() throws {
+    /// Paul, 20/11: « mets à jour mes projets d'après mes mails » changes several projects in one question. A change of
+    /// the kanban shows in the thread with « Annuler »; the lock keeps the drafts and the new projects only.
+    @Test func colinUpdatesSeveralProjectsAfterReadingMails() throws {
         let world = try world()
         defer { try? FileManager.default.removeItem(at: world.fixture.root) }
         let writes = WriteCounter()
         let server = try server(world, writes: writes)
         #expect(try call(server, "mail", ["quel": "fil-devis-04"]).error == false)
         for (name, arguments) in [("projet", ["projet": "Site vitrine", "statut": "terminé"]), ("action", ["projet": "Site vitrine", "texte": "Payer"]),
-                                  ("fait", ["projet": "Site vitrine", "numeros": [1]]), ("journal", ["projet": "Site vitrine", "titre": "Fini"])] as [(String, [String: Any])] {
-            let refused = try call(server, name, arguments)
-            #expect(refused.error && refused.text.hasPrefix(ColinTool.lockMark), "\(name) : \(refused.text)")
-            #expect(refused.text.contains("un projet par question"))
+                                  ("journal", ["projet": "Site vitrine", "titre": "Fini"]),
+                                  ("projet", ["projet": "Cabinet Martin", "statut": "priorité 1"])] as [(String, [String: Any])] {
+            let changed = try call(server, name, arguments)
+            #expect(!changed.error, "\(name) : \(changed.text)")
         }
-        #expect(writes.count == 0)
-        #expect(try ProjectStore(world.fixture.database).projects().first { $0.name == "Site vitrine" }?.status != .termine)
-        // A thread of no project read: no project may be written.
+        #expect(writes.count == 4)
+        #expect(try ProjectStore(world.fixture.database).projects().first { $0.name == "Site vitrine" }?.status == .termine)
+        // A thread of no project read: the projects still change.
         let other = try self.server(world, writes: writes)
         #expect(try call(other, "mail", ["quel": "fil-lettre-02"]).error == false)
-        #expect(try call(other, "projet", ["projet": "Cabinet Martin", "statut": "priorité 1"]).text.hasPrefix(ColinTool.lockMark))
+        #expect(try call(other, "projet", ["projet": "Cabinet Martin", "statut": "priorité 2"]).error == false)
+        // A draft out of the thread read stays refused.
+        #expect(try reply(other, in: "fil-devis-04").text.hasPrefix(ColinTool.lockMark))
     }
 
     /// 19/11: a project is created only on a context where nothing of a third party was read: a mail could otherwise

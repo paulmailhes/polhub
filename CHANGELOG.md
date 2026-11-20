@@ -3,6 +3,16 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.50.0 — 20 novembre 2026
+
+**Colin met à jour plusieurs projets d'un coup.**
+
+- « Mets à jour mes projets d'après mes mails » : Colin change maintenant plusieurs projets dans la même question
+  (statut, échéance, tâche du moment, actions, journal), même après avoir lu des mails. Chaque changement s'affiche dans
+  son fil avec « Annuler ». Avant, son verrou le limitait à un projet par question.
+- Le verrou reste pour ce qui sort ou se crée : un brouillon ne sort pas du fil qu'il a lu, et un projet ne se crée
+  pas après la lecture d'un mail.
+
 ## 0.49.0 — 20 novembre 2026
 
 **Envoyer ferme le mail ; les messages du bas, petits et passagers.**
