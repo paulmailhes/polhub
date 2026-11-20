@@ -131,7 +131,7 @@ import Testing
         #expect(lines(due: [project("Cabinet Martin", due: at(19))])[1] == "À livrer : Cabinet Martin demain.")
         #expect(lines(due: [project("Cabinet Martin", due: at(24))])[1] == "À livrer : Cabinet Martin mardi.")
         #expect(lines(due: [project("Cabinet Martin", due: at(16))])[1] == "À livrer : Cabinet Martin en retard de 2 jours.")
-        #expect(lines(due: [project("Cabinet Martin", due: at(25))])[1] == "À livrer : Cabinet Martin le 25.")
+        #expect(lines(due: [project("Cabinet Martin", due: at(25))])[1] == "À livrer : Cabinet Martin mercredi 25.")
         let many = [project("A", due: at(16)), project("B", due: at(18)), project("C", due: at(19)), project("D", due: at(20)), project("E", due: at(21))]
         #expect(lines(due: many)[1] == "À livrer : A en retard de 2 jours, B aujourd'hui, C demain et 2 autres.")
         #expect(lines(due: Array(many.prefix(4)))[1] == "À livrer : A en retard de 2 jours, B aujourd'hui, C demain et 1 autre.")

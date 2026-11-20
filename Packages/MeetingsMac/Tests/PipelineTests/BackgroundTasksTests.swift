@@ -64,7 +64,7 @@ import Testing
         let early = row(transcribedDaysAgo: nil, endedDaysAgo: 22)
         let warnings = AudioPurge.warnings([soon, early], failed: [soon.id, early.id], now: now)
         #expect(warnings.map(\.meetingID) == [soon.id])
-        #expect(warnings.first?.message == "L'audio de « R » sera effacé dans 7 jours : sa transcription a échoué. « Réessayer » dans la fenêtre.")
+        #expect(warnings.first?.message == "L'audio de « R » sera supprimé dans 7 jours : sa transcription a échoué. « Réessayer » dans la fenêtre.")
         #expect(warnings.first?.kind == .alert)
     }
 

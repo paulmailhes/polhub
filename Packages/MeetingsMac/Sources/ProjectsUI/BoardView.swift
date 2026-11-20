@@ -48,10 +48,11 @@ struct ColumnView: View {
             HStack(spacing: Space.s) {
                 ColorDot(ProjectViews.statusColor(column.status), size: 10)
                 Text(column.title).font(.headline)
-                Text("\(column.projects.count)").font(.meta.monospacedDigit()).foregroundStyle(.secondary)
+                Text(Words.number(column.projects.count)).font(.meta.monospacedDigit()).foregroundStyle(.secondary)
                 Spacer(minLength: 0)
                 if column.status != .termine {
-                    IconButton("plus", help: "Nouveau projet dans « \(column.title) »", size: 13) { create(column.status) }
+                    // A verb and its object; ⌘N opens Priorité 1 only, so no shortcut here (lot 10, 20/11).
+                    IconButton("plus", help: "Créer un projet dans « \(column.title) »", size: 13) { create(column.status) }
                 }
             }
             .frame(minHeight: 32)
@@ -181,9 +182,4 @@ struct ProjectCard: View {
             }
         }
     }
-}
-
-extension String {
-    /// « rouge » → « Rouge ».
-    var capitalizedFirst: String { prefix(1).uppercased() + dropFirst() }
 }

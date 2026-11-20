@@ -4,15 +4,9 @@ import SwiftUI
 
 /// The words of « Le point ».
 enum BriefingText {
-    /// « Mercredi 18 novembre ».
+    /// « Mercredi 18 novembre », « Dimanche 1er novembre » (lot 10, 20/11: written by `Words`, no formatter of its own).
     static func today(_ date: Date, calendar: Calendar) -> String {
-        let formatter = DateFormatter()
-        formatter.calendar = calendar
-        formatter.timeZone = calendar.timeZone
-        formatter.locale = Locale(identifier: "fr_FR")
-        formatter.dateFormat = "EEEE d MMMM"
-        let said = formatter.string(from: date)
-        return said.prefix(1).uppercased() + said.dropFirst()
+        Words.capitalizedFirst(Words.fullDate(date, now: date, calendar: calendar))
     }
 
     /// The line under the date (lot 5, 19/11): what came since Paul last came, on one line — « Depuis hier 19:40 · 1 mail
@@ -25,9 +19,10 @@ enum BriefingText {
         return "\(line.label) · \(text)"
     }
 
-    /// When « Le point » was prepared, under the pointer (lot 5, 19/11): « Le point · aujourd'hui 18:55 ».
+    /// When « Le point » was prepared, under the pointer (lot 5, 19/11): « Le point · aujourd'hui 18:55 » (lot 10, 20/11:
+    /// the day and its hour by `Words.moment`).
     static func prepared(_ date: Date, now: Date, calendar: Calendar) -> String {
-        "Le point · \(Briefing.dayLabel(date, now: now, calendar: calendar))"
+        "Le point · " + Words.moment(date, now: now, calendar: calendar)
     }
 }
 
@@ -41,7 +36,8 @@ struct HomeSectionHeader: View {
             // 17 points: the title of a card (lot 5, 19/11: a style, no longer a size written by hand).
             Text(title).font(.title2.weight(.semibold))
             if let count {
-                Text("\(count)")
+                // The number as French writes it (lot 10, 20/11: `Words.number`).
+                Text(Words.number(count))
                     .font(.meta.monospacedDigit().weight(.medium))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 7)

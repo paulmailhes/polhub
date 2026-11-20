@@ -1,6 +1,7 @@
 import Domain
 import Foundation
 import Persistence
+import PolhubDesign
 
 /// Audio is kept 30 days, counted from the transcription (validated choice): a meeting recorded before
 /// step 2 keeps its audio until it is transcribed. Detection journals are kept 30 days too.
@@ -30,7 +31,8 @@ public enum AudioPurge {
             let left = Int((Double(keepDays) - age).rounded(.up))
             return JournalEntry(
                 createdAt: now, kind: .alert,
-                message: "L'audio de « \(row.title) » sera effacé dans \(left) jours : sa transcription a échoué. « Réessayer » dans la fenêtre.",
+                // « supprimé », as the meeting's page says it; the days accorded by `Words` (lot 10, 20/11).
+                message: "L'audio de « \(row.title) » sera supprimé dans \(Words.count(left, "jour")) : sa transcription a échoué. « Réessayer » dans la fenêtre.",
                 meetingID: row.id
             )
         }

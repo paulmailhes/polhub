@@ -137,7 +137,8 @@ struct PeopleIndex: Sendable {
     }
 
     static func fold(_ text: String) -> String {
-        text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "fr_FR"))
+        // The language fixed once, by `Words` (lot 10, 20/11).
+        text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Words.locale)
     }
 
     static func words(_ text: String) -> [String] {
@@ -204,8 +205,9 @@ enum PeopleStyle {
     static func addedText(_ people: [MailAddress], project: String?) -> String {
         let one = people.count == 1
         let names = people.map(firstName)
+        // Counted by `Words` (lot 10, 20/11).
         let who = one ? people[0].display
-            : (people.count <= 3 ? names.dropLast().joined(separator: ", ") + " et " + (names.last ?? "") : "\(people.count) personnes")
+            : (people.count <= 3 ? names.dropLast().joined(separator: ", ") + " et " + (names.last ?? "") : Words.count(people.count, "personne"))
         if let project { return "\(who) \(one ? "rejoint" : "rejoignent") « \(project) »." }
         return one ? "\(who) est dans tes contacts." : "\(who) sont dans tes contacts."
     }
@@ -361,7 +363,17 @@ extension MailLibrary {
             guard !change.people.isEmpty else { return }
             offerUndo(PeopleStyle.addedText(change.people, project: project(projectID)?.name), restore: change.undo)
         } catch {
-            message = "Impossible d'ajouter au projet : \(error)"
+            // « Ajouter à « P » », in Paul's words; the system's text to the journal (lot 10, 20/11).
+            let many = people.count > 1
+            let failed: String
+            if let name = project(projectID)?.name {
+                failed = many ? "Les contacts n'ont pas pu être ajoutés à « \(name) »" : "Le contact n'a pas pu être ajouté à « \(name) »"
+            } else {
+                failed = many ? "Les contacts n'ont pas pu être créés" : "Le contact n'a pas pu être créé"
+            }
+            let problem = Words.problem(failed, error)
+            message = problem.sentence
+            agenda.database.journal(problem)
         }
     }
 
@@ -372,7 +384,12 @@ extension MailLibrary {
             guard let who = change.people.first else { return }
             offerUndo("\(who.display) n'est plus dans « \(project(projectID)?.name ?? "le projet") ».", restore: change.undo)
         } catch {
-            message = "Impossible de retirer du projet : \(error)"
+            // « Retirer de « P » », in Paul's words; the system's text to the journal (lot 10, 20/11).
+            let projectName: String? = project(projectID)?.name
+            let failed = projectName.map { "Le contact n'a pas pu être retiré de « \($0) »" } ?? "Le contact n'a pas pu être retiré du projet"
+            let problem = Words.problem(failed, error)
+            message = problem.sentence
+            agenda.database.journal(problem)
         }
     }
 

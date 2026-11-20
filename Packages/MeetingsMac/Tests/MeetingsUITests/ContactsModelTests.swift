@@ -92,9 +92,9 @@ import Testing
 
     /// The row says when, the page how long ago.
     @Test func theTextsOfTheListAndOfThePage() {
-        #expect(ContactsModel.when(days(0), now: now, calendar: calendar) == "Aujourd'hui")
-        #expect(ContactsModel.when(days(-1), now: now, calendar: calendar) == "Hier")
-        #expect(ContactsModel.when(days(-400), now: now, calendar: calendar).contains("/"))
+        #expect(ContactsModel.when(days(0), now: now, calendar: calendar) == "aujourd'hui")
+        #expect(ContactsModel.when(days(-1), now: now, calendar: calendar) == "hier")
+        #expect(ContactsModel.when(days(-400), now: now, calendar: calendar) == "9 oct. 2025")
         #expect(ContactsModel.ago(days(0), now: now, calendar: calendar) == "aujourd'hui")
         #expect(ContactsModel.ago(days(-1), now: now, calendar: calendar) == "hier")
         #expect(ContactsModel.ago(days(-3), now: now, calendar: calendar) == "il y a 3 jours")
@@ -105,7 +105,7 @@ import Testing
         #expect(ContactsModel.lastText(LastContact(date: days(-3), kind: .mail), now: now, calendar: calendar) == "Dernier mail il y a 3 jours")
         #expect(ContactsModel.lastText(LastContact(date: days(-1), kind: .meeting), now: now, calendar: calendar) == "Dernière réunion hier")
         let tomorrow = CalendarEventRow(account: "moi@exemple.fr", eventID: "e", title: "Point", startAt: days(1), endAt: days(1.05), updatedAt: now)
-        #expect(ContactsModel.nextText(tomorrow, now: now, calendar: calendar).hasPrefix("Rendez-vous demain à "))
+        #expect(ContactsModel.nextText(tomorrow, now: now, calendar: calendar) == "Rendez-vous demain 10:42")
         let running = CalendarEventRow(account: "moi@exemple.fr", eventID: "e", title: "Point", startAt: days(-0.01), endAt: days(0.02), updatedAt: now)
         #expect(ContactsModel.nextText(running, now: now, calendar: calendar) == "Rendez-vous en cours")
         #expect(ContactsModel.eventWhen(tomorrow, now: now, calendar: calendar).hasPrefix("Demain, "))

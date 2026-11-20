@@ -164,3 +164,15 @@ public enum BundleFreshness {
         return (try? manager.setAttributes([.modificationDate: now], ofItemAtPath: bundle.path(percentEncoded: false))) != nil
     }
 }
+
+/// An installation that failed, in Paul's words, for `Words.problem` (lot 10, 20/11): the reason without the system's
+/// text, which `description` keeps for the log.
+extension Installer.InstallError: LocalizedError {
+    public var failureReason: String? {
+        switch self {
+        case .download: "le téléchargement a échoué"
+        case .launch: "l'installation ne démarre pas"
+        case .tooBig, .noApp, .refused: description
+        }
+    }
+}

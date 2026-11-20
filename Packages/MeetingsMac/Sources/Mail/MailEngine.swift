@@ -3,6 +3,7 @@ import Foundation
 import GoogleKit
 import MailFormat
 import Persistence
+import PolhubDesign
 import UniformTypeIdentifiers
 
 /// Keeps the copy of each mailbox in step with Gmail (14/11): a first reading of everything, the most recent
@@ -1106,7 +1107,8 @@ public actor MailEngine {
             retryAt[draftID] = now().addingTimeInterval(Self.retryDelay)
             replace(back)
         } catch {
-            try? store.markDraftError(draftID, error: "Gmail a refusé l'envoi programmé : \(error)")
+            // The draft's line says Polhub's sentence, never the system's text (lot 10, 20/11).
+            try? store.markDraftError(draftID, error: Words.problem("Gmail a refusé l'envoi programmé", error).sentence)
             finish(entry, .stopped(entry, .refused("\(error)")))
         }
     }

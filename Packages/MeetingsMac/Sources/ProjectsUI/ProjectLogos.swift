@@ -55,7 +55,7 @@ public final class ProjectLogos: ObservableObject {
     @Published public private(set) var guesses: [UUID: String] = [:]
     /// Bumped when a logo is written or removed: the views draw again.
     @Published public private(set) var revision = 0
-    /// Bumped by « Rafraîchir les logos »: the logos on display ask their site again.
+    /// Bumped by « Actualiser les logos » (« Rafraîchir » until lot 10, 20/11): the logos on display ask their site again.
     @Published public private(set) var refreshes = 0
 
     public let folder: URL
@@ -278,7 +278,7 @@ public final class ProjectLogos: ObservableObject {
         revision += 1
     }
 
-    /// « Rafraîchir les logos »: the sites are asked again, those on display at once, the others as they show. The
+    /// « Actualiser les logos » (lot 10, 20/11): the sites are asked again, those on display at once, the others as they show. The
     /// icons stay until new ones are written: offline, or a site down, nothing goes back to initials (correctifs,
     /// 15/11). Paul's images stay.
     public func refreshAll() {
@@ -289,7 +289,7 @@ public final class ProjectLogos: ObservableObject {
         revision += 1
     }
 
-    /// « Rafraîchir le logo » of one project: its site is asked again; its icon stays until a new one comes.
+    /// « Actualiser le logo » of one project (lot 10, 20/11): its site is asked again; its icon stays until a new one comes.
     public func refresh(_ project: ProjectRow) {
         guard let site = site(for: project.id), ProjectSites.isFetchable(site.domain) else { return }
         attempts[site.domain] = nil

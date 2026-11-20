@@ -39,11 +39,12 @@ public struct MenuBarLabel: Equatable, Sendable {
     ///   - watching: detection is on (it is off before launch ends, or in the development build until switched on).
     public static func make(status: RecorderStatus, now: Date, promptDeadline: Date? = nil, minutesToMeet: Int? = nil,
                             danger: Bool = false, watching: Bool = true, isDevelopment: Bool = false) -> MenuBarLabel {
+        // « 12:47 », « 7 s », « 8 min » (`Words`, lot 10, 20/11).
         switch status {
         case .recording(_, let since):
-            MenuBarLabel(icon: .recording, text: DurationText.clock(Int(now.timeIntervalSince(since))))
+            MenuBarLabel(icon: .recording, text: Words.clock(Int(now.timeIntervalSince(since))))
         case .prompting:
-            MenuBarLabel(icon: .listening, text: promptDeadline.map { "\(HUDText.remaining(until: $0, now: now)) s" })
+            MenuBarLabel(icon: .listening, text: promptDeadline.map { Words.preciseDuration(HUDText.remaining(until: $0, now: now)) })
         case .presumedEnded:
             MenuBarLabel(icon: .listening, text: "fin ?")
         case .paused:
@@ -54,7 +55,8 @@ public struct MenuBarLabel: Equatable, Sendable {
             if isDevelopment || !watching {
                 MenuBarLabel(icon: .columns(.outline, badge: danger), text: nil)
             } else {
-                MenuBarLabel(icon: .columns(.filled, badge: danger), text: minutesToMeet.map { "\($0) min" })
+                // `minutesToMeet` is 1 at least (`minutes(before:)`, rounded up).
+                MenuBarLabel(icon: .columns(.filled, badge: danger), text: minutesToMeet.map { Words.duration($0 * 60) })
             }
         }
     }
@@ -105,14 +107,15 @@ public struct MenuBarLabel: Equatable, Sendable {
         return image
     }
 
-    /// One line that says what Polhub does now.
+    /// One line that says what Polhub does now: « Enregistrement », as « Coup d'œil » says it, the clock and the hour by
+    /// `Words` (lot 10, 20/11).
     public static func statusLine(_ status: RecorderStatus, now: Date) -> String {
         switch status {
         case .idle: "Aucune réunion"
         case .prompting(let title): "Réunion détectée · \(title)"
-        case .recording(let title, let since): "Enregistre · \(title) · \(DurationText.clock(Int(now.timeIntervalSince(since))))"
+        case .recording(let title, let since): "Enregistrement · \(title) · \(Words.clock(Int(now.timeIntervalSince(since))))"
         case .presumedEnded(let title): "Fin de réunion détectée · \(title)"
-        case .paused(let until): "Détection suspendue jusqu'à \(until.formatted(date: .omitted, time: .shortened))"
+        case .paused(let until): "Détection suspendue jusqu'à \(Words.time(until))"
         }
     }
 }

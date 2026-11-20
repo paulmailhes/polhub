@@ -57,8 +57,9 @@ public enum SummaryError: Error, Equatable, CustomStringConvertible {
     public var description: String {
         switch self {
         case .model(let text), .unavailable(let text): text
-        case .tooLong: "La transcription dépasse la fenêtre du modèle."
-        case .refused: "Le modèle d'Apple a refusé ce passage."
+        // « l'IA d'Apple », never « le modèle » (lot 10, 20/11).
+        case .tooLong: "La transcription est trop longue pour l'IA d'Apple."
+        case .refused: "L'IA d'Apple a refusé ce passage."
         }
     }
 }

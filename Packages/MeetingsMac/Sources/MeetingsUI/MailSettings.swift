@@ -5,13 +5,15 @@ import SwiftUI
 /// The words of Réglages › Mails (lot 7, 19/11): one line of help under each setting that needs one, the long texts
 /// behind « ⓘ ».
 enum MailSettingsText {
-    static let densityHelp = "« Par défaut » montre les pièces jointes ; « Compacte » serre les lignes."
+    // « ligne » is the code's word (lot 10, 20/11).
+    static let densityHelp = "« Par défaut » montre les pièces jointes ; « Compacte » resserre la liste."
     static let imagesHelp = "Une image chargée dit à l'expéditeur que tu as ouvert son mail."
     static let imagesDetail = "Une image distante qui se charge montre à son expéditeur l'adresse IP de ton Mac et l'heure d'ouverture. « Pour les expéditeurs connus » : tes contacts, les personnes à qui tu as écrit, et ceux pour qui tu as dit « Toujours », quand Gmail confirme que le mail vient bien d'eux. Les images jointes au mail s'affichent toujours."
     static let undoHelp = "Le temps pendant lequel « Annuler » rappelle un mail, après « Envoyer »."
     /// Security audit of 19/11, M6: the scope is kept in the app's preferences, which any session with a terminal can write.
     static let agentsHelp = "Une préférence, pas une barrière : une session qui a un terminal peut la changer."
-    static let agentsDetail = "Tes agents Claude Code, et Colin quand il est allumé, lisent la copie de tes mails par le serveur de Polhub (outils mails, mail et brouillon), hors spam et corbeille. Ce qu'ils lisent part chez Anthropic. Ils ne peuvent rien envoyer : leurs brouillons t'attendent ici, marqués « préparé par un agent »."
+    /// Colin is « en marche », never « allumé »; no word of the code (« la copie », the tools' names) (lot 10, 20/11).
+    static let agentsDetail = "Tes agents Claude Code, et Colin quand il est en marche, lisent tes mails par Polhub, hors spam et corbeille. Ce qu'ils lisent part chez Anthropic. Ils ne peuvent rien envoyer : leurs brouillons t'attendent ici, marqués « préparé par un agent »."
 
     /// How Polhub sorts the mails, beside what it remembered of Paul's choices: the « ⓘ » of « Ce que Polhub a retenu ».
     static var rules: String {
@@ -62,7 +64,8 @@ struct MailSettingsPane: View {
             Section {
                 SettingRow("Délai d'annulation de l'envoi", help: MailSettingsText.undoHelp) {
                     Picker("Délai d'annulation de l'envoi", selection: $undo) {
-                        ForEach(Preferences.Default.mailUndoChoices, id: \.self) { Text("\($0) secondes").tag($0) }
+                        // Accorded by `Words` (lot 10, 20/11).
+                        ForEach(Preferences.Default.mailUndoChoices, id: \.self) { Text(Words.count($0, "seconde")).tag($0) }
                     }
                 }
             } header: {
@@ -94,7 +97,8 @@ struct MailSortingSections: View {
     static let steps = [
         "Ton choix pour ce fil, puis pour son expéditeur (clic droit › « Ranger dans »).",
         "Un fil où tu as écrit, un de tes contacts ou quelqu'un à qui tu as écrit : la Boîte de réception. Un contact d'un seul projet range le fil dans ce projet.",
-        "Un mail automatique : Notifications, avec sa case, Newsletters (une lettre, une promotion), Paiements (un reçu, une facture) ou Services (le reste).",
+        // « newsletter », never « lettre » (lot 10, 20/11).
+        "Un mail automatique : Notifications, avec sa case, Newsletters (une newsletter, une promotion), Paiements (un reçu, une facture) ou Services (le reste).",
         "Sinon, la catégorie de Gmail : Notifications, Promotions et Réseaux sociaux vont dans Notifications ; le reste dans la Boîte de réception.",
     ]
 
@@ -121,7 +125,8 @@ struct MailSortingSections: View {
                     }
                     Spacer(minLength: Space.m)
                     Button("Oublier") { mails.forget(row.address) }
-                        .help("Polhub ne retient plus rien de cet expéditeur : ses mails suivent de nouveau les règles")
+                        // « Verbe + objet : conséquence », 60 characters at most (lot 10, 20/11).
+                        .help(Words.help("Oublier cet expéditeur", detail: "ses mails suivent les règles"))
                 }
             }
         } header: {

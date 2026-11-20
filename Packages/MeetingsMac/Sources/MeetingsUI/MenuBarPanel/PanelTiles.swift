@@ -78,8 +78,9 @@ struct PanelTile: View {
             .contentShape(shape)
         }
         .buttonStyle(PanelCardStyle(radius: Radius.card))
-        // Its key, from the sidebar's order (lot 4, 19/11): never a number written by hand.
-        .help("Ouvrir \(item.title)" + (item.shortcut.map { " (⌘\($0))" } ?? ""))
+        // Its key, from the sidebar's order (lot 4, 19/11): never a number written by hand; « Ouvrir Calendrier (⌘4) » by
+        // `Words.help` (lot 10, 20/11).
+        .help(Words.help("Ouvrir \(item.title)", shortcuts: item.shortcut.map { [Words.Shortcut.command("\($0)")] } ?? []))
         .accessibilityLabel([item.title, tile.value, tile.detail].compactMap { $0 }.joined(separator: ", "))
     }
 }

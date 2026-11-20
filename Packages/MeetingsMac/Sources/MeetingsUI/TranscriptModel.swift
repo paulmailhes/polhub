@@ -1,6 +1,7 @@
 import Domain
 import Foundation
 import Persistence
+import PolhubDesign
 import Summarization
 
 /// Where the transcription of a meeting is, as the window says it.
@@ -21,10 +22,11 @@ public enum TranscriptBadge: Equatable, Sendable {
     case failed
     case toCheck
 
+    /// No word of the code (« En file »), the percent by `Words` (lot 10, 20/11).
     public var text: String {
         switch self {
-        case .queued: "En file"
-        case .running(let percent): "Transcription \(percent) %"
+        case .queued: "En attente"
+        case .running(let percent): "Transcription " + Words.percent(Double(percent) / 100)
         case .failed: "Échec"
         case .toCheck: "À vérifier"
         }
@@ -49,15 +51,17 @@ public enum TranscriptModel {
         }
     }
 
-    /// The sentence above the dialogue; `nil` when there is nothing to say.
+    /// The sentence above the dialogue; `nil` when there is nothing to say. The percent by `Words`, « la transcription »,
+    /// never « le moteur »; a failure says what did not work and what to do, « Réessayer » beside it, never the text the
+    /// queue kept, the system's at times (lot 10, 20/11).
     public static func text(_ status: TranscriptStatus?) -> String? {
         switch status {
         case nil, .done(doubtful: false)?: nil
         case .notYet?, .queued?: "En attente de transcription"
         case .paused?: "Transcription en pause pendant la réunion"
-        case .running(let progress)?: "Transcription : \(Int((progress * 100).rounded())) %"
-        case .done(doubtful: true)?: "À vérifier : le moteur a peut-être inventé des passages."
-        case .failed(let message)?: "La transcription a échoué : \(message)"
+        case .running(let progress)?: "Transcription " + Words.percent(progress)
+        case .done(doubtful: true)?: "À vérifier : la transcription a peut-être inventé des passages."
+        case .failed?: Words.problem("La transcription a échoué").sentence
         }
     }
 
@@ -144,10 +148,8 @@ public enum TranscriptModel {
         }
     }
 
-    /// `1:05`, or `1:02:05` past an hour.
+    /// `1:05`, or `1:02:05` past an hour: the clock of `Words` (lot 10, 20/11).
     public static func timestamp(_ ms: Int) -> String {
-        let total = ms / 1_000
-        let (hours, minutes, seconds) = (total / 3_600, total / 60 % 60, total % 60)
-        return hours > 0 ? String(format: "%d:%02d:%02d", hours, minutes, seconds) : String(format: "%d:%02d", minutes, seconds)
+        Words.clock(ms / 1_000)
     }
 }

@@ -1,6 +1,7 @@
 import Domain
 import Foundation
 import Persistence
+import PolhubDesign
 
 /// « Colin tient le kanban seul » (step 3, 18/11): two rules, no model, nothing that leaves the Mac. What they return
 /// is written by the app, signed Colin's, each change with « Annuler ».
@@ -9,7 +10,7 @@ public enum KanbanRules {
     static let sentLasts: TimeInterval = 7 * 86_400
 
     /// After a mail Paul sends in a thread of a project (or a new mail to its people): the card passes from « priorité
-    /// 2 » to « priorité 1 », its task becomes « En attente retour de X », a line goes to its journal. A project in
+    /// 2 » to « priorité 1 », its task becomes « Attend le retour de X », a line goes to its journal. A project in
     /// pause or finished is left: leaving them is Paul's to say. What Paul changed himself today stays. `projectOf`: the
     /// project of each thread, as « À valider » reads it; `since`: when the switch was turned on.
     public static func afterSends(_ exchanges: [MailExchange], projectOf: [String: UUID], projects: [ProjectRow], mine: Set<String>, since: Date,
@@ -32,7 +33,8 @@ public enum KanbanRules {
                 edit.status = .priorite1
                 card.status = .priorite1
             }
-            let task = name.map { "En attente retour de \($0)" } ?? "En attente de retour"
+            // « Attend le retour de Marc », as Réglages › Colin says it (lot 10, 20/11: « En attente retour de … »).
+            let task = name.map { "Attend le retour de \($0)" } ?? "Attend un retour"
             if card.todo != task, !touched.contains(ProjectFieldKey(projectID: id, field: .todo)) {
                 edit.todo = task
                 card.todo = task
@@ -60,7 +62,7 @@ public enum KanbanRules {
                   let next = coming.first(where: { $0.projectID == project.id }) else { continue }
             let source = "event:\(next.id)"
             guard !known.contains(source) else { continue }
-            let weekday = Briefing.weekdays[calendar.component(.weekday, from: next.startAt) - 1]
+            let weekday = Briefing.weekday(next.startAt, calendar: calendar)
             edits.append(KanbanEdit(projectID: project.id, status: nil, todo: nil, dueDate: calendar.startOfDay(for: next.startAt), journal: nil,
                                     reason: "Rendez-vous du \(weekday) \(day(next.startAt, calendar))", source: source))
         }
@@ -79,9 +81,8 @@ public enum KanbanRules {
         return nil
     }
 
-    /// « 18/11 ».
+    /// « 18 nov. », « 1er déc. », by `Words` (lot 10, 20/11: « 18/11 »).
     static func day(_ date: Date, _ calendar: Calendar) -> String {
-        let parts = calendar.dateComponents([.day, .month], from: date)
-        return String(format: "%02d/%02d", parts.day ?? 0, parts.month ?? 0)
+        Words.shortDate(date, now: date, calendar: calendar)
     }
 }

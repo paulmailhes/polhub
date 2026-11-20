@@ -1,4 +1,5 @@
 import Foundation
+import PolhubDesign
 import ProbeKit
 import ServiceManagement
 
@@ -20,18 +21,22 @@ enum RelaunchAgent {
         switch service.status {
         case .enabled: "activée"
         case .notRegistered: "désactivée"
-        case .requiresApproval: "à autoriser dans Réglages → Général → Ouverture"
+        // A path of System Settings, its levels apart by « › » (lot 10, 20/11).
+        case .requiresApproval: "à autoriser dans Réglages Système › Général › Ouverture"
         case .notFound: "introuvable dans l'application"
         @unknown default: "inconnue"
         }
     }
 
-    /// Returns an error message, or nil when the agent is enabled.
+    /// Returns an error message, or nil when the agent is enabled. The message says what did not work, in French, then
+    /// what to do; the system's own text goes to the log (lot 10, 20/11).
     static func enable() -> String? {
         do {
             try service.register()
         } catch {
-            return "Activation refusée : \(error.localizedDescription)"
+            let problem = Words.problem("La relance n'a pas pu être activée", error)
+            if let journal = problem.journal { NSLog("%@", journal) }
+            return problem.sentence
         }
         return isEnabled ? nil : "Relance \(statusText)."
     }
@@ -41,7 +46,9 @@ enum RelaunchAgent {
             try service.unregister()
             return nil
         } catch {
-            return "Désactivation refusée : \(error.localizedDescription)"
+            let problem = Words.problem("La relance n'a pas pu être désactivée", error)
+            if let journal = problem.journal { NSLog("%@", journal) }
+            return problem.sentence
         }
     }
 }

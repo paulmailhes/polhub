@@ -117,9 +117,9 @@ import Testing
                 && ProjectViews.DueState(daysLeft: 3).role == nil && ProjectViews.DueState(daysLeft: 1).role == nil)
         #expect(ProjectViews.dueState(nil, today: today, calendar: paris) == nil)
         // The next meeting, the first thing a card says.
-        #expect(ProjectViews.nextEventLabel(date(13, hour: 14), now: today, calendar: paris) == "RDV aujourd'hui à 14:00")
-        #expect(ProjectViews.nextEventLabel(date(14, hour: 9), now: today, calendar: paris) == "RDV demain à 09:00")
-        #expect(ProjectViews.nextEventLabel(date(30, hour: 9), now: today, calendar: paris) == "RDV le 30 nov.")
+        #expect(ProjectViews.nextEventLabel(date(13, hour: 14), now: today, calendar: paris) == "Rendez-vous aujourd'hui 14:00")
+        #expect(ProjectViews.nextEventLabel(date(14, hour: 9), now: today, calendar: paris) == "Rendez-vous demain 9:00")
+        #expect(ProjectViews.nextEventLabel(date(30, hour: 9), now: today, calendar: paris) == "Rendez-vous lundi 30")
     }
 
     /// Lot 8 (19/11), « teinte allégée » (Paul's choice): the project's color on its card at half its strength (13 % in
@@ -133,7 +133,7 @@ import Testing
     /// Lot 8 (19/11): every text of a card in the text's own color; what a fact means (late, today) is on its icon only.
     @Test func aCardSaysItsFactsInTheTextsColor() {
         let facts = ProjectViews.cardFacts(nextEvent: date(14, hour: 9), due: date(12, hour: 0), lastMeeting: date(12), now: today, calendar: paris)
-        #expect(facts.map(\.text) == ["RDV demain à 09:00", "En retard de 1 j", "Réunion hier"])
+        #expect(facts.map(\.text) == ["Rendez-vous demain 9:00", "En retard de 1 j", "Réunion hier"])
         #expect(facts.map(\.icon) == ["calendar.badge.clock", "flag", "waveform"])
         #expect(facts.map(\.role) == [nil, .late, nil])
         #expect(facts.map(\.strong) == [true, true, false])

@@ -155,7 +155,10 @@ public final class DiagnosticModel: ObservableObject {
         case (.systemAudio, "notTested"): .unknown
         case (.systemAudio, "allZero"): .denied("Le son n'est pas capté")
         case (.diaAutomation, "notRunning"): .notRunning
-        default: .denied(answer)
+        // macOS's answer in words, never its code on screen (« denied », « restricted », « error:-1708 »), lot 10, 20/11.
+        case (_, "denied"): .denied("Refusé dans Réglages Système")
+        case (_, "restricted"): .denied("Bloqué par un profil installé sur le Mac")
+        default: .denied("macOS ne répond pas comme prévu")
         }
     }
 }
@@ -182,7 +185,8 @@ public struct DiagnosticView: View {
             Section {
                 // What is missing: a problem, said by `ErrorLine` (design system v2, 19/11).
                 if model.allGood {
-                    Text("Tout est prêt : chaque Meet ouvert dans Dia s'enregistre tout seul.").foregroundStyle(.secondary)
+                    // « Visio », never « un Meet »; French typography, laid at display (lot 10, 20/11).
+                    Text(Words.typeset("Tout est prêt : chaque visio rejointe dans Dia s'enregistre toute seule.")).foregroundStyle(.secondary)
                 } else {
                     ErrorLine("Il manque quelque chose pour que les réunions s'enregistrent toutes seules.")
                 }
@@ -210,10 +214,11 @@ public struct DiagnosticView: View {
             stateIcon(state, testing: model.testing.contains(item))
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
-                Text(item.explanation).font(.meta).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                // French typography, laid at display (lot 10, 20/11).
+                Text(Words.typeset(item.explanation)).font(.meta).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 if let reason = state.reason {
                     // In the text's color: the icon on the left carries the attention (design system v2, 19/11).
-                    Text(reason).font(.meta).foregroundStyle(.primary)
+                    Text(Words.typeset(reason)).font(.meta).foregroundStyle(.primary)
                 }
                 if item == .relaunch, let startup { RelaunchProblem(startup: startup) }
             }

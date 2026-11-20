@@ -51,11 +51,12 @@ struct InspirationPageView: View {
                     .pickerStyle(.segmented)
                     .labelsHidden()
                     .fixedSize()
-                    .help("Websites, Branding, Mock-ups")
+                    // No bubble: it only said the three visible names again (lot 10, 20/11).
                 }
                 ToolbarItem(placement: .primaryAction) {
+                    // ⌘N does the same, the window's « + » (`WindowKeys`) (lot 10, 20/11).
                     Button(action: add) { Label(kind.addTitle, systemImage: "plus") }
-                        .help(kind.addTitle)
+                        .help(Words.help(kind.addTitle, .command("n")))
                         .disabled(library.adding)
                 }
             }
@@ -89,7 +90,8 @@ struct InspirationPageView: View {
                         let id = try await library.addMockup(folder: folder)
                         router.openInspiration(.mockup, item: id)
                     } catch {
-                        library.message = InspirationLibrary.text(error)
+                        // Said in French, the system's text to the journal (lot 10, 20/11).
+                        library.message = library.text(error, failed: "Le mock-up n'a pas pu être ajouté")
                     }
                 }
             }
@@ -215,7 +217,7 @@ struct InspirationSuggestionRow: View {
             Text(token.label)
             Text(token.familyTitle).foregroundStyle(.secondary)
             Spacer(minLength: Space.m)
-            Text("\(token.count)").foregroundStyle(.secondary).monospacedDigit()
+            Text(Words.number(token.count)).foregroundStyle(.secondary).monospacedDigit()
         }
     }
 }
@@ -253,8 +255,9 @@ struct InspirationNoMatch: View {
         } description: {
             Text("Rien ne répond à cette recherche et à ces filtres.")
         } actions: {
-            // No glass in the content: a secondary action (design system v2, 19/11).
-            Button("Tout afficher", action: showAll).buttonStyle(.secondary)
+            // No glass in the content: a secondary action (design system v2, 19/11). « Effacer » empties the search and the
+            // filters, « Afficher » is for what is hidden (lot 10, 20/11).
+            Button("Effacer les filtres", action: showAll).buttonStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, Space.xxl)
@@ -279,6 +282,8 @@ struct InspirationMessageBar: View {
                     // A gesture to make: the accent, ink (design system v2, 19/11).
                     .foregroundStyle(Tint.accent)
                     .keyboardShortcut("z", modifiers: .command)
+                    // The shortcut that works here, said (lot 10, 20/11).
+                    .help(Words.help("Annuler", .command("z")))
                 }
             } else if let message = library.message {
                 HStack(spacing: Space.m) {
@@ -351,7 +356,8 @@ struct InspirationAddSiteSheet: View {
                 dismiss()
                 added(id)
             } catch {
-                problem = InspirationLibrary.text(error)
+                // Said in French, the system's text to the journal (lot 10, 20/11).
+                problem = library.text(error, failed: "Le site n'a pas pu être ajouté")
             }
         }
     }

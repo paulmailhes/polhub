@@ -105,16 +105,17 @@ public actor InspirationTagger {
                 return .unavailable
             } catch TaggingModelError.tooSlow {
                 declined.insert(id)
-                return .failed("Le modèle d'Apple a mis trop de temps.")
+                // « l'IA d'Apple », never « le modèle » (lot 10, 20/11).
+                return .failed("L'IA d'Apple a mis trop de temps.")
             } catch TaggingModelError.refused {
                 declined.insert(id)
-                return .failed("Le modèle d'Apple a refusé ce texte.")
+                return .failed("L'IA d'Apple a refusé ce texte.")
             } catch TaggingModelError.tooLong {
                 declined.insert(id)
-                return .failed("Le texte est trop long pour le modèle d'Apple.")
+                return .failed("Le texte est trop long pour l'IA d'Apple.")
             } catch {
                 declined.insert(id)
-                return .failed("Le modèle d'Apple n'a pas répondu.")
+                return .failed("L'IA d'Apple n'a pas répondu.")
             }
             let result = TaggingRules.validate(answer, vocabulary: vocabulary, text: text)
             // Too few tags, or no client: asked once more, with the reminder.

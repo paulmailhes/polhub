@@ -94,10 +94,11 @@ import Testing
         #expect(NoticeFeed.title(of: wednesday, now: now, calendar: calendar) == wednesday.formatted(
             Date.FormatStyle(locale: Locale(identifier: "fr_FR"), calendar: calendar, timeZone: calendar.timeZone).weekday(.wide)).capitalizedFirst)
         #expect(NoticeFeed.title(of: older, now: now, calendar: calendar).split(separator: " ").count == 3)
-        #expect(NoticeFeed.time(of: now.addingTimeInterval(-20), now: now) == "À l'instant")
+        #expect(NoticeFeed.time(of: now.addingTimeInterval(-20), now: now) == "à l'instant")
         #expect(NoticeFeed.time(of: now.addingTimeInterval(-5 * 60), now: now) == "il y a 5 min")
         let time = NoticeFeed.time(of: now.addingTimeInterval(-3 * 3_600), now: now, calendar: calendar)
-        #expect(time.count == 5 && time.contains(":"))
+        // « 7:42 », no zero before the hour (lot 10, 20/11).
+        #expect(time == "7:42")
     }
 
     @Test func theListSurvivesARelaunch() throws {

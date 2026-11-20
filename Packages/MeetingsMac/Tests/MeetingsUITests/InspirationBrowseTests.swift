@@ -215,7 +215,7 @@ import Testing
         var post = Self.post("Café", sources: ["Studio Exemple"])
         post.url = "https://www.linkedin.com/feed/update/urn:li:activity:7390000000000000000/"
         post.links = [post.url!, "https://cafe-nord.exemple.fr", "https://cafe-nord.exemple.fr", "mailto:bonjour@exemple.fr"]
-        #expect(InspirationBrowse.links(post).map(\.title) == ["Voir sur LinkedIn"])
+        #expect(InspirationBrowse.links(post).map(\.title) == ["Ouvrir sur LinkedIn"])
         #expect(InspirationBrowse.otherLinks(post).map(\.absoluteString) == ["https://cafe-nord.exemple.fr"])
         var mockup = InspirationItemRow(kind: .mockup, key: "Affiche", title: "Affiche", date: Self.now,
                                         extra: InspirationExtra(folderURL: "https://cloud.example.com/apps/files/?dir=/Mock-ups/Affiche"), createdAt: Self.now)
@@ -263,27 +263,27 @@ import Testing
         let read = now.addingTimeInterval(-3_600)
         let source = InspirationSourceRow(name: "Studio Exemple", link: "https://www.linkedin.com/company/studio-exemple/", lastReadAt: read, createdAt: now)
         let line = InspirationSettingsText.sourceLine(source, status: nil, now: now)
-        #expect(line.text.hasPrefix("linkedin.com/company/studio-exemple · lue aujourd'hui à ") && !line.problem)
+        #expect(line.text.hasPrefix("linkedin.com/company/studio-exemple · lue aujourd'hui ") && !line.problem)
         let refused = InspirationSettingsText.sourceLine(source, status: InspirationStatusLine(id: source.link, name: "Studio Exemple", lastRun: now,
                                                                                                 problem: "LinkedIn demande une connexion"), now: now)
-        #expect(refused.problem && refused.text.hasPrefix("LinkedIn demande une connexion (aujourd'hui à "))
+        #expect(refused.problem && refused.text.hasPrefix("LinkedIn demande une connexion (aujourd'hui "))
         let awwwards = InspirationSettingsText.statusLine(InspirationStatusLine(id: "awwwards", name: "Awwwards", lastRun: read, added: 1), now: now)
-        #expect(awwwards.text.hasPrefix("Awwwards : lu aujourd'hui à ") && awwwards.text.hasSuffix(", 1 nouveau site"))
+        #expect(awwwards.text.hasPrefix("Awwwards : lu aujourd'hui ") && awwwards.text.hasSuffix(", 1 nouveau site"))
         // Says what was added, as the collection words it (review of 16/11: « 1 ajouté », 1 what?).
         func awwwardsLine(_ added: Int?) -> String {
             InspirationSettingsText.statusLine(InspirationStatusLine(id: "awwwards", name: "Awwwards", lastRun: read, added: added), now: now).text
         }
         #expect(awwwardsLine(3).hasSuffix(", 3 nouveaux sites") && awwwardsLine(0).hasSuffix(", rien de nouveau"))
-        #expect(awwwardsLine(nil).hasPrefix("Awwwards : lu aujourd'hui à ") && !awwwardsLine(nil).contains(","))
+        #expect(awwwardsLine(nil).hasPrefix("Awwwards : lu aujourd'hui ") && !awwwardsLine(nil).contains(","))
         func pageLine(_ added: Int?) -> String {
             InspirationSettingsText.sourceLine(source, status: InspirationStatusLine(id: source.link, name: "Studio Exemple", lastRun: now, added: added),
                                                now: now).text
         }
-        #expect(pageLine(2).hasPrefix("linkedin.com/company/studio-exemple · lue aujourd'hui à ") && pageLine(2).hasSuffix(", 2 nouveaux posts"))
+        #expect(pageLine(2).hasPrefix("linkedin.com/company/studio-exemple · lue aujourd'hui ") && pageLine(2).hasSuffix(", 2 nouveaux posts"))
         #expect(pageLine(1).hasSuffix(", 1 nouveau post") && pageLine(0).hasSuffix(", aucun nouveau post"))
         // A reading restored from the base: its count is not known, nothing is said of it.
         #expect(!line.text.contains("post") && !pageLine(nil).contains("post"))
         #expect(InspirationSettingsText.statusLine(InspirationStatusLine(id: "awwwards", name: "Awwwards"), now: now).text == "Awwwards : pas encore lu")
-        #expect(InspirationSettingsText.when(now.addingTimeInterval(-86_400), now: now).hasPrefix("hier à "))
+        #expect(InspirationSettingsText.when(now.addingTimeInterval(-86_400), now: now).hasPrefix("hier "))
     }
 }

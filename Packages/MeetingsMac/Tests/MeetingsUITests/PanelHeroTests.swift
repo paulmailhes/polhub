@@ -36,17 +36,19 @@ import Testing
         let withMeeting = height(.presumedEnded(title: "Revue de maquettes", stopsAt: now.addingTimeInterval(500), meetingID: UUID(), canForget: false))
         #expect(abs(withLink - alone) < 0.5, "« Jamais pour ce lien » : \(withLink) pt au lieu de \(alone)")
         #expect(abs(withMeeting - alone) < 0.5, "« Voir la réunion » : \(withMeeting) pt au lieu de \(alone)")
-        // A summary on its way: where it stands and « Ouvrir la réunion » on one line when they fit (« Résumé en attente »),
-        // nothing moves with room to spare; when they do not (« Transcription en attente »), the button goes whole under
-        // it, a row of its own, instead of breaking on two lines (8 points) or cutting the words (none).
+        // A summary on its way: where it stands and « Ouvrir la réunion » on one line when they fit (« Transcription 58 % »),
+        // nothing moves with room to spare; when they do not (« Transcription en attente », « Compte rendu en attente »),
+        // the button goes whole under it, a row of its own, instead of breaking on two lines (8 points) or cutting the
+        // words (none). Lot 10, 20/11: « Résumé en attente », which fitted, says « Compte rendu en attente ».
         func report(_ stage: PanelModel.Report.Stage) -> PanelModel.Hero {
             .report(PanelModel.Report(meetingID: UUID(), title: "Revue de maquettes", seconds: 9 * 60, stage: stage, since: nil, summaryToCome: true))
         }
-        let fits = report(.summaryWaiting)
-        #expect(abs(height(fits) - height(fits, width: 600)) < 0.5, "« Résumé en attente » : \(height(fits)) pt au lieu de \(height(fits, width: 600))")
-        let waiting = report(.transcriptionWaiting)
-        let narrow = height(waiting), wide = height(waiting, width: 600)
-        #expect(narrow - wide >= RoleButton.height, "« Ouvrir la réunion » : \(narrow) pt, \(wide) pt avec de la place")
+        let fits = report(.transcribing(0.58))
+        #expect(abs(height(fits) - height(fits, width: 600)) < 0.5, "« Transcription 58 % » : \(height(fits)) pt au lieu de \(height(fits, width: 600))")
+        for waiting in [report(.transcriptionWaiting), report(.summaryWaiting)] {
+            let narrow = height(waiting), wide = height(waiting, width: 600)
+            #expect(narrow - wide >= RoleButton.height, "« Ouvrir la réunion » : \(narrow) pt, \(wide) pt avec de la place")
+        }
     }
 
     /// A tile's value takes a second line when it has no detail under it (lot 9, 20/11): under « Libre jusqu'à 16:30 »,

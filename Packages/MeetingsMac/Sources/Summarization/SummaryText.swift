@@ -43,17 +43,18 @@ public enum SummaryText {
         }
     }
 
-    /// « la partie 2 sur 5 n'a pas pu être résumée (refusée par le modèle d'Apple) ; … », or `nil`.
+    /// « la partie 2 sur 5 n'a pas pu être résumée (refusée par l'IA d'Apple) ; … », or `nil` (lot 10, 20/11: « le modèle
+    /// d'Apple »; the line « _Partiel : … _ » around it does not move).
     static func missing(dropped: [Int], of count: Int, shortened: Bool) -> String? {
         var parts: [String] = []
         if dropped.count == 1 {
-            parts.append("la partie \(dropped[0]) sur \(count) n'a pas pu être résumée (refusée par le modèle d'Apple)")
+            parts.append("la partie \(dropped[0]) sur \(count) n'a pas pu être résumée (refusée par l'IA d'Apple)")
         } else if dropped.count > 1 {
             let numbers = dropped.map(String.init)
             let list = numbers.dropLast().joined(separator: ", ") + " et " + numbers.last!
-            parts.append("les parties \(list) sur \(count) n'ont pas pu être résumées (refusées par le modèle d'Apple)")
+            parts.append("les parties \(list) sur \(count) n'ont pas pu être résumées (refusées par l'IA d'Apple)")
         }
-        if shortened { parts.append("les notes ont été raccourcies pour tenir dans la fenêtre du modèle") }
+        if shortened { parts.append("les notes ont été raccourcies pour que l'IA d'Apple les lise") }
         return parts.isEmpty ? nil : parts.joined(separator: " ; ")
     }
 

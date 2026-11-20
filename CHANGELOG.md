@@ -3,6 +3,30 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.47.0 — 20 novembre 2026
+
+**Les mots : les mêmes partout, et des erreurs qui disent quoi faire.**
+
+- **Un seul vocabulaire** : un rendez-vous est dans l'agenda, une visio est un rendez-vous avec un lien Meet, une
+  réunion est ce que Polhub a enregistré. Plus de « call » ni de « RDV » : « Colin attend la fin de ta visio »,
+  « visio demain 9:30 », « Rendez-vous demain 9:00 ». Coup d'œil dit « Compte rendu » (plus « Résumé »), Polhub dit
+  « l'IA d'Apple » (plus « le modèle d'Apple ») et « newsletters ».
+- **Une seule écriture des heures et des dates** : « 9:05 » (plus « 09:05 »), « demain 9:00 » (plus « demain 9 h »),
+  « 18 nov. » (plus « 18/11 »), « 2 h » (plus « 2 h 00 »), « mardi 1er décembre à 8:00 ». Les nombres s'accordent :
+  « + 1 autre », « 1 234 mails ».
+- **Les erreurs disent ce qui n'a pas marché, pourquoi et quoi faire**, en français : « Le fil n'a pas pu être rangé :
+  pas de connexion à Internet. Vérifie la connexion du Mac, puis réessaie. » Le texte du système, souvent en anglais, ne
+  s'affiche plus ; celui d'un geste qui échoue va au Journal de Réglages.
+- **Les bulles disent le geste, puis son raccourci** : « Ouvrir le fil précédent (↑) », « Mettre en gras (⌘B) »,
+  « Rejoindre dans Dia avec le compte Pro (↩ ou J) », « Plus d'actions » sur chaque menu « … ». Plus jamais
+  « cliquer », et VoiceOver dit la même chose que la bulle.
+- **Les boutons disent où ils mènent** : « Ouvrir la réunion », « Ouvrir le compte rendu », « Voir moins »,
+  « Actualiser » (plus « Synchroniser » ni « Rafraîchir »), « Connecter un compte Google… », « Ajouter à « Studio
+  Nord » ».
+- **La typographie française** : une espace insécable avant « : » et dans « », « 42 % », un nombre jamais séparé du
+  mot qu'il compte, une plage d'heures jamais coupée (« 10:00 – 11:00 »). Les initiales en couleur d'une personne se
+  lisent sur leur rond.
+
 ## 0.46.0 — 20 novembre 2026
 
 **Coup d'œil, la cloche et la carte avant une visio : rien n'est dit deux fois, les mêmes cartes que dans l'app.**

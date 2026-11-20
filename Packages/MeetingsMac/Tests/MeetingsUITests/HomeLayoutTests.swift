@@ -286,7 +286,7 @@ import Testing
         let ask = "Écris ou dicte à Colin…"
         #expect(ColinThreadText.bar(.off) == .turnOn)
         // The Accueil's pass (18/11): why it waits is said above the field, not only in its empty text.
-        #expect(ColinThreadText.bar(.waitingCall) == .field(placeholder: ask, enabled: false, note: "Colin attend la fin de ton call."))
+        #expect(ColinThreadText.bar(.waitingCall) == .field(placeholder: ask, enabled: false, note: "Colin attend la fin de ta visio."))
         #expect(ColinThreadText.bar(.idle) == .field(placeholder: ask, enabled: true, note: nil))
         #expect(ColinThreadText.bar(.working("Colin lit tes mails…")) == .field(placeholder: ask, enabled: true, note: nil))
         #expect(ColinThreadText.bar(.settling) == .field(placeholder: ask, enabled: true, note: "Le Mac vient de se réveiller : Colin répond dans un instant."))
@@ -295,7 +295,7 @@ import Testing
 
     @Test func theEndOfAnAnswerIsSaidApart() {
         func answer(_ text: String, _ state: ColinMessageRow.State) -> ColinMessageRow { ColinMessageRow(author: .colin, text: text, state: state, createdAt: now) }
-        #expect(ColinThreadText.note(of: answer("Marc t'a écrit\n\nArrêté : ton call commence.", .interrupted)) == ("Marc t'a écrit", "Arrêté : ton call commence."))
+        #expect(ColinThreadText.note(of: answer("Marc t'a écrit\n\nArrêté : ton call commence.", .interrupted)) == ("Marc t'a écrit", "Arrêté : ta visio commence."))
         #expect(ColinThreadText.note(of: answer("Arrêté : le Mac s'endort.", .interrupted)) == ("", "Arrêté : le Mac s'endort."))
         #expect(ColinThreadText.note(of: answer("Marc t'a", .interrupted)) == ("Marc t'a", "Arrêté."))
         #expect(ColinThreadText.note(of: answer("Mar", .failed)) == ("Mar", "Colin n'a pas pu finir."))
@@ -322,7 +322,7 @@ import Testing
         // A question on its way, before its first word.
         #expect(ColinState(.idle, answering: true) == .answering)
         #expect(ColinState(.broken("Limite atteinte."), answering: true) == .answering)
-        #expect(ColinState(.waitingCall) == .waitingCall && ColinState.waitingCall.label == "attend ton call")
+        #expect(ColinState(.waitingCall) == .waitingCall && ColinState.waitingCall.label == "attend ta visio")
         #expect(ColinState(.settling) == .waking && ColinState.waking.label == "se réveille")
         #expect(ColinState(.broken("Limite atteinte.")) == .broken && ColinState.broken.label == "en panne")
         #expect(ColinState(.off) == .off && ColinState(.off, answering: true) == .off && ColinState.off.label == "à l'arrêt")
@@ -340,7 +340,7 @@ import Testing
         #expect(ColinState.barLine(.ready, lastAnswer: "Marc t'a écrit lundi.") == "Marc t'a écrit lundi.")
         #expect(ColinState.barLine(.ready, lastAnswer: nil) == "prêt")
         #expect(ColinState.barLine(.answering, lastAnswer: "Marc t'a écrit lundi.") == "répond…")
-        #expect(ColinState.barLine(.waitingCall, lastAnswer: "Marc t'a écrit lundi.") == "attend ton call")
+        #expect(ColinState.barLine(.waitingCall, lastAnswer: "Marc t'a écrit lundi.") == "attend ta visio")
         #expect(ColinState.barLine(.off, lastAnswer: "Marc t'a écrit lundi.") == "à l'arrêt")
     }
 
@@ -367,7 +367,7 @@ import Testing
         let card = ColinThreadText.foot(of: answer("Voilà, court.\n```message\nSalut Marc !\n```\n```retenir\nMarc préfère WhatsApp.\n```"), colinOn: true)
         #expect(card == ColinThreadText.Foot(note: nil, copy: false, retry: false) && card.isEmpty)
         #expect(ColinThreadText.foot(of: answer("Marc t'a\n\nArrêté : ton call commence.", .interrupted), colinOn: true)
-                == ColinThreadText.Foot(note: "Arrêté : ton call commence.", copy: true, retry: true))
+                == ColinThreadText.Foot(note: "Arrêté : ta visio commence.", copy: true, retry: true))
         #expect(ColinThreadText.foot(of: answer("Arrêté : le Mac s'endort.", .interrupted), colinOn: false)
                 == ColinThreadText.Foot(note: "Arrêté : le Mac s'endort.", copy: false, retry: false))
         #expect(ColinThreadText.foot(of: answer("", .failed), colinOn: true) == ColinThreadText.Foot(note: "Colin n'a pas pu finir.", copy: false, retry: true))

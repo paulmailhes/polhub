@@ -180,7 +180,9 @@ struct Sidebar: View {
         }
         .buttonStyle(.plain)
         .listItemTint(.monochrome)
-        .help(open ? "Replier les autres dossiers" : "Notifications, Abonnements, Spam, Corbeille, Tous les messages")
+        // « Verbe + objet »: « Voir » unfolds in place, « Voir moins » folds back (lot 10, 20/11; the folders' list was no
+        // verb).
+        .help(open ? "Voir moins" : "Voir les autres dossiers")
     }
 
     /// A folder: its name keeps whole in 224 points, a hair smaller if it must (« Boîte de réception » and its count).
@@ -239,10 +241,11 @@ struct SidebarLabel: View {
         AppLabel(item.title, icon: item.appIcon)
     }
 
-    /// The row's key in its help (lot 4, 19/11): « Calendrier (⌘4) », « Réglages (⌘,) ».
+    /// The row's key in its help (lot 4, 19/11): « Calendrier (⌘4) », « Réglages (⌘,) », written by `Words.help` (lot 10,
+    /// 20/11).
     static func help(_ item: SidebarItem) -> String {
-        if item == .settings { return "Réglages (⌘,)" }
-        return item.shortcut.map { "\(item.title) (⌘\($0))" } ?? item.title
+        if item == .settings { return Words.help("Réglages", .command(",")) }
+        return item.shortcut.map { Words.help(item.title, .command("\($0)")) } ?? item.title
     }
 }
 

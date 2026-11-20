@@ -65,8 +65,8 @@ public enum ProjectViews {
     }
 
     /// The next meeting, the due date and the last meeting of a card, one per line, in words (15/11); late and today on
-    /// their flag's color, the rest grey but the next meeting (lot 8, 19/11).
-    public static func cardFacts(nextEvent: Date?, due: Date?, lastMeeting: Date?, now: Date, calendar: Calendar = .current) -> [CardFact] {
+    /// their flag's color, the rest grey but the next meeting (lot 8, 19/11). Paul's calendar by default (lot 10, 20/11).
+    public static func cardFacts(nextEvent: Date?, due: Date?, lastMeeting: Date?, now: Date, calendar: Calendar = Words.calendar) -> [CardFact] {
         var facts: [CardFact] = []
         if let nextEvent {
             facts.append(CardFact(text: nextEventLabel(nextEvent, now: now, calendar: calendar), icon: "calendar.badge.clock", role: nil, strong: true))
@@ -114,10 +114,6 @@ public enum ProjectViews {
         }
     }
 
-    static func days(from start: Date, to end: Date, calendar: Calendar) -> Int {
-        calendar.dateComponents([.day], from: calendar.startOfDay(for: start), to: calendar.startOfDay(for: end)).day ?? 0
-    }
-
     /// Where a due date stands (lot 10, 20/11): the days left, from which its words and its color are read; never the
     /// color from the words, which may change.
     public struct DueState: Equatable, Sendable {
@@ -125,13 +121,13 @@ public enum ProjectViews {
         public let daysLeft: Int
 
         /// « En retard de N j », « Échéance aujourd'hui », « Échéance demain », « Échéance dans N j »: in words, not
-        /// « J-2 », which read as a meeting (Paul, 15/11).
+        /// « J-2 », which read as a meeting (Paul, 15/11). A meta: the days in short, by `Words` (lot 10, 20/11).
         public var label: String {
-            if daysLeft < 0 { return "En retard de \(-daysLeft) j" }
+            if daysLeft < 0 { return "En retard de " + Words.dayCount(-daysLeft, short: true) }
             switch daysLeft {
             case 0: return "Échéance aujourd'hui"
             case 1: return "Échéance demain"
-            default: return "Échéance dans \(daysLeft) j"
+            default: return "Échéance dans " + Words.dayCount(daysLeft, short: true)
             }
         }
 
@@ -142,42 +138,29 @@ public enum ProjectViews {
         }
     }
 
-    /// Where a due date stands today; nothing without a date.
-    public static func dueState(_ due: Date?, today: Date, calendar: Calendar = .current) -> DueState? {
-        due.map { DueState(daysLeft: days(from: today, to: $0, calendar: calendar)) }
+    /// Where a due date stands today; nothing without a date. The days counted by `Words` (lot 10, 20/11).
+    public static func dueState(_ due: Date?, today: Date, calendar: Calendar = Words.calendar) -> DueState? {
+        due.map { DueState(daysLeft: Words.days(from: today, to: $0, calendar: calendar)) }
     }
 
     /// The words of `dueState`, or nothing.
-    public static func dueLabel(_ due: Date?, today: Date, calendar: Calendar = .current) -> String? {
+    public static func dueLabel(_ due: Date?, today: Date, calendar: Calendar = Words.calendar) -> String? {
         dueState(due, today: today, calendar: calendar)?.label
     }
 
-    /// « RDV aujourd'hui à 14:00 », « RDV demain à 9:30 », « RDV jeudi à 14:00 », « RDV le 2 déc. »: the next
-    /// event of a project, the first thing a card says (Paul, 15/11).
-    public static func nextEventLabel(_ date: Date, now: Date, calendar: Calendar = .current) -> String {
-        let locale = Locale(identifier: "fr_FR")
-        let hour = date.formatted(.dateTime.hour().minute().locale(locale))
-        let ahead = days(from: now, to: date, calendar: calendar)
-        switch ahead {
-        case ...0: return "RDV aujourd'hui à \(hour)"
-        case 1: return "RDV demain à \(hour)"
-        case 2...6: return "RDV \(date.formatted(.dateTime.weekday(.wide).locale(locale))) à \(hour)"
-        default: return "RDV le \(date.formatted(.dateTime.day().month(.abbreviated).locale(locale)))"
-        }
+    /// « Rendez-vous aujourd'hui 14:00 », « Rendez-vous demain 9:30 », « Rendez-vous jeudi 14:00 »; a week ahead or
+    /// more, the day alone, « Rendez-vous lundi 30 »: the next event of a project, the first thing a card says (Paul,
+    /// 15/11). « Rendez-vous », never « RDV », and the day by `Words` (lot 10, 20/11); one under way since an earlier
+    /// day is said today, as the card always did.
+    public static func nextEventLabel(_ date: Date, now: Date, calendar: Calendar = Words.calendar) -> String {
+        let ahead = Words.days(from: now, to: date, calendar: calendar)
+        if ahead >= 7 { return "Rendez-vous " + Words.day(date, now: now, calendar: calendar) }
+        return "Rendez-vous " + Words.moment(date, now: ahead < 0 ? date : now, calendar: calendar)
     }
 
-    /// « Réunion il y a 3 semaines »: the last meeting, in words (15/11).
-    public static func meetingLabel(_ date: Date, now: Date, calendar: Calendar = .current) -> String {
-        let ago = max(0, days(from: date, to: now, calendar: calendar))
-        let when: String = switch ago {
-        case 0: "aujourd'hui"
-        case 1: "hier"
-        case ..<7: "il y a \(ago) jours"
-        case ..<35: ago / 7 == 1 ? "il y a 1 semaine" : "il y a \(ago / 7) semaines"
-        case ..<365: "il y a \(max(1, ago / 30)) mois"
-        default: ago / 365 == 1 ? "il y a 1 an" : "il y a \(ago / 365) ans"
-        }
-        return "Réunion \(when)"
+    /// « Réunion il y a 3 semaines »: the last meeting, in words (15/11), by `Words` (lot 10, 20/11).
+    public static func meetingLabel(_ date: Date, now: Date, calendar: Calendar = Words.calendar) -> String {
+        "Réunion " + Words.daysAgo(date, now: now, calendar: calendar)
     }
 
     /// The most recent sign of life: activity, a meeting (from the vault or filed in the app), a change of
@@ -210,7 +193,8 @@ public enum ProjectViews {
     }
 
     static func fold(_ text: String) -> String {
-        text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "fr_FR"))
+        // French, fixed once by `Words` (lot 10, 20/11).
+        text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Words.locale)
     }
 
     /// The card a dropped card goes above. Dropped on a card lower in its own column, it goes below it:

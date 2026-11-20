@@ -102,7 +102,9 @@ public final class HUDPanelController {
     }
 
     public func showAlert(title: String, message: String, action: String?, onAction: @escaping () -> Void, onClose: @escaping () -> Void) {
-        prepare(.alert, title: title, subtitle: message)
+        // Polhub's own sentence, its French typography laid here: « … » and « : » never part from their words
+        // (`Words.typeset`, lot 10, 20/11).
+        prepare(.alert, title: title, subtitle: Words.typeset(message))
         model.actionTitle = action
         model.onAction = { [weak self] in self?.close(); onAction(); onClose() }
         model.onClose = { [weak self] in self?.close(); onClose() }

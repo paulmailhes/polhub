@@ -28,17 +28,17 @@ import Testing
     @Test func aRuleAfterAMail() {
         let said = ChangeText.sentence(line([row(.status, "priorité 2", "priorité 1"), row(.todo, nil, "En attente retour de Claire"),
                                              row(.journalAdded, nil, "Mail envoyé à Claire le 18/11")], reason: "Après ton mail à Claire, 9:50"), calendar: paris)
-        #expect(said == "« Cabinet Martin » : priorité 2 → priorité 1, tâche « En attente retour de Claire », journal « Mail envoyé à Claire le 18/11 ».")
+        #expect(said == "« Cabinet Martin » : priorité 2 → priorité 1, tâche du moment « En attente retour de Claire », journal « Mail envoyé à Claire le 18/11 ».")
         #expect(ChangeText.note(line([], reason: "Après ton mail à Claire, 9:50")) == "Après ton mail à Claire, 9:50")
     }
 
     /// A deadline is a day of Paris, whatever the hour it is kept at.
     @Test func eachKindSaysItself() {
         func said(_ rows: [ProjectChangeRow]) -> String { ChangeText.sentence(line(rows), calendar: paris) }
-        #expect(said([row(.dueDate, nil, "2026-11-18 23:00:00.000")]) == "« Cabinet Martin » : échéance 19/11.")
-        #expect(said([row(.dueDate, "2026-11-18 23:00:00.000", "2026-11-26 23:00:00.000")]) == "« Cabinet Martin » : échéance 19/11 → 27/11.")
+        #expect(said([row(.dueDate, nil, "2026-11-18 23:00:00.000")]) == "« Cabinet Martin » : échéance 19 nov.")
+        #expect(said([row(.dueDate, "2026-11-18 23:00:00.000", "2026-11-26 23:00:00.000")]) == "« Cabinet Martin » : échéance 19 nov. → 27 nov.")
         #expect(said([row(.dueDate, "2026-11-18 23:00:00.000", nil)]) == "« Cabinet Martin » : échéance retirée.")
-        #expect(said([row(.todo, "Appeler Claire", nil)]) == "« Cabinet Martin » : tâche retirée.")
+        #expect(said([row(.todo, "Appeler Claire", nil)]) == "« Cabinet Martin » : tâche du moment retirée.")
         #expect(said([row(.client, nil, "Cabinet Martin SARL")]) == "« Cabinet Martin » : client « Cabinet Martin SARL ».")
         #expect(said([row(.notes, "a", "b")]) == "« Cabinet Martin » : notes réécrites.")
         #expect(said([row(.actionAdded, nil, "Relancer Claire")]) == "« Cabinet Martin » : action « Relancer Claire » ajoutée.")
@@ -64,9 +64,9 @@ import Testing
                                              row(.todo, "Appeler", nil), row(.actionDone, "0", "1", detail: #"{"text":"Envoyer le devis"}"#),
                                              row(.journalAdded, nil, "Devis relu")]), calendar: paris)
         #expect(fields == [
-            ChangeField(label: "Statut", before: "priorité 2", after: "priorité 1"),
-            ChangeField(label: "Échéance", before: nil, after: "19/11"),
-            ChangeField(label: "Tâche", before: "Appeler", after: nil),
+            ChangeField(label: "Statut", before: "Priorité 2", after: "Priorité 1"),
+            ChangeField(label: "Échéance", before: nil, after: "19 nov."),
+            ChangeField(label: "Tâche du moment", before: "Appeler", after: nil),
             ChangeField(label: "Action", before: "Envoyer le devis", after: "faite"),
             ChangeField(label: "Journal", before: nil, after: "Devis relu"),
         ])
@@ -78,10 +78,10 @@ import Testing
                             row(.client, nil, "Studio Nord")])
         #expect(ChangeText.isCreation(created))
         #expect(!ChangeText.isCreation(line([row(.todo, nil, "Relire")])))
-        #expect(ChangeText.sentence(created, calendar: paris) == "Nouveau projet « Cabinet Martin » : priorité 1, échéance 04/12, client « Studio Nord ».")
+        #expect(ChangeText.sentence(created, calendar: paris) == "Nouveau projet « Cabinet Martin » : priorité 1, échéance 4 déc., client « Studio Nord ».")
         #expect(ChangeText.fields(created, calendar: paris) == [
-            ChangeField(label: "Statut", before: nil, after: "priorité 1"),
-            ChangeField(label: "Échéance", before: nil, after: "04/12"),
+            ChangeField(label: "Statut", before: nil, after: "Priorité 1"),
+            ChangeField(label: "Échéance", before: nil, after: "4 déc."),
             ChangeField(label: "Client", before: nil, after: "Studio Nord"),
         ])
         #expect(ChangeText.sentence(line([row(.created, nil, "Cabinet Martin", detail: "priorité 2")]), calendar: paris)

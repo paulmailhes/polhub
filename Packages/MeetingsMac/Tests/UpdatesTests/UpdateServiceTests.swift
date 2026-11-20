@@ -132,7 +132,7 @@ final class Switch: @unchecked Sendable {
     }
 
     @Test func theJournalSaysWhichVersionCameIn() {
-        #expect(UpdateService.upgradeNote(previous: "0.3.0", current: "0.3.1") == "Polhub mis à jour : 0.3.0 → 0.3.1.")
+        #expect(UpdateService.upgradeNote(previous: "0.3.0", current: "0.3.1") == "Polhub est passé de 0.3.0 à 0.3.1.")
         #expect(UpdateService.upgradeNote(previous: "0.3.1", current: "0.3.1") == nil)
         #expect(UpdateService.upgradeNote(previous: nil, current: "0.3.1") == nil)
     }

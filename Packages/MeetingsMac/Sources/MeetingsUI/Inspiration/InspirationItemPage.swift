@@ -63,7 +63,8 @@ struct InspirationItemPage: View {
                 }
             }
             Spacer(minLength: 0)
-            IconMenu("ellipsis", help: "Plus") {
+            // « Plus d'actions », the bubble of every « … » menu, by default (lot 10, 20/11).
+            IconMenu("ellipsis") {
                 // Only for an item still without categories: it never replaces the vault's without a word (review
                 // of 16/11); the background pass would tag it within minutes anyway.
                 if aiCategories, !item.categoriesByPaul, item.kind != .mockup, item.categories.values.allSatisfy(\.isEmpty) {
@@ -193,7 +194,8 @@ struct InspirationItemPage: View {
                 }
             }
             if item.categoriesByPaul {
-                Text("Choisies par toi : l'IA n'y touche plus.").font(.meta).foregroundStyle(.secondary)
+                // « l'IA d'Apple », never « l'IA » alone; the French typography laid (lot 10, 20/11).
+                Text(Words.typeset("Choisies par toi : l'IA d'Apple n'y touche plus.")).font(.meta).foregroundStyle(.secondary)
             }
         }
     }

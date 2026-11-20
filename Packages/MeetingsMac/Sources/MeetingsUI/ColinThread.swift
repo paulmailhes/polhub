@@ -13,7 +13,7 @@ import PolhubDesign
 public final class ColinThread: ObservableObject {
     public enum Status: Equatable, Sendable {
         case off
-        /// « Colin attend la fin de ton call ».
+        /// « Colin attend la fin de ta visio ».
         case waitingCall
         /// The Mac woke a moment ago: the question waits.
         case settling
@@ -492,8 +492,8 @@ public final class ColinThread: ObservableObject {
         case .notConnected: return "Claude Code n'est pas connecté sur ton compte."
         case .limit(let resetsAt):
             guard let resetsAt else { return "Limite atteinte." }
-            let parts = calendar.dateComponents([.hour, .minute], from: resetsAt)
-            return String(format: "Limite atteinte · reprend à %02d:%02d", parts.hour ?? 0, parts.minute ?? 0)
+            // « reprend à 9:05 », the hour by `Words.time` (lot 10, 20/11: never « 09:05 »).
+            return "Limite atteinte · reprend à " + Words.time(resetsAt, calendar: calendar)
         case .launch: return "Claude Code n'a pas pu se lancer."
         case .noAnswer: return "Claude Code n'a pas répondu."
         case .isolation: return "Claude Code a chargé plus que ce que Polhub lui demande : Colin s'est arrêté."

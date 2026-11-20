@@ -82,6 +82,48 @@ extension GoogleError {
     }
 }
 
+/// A Google error in Paul's words, for `Words.problem` (lot 10, 20/11): the reason alone, a fragment that follows « : »,
+/// and what to do, a sentence. `description` does not move: the base keeps it, `GoogleError(stored:)` reads it again.
+extension GoogleError: LocalizedError {
+    public var failureReason: String? {
+        switch self {
+        case .noKey: "la clé Google n'est pas encore en place"
+        case .badKey: "la clé Google n'est pas une clé « application de bureau »"
+        case .refused("admin_policy_enforced"): "l'administrateur de ce compte bloque Polhub"
+        case .refused("access_denied"): "l'autorisation a été refusée ou annulée"
+        case .refused(let reason): "Google a refusé la connexion (\(reason))"
+        case .badAnswer: "la réponse de Google est illisible"
+        case .expired: "la connexion à ce compte a expiré"
+        case .http(let code): "Google répond \(code)"
+        case .timeout: "la connexion n'a pas été faite à temps dans le navigateur"
+        case .needsWrite: "ce compte n'a autorisé que la lecture"
+        case .notOrganizer: "seul l'organisateur peut modifier ce rendez-vous"
+        case .missingScope(.gmailModify): "ce compte n'a pas encore autorisé les mails"
+        case .missingScope(.calendarEvents): "ce compte n'a pas autorisé l'agenda"
+        case .rateLimited: "Google demande de ralentir"
+        case .notFound: "Google ne trouve plus cet élément"
+        case .readOnlyBuild: "la version de développement n'écrit jamais dans une vraie boîte"
+        }
+    }
+
+    /// `nil`: « Réessaie. ».
+    public var recoverySuggestion: String? {
+        switch self {
+        case .noKey: "Lance « configurer-google.command », dans le dossier scripts de Polhub."
+        case .badKey: "Crée une clé « application de bureau » dans la console Google."
+        case .refused("admin_policy_enforced"): "Il doit l'approuver dans la console d'administration Google (Sécurité › Commandes des API)."
+        case .refused("access_denied"): "Rien n'a changé."
+        case .refused, .expired, .missingScope(.calendarEvents): "Reconnecte le compte dans Réglages › Comptes Google."
+        case .needsWrite: "Reconnecte-le pour modifier ses rendez-vous."
+        case .missingScope(.gmailModify): "Autorise les mails dans Réglages › Comptes Google."
+        case .notOrganizer: "Demande à l'organisateur de le modifier."
+        case .rateLimited: "Réessaie dans un instant."
+        case .readOnlyBuild: "Fais-le dans Polhub installé."
+        case .badAnswer, .http, .timeout, .notFound: nil
+        }
+    }
+}
+
 /// The key of the « Polhub » Google project, a desktop app: never in the repository, never shown. The file gives the
 /// client's identifier and secret only; where the browser and the tokens go is written here (audit of 19/11): a
 /// program that rewrites the file cannot send a refresh token to its own server, nor open a consent page of its own.

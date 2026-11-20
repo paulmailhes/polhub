@@ -38,6 +38,12 @@ struct SummaryCard: View {
         let sections = sections
         VStack(alignment: .leading, spacing: Space.l) {
             SectionTitle("Compte rendu", systemImage: "sparkles") { controls(missing: sections?.missing) }
+            // What « Partiel » lacks, written on the card: a bubble only says it again (lot 10, 20/11).
+            if let missing = sections?.missing {
+                Text(Words.typeset(Words.capitalizedFirst(missing) + "."))
+                    .font(.meta).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if let status { statusLine(status) }
             if let sections {
                 parts(sections)
@@ -62,9 +68,10 @@ struct SummaryCard: View {
     private func controls(missing: String?) -> some View {
         HStack(spacing: Space.xs) {
             if let missing {
-                // To check: the color of attention (design system v2, 19/11).
+                // To check: the color of attention (design system v2, 19/11). The bubble says again what the card
+                // writes, without a period (lot 10, 20/11).
                 Chip("Partiel", systemImage: "exclamationmark.triangle", tint: Tint.attention)
-                    .help(missing.prefix(1).uppercased() + missing.dropFirst() + ".")
+                    .help(Words.capitalizedFirst(missing))
             }
             // The words when there is room, the icons alone otherwise.
             ViewThatFits(in: .horizontal) {
@@ -109,7 +116,8 @@ struct SummaryCard: View {
                     if job?.state == .failed {
                         ErrorLine(status)
                     } else {
-                        Text(status).foregroundStyle(.secondary)
+                        // French typography, laid at display (lot 10, 20/11).
+                        Text(Words.typeset(status)).foregroundStyle(.secondary)
                     }
                 }
                 .font(.rowBody)
@@ -207,7 +215,8 @@ struct SummaryCard: View {
                 .buttonStyle(.hover(.capsule))
                 .foregroundStyle(.secondary)
                 .fixedSize()
-                .help("Ajoute cette action à celles de « \(project.name) »")
+                // A verb at the infinitive and its object (lot 10, 20/11).
+                .help("Ajouter cette action à « \(project.name) »")
             }
         }
         .padding(.vertical, Space.xs)

@@ -78,7 +78,7 @@ final class SlowTaggingModel: InspirationTaggingModel, @unchecked Sendable {
         let model = SlowTaggingModel(delays: [.seconds(30), .zero], answer: Self.goodAnswer)
         let tagger = InspirationTagger(database: database, model: model, answerTimeout: .milliseconds(200))
         let started = Date()
-        #expect(await tagger.tag(id: slow.id, now: now) == .failed("Le modèle d'Apple a mis trop de temps."))
+        #expect(await tagger.tag(id: slow.id, now: now) == .failed("L'IA d'Apple a mis trop de temps."))
         #expect(Date().timeIntervalSince(started) < 5)
         let next = try post(store)
         #expect(await tagger.tag(id: next.id, now: now) == .tagged(["secteur": ["restaurant"], "style": ["artisanal"], "support": ["signalétique", "packaging"]]))

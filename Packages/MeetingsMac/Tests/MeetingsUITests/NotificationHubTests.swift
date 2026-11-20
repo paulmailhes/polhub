@@ -81,7 +81,7 @@ import Testing
         #expect(center.delivered.isEmpty)
         await hub.tick(recording: false, now: now)
         await hub.tick(recording: false, now: now)
-        #expect(center.delivered.map(\.title) == ["Réunion non enregistrée"])
+        #expect(center.delivered.map(\.title) == ["Visio non enregistrée"])
         #expect(center.delivered.first?.joinable == true)
     }
 
@@ -239,7 +239,7 @@ import Testing
         #expect(Preferences(defaults: defaults).colinDraftNotice && Preferences.Key.colinDraftNotice == "notifications.colin.brouillon")
         await hub.draftsReady([(id: "d1", recipient: "Claire", threadKey: "moi@exemple.fr|t1")])
         #expect(center.delivered.map(\.title) == ["Colin"])
-        #expect(center.delivered.first?.body == "Brouillon prêt pour Claire. On le valide ?" && center.delivered.first?.kind == .draft)
+        #expect(center.delivered.first?.body == "Brouillon prêt pour Claire. À relire." && center.delivered.first?.kind == .draft)
         #expect(inbox.notices.count == 1 && inbox.notices.first?.kind == .draft)
         await hub.draftsReady([(id: String, recipient: String, threadKey: String?)]())
         #expect(center.delivered.count == 1)
@@ -247,7 +247,7 @@ import Testing
         let row = MailDraftRow(id: "d2", account: "moi@exemple.fr", mode: .new, to: [MailAddress(name: "Marc Dubois", email: "marc@exemple.net")],
                                subject: "Devis", body: "Bonjour", origin: .agent, createdAt: now)
         await hub.draftsReady([row])
-        #expect(center.delivered.last?.body == "Brouillon prêt pour Marc. On le valide ?" && center.delivered.last?.id == "brouillon|d2")
+        #expect(center.delivered.last?.body == "Brouillon prêt pour Marc. À relire." && center.delivered.last?.id == "brouillon|d2")
         defaults.set(false, forKey: Preferences.Key.colinDraftNotice)
         await hub.draftsReady([(id: "d3", recipient: "Anne", threadKey: nil)])
         await hub.draftsReady([row])

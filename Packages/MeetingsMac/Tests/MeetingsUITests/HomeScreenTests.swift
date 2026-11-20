@@ -114,8 +114,8 @@ struct HomeScreenTests {
         let yesterday = try #require(paris.date(bySettingHour: 19, minute: 40, second: 0, of: ago(1)))
         suite.set(try JSONEncoder().encode(Presence.State(lastSeen: yesterday, since: nil, preparedAt: yesterday)), forKey: Preferences.Key.colinPresence)
         // Step 3 (18/11): since then, one of Colin's rules after a mail of Paul's, and a session that wrote in a project.
-        try projects.edit(KanbanEdit(projectID: nord.id, status: .priorite1, todo: "En attente retour de Marc", dueDate: nil,
-                                     journal: "Mail envoyé à Marc le 18/11", reason: "Après ton mail à Marc, 9:50", source: "mail:capture"),
+        try projects.edit(KanbanEdit(projectID: nord.id, status: .priorite1, todo: "Attend le retour de Marc", dueDate: nil,
+                                     journal: "Mail envoyé à Marc le 18 nov.", reason: "Après ton mail à Marc, 9:50", source: "mail:capture"),
                           by: .colin, at: now.addingTimeInterval(-3_570))
         let session = projects.signed(.agent)
         try session.saveAction(ActionRow(projectID: leroy.id, text: "Envoyer les plans du rez-de-chaussée", position: 9, createdAt: now.addingTimeInterval(-7_200)))

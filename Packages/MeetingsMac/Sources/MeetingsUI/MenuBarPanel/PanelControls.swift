@@ -22,7 +22,10 @@ struct PanelButtons: View {
             }
             .disabled(!canRecord)
             if hasMailboxes {
-                RoundToggle(title: "Nouveau mail", systemImage: "square.and.pencil", help: "Écrire un nouveau mail (⌘N)") { context.newMail() }
+                // « Écrire un nouveau mail (⌘N) », by `Words.help` (lot 10, 20/11).
+                RoundToggle(title: "Nouveau mail", systemImage: "square.and.pencil", help: Words.help("Écrire un nouveau mail", .command("N"))) {
+                    context.newMail()
+                }
             }
             detection
         }
@@ -33,15 +36,16 @@ struct PanelButtons: View {
     private var detection: some View {
         if app.isDevelopment {
             // The development build never detects on its own: its switch, here.
+            // The detection is active or suspended, never « coupée »; the parentheses of a bubble keep for a key (lot 10, 20/11).
             RoundToggle(title: "Détection", systemImage: app.detectionOn ? "dot.radiowaves.left.and.right" : "antenna.radiowaves.left.and.right.slash",
                         lit: app.detectionOn, tint: Tint.accent,
-                        help: app.detectionOn ? "Couper la détection (version de développement)" : "Activer la détection (version de développement)") {
+                        help: app.detectionOn ? "Suspendre la détection" : "Activer la détection") {
                 context.actions.setDetection(!app.detectionOn)
             }
-        } else if let until = app.pausedUntil {
-            // Lit in Polhub's ink, as the hero's Reprendre above it: one action, one color (design system v2, 19/11).
-            RoundToggle(title: "Reprendre", systemImage: "play.fill", lit: true, tint: Tint.accent,
-                        help: "Détection suspendue jusqu'à \(PanelModel.clock(until)) : la reprendre") {
+        } else if app.pausedUntil != nil {
+            // Lit in Polhub's ink, as the hero's Reprendre above it: one action, one color (design system v2, 19/11). A verb
+            // and its object (lot 10, 20/11: « Détection suspendue jusqu'à 16:30 : la reprendre »; the hero says until when).
+            RoundToggle(title: "Reprendre", systemImage: "play.fill", lit: true, tint: Tint.accent, help: "Reprendre la détection") {
                 context.actions.resumeDetection()
             }
         } else {
@@ -168,7 +172,11 @@ struct PanelFooter: View {
                 .buttonStyle(.hover(.capsule))
                 .foregroundStyle(.primary)
                 .padding(.leading, -Space.s)
-                .help("Ouvrir la fenêtre de Polhub")
+                // Where it goes and its key, as the tiles' (lot 10, 20/11: « Ouvrir la fenêtre de Polhub » said the label
+                // again): the Accueil (⌘1), or Réunions without the agenda (`CoupDoeilContext.openHome`).
+                .help(context.agenda != nil
+                      ? Words.help("Ouvrir l'Accueil", shortcuts: SidebarItem.home.shortcut.map { [Words.Shortcut.command("\($0)")] } ?? [])
+                      : Words.help("Ouvrir Réunions", shortcuts: SidebarItem.meetings.shortcut.map { [Words.Shortcut.command("\($0)")] } ?? []))
                 Spacer(minLength: 0)
                 if let inbox = context.notifications?.inbox {
                     NotificationBell(inbox: inbox, arrowEdge: .bottom) { context.actions.perform($0) }
@@ -178,13 +186,15 @@ struct PanelFooter: View {
                 }
                 .buttonStyle(.hover(.circle))
                 .foregroundStyle(.secondary)
-                .help("Réglages (⌘,)")
-                .accessibilityLabel("Réglages")
+                // A verb and its object, the key in the bubble only; VoiceOver the same words (lot 10, 20/11).
+                .help(Words.help("Ouvrir Réglages", .command(",")))
+                .accessibilityLabel("Ouvrir Réglages")
                 Menu {
+                    // Verbs, as every button (lot 10, 20/11: « Contacts », « Diagnostic… »).
                     if context.agenda != nil {
-                        Button("Contacts") { context.open(.section(.contacts)) }
+                        Button("Ouvrir Contacts") { context.open(.section(.contacts)) }
                     }
-                    Button("Diagnostic…") { context.actions.showDiagnostic() }
+                    Button("Ouvrir le Diagnostic") { context.actions.showDiagnostic() }
                     Divider()
                     // No key: quitting must never cut a meeting by mistake.
                     Button("Quitter Polhub") { context.actions.quit() }
@@ -198,8 +208,9 @@ struct PanelFooter: View {
                 .buttonStyle(.hover(.circle))
                 .menuIndicator(.hidden)
                 .fixedSize()
-                .help("Plus")
-                .accessibilityLabel("Plus")
+                // The help of every « … » menu (`Words.moreActions`, lot 10, 20/11).
+                .help(Words.moreActions)
+                .accessibilityLabel(Words.moreActions)
             }
             .padding(.trailing, -Space.xs)
         }

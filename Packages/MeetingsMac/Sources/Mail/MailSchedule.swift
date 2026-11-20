@@ -88,6 +88,17 @@ public enum ScheduleVaultError: Error, Equatable, CustomStringConvertible {
     }
 }
 
+/// The vault's error in Paul's words, for `Words.problem` (lot 10, 20/11): the Keychain's code stays in `description`.
+extension ScheduleVaultError: LocalizedError {
+    public var failureReason: String? {
+        switch self {
+        case .unreadable: "le Trousseau ne donne pas les envois programmés"
+        case .unwritable: "le Trousseau n'a pas pris les envois programmés"
+        case .foreign: "une liste d'envois programmés inconnue était dans le Trousseau"
+        }
+    }
+}
+
 /// The vault's item as the Keychain gives it.
 public enum VaultItem: Sendable, Equatable {
     /// Readable by Polhub alone, as Polhub makes it: its list.
@@ -332,6 +343,24 @@ public enum ScheduleStop: Error, Sendable, Equatable, CustomStringConvertible {
     }
 }
 
+/// Why a send stopped, in Paul's words, for `Words.problem` (lot 10, 20/11): one « : » in a sentence, the rest after it.
+extension ScheduleStop: LocalizedError {
+    public var failureReason: String? {
+        switch self {
+        case .conflict(.absent): "le brouillon n'est plus dans Gmail"
+        default: description
+        }
+    }
+
+    public var recoverySuggestion: String? {
+        switch self {
+        case .conflict(.absent): "Il a peut-être été envoyé ou supprimé ailleurs."
+        case .noAccess: "Autorise les mails dans Réglages › Comptes Google."
+        default: nil
+        }
+    }
+}
+
 /// Paul's demand that the engine refuses.
 public enum ScheduleError: Error, Equatable, CustomStringConvertible {
     /// At least a minute from now.
@@ -346,6 +375,25 @@ public enum ScheduleError: Error, Equatable, CustomStringConvertible {
         case .tooSoon: "choisis une heure au moins une minute plus tard"
         case .leaving: "le mail est déjà en route"
         case .notScheduled: "il n'est plus programmé : regarde dans Brouillons"
+        }
+    }
+}
+
+/// Paul's demand refused, in his words, for `Words.problem` (lot 10, 20/11): the reason, then what to do.
+extension ScheduleError: LocalizedError {
+    public var failureReason: String? {
+        switch self {
+        case .tooSoon: "l'heure choisie est trop proche"
+        case .leaving: "le mail est déjà en route"
+        case .notScheduled: "il n'est plus programmé"
+        }
+    }
+
+    public var recoverySuggestion: String? {
+        switch self {
+        case .tooSoon: "Choisis une heure au moins une minute plus tard."
+        case .leaving: "Regarde dans Envoyés."
+        case .notScheduled: "Regarde dans Brouillons."
         }
     }
 }

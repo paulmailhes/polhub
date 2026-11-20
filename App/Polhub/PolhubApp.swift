@@ -49,7 +49,10 @@ final class ProbeRunner: ObservableObject {
         do {
             trace = try TraceWriter(fileURL: directory.appending(path: "trace.jsonl"))
         } catch {
-            message = "Impossible d'écrire la trace : \(error)"
+            // What did not work, in French; the system's own text goes to the log (lot 10, 20/11).
+            let problem = Words.problem("La trace n'a pas pu être écrite", error)
+            if let journal = problem.journal { NSLog("%@", journal) }
+            message = problem.sentence
             return false
         }
         running = request.probe
@@ -62,7 +65,12 @@ final class ProbeRunner: ObservableObject {
             let failure = await trace.failure
             await trace.close()
             ProcessInfo.processInfo.endActivity(activity)
-            let problem = failure.map { "La trace n'a plus pu être écrite, la mesure s'est arrêtée : \($0)" }
+            // The same: in French, the trace's own error to the log (lot 10, 20/11).
+            let problem = failure.map { error -> String in
+                let said = Words.problem("La trace n'a plus pu être écrite, la mesure s'est arrêtée", error)
+                if let journal = said.journal { NSLog("%@", journal) }
+                return said.sentence
+            }
             self?.running = nil
             self?.message = problem
             onFinish?(problem)

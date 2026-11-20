@@ -15,12 +15,16 @@ struct SearchResultsView: View {
     var body: some View {
         Group {
             if groups.isEmpty {
-                ContentUnavailableView(searched ? "Rien trouvé" : "Recherche…", systemImage: "magnifyingglass",
-                                       description: Text(searched ? "Aucune transcription ne contient « \(query) »." : ""))
+                // « Aucun résultat pour « x » », as Contacts says it; the typography around what Paul typed, never inside
+                // it (lot 10, 20/11: « Rien trouvé »).
+                ContentUnavailableView(searched ? Words.typeset("Aucun résultat pour « ") + query + Words.typeset(" »") : "Recherche…",
+                                       systemImage: "magnifyingglass",
+                                       description: Text(searched ? "La recherche porte sur les transcriptions des réunions." : ""))
             } else {
                 List {
                     ForEach(groups) { group in
-                        Section("\(group.title) · \(group.startedAt.formatted(date: .abbreviated, time: .shortened))") {
+                        // « 18 nov., 14:00 », by `Words` (lot 10, 20/11).
+                        Section("\(group.title) · \(Words.shortDate(group.startedAt, now: Date())), \(Words.time(group.startedAt))") {
                             ForEach(Array(group.excerpts.enumerated()), id: \.offset) { _, excerpt in
                                 Button {
                                     open(group.meetingID, Double(excerpt.startMs) / 1_000)
@@ -37,7 +41,7 @@ struct SearchResultsView: View {
                                 .buttonStyle(.row(inset: Space.s))
                             }
                             if group.more > 0 {
-                                Text("et \(group.more) autre\(group.more > 1 ? "s" : "") passage\(group.more > 1 ? "s" : "")")
+                                Text("et " + Words.count(group.more, "autre passage", "autres passages"))
                                     .font(.meta).foregroundStyle(.secondary)
                             }
                         }

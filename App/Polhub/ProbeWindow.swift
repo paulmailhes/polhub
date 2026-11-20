@@ -125,7 +125,8 @@ struct ProbeWindow: View {
                 }
                 try? await Task.sleep(for: .milliseconds(200))
             }
-            relaunchMessage = "La copie de l'agent n'a pas démarré en 5 s : cette fenêtre reste ouverte. Vérifie Réglages → Général → Ouverture."
+            // A path of System Settings, its levels apart by « › » (lot 10, 20/11).
+            relaunchMessage = "La copie de l'agent n'a pas démarré en 5 s : cette fenêtre reste ouverte. Vérifie Réglages Système › Général › Ouverture."
         }
     }
 }

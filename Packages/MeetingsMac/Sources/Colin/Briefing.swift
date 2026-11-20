@@ -1,6 +1,7 @@
 import Domain
 import Foundation
 import Persistence
+import PolhubDesign
 
 /// « Le point » on the Accueil (18/11): the week, what is due, whose turn it is, what came since the last time. Four
 /// sentences at most, made by rules alone: no model, nothing that leaves the Mac.
@@ -89,55 +90,41 @@ public enum Briefing {
             lines.append(Line(.week, label: "Cette semaine", text: "aucun rendez-vous."))
         } else if let next = week.next {
             let when = dayLabel(next.startAt, now: now, calendar: calendar)
-            lines.append(Line(.week, label: "Cette semaine", text: week.count == 1 ? "1 rendez-vous, \(when)." : "\(week.count) rendez-vous, le prochain \(when)."))
+            lines.append(Line(.week, label: "Cette semaine", text: week.count == 1 ? "1 rendez-vous, \(when)." : "\(Words.count(week.count, "rendez-vous")), le prochain \(when)."))
         } else {
-            lines.append(Line(.week, label: "Cette semaine", text: "\(week.count) rendez-vous."))
+            lines.append(Line(.week, label: "Cette semaine", text: Words.count(week.count, "rendez-vous") + "."))
         }
         if !due.isEmpty {
             let named = due.prefix(3).map { project in "\(project.name) \(dueLabel(project.dueDate ?? now, now: now, calendar: calendar))" }
             let others = due.count - named.count
             lines.append(Line(.due, label: "À livrer",
-                              text: named.joined(separator: ", ") + (others > 0 ? " et \(others) \(others == 1 ? "autre" : "autres")" : "") + "."))
+                              // Accorded by `Words` (lot 10, 20/11).
+                              text: named.joined(separator: ", ") + (others > 0 ? " et " + Words.count(others, "autre") : "") + "."))
         }
         if !yours.isEmpty {
-            lines.append(Line(.yours, label: "À toi de jouer", text: yours.count <= 3 ? yours.map(\.name).joined(separator: ", ") + "." : "\(yours.count) projets."))
+            lines.append(Line(.yours, label: "À toi de jouer", text: yours.count <= 3 ? yours.map(\.name).joined(separator: ", ") + "." : Words.count(yours.count, "projet") + "."))
         }
         if let since, clientMails > 0 || moved > 0 {
             var said: [String] = []
-            if clientMails > 0 { said.append("\(clientMails) \(clientMails == 1 ? "mail de client" : "mails de clients")") }
-            if moved > 0 { said.append(moved == 1 ? "1 projet a bougé" : "\(moved) projets ont bougé") }
+            if clientMails > 0 { said.append(Words.count(clientMails, "mail de client", "mails de clients")) }
+            if moved > 0 { said.append(Words.count(moved, "projet") + " " + Words.plural(moved, "a bougé", "ont bougé")) }
             lines.append(Line(.since, label: "Depuis \(sinceLabel(since, now: now, calendar: calendar))", text: said.joined(separator: ", ") + "."))
         }
         return lines
     }
 
-    // MARK: - Days, said as Paul would say them
+    // MARK: - Days, said as Paul would say them, by `Words` (lot 10, 20/11: made by hand here, `Words` took them)
 
     /// « aujourd'hui 16:30 », « demain 10:00 », « hier 19:40 », « jeudi 10:00 »; a week away or more, « mercredi 25 à
     /// 9:00 », with the month when it is another one; long ago, « le 2 novembre ».
     public static func dayLabel(_ date: Date, now: Date, calendar: Calendar) -> String {
-        let away = days(from: now, to: date, calendar: calendar)
-        let hour = time(date, calendar: calendar)
-        switch away {
-        case 0: return "aujourd'hui \(hour)"
-        case 1: return "demain \(hour)"
-        case -1: return "hier \(hour)"
-        case 2...6, -6 ... -2: return "\(weekday(date, calendar: calendar)) \(hour)"
-        case 7...: return "\(weekday(date, calendar: calendar)) \(dayOfMonth(date, now: now, calendar: calendar)) à \(hour)"
-        default: return "le \(dayOfMonth(date, now: now, calendar: calendar, always: true))"
-        }
+        Words.moment(date, now: now, calendar: calendar)
     }
 
-    /// When a project is due: « en retard de 2 jours », « aujourd'hui », « demain », « jeudi », « le 25 ».
+    /// When a project is due: « en retard de 2 jours », « aujourd'hui », « demain », « jeudi », « mercredi 25 ».
     static func dueLabel(_ date: Date, now: Date, calendar: Calendar) -> String {
         let away = days(from: now, to: date, calendar: calendar)
-        switch away {
-        case ..<0: return "en retard de \(-away) \(away == -1 ? "jour" : "jours")"
-        case 0: return "aujourd'hui"
-        case 1: return "demain"
-        case 2...6: return weekday(date, calendar: calendar)
-        default: return "le \(dayOfMonth(date, now: now, calendar: calendar))"
-        }
+        return away < 0 ? "en retard de " + Words.dayCount(-away) : Words.day(date, now: now, calendar: calendar)
     }
 
     /// Since when: « 8:05 » today, « hier 19:40 », « vendredi 19:40 », « le 2 novembre ».
@@ -152,28 +139,16 @@ public enum Briefing {
 
     /// Whole days between two dates, as a calendar counts them: from one day to the next, whatever the hours.
     static func days(from: Date, to: Date, calendar: Calendar) -> Int {
-        calendar.dateComponents([.day], from: calendar.startOfDay(for: from), to: calendar.startOfDay(for: to)).day ?? 0
+        Words.days(from: from, to: to, calendar: calendar)
     }
 
     /// « 9:05 », « 16:30 ».
     static func time(_ date: Date, calendar: Calendar) -> String {
-        let parts = calendar.dateComponents([.hour, .minute], from: date)
-        let minute = parts.minute ?? 0
-        return "\(parts.hour ?? 0):\(minute < 10 ? "0" : "")\(minute)"
+        Words.time(date, calendar: calendar)
     }
 
-    static let weekdays = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"]
-    private static let months = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"]
-
+    /// « jeudi ».
     static func weekday(_ date: Date, calendar: Calendar) -> String {
-        weekdays[(calendar.component(.weekday, from: date) - 1 + 7) % 7]
-    }
-
-    /// « 25 », « 1er »; with the month when it is another one than today's, or when asked.
-    static func dayOfMonth(_ date: Date, now: Date, calendar: Calendar, always: Bool = false) -> String {
-        let day = calendar.component(.day, from: date), month = calendar.component(.month, from: date)
-        let number = day == 1 ? "1er" : String(day)
-        let sameMonth = month == calendar.component(.month, from: now) && calendar.component(.year, from: date) == calendar.component(.year, from: now)
-        return always || !sameMonth ? "\(number) \(months[(month - 1 + 12) % 12])" : number
+        Words.weekday(date, calendar: calendar)
     }
 }

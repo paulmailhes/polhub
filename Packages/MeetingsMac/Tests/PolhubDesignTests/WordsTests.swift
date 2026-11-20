@@ -178,8 +178,10 @@ import Testing
         #expect(Words.typeset("42%") == "42\(narrow)%")
         // A number keeps what follows it: « 1 h 05 » whole, « 05 de » too.
         #expect(Words.typeset("1 h 05 de réunion") == "1\(nb)h\(nb)05\(nb)de réunion")
-        #expect(Words.typeset("9:30 – 10:00") == "9:30\(nb)– 10:00")
-        #expect(Words.typeset("Aujourd'hui, l'Accueil") == "Aujourd’hui, l’Accueil")
+        // A range of hours stays whole (merge of lot 10, 20/11).
+        #expect(Words.typeset("9:30 – 10:00") == "9:30\(nb)–\u{2060}\(nb)10:00")
+        // The apostrophe stays straight, as in every text that does not go through here (merge of lot 10, 20/11).
+        #expect(Words.typeset("Aujourd'hui, l'Accueil") == "Aujourd'hui, l'Accueil")
         // Neither an hour, a link, an address nor a quote at a word's edge.
         #expect(Words.typeset("https://exemple.fr/a?b=c à 9:05") == "https://exemple.fr/a?b=c à 9:05")
         #expect(Words.typeset("claire@exemple.fr") == "claire@exemple.fr")
@@ -188,6 +190,8 @@ import Testing
         // Twice is once.
         let once = Words.typeset("Depuis hier 19:40 : 2 mails de clients.")
         #expect(Words.typeset(once) == once)
+        let range = Words.typeset("Mardi 17 novembre, 10:00 – 11:00")
+        #expect(Words.typeset(range) == range)
         #expect(Words.capitalizedFirst("aujourd'hui 16:30") == "Aujourd'hui 16:30" && Words.capitalizedFirst("") == "")
     }
 

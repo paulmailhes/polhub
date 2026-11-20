@@ -19,12 +19,13 @@ enum ColinStop: CaseIterable, Sendable {
         }
     }
 
-    /// What the thread says under the answer.
+    /// What the thread says under the answer (lot 10, 20/11): « visio », never « call »; Colin off says it once, without
+    /// « Arrêté : » before it.
     var note: String {
         switch self {
-        case .call: "Arrêté : ton call commence."
+        case .call: "Arrêté : ta visio commence."
         case .sleep: "Arrêté : le Mac s'endort."
-        case .off: "Arrêté : Colin est à l'arrêt."
+        case .off: "Colin est à l'arrêt."
         }
     }
 
@@ -40,22 +41,13 @@ enum ColinStop: CaseIterable, Sendable {
 
 /// The words of Colin's thread and bar (18/11), apart from the views.
 enum ColinThreadText {
-    /// « Aujourd'hui », « Hier », then the date (« lundi 16 novembre »). One formatter for all (final review, 18/11:
-    /// the thread is drawn again at each word).
+    /// « Aujourd'hui », « Hier », then the date (« lundi 16 novembre », « lundi 1er décembre 2025 » another year). Written
+    /// by `Words`, no formatter (lot 10, 20/11; final review, 18/11: the thread is drawn again at each word).
     static func day(_ date: Date, now: Date, calendar: Calendar) -> String {
         if calendar.isDate(date, inSameDayAs: now) { return "Aujourd'hui" }
         if let yesterday = calendar.date(byAdding: .day, value: -1, to: now), calendar.isDate(date, inSameDayAs: yesterday) { return "Hier" }
-        dayFormatter.calendar = calendar
-        dayFormatter.timeZone = calendar.timeZone
-        return dayFormatter.string(from: date)
+        return Words.fullDate(date, now: now, calendar: calendar)
     }
-
-    private nonisolated(unsafe) static let dayFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "fr_FR")
-        formatter.dateFormat = "EEEE d MMMM"
-        return formatter
-    }()
 
     /// What « Copier » under an answer gives: the text as read — no fences, no stars, no line to keep.
     static func plain(_ answer: String) -> String {
@@ -125,10 +117,9 @@ enum ColinThreadText {
         return pieces
     }
 
-    /// « a travaillé 9 s », « a travaillé 1 min 12 ».
+    /// « a travaillé 9 s », « a travaillé 1 min 12 » (lot 10, 20/11: the length by `Words.preciseDuration`).
     static func worked(_ milliseconds: Int) -> String {
-        let seconds = max(1, Int((Double(milliseconds) / 1_000).rounded()))
-        return seconds < 60 ? "a travaillé \(seconds) s" : "a travaillé \(seconds / 60) min \(String(format: "%02d", seconds % 60))"
+        "a travaillé " + Words.preciseDuration(max(1, Int((Double(milliseconds) / 1_000).rounded())))
     }
 
     /// What Colin changed while he answered goes with that answer (made between the question and the next message,
@@ -211,7 +202,7 @@ enum ColinThreadText {
 
     enum Bar: Equatable {
         case field(placeholder: String, enabled: Bool, note: String?)
-        /// Colin off: « Allumer Colin » in place of the bar.
+        /// Colin off: « Mettre Colin en marche » in place of the bar.
         case turnOn
     }
 
@@ -220,7 +211,8 @@ enum ColinThreadText {
     static func bar(_ status: ColinThread.Status) -> Bar {
         switch status {
         case .off: .turnOn
-        case .waitingCall: .field(placeholder: ask, enabled: false, note: "Colin attend la fin de ton call.")
+        // « visio », never « call » (lot 10, 20/11).
+        case .waitingCall: .field(placeholder: ask, enabled: false, note: "Colin attend la fin de ta visio.")
         case .settling: .field(placeholder: ask, enabled: true, note: "Le Mac vient de se réveiller : Colin répond dans un instant.")
         case .broken(let sentence): .field(placeholder: ask, enabled: true, note: sentence)
         case .idle, .starting, .working: .field(placeholder: ask, enabled: true, note: nil)
@@ -324,7 +316,8 @@ struct ColinComposer: View {
         VStack(alignment: .leading, spacing: Space.xs) {
             if let open { ColinBarLine(thread: thread, open: open) }
             if let note {
-                Text(note).font(.meta).foregroundStyle(.secondary).padding(.horizontal, Space.s).padding(.top, 2)
+                // A sentence, often with its « : »: French typography (lot 10, 20/11).
+                Text(Words.typeset(note)).font(.meta).foregroundStyle(.secondary).padding(.horizontal, Space.s).padding(.top, 2)
             }
             HStack(alignment: .bottom, spacing: Space.s) {
                 TextField(placeholder, text: $thread.draft, axis: .vertical)
@@ -354,10 +347,11 @@ struct ColinComposer: View {
                     }
                 // No « Dicter » for now (Paul, 18/11): Polhub's own dictation will come, on Whisper. VoiceInk writes here
                 // as anywhere else.
+                // The keys of the field, said in the bubbles: Échap stops, Return sends (lot 10, 20/11).
                 if thread.isAnswering {
-                    RoundButton(symbol: "stop.fill", help: "Arrêter la réponse", prominent: false) { thread.stop() }
+                    RoundButton(symbol: "stop.fill", help: "Arrêter la réponse", prominent: false, shortcut: .escape) { thread.stop() }
                 } else {
-                    RoundButton(symbol: "arrow.up", help: "Envoyer à Colin (↩)", prominent: !empty && enabled) { send() }
+                    RoundButton(symbol: "arrow.up", help: "Envoyer à Colin", prominent: !empty && enabled, shortcut: .return) { send() }
                         .disabled(!enabled || empty)
                 }
             }
@@ -399,8 +393,11 @@ struct ColinBarLine: View {
 /// accent is Polhub's ink, its arrow the accent's opposite (design system v2, 19/11).
 private struct RoundButton: View {
     let symbol: String
+    /// What it does: the bubble and VoiceOver's name.
     let help: String
     let prominent: Bool
+    /// The key that does it in the bar, said in the bubble only, « Envoyer à Colin (↩) », as `IconButton` (lot 10, 20/11).
+    var shortcut: Words.Shortcut?
     let action: () -> Void
     @Environment(\.isEnabled) private var enabled
 
@@ -414,7 +411,7 @@ private struct RoundButton: View {
                 .background(prominent ? Tint.accent : Color.primary.opacity(enabled ? 0.08 : 0.04), in: Circle())
         }
         .buttonStyle(.plain)
-        .help(help)
+        .help(Words.help(help, shortcuts: shortcut.map { [$0] } ?? []))
         .accessibilityLabel(help)
     }
 }
@@ -430,7 +427,9 @@ private struct SuggestionChips: View {
             HStack(spacing: Space.s) {
                 ForEach(suggestions, id: \.self) { said in
                     Button { pick(said) } label: {
-                        Text(said).font(.meta).lineLimit(1).fixedSize().padding(.horizontal, Space.m).padding(.vertical, 6)
+                        // « Qui attend ma réponse ? »: French typography on the chip, the bar gets the words as they are
+                        // (lot 10, 20/11).
+                        Text(Words.typeset(said)).font(.meta).lineLimit(1).fixedSize().padding(.horizontal, Space.m).padding(.vertical, 6)
                             .background(Surface.fill, in: Capsule())
                             .overlay { Capsule().strokeBorder(Surface.stroke) }
                     }
@@ -442,8 +441,8 @@ private struct SuggestionChips: View {
     }
 }
 
-/// Colin off: the bar becomes « Colin est à l'arrêt » and « Allumer Colin », in the same glass (lot 5, 19/11). In a narrow
-/// window, its sentence opens the thread over the day.
+/// Colin off: the bar becomes « Colin est à l'arrêt » and « Mettre Colin en marche », in the same glass (lot 5, 19/11). In a
+/// narrow window, its sentence opens the thread over the day.
 private struct ColinOffCard: View {
     var open: (() -> Void)?
     let turnOn: () -> Void
@@ -465,7 +464,8 @@ private struct ColinOffCard: View {
             }
             Spacer(minLength: Space.s)
             // An outline, no glass on the glass: « Rejoindre » is the Accueil's one principal button (design system v2, 19/11).
-            Button("Allumer Colin", action: turnOn).buttonStyle(.secondary).controlSize(.small)
+            // Colin is « en marche » or « à l'arrêt », never « allumé » (lot 10, 20/11).
+            Button("Mettre Colin en marche", action: turnOn).buttonStyle(.secondary).controlSize(.small)
         }
         .padding(.horizontal, Space.l)
         .padding(.vertical, Space.m)

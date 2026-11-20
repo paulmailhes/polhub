@@ -242,3 +242,16 @@ public enum MIMEBuilder {
         return output.joined(separator: "\r\n")
     }
 }
+
+/// A mail that cannot be built, in Paul's words, for `Words.problem` (lot 10, 20/11): the reason, then what to do.
+extension MIMEBuilder.Failure: LocalizedError {
+    public var failureReason: String? { description }
+
+    public var recoverySuggestion: String? {
+        switch self {
+        case .noRecipient: "Ajoute un destinataire."
+        case .badAddress: "Corrige l'adresse, puis réessaie."
+        case .tooLarge: "Retire une pièce jointe, puis réessaie."
+        }
+    }
+}

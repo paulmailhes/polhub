@@ -128,16 +128,16 @@ import Testing
 
     @Test func rowSaysTheTightestQuota() {
         let fable = row(account(week: 40, resets: at(23, 20), model: ("Fable", 100)))
-        #expect(fable.model == "Fable" && fable.verdict == "plein · reprend lun. 20 h" && fable.alarming)
+        #expect(fable.model == "Fable" && fable.verdict == "plein · reprend lun. 20:00" && fable.alarming)
         #expect(fable.percent == "100\u{202F}%" && fable.fraction == 1)
         let filling = row(account(week: 71, resets: at(23, 20), fullAt: at(19, 14)))
-        #expect(filling.verdict == "plein demain 14 h" && filling.alarming && filling.model == nil)
+        #expect(filling.verdict == "plein demain 14:00" && filling.alarming && filling.model == nil)
         let calm = row(account(week: 12, resets: at(23, 20)))
-        #expect(calm.verdict == "tient · lun. 20 h" && !calm.alarming && calm.percent == "12\u{202F}%")
+        #expect(calm.verdict == "tient · lun. 20:00" && !calm.alarming && calm.percent == "12\u{202F}%")
         let unknown = row(account())
         #expect(unknown.verdict == "pas de relevé récent" && unknown.percent == "—" && unknown.fraction == nil && !unknown.alarming)
         #expect(row(account(week: 12, resets: at(23, 20), session: (82, at(18, 23, 40)))).session == "session 82\u{202F}% · reprend à 23:40")
-        #expect(row(account(week: 12, resets: at(23, 20), session: (82, at(19, 9)))).session == "session 82\u{202F}% · reprend demain 9 h")
+        #expect(row(account(week: 12, resets: at(23, 20), session: (82, at(19, 9)))).session == "session 82\u{202F}% · reprend demain 9:00")
         #expect(row(account(week: 12, resets: at(23, 20), session: (60, at(19, 9)))).session == nil)
     }
 
@@ -147,12 +147,12 @@ import Testing
         both.usage?.weekModel?.resetsAt = at(23, 20)
         let row = row(both)
         #expect(row.model == "Fable" && row.percent == "80\u{202F}%")
-        #expect(row.verdict == "plein demain 14 h" && row.alarming)
+        #expect(row.verdict == "plein demain 14:00" && row.alarming)
     }
 
     @Test func momentWords() {
         #expect(ClaudeAccountsText.moment(at(18, 23, 40), now: now, calendar: calendar) == "23:40")
-        #expect(ClaudeAccountsText.moment(at(19, 9), now: now, calendar: calendar) == "demain 9 h")
-        #expect(ClaudeAccountsText.moment(at(23, 20, 15), now: now, calendar: calendar) == "lun. 20 h 15")
+        #expect(ClaudeAccountsText.moment(at(19, 9), now: now, calendar: calendar) == "demain 9:00")
+        #expect(ClaudeAccountsText.moment(at(23, 20, 15), now: now, calendar: calendar) == "lun. 20:15")
     }
 }

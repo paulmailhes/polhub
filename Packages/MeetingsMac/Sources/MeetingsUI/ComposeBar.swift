@@ -87,7 +87,8 @@ struct ComposeBar: View {
             HStack(spacing: Space.s) {
                 Group {
                     send(draft, planned: planned)
-                    IconButton("paperclip", help: "Joindre des fichiers (ou les glisser sur le mail)", action: attach)
+                    // A bubble's parentheses hold a key only (lot 10, 20/11).
+                    IconButton("paperclip", help: "Joindre des fichiers, ou les glisser sur le mail", action: attach)
                         .disabled(planned != nil)
                     Divider().frame(height: 18)
                     formatting
@@ -121,8 +122,10 @@ struct ComposeBar: View {
                     .buttonStyle(.primary)
                     .keyboardShortcut(isActive && planned == nil ? KeyboardShortcut(.return, modifiers: .command) : nil)
                     .disabled(blocked)
-                    .help(problem ?? (planned != nil ? "Programmé : annule l'envoi programmé pour le modifier ou l'envoyer"
-                                                     : "Envoyer (⌘↩) : tu as \(delay) secondes pour l'annuler"))
+                    // Why it waits, without a period; else « Envoyer (⌘↩) : 10 s pour annuler », by `Words.help` (lot 10, 20/11).
+                    .help(problem.map { $0.hasSuffix(".") ? String($0.dropLast()) : $0 }
+                          ?? (planned != nil ? "Programmé : annule l'envoi programmé pour le changer"
+                                             : Words.help("Envoyer", .command("↩"), detail: "\(Words.preciseDuration(delay)) pour annuler")))
                 ScheduleMenu(pick: { scheduleNow(at: $0) }) { choosingDate = true }
                     .disabled(blocked)
                     .popover(isPresented: $choosingDate, arrowEdge: .top) {
@@ -137,14 +140,15 @@ struct ComposeBar: View {
     }
 
     /// The commands Gmail has, with their shortcuts; they act on the text selected, or where the caret was.
+    /// A verb and its object, the key in the bubble only, never in VoiceOver's name (lot 10, 20/11).
     private var formatting: some View {
         HStack(spacing: 0) {
-            IconButton("bold", help: "Gras (⌘B)", size: 13) { editor.bold() }
-            IconButton("italic", help: "Italique (⌘I)", size: 13) { editor.italic() }
-            IconButton("underline", help: "Souligné (⌘U)", size: 13) { editor.underline() }
-            IconButton("list.bullet", help: "Liste à puces", size: 13) { editor.bulletList() }
-            IconButton("list.number", help: "Liste numérotée", size: 13) { editor.numberedList() }
-            IconButton("link", help: "Lien (⌘K)", size: 13) { editor.askingLink = true }
+            IconButton("bold", help: "Mettre en gras", shortcut: .command("b"), size: 13) { editor.bold() }
+            IconButton("italic", help: "Mettre en italique", shortcut: .command("i"), size: 13) { editor.italic() }
+            IconButton("underline", help: "Souligner", shortcut: .command("u"), size: 13) { editor.underline() }
+            IconButton("list.bullet", help: "Faire une liste à puces", size: 13) { editor.bulletList() }
+            IconButton("list.number", help: "Faire une liste numérotée", size: 13) { editor.numberedList() }
+            IconButton("link", help: "Ajouter un lien", shortcut: .command("k"), size: 13) { editor.askingLink = true }
                 .popover(isPresented: $editor.askingLink, arrowEdge: .top) {
                     LinkPrompt { address in
                         editor.askingLink = false
@@ -168,7 +172,8 @@ struct ComposeBar: View {
         let pending = [(RecipientField.parse(session.pendingTo), \MailDraftRow.to), (RecipientField.parse(session.pendingCc), \MailDraftRow.cc),
                        (RecipientField.parse(session.pendingBcc), \MailDraftRow.bcc)]
         if let bad = pending.flatMap(\.0).first(where: { !MIMEBuilder.isValid($0.email) }) {
-            mails.message = "L'adresse « \(bad.email) » n'est pas complète : corrige-la avant d'envoyer."
+            // One sentence for a wrong address, everywhere (lot 10, 20/11).
+            mails.message = "L'adresse « \(bad.email) » n'est pas valide."
             return false
         }
         if pending.contains(where: { !$0.0.isEmpty }) {
@@ -242,7 +247,8 @@ struct ComposeStatus: View {
                         .foregroundStyle(Tint.accent)
                         .padding(.horizontal, -Space.s)
                         .keyboardShortcut("z", modifiers: .command)
-                        .help("Il n'est pas encore parti : « Annuler » le garde en brouillon (⌘Z)")
+                        // « Verbe + objet (raccourci) : conséquence », by `Words.help` (lot 10, 20/11).
+                        .help(Words.help("Annuler l'envoi", .command("z"), detail: "le mail reste en brouillon"))
                     }
                 }
             case .planned(let at):

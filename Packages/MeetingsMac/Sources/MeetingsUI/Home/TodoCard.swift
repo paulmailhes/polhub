@@ -50,7 +50,7 @@ struct TodoCard: View {
     }
 
     private var calendar: Calendar { CalendarView.calendar }
-    /// The actions shown in an unfolded line, before « + N autres ».
+    /// The actions shown in an unfolded line, before « + 1 autre », « + N autres ».
     private static let actionsShown = 8
 
     var body: some View {
@@ -155,7 +155,8 @@ struct TodoCard: View {
                     }
                 }
             }
-            .help(unfolded ? "Replier" : "Voir ce qu'il y a à faire")
+            // « Voir » unfolds in place, « Voir moins » folds back (lot 10, 20/11).
+            .help(unfolded ? "Voir moins" : "Voir ce qu'il y a à faire")
             if unfolded { details(line) }
         }
         .popover(isPresented: Binding(get: { picking == line.id }, set: { if !$0 { picking = nil } }), arrowEdge: .leading) {
@@ -179,7 +180,8 @@ struct TodoCard: View {
         let left = todo.openActions[line.id] ?? []
         return VStack(alignment: .leading, spacing: Space.s) {
             if let task, !task.isEmpty {
-                Text("\(Text("Tâche · ").foregroundStyle(.secondary))\(Text(task))").font(.rowBody)
+                // The field's own name, « Tâche du moment », never « Tâche » alone (lot 10, 20/11).
+                Text("\(Text("Tâche du moment · ").foregroundStyle(.secondary))\(Text(task))").font(.rowBody)
             }
             if left.isEmpty {
                 Text("Aucune action en cours.").font(.meta).foregroundStyle(.secondary)
@@ -192,7 +194,8 @@ struct TodoCard: View {
                         }
                     }
                     if left.count > Self.actionsShown {
-                        Text("+ \(left.count - Self.actionsShown) autres").font(.meta).foregroundStyle(.secondary)
+                        // « + 1 autre », « + 3 autres »: the word accords with its number (lot 10, 20/11).
+                        Text("+ " + Words.count(left.count - Self.actionsShown, "autre")).font(.meta).foregroundStyle(.secondary)
                     }
                 }
             }
@@ -223,12 +226,14 @@ struct TodoCard: View {
                     .buttonStyle(.secondary)
                     .menuIndicator(.hidden)
                     .fixedSize()
-                    .help("Noter la livraison au journal, puis le prochain call ou aucune échéance")
+                    // « Verbe + objet », 60 characters at most, « visio » (lot 10, 20/11).
+                    .help("Noter la livraison, puis la prochaine visio")
             } else {
                 Button("Livré") { todo.deliver(line) }
                     .buttonStyle(.secondary)
                     .fixedSize()
-                    .help("Effacer l'échéance de \(line.name) et le noter au journal")
+                    // An échéance is « retirée », never « effacée » (lot 10, 20/11).
+                    .help("Noter la livraison et retirer l'échéance")
             }
         }
         .controlSize(.small)

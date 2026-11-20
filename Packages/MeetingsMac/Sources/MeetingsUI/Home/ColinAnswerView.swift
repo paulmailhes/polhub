@@ -35,7 +35,8 @@ struct PaulBubble: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 9)
                 .background(Surface.bubble, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-                .help(Briefing.dayLabel(message.createdAt, now: Date(), calendar: calendar))
+                // When Paul asked, under the pointer: the day and its hour by `Words` (lot 10, 20/11).
+                .help(Words.moment(message.createdAt, now: Date(), calendar: calendar))
         }
     }
 }
@@ -325,7 +326,8 @@ struct ChangeCard: View {
     private var fieldLines: some View {
         ForEach(Array(ChangeText.fields(line, calendar: calendar).enumerated()), id: \.offset) { _, field in
             HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-                Text(verbatim: field.label).font(.meta).foregroundStyle(.secondary).frame(width: 64, alignment: .leading)
+                // Wide enough for « Tâche du moment » on one line, the field's name (lot 10, 20/11: « Tâche », 64 before).
+                Text(verbatim: field.label).font(.meta).foregroundStyle(.secondary).frame(width: 110, alignment: .leading)
                 if let before = field.before {
                     Text(verbatim: before).font(.meta).foregroundStyle(.secondary).lineLimit(1)
                     Image(systemName: "arrow.right").font(.caption2.weight(.semibold)).foregroundStyle(.tertiary)
@@ -464,7 +466,8 @@ struct ColinAnswerView: View {
     private func foot(_ foot: ColinThreadText.Foot) -> some View {
         let shown = isLast || hovering
         return HStack(spacing: Space.m) {
-            if let note = foot.note { Text(note).font(.meta).foregroundStyle(.secondary) }
+            // « Arrêté : ta visio commence. »: a sentence with its « : », French typography (lot 10, 20/11).
+            if let note = foot.note { Text(Words.typeset(note)).font(.meta).foregroundStyle(.secondary) }
             if foot.copy {
                 TextButton(copied ? "Copié" : "Copier", quiet: true) {
                     NSPasteboard.general.clearContents()
@@ -495,5 +498,7 @@ struct JumpToEnd: View {
         .buttonStyle(.plain)
         .glassEffect(.regular.interactive(), in: .circle)
         .help("Revenir à la fin")
+        // An icon alone: VoiceOver says what the bubble says (lot 10, 20/11).
+        .accessibilityLabel("Revenir à la fin")
     }
 }

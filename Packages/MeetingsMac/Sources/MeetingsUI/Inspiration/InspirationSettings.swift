@@ -34,7 +34,8 @@ struct InspirationSettingsPane: View {
                             isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }), presenting: removing) { source in
             Button("Ne plus la suivre", role: .destructive) { library.deleteSource(source) }
         } message: { _ in
-            Text("Ses publications restent dans Branding.")
+            // « post », LinkedIn's word, everywhere (lot 10, 20/11).
+            Text("Ses posts restent dans Branding.")
         }
         .task {
             while !Task.isCancelled {
@@ -80,8 +81,9 @@ struct InspirationSettingsPane: View {
                 .lineLimit(2)
             }
             Spacer(minLength: Space.s)
-            IconButton("pencil", help: "Modifier", size: 13) { editing = SourceDraft(source: source) }
-            IconButton("trash", help: "Ne plus suivre", size: 13) { removing = source }
+            // A verb and its object, as the sheet and the dialog name them (lot 10, 20/11).
+            IconButton("pencil", help: "Modifier « \(source.name) »", size: 13) { editing = SourceDraft(source: source) }
+            IconButton("trash", help: "Ne plus suivre « \(source.name) »", size: 13) { removing = source }
         }
     }
 
@@ -98,12 +100,13 @@ struct InspirationSettingsPane: View {
             }
             ForEach(lines) { line in
                 let text = InspirationSettingsText.statusLine(line)
-                // As a page's line: a problem in one line, never in orange (design system v2, 19/11).
+                // As a page's line: a problem in one line, never in orange (design system v2, 19/11). « Awwwards : … », the
+                // French typography laid; never on a page's line, which shows its link (lot 10, 20/11).
                 Group {
                     if text.problem {
                         ErrorLine(text.text)
                     } else {
-                        Text(text.text).foregroundStyle(.secondary)
+                        Text(Words.typeset(text.text)).foregroundStyle(.secondary)
                     }
                 }
                 .font(.meta)
@@ -129,14 +132,16 @@ enum InspirationSettingsText {
     // One line of help under each setting, the long detail behind « ⓘ » (lot 7, 19/11).
     static let sourcesHelp = "Leurs 10 derniers posts, lus sans compte ni cookie ; la couleur les marque dans Branding."
     static let collectHelp = "Awwwards et tes pages LinkedIn, plusieurs fois par jour, quand Polhub est ouvert."
-    static let collectDetail = "Le site du jour d'Awwwards toutes les 2 heures de 8 h à 22 h, les pages LinkedIn à 9 h, 14 h et 20 h, et au réveil du Mac, quand Polhub est ouvert. Jamais dans la version de développement."
-    static let aiHelp = "Le modèle d'Apple, sur le Mac, range chaque nouvelle fiche ; jamais celles que tu as rangées."
+    // Fifteen words at most a sentence (lot 10, 20/11).
+    static let collectDetail = "Le site du jour d'Awwwards toutes les 2 heures, de 8 h à 22 h. Les pages LinkedIn à 9 h, 14 h et 20 h, et au réveil du Mac. Seulement quand Polhub est ouvert, jamais dans la version de développement."
+    // « l'IA d'Apple », never « le modèle d'Apple » (lot 10, 20/11).
+    static let aiHelp = "L'IA d'Apple, sur le Mac, range chaque nouvelle fiche ; jamais celles que tu as rangées."
 
     /// Every help of the page, for its test.
     static let helps = [sourcesHelp, collectHelp, aiHelp]
 
-    /// « linkedin.com/company/studio-exemple · lue aujourd'hui à 14:02, 2 nouveaux posts », or what went wrong. A
-    /// reading restored from the base says no count: it is not known.
+    /// « linkedin.com/company/studio-exemple · lue aujourd'hui 14:02, 2 nouveaux posts », or what went wrong. A
+    /// reading restored from the base says no count: it is not known. The count accorded by `Words` (lot 10, 20/11).
     static func sourceLine(_ source: InspirationSourceRow, status: InspirationStatusLine?, now: Date = Date()) -> (text: String, problem: Bool) {
         let link = source.link.replacingOccurrences(of: "https://www.", with: "").trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         let problem = status?.problem ?? source.lastError
@@ -146,29 +151,28 @@ enum InspirationSettingsText {
         }
         guard let date else { return (link, false) }
         let added = status?.added.map { count in
-            ", " + (count == 0 ? "aucun nouveau post" : count == 1 ? "1 nouveau post" : "\(count) nouveaux posts")
+            ", " + (count == 0 ? "aucun nouveau post" : Words.count(count, "nouveau post", "nouveaux posts"))
         } ?? ""
         return ("\(link) · lue \(when(date, now: now))\(added)", false)
     }
 
-    /// « Awwwards : lu aujourd'hui à 14:02, 1 nouveau site », or what went wrong; no count when it is not known.
+    /// « Awwwards : lu aujourd'hui 14:02, 1 nouveau site », or what went wrong; no count when it is not known. The count
+    /// accorded by `Words` (lot 10, 20/11).
     static func statusLine(_ line: InspirationStatusLine, now: Date = Date()) -> (text: String, problem: Bool) {
         if let problem = line.problem {
             return ("\(line.name) : \(problem)" + (line.lastRun.map { " (\(when($0, now: now)))" } ?? ""), true)
         }
         guard let date = line.lastRun else { return ("\(line.name) : pas encore lu", false) }
         let added = line.added.map { count in
-            ", " + (count == 0 ? "rien de nouveau" : count == 1 ? "1 nouveau site" : "\(count) nouveaux sites")
+            ", " + (count == 0 ? "rien de nouveau" : Words.count(count, "nouveau site", "nouveaux sites"))
         } ?? ""
         return ("\(line.name) : lu \(when(date, now: now))\(added)", false)
     }
 
-    /// « aujourd'hui à 14:02 », « hier à 9:00 », « le 12 nov. à 20:00 ».
-    static func when(_ date: Date, now: Date = Date(), calendar: Calendar = .current) -> String {
-        let time = date.formatted(Date.FormatStyle(locale: InspirationBrowse.locale, calendar: calendar, timeZone: calendar.timeZone).hour().minute())
-        if calendar.isDate(date, inSameDayAs: now) { return "aujourd'hui à \(time)" }
-        if let yesterday = calendar.date(byAdding: .day, value: -1, to: now), calendar.isDate(date, inSameDayAs: yesterday) { return "hier à \(time)" }
-        return "le \(InspirationBrowse.dateText(date, now: now, calendar: calendar)) à \(time)"
+    /// « aujourd'hui 14:02 », « hier 9:04 », « lundi 20:00 »; a week back or more, the day alone, « le 12 novembre »:
+    /// the day and the hour by `Words`, as everywhere (lot 10, 20/11).
+    static func when(_ date: Date, now: Date = Date(), calendar: Calendar = Words.calendar) -> String {
+        Words.moment(date, now: now, calendar: calendar)
     }
 }
 

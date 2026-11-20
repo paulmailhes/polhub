@@ -14,13 +14,8 @@ import Updates
 /// line, the two tiles' words, the lines « À régler », the mails to read, the footer's line. Pure: tested on made-up data, without a
 /// screen. Nothing here reads the base, the network or the clock: `now` comes from the view's timeline.
 enum PanelModel {
-    /// Paul's calendar, as Calendrier's: French, weeks from Monday, the Mac's time zone.
-    static var calendar: Calendar {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.locale = Locale(identifier: "fr_FR")
-        calendar.firstWeekday = 2
-        return calendar
-    }
+    /// Paul's calendar, as Calendrier's: French, weeks from Monday, the Mac's time zone (`Words.calendar`, lot 10, 20/11).
+    static var calendar: Calendar { Words.calendar }
 
     /// How long before an event the hero speaks of it, and how long a summary ready stays in it.
     static let soon: TimeInterval = 15 * 60
@@ -144,19 +139,20 @@ enum PanelModel {
             }
         }
 
-        /// « Transcription 58 % », « Résumé, partie 3 sur 5 », « Résumé prêt »…
+        /// « Transcription 58 % », « Compte rendu : partie 3 sur 5 », « Compte rendu prêt »… (lot 10, 20/11: « Résumé » is
+        /// only the first part of a compte rendu; a failure is a sentence).
         var stageText: String {
             switch stage {
             case .transcriptionWaiting: "Transcription en attente"
-            case .transcribing(let value): "Transcription \(Int((value * 100).rounded())) %"
-            case .summaryWaiting: "Résumé en attente"
-            case .summarizing(let progress?) where progress.finishing: "Résumé : dernière étape"
-            case .summarizing(let progress?) where progress.total > 1: "Résumé, partie \(min(progress.done + 1, progress.total)) sur \(progress.total)"
-            case .summarizing: "Résumé en cours d'écriture"
-            case .ready: "Résumé prêt"
+            case .transcribing(let value): "Transcription " + Words.percent(value)
+            case .summaryWaiting: "Compte rendu en attente"
+            case .summarizing(let progress?) where progress.finishing: "Compte rendu : dernière étape"
+            case .summarizing(let progress?) where progress.total > 1: "Compte rendu : partie \(min(progress.done + 1, progress.total)) sur \(progress.total)"
+            case .summarizing: "Compte rendu en cours d'écriture"
+            case .ready: "Compte rendu prêt"
             case .transcriptReady: "Transcription prête"
-            case .transcriptionFailed: "La transcription a échoué"
-            case .summaryFailed: "Le résumé n'a pas pu se faire"
+            case .transcriptionFailed: "La transcription a échoué."
+            case .summaryFailed: "Le compte rendu n'a pas pu se faire."
             }
         }
     }
@@ -197,7 +193,9 @@ enum PanelModel {
         if let meetings, let report = report(meetings, now: now) {
             return .report(report)
         }
-        return .day(title: dayTitle(now, calendar: calendar), line: events.map { dayLine($0, now: now, calendar: calendar) })
+        // « Dimanche 15 novembre » (`Words.fullDate`, lot 10, 20/11).
+        return .day(title: Words.capitalizedFirst(Words.fullDate(now, now: now, calendar: calendar)),
+                    line: events.map { dayLine($0, now: now, calendar: calendar) })
     }
 
     /// Today's events not over yet: neither whole days nor the ones Paul declined (as Accueil and the sidebar).
@@ -249,9 +247,9 @@ enum PanelModel {
             ?? same.min { abs($0.startAt.timeIntervalSince(now)) < abs($1.startAt.timeIntervalSince(now)) }
     }
 
-    /// « 15:30 – 16:00 · Refonte du site · 3 invités ».
+    /// « 15:30 – 16:00 · Refonte du site · 3 invités » (`Words.timeRange`, lot 10, 20/11).
     static func eventDetail(_ event: CalendarEventRow, projects: [ProjectRow], calendar: Calendar = calendar) -> String {
-        ([clock(event.startAt, calendar: calendar) + " – " + clock(event.endAt, calendar: calendar),
+        ([Words.timeRange(from: event.startAt, to: event.endAt, calendar: calendar),
           projectName(event.projectID, in: projects), guests(event)].compactMap { $0 }).joined(separator: " · ")
     }
 
@@ -265,10 +263,10 @@ enum PanelModel {
         id.flatMap { id in projects.first { $0.id == id }?.name }
     }
 
-    /// « 3 invités »: the others, neither Paul nor a room.
+    /// « 3 invités »: the others, neither Paul nor a room (`Words.count`, lot 10, 20/11).
     static func guests(_ event: CalendarEventRow) -> String? {
         let count = event.attendees.filter { !$0.isSelf && !$0.isResource }.count
-        return count == 0 ? nil : count == 1 ? "1 invité" : "\(count) invités"
+        return count == 0 ? nil : Words.count(count, "invité")
     }
 
     /// The newest meeting whose summary is on its way; else one ready, or failed, less than two hours ago.
@@ -359,17 +357,19 @@ enum PanelModel {
         case .upcoming(let upcoming) where upcoming.started:
             Eyebrow(text: "En cours · pas enregistrée", systemImage: "exclamationmark.circle.fill", tint: .attention, colored: .symbol)
         case .upcoming(let upcoming):
-            // « Dans 8 min », its words at attention's color, as « dans 12 min » on the Accueil.
-            Eyebrow(text: sentence(HomeModel.when(upcoming.event, now: now)), systemImage: "calendar", tint: .attention, colored: .words)
+            // « Dans 8 min », its words at attention's color, as « dans 12 min » on the Accueil (`Words.capitalizedFirst`,
+            // lot 10, 20/11).
+            Eyebrow(text: Words.capitalizedFirst(HomeModel.when(upcoming.event, now: now)), systemImage: "calendar", tint: .attention, colored: .words)
         case .paused:
             Eyebrow(text: "Détection suspendue", systemImage: "pause.circle.fill", tint: nil, colored: .nothing)
         case .report(let report):
+            // « Compte rendu », never « Résumé », its first part only; « en échec » for the short form (lot 10, 20/11).
             switch report.stage {
-            case .ready: Eyebrow(text: "Résumé prêt", systemImage: "checkmark.circle.fill", tint: nil, colored: .nothing)
+            case .ready: Eyebrow(text: "Compte rendu prêt", systemImage: "checkmark.circle.fill", tint: nil, colored: .nothing)
             case .transcriptReady: Eyebrow(text: "Transcription prête", systemImage: "checkmark.circle.fill", tint: nil, colored: .nothing)
             // A problem colors its icon only: never a colored sentence.
-            case .transcriptionFailed: Eyebrow(text: "Transcription échouée", systemImage: "exclamationmark.triangle.fill", tint: .attention, colored: .symbol)
-            case .summaryFailed: Eyebrow(text: "Résumé impossible", systemImage: "exclamationmark.triangle.fill", tint: .attention, colored: .symbol)
+            case .transcriptionFailed: Eyebrow(text: "Transcription en échec", systemImage: "exclamationmark.triangle.fill", tint: .attention, colored: .symbol)
+            case .summaryFailed: Eyebrow(text: "Compte rendu impossible", systemImage: "exclamationmark.triangle.fill", tint: .attention, colored: .symbol)
             default: Eyebrow(text: "Compte rendu en cours", systemImage: "sparkles", tint: nil, colored: .nothing)
             }
         case .day(let title, _):
@@ -377,29 +377,13 @@ enum PanelModel {
         }
     }
 
-    /// « dans 8 min » → « Dans 8 min ».
-    static func sentence(_ text: String) -> String {
-        text.prefix(1).uppercased() + text.dropFirst()
-    }
-
-    /// « Dimanche 15 novembre ».
-    static func dayTitle(_ date: Date, calendar: Calendar = calendar) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "fr_FR")
-        formatter.calendar = calendar
-        formatter.timeZone = calendar.timeZone
-        formatter.dateFormat = "EEEE d MMMM"
-        let text = formatter.string(from: date)
-        return text.prefix(1).uppercased() + text.dropFirst()
-    }
-
-    /// « Déjeuner, jusqu'à 13:00 », « Libre jusqu'à 16:30 », « Plus rien aujourd'hui ».
+    /// « Déjeuner, jusqu'à 13:00 », « Libre jusqu'à 16:30 », « Plus rien aujourd'hui » (`Words.time`, lot 10, 20/11).
     static func dayLine(_ events: [CalendarEventRow], now: Date, calendar: Calendar = calendar) -> String {
         let left = today(events, now: now, calendar: calendar)
         if let current = left.first(where: { $0.startAt <= now }) {
-            return "\(current.title), jusqu'à \(clock(current.endAt, calendar: calendar))"
+            return "\(current.title), jusqu'à \(Words.time(current.endAt, calendar: calendar))"
         }
-        if let next = left.first { return "Libre jusqu'à \(clock(next.startAt, calendar: calendar))" }
+        if let next = left.first { return "Libre jusqu'à \(Words.time(next.startAt, calendar: calendar))" }
         return "Plus rien aujourd'hui"
     }
 
@@ -417,7 +401,8 @@ enum PanelModel {
     /// left out (« Ensuite à 17:30 »), and under the day's « Libre jusqu'à 16:30 » the next event's start is not repeated.
     /// The count: the events left today.
     static func calendarTile(_ events: [CalendarEventRow]?, hero: Hero, now: Date, calendar: Calendar = calendar) -> Tile {
-        guard let events else { return Tile(value: "Aucun agenda", detail: "Relier un compte Google") }
+        // « Connecter » a Google account, never « Relier » (lot 10, 20/11).
+        guard let events else { return Tile(value: "Aucun agenda", detail: "Connecter un compte Google") }
         let leftToday = SidebarCounts.eventsLeftToday(events, now: now, calendar: calendar)
         let count = leftToday > 0 ? leftToday : nil
         let hiding = hero.eventID
@@ -426,13 +411,14 @@ enum PanelModel {
             let later = events.filter { !$0.allDay && !declined($0) && $0.startAt > now && !calendar.isDate($0.startAt, inSameDayAs: now) }
                 .min { $0.startAt < $1.startAt }
             guard let later else { return Tile(value: hiding == nil ? "Rien de prévu" : "Plus rien ensuite", count: count) }
-            return Tile(value: later.title, detail: "\(day(later.startAt, now: now, calendar: calendar, capitalized: true)) \(clock(later.startAt, calendar: calendar))",
+            // A meta at a line's head: « Demain 9:30 », « Lun. 9:30 », « 2 déc. 9:30 » (`Words.shortMoment`, lot 10, 20/11).
+            return Tile(value: later.title, detail: Words.capitalizedFirst(Words.shortMoment(later.startAt, now: now, calendar: calendar)),
                         count: count)
         }
-        if hiding != nil { return Tile(value: event.title, detail: "Ensuite à \(clock(event.startAt, calendar: calendar))", count: count) }
+        if hiding != nil { return Tile(value: event.title, detail: "Ensuite à \(Words.time(event.startAt, calendar: calendar))", count: count) }
         // The day says « Libre jusqu'à 16:30 » (nothing under way, `dayLine`): that start is the tile's own.
         if case .day = hero, !left.contains(where: { $0.startAt <= now }) { return Tile(value: event.title, count: count) }
-        return Tile(value: event.title, detail: "\(clock(event.startAt, calendar: calendar)) – \(clock(event.endAt, calendar: calendar))", count: count)
+        return Tile(value: event.title, detail: Words.timeRange(from: event.startAt, to: event.endAt, calendar: calendar), count: count)
     }
 
     /// What the Mails tile and card read of the mails.
@@ -457,16 +443,18 @@ enum PanelModel {
     }
 
     /// Mails: « 5 nouveaux » and the first names of the latest senders, or « Rien de neuf »; a mailbox to reconnect;
-    /// « Relier Gmail » without one. Nothing said twice (lot 9, 20/11): while the card under the tiles lists the mails
+    /// « Autoriser les mails » without one. Nothing said twice (lot 9, 20/11): while the card under the tiles lists the mails
     /// (`listed`), their senders are its own; a mailbox to reconnect that « À régler » names (`issues`) is its own too.
     static func mailsTile(_ mails: Mails?, listed: Bool = false, issues: [Issue] = []) -> Tile {
-        guard let mails, mails.hasMailboxes else { return Tile(value: "Relier Gmail", detail: "Dans Réglages") }
+        // The words of Réglages › Comptes Google, never « Relier Gmail » (lot 10, 20/11).
+        guard let mails, mails.hasMailboxes else { return Tile(value: "Autoriser les mails", detail: "Réglages › Comptes Google") }
         if let failure = mails.failure, needsReconnecting(failure.text), !issues.contains(where: { $0.id == Issue.account(failure.account) }) {
             return Tile(value: "\(AccountStyle.label(for: failure.account)) déconnecté", detail: "À reconnecter")
         }
         let count = mails.unread.count
         guard count > 0 else { return Tile(value: "Rien de neuf") }
-        let value = count == 1 ? "1 nouveau" : "\(count) nouveaux"
+        // « 1 nouveau », « 5 nouveaux » (`Words.count`, lot 10, 20/11).
+        let value = Words.count(count, "nouveau", "nouveaux")
         if listed { return Tile(value: value) }
         var names: [String] = []
         for thread in mails.unread {
@@ -521,8 +509,9 @@ enum PanelModel {
         if let mailFailure, needsReconnecting(mailFailure.text) { mailBroken.append(mailFailure.account) }
         for email in calendarBroken + mailBroken where !issues.contains(where: { $0.id == Issue.account(email) }) {
             let both = calendarBroken.contains(email) && mailBroken.contains(email)
-            let detail = both ? "Son agenda et ses mails ne se mettent plus à jour" : calendarBroken.contains(email)
-                ? "Son agenda ne se met plus à jour" : "Ses mails ne se mettent plus à jour"
+            // A sentence, its period, as the alerts' lines above it (lot 10, 20/11).
+            let detail = both ? "Son agenda et ses mails ne se mettent plus à jour." : calendarBroken.contains(email)
+                ? "Son agenda ne se met plus à jour." : "Ses mails ne se mettent plus à jour."
             issues.append(Issue(id: Issue.account(email), title: "Compte \(AccountStyle.label(for: email)) à reconnecter", detail: detail,
                                 action: .accounts, help: "Ouvrir Réglages › Comptes Google"))
         }
@@ -532,7 +521,8 @@ enum PanelModel {
                 issues.append(Issue(id: "update", title: "La mise à jour \(version) a échoué", detail: "Nouvel essai dans une heure",
                                     action: .installUpdate, help: "Réessayer au prochain moment calme"))
             } else if !updates.autoInstall, !underWay.contains(updates.state) {
-                issues.append(Issue(id: "update", title: "Polhub \(version) est disponible", detail: "L'installation automatique est coupée",
+                // A sentence, its period; « désactivée », as the switch of Réglages (lot 10, 20/11: « coupée »).
+                issues.append(Issue(id: "update", title: "Polhub \(version) est disponible", detail: "L'installation automatique est désactivée.",
                                     action: .installUpdate, help: "Installer au prochain moment calme"))
             }
         }
@@ -578,8 +568,11 @@ enum PanelModel {
         let ranked = unread.map { thread -> (rank: Int, line: MailLine) in
             let tint = projectTint(thread)
             let rank = tint != nil ? 0 : thread.lastSender.map(isKnown) == true ? 1 : 2
-            return (rank, MailLine(thread: thread, sender: sender(of: thread), subject: thread.subject.isEmpty ? "(sans objet)" : thread.subject,
-                                   time: mailTime(thread.lastMessageAt, now: now, calendar: calendar), projectTint: tint))
+            // « 10:42 » today, else « hier », « lun. », « 12 nov. » (`Words`, lot 10, 20/11).
+            let date = thread.lastMessageAt
+            let time = calendar.isDate(date, inSameDayAs: now) ? Words.time(date, calendar: calendar) : Words.shortDay(date, now: now, calendar: calendar)
+            return (rank, MailLine(thread: thread, sender: sender(of: thread), subject: thread.subject.isEmpty ? Words.noSubject : thread.subject,
+                                   time: time, projectTint: tint))
         }
         return ranked.sorted { ($0.rank, $1.line.thread.lastMessageAt) < ($1.rank, $0.line.thread.lastMessageAt) }.map(\.line)
     }
@@ -602,52 +595,12 @@ enum PanelModel {
         return String(given.split(separator: " ").first ?? Substring(given))
     }
 
-    /// « 10:42 » today, « hier », « lun. » this week, else « 12 nov. ».
-    static func mailTime(_ date: Date, now: Date, calendar: Calendar = calendar) -> String {
-        if calendar.isDate(date, inSameDayAs: now) { return clock(date, calendar: calendar) }
-        return day(date, now: now, calendar: calendar, capitalized: false, short: true)
-    }
-
     // MARK: - Words of time
 
-    /// « 16:30 », as the rest of the app (fr_FR).
-    static func clock(_ date: Date, calendar: Calendar = calendar) -> String {
-        date.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: Locale(identifier: "fr_FR"), calendar: calendar,
-                                        timeZone: calendar.timeZone))
-    }
-
-    /// « Aujourd'hui », « Hier », « Demain », « Mardi » within the week, else « 12 nov. ».
-    static func day(_ date: Date, now: Date, calendar: Calendar = calendar, capitalized: Bool, short: Bool = false) -> String {
-        let today = calendar.startOfDay(for: now), that = calendar.startOfDay(for: date)
-        let days = calendar.dateComponents([.day], from: today, to: that).day ?? 0
-        let word: String
-        switch days {
-        case 0: word = "aujourd'hui"
-        case -1: word = "hier"
-        case 1: word = "demain"
-        case -6...6:
-            let formatter = DateFormatter()
-            formatter.locale = Locale(identifier: "fr_FR")
-            formatter.calendar = calendar
-            formatter.timeZone = calendar.timeZone
-            formatter.dateFormat = short ? "EEE" : "EEEE"
-            word = formatter.string(from: date)
-        default:
-            let formatter = DateFormatter()
-            formatter.locale = Locale(identifier: "fr_FR")
-            formatter.calendar = calendar
-            formatter.timeZone = calendar.timeZone
-            formatter.dateFormat = "d MMM"
-            word = formatter.string(from: date)
-        }
-        return capitalized ? word.prefix(1).uppercased() + word.dropFirst() : word
-    }
-
-    /// « il y a 4 min », « il y a 1 h 10 ».
+    /// « à l'instant », « il y a 4 min », « il y a 1 h 10 » (`Words.ago`, lot 10, 20/11: the hours, the days and the
+    /// clock of the panel come from `Words` too).
     static func ago(_ date: Date, now: Date) -> String {
-        let seconds = max(0, Int(now.timeIntervalSince(date)))
-        if seconds < 60 { return "à l'instant" }
-        return "il y a " + DurationText.short(seconds)
+        Words.ago(date, now: now)
     }
 
     // MARK: - The clock
@@ -671,11 +624,12 @@ enum PanelModel {
         return rows > 0 ? rows : nil
     }
 
-    /// The card's link: every mail it does not show, « Voir les 2 autres »; nil when it shows them all.
+    /// The card's link: every mail it does not show, « Voir les 2 autres »; nil when it shows them all (`Words.count`,
+    /// lot 10, 20/11).
     static func moreMails(total: Int, shown: Int) -> String? {
         let hidden = total - shown
         guard hidden > 0 else { return nil }
-        return hidden == 1 ? "Voir l'autre" : "Voir les \(hidden) autres"
+        return hidden == 1 ? "Voir l'autre" : "Voir les \(Words.count(hidden, "autre"))"
     }
 
     // MARK: - Buttons and keys

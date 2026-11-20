@@ -911,7 +911,7 @@ import Testing
         defer { try? FileManager.default.removeItem(at: world.root) }
         try paulAnswersClaire(world)
         let projects = ProjectStore(world.database)
-        try await waitUntil { (try? projects.project(id: world.project))?.todo == "En attente retour de Claire" }
+        try await waitUntil { (try? projects.project(id: world.project))?.todo == "Attend le retour de Claire" }
         #expect(try projects.project(id: world.project)?.status == .priorite1)
         let lines = try ProjectChanges(world.database).lines(since: .distantPast, authors: [.colin])
         #expect(lines.count == 1 && lines.first?.reason == "Après ton mail à Claire, 9:50")
@@ -948,13 +948,13 @@ import Testing
         defer { try? FileManager.default.removeItem(at: world.root) }
         try paulAnswersClaire(world)
         let projects = ProjectStore(world.database)
-        try await waitUntil { (try? projects.project(id: world.project))?.todo == "En attente retour de Claire" }
+        try await waitUntil { (try? projects.project(id: world.project))?.todo == "Attend le retour de Claire" }
         for _ in 0..<3 {
             world.clock.advance(hours: 0.02)
             world.colin.refresh()
             try await settled(world.colin)
         }
-        #expect(try projects.journal(projectID: world.project).map(\.title) == ["Mail envoyé à Claire le 18/11"])
+        #expect(try projects.journal(projectID: world.project).map(\.title) == ["Mail envoyé à Claire le 18 nov."])
         #expect(try ProjectChanges(world.database).lines(since: .distantPast, authors: [.colin]).count == 1)
     }
 
@@ -974,7 +974,7 @@ import Testing
         #expect(try projects.project(id: world.project)?.todo == nil)
         world.clock.advance(hours: 0.1)
         try paulAnswersClaire(world, id: "b3", minutesAgo: 1)
-        try await waitUntil { (try? projects.project(id: world.project))?.todo == "En attente retour de Claire" }
+        try await waitUntil { (try? projects.project(id: world.project))?.todo == "Attend le retour de Claire" }
         try await settled(world.colin)
     }
 }

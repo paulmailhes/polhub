@@ -34,8 +34,8 @@ import Testing
         let summary = try #require(try await Summarizer.make(lines: lines(30), title: "Atelier", participants: [], engine: engine, maxCharacters: 4_000))
         let count = SummaryPlan.chunks(SummaryPlan.lines(lines(30)), maxCharacters: 4_000).count
         #expect(summary.overview == "Atelier : \(count - 1) parties.")
-        #expect(summary.missing == "la partie 2 sur \(count) n'a pas pu être résumée (refusée par le modèle d'Apple)")
-        #expect(SummaryText.markdown(summary).hasSuffix("\n\n_Partiel : la partie 2 sur \(count) n'a pas pu être résumée (refusée par le modèle d'Apple)._"))
+        #expect(summary.missing == "la partie 2 sur \(count) n'a pas pu être résumée (refusée par l'IA d'Apple)")
+        #expect(SummaryText.markdown(summary).hasSuffix("\n\n_Partiel : la partie 2 sur \(count) n'a pas pu être résumée (refusée par l'IA d'Apple)._"))
     }
 
     @Test func aMeetingWhoseEveryPartIsRefusedHasNoSummary() async throws {
@@ -56,7 +56,7 @@ import Testing
         let count = SummaryPlan.chunks(SummaryPlan.lines(lines(30)), maxCharacters: 4_000).count
         #expect(engine.summaries.count == 2)
         #expect(summary.overview == "Atelier : \(count - 1) parties.")
-        #expect(summary.missing == "la partie 2 sur \(count) n'a pas pu être résumée (refusée par le modèle d'Apple)")
+        #expect(summary.missing == "la partie 2 sur \(count) n'a pas pu être résumée (refusée par l'IA d'Apple)")
     }
 
     /// Sans notes relâchées, le compte rendu refusé est redemandé avec les premières parties seulement.
@@ -142,6 +142,6 @@ import Testing
     @Test func whatIsMissingIsSaidForPaul() {
         #expect(SummaryText.missing(dropped: [], of: 5, shortened: false) == nil)
         #expect(SummaryText.missing(dropped: [2, 4, 5], of: 5, shortened: true)
-                == "les parties 2, 4 et 5 sur 5 n'ont pas pu être résumées (refusées par le modèle d'Apple) ; les notes ont été raccourcies pour tenir dans la fenêtre du modèle")
+                == "les parties 2, 4 et 5 sur 5 n'ont pas pu être résumées (refusées par l'IA d'Apple) ; les notes ont été raccourcies pour que l'IA d'Apple les lise")
     }
 }

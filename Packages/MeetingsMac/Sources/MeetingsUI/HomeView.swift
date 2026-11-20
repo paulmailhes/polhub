@@ -23,12 +23,13 @@ enum HomeModel {
         .min { $0.startAt < $1.startAt }
     }
 
-    /// « en cours », « dans 12 min », « à 15:30 ».
+    /// « en cours », « dans 12 min », « à 9:30 » (lot 10, 20/11: by `Words.until` and `Words.time`, the hour never
+    /// « 09:30 »).
     static func when(_ event: CalendarEventRow, now: Date) -> String {
         if event.startAt <= now { return "en cours" }
         let minutes = Int((event.startAt.timeIntervalSince(now) / 60).rounded(.up))
-        if minutes < 60 { return "dans \(minutes) min" }
-        return "à " + event.startAt.formatted(date: .omitted, time: .shortened)
+        if minutes < 60 { return Words.until(event.startAt, now: now) }
+        return "à " + Words.time(event.startAt)
     }
 
     /// « Aujourd'hui » (18/11): what is left of the day, the whole-day events first, then by the hour; neither
@@ -67,19 +68,19 @@ enum HomeModel {
               let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) else {
             return DayShown(tomorrow: false, title: "Aujourd'hui", events: today)
         }
-        let said = BriefingText.today(tomorrow, calendar: calendar)
         let shown = events.filter { event in
             guard event.attendees.first(where: \.isSelf)?.response != "declined" else { return false }
             return event.allDay ? event.startAt <= tomorrow && event.endAt > tomorrow : calendar.isDate(event.startAt, inSameDayAs: tomorrow)
         }
         .sorted { ($0.allDay ? 0 : 1, $0.startAt) < ($1.allDay ? 0 : 1, $1.startAt) }
-        return DayShown(tomorrow: true, title: "Demain · " + said.prefix(1).lowercased() + said.dropFirst(), events: shown)
+        // « Demain · jeudi 19 novembre »: the date of a title, by `Words.fullDate`, without its year (lot 10, 20/11).
+        return DayShown(tomorrow: true, title: "Demain · " + Words.fullDate(tomorrow, now: tomorrow, calendar: calendar), events: shown)
     }
 
-    /// « Demain 10:00 », « Jeudi 10:00 »: the day as « Le point » says it, at the head of a line.
+    /// « Demain 10:00 », « Jeudi 10:00 »: the day as « Le point » says it, at the head of a line (lot 10, 20/11: by
+    /// `Words.moment`, its capital by `Words.capitalizedFirst`).
     static func dayLabel(_ date: Date, now: Date, calendar: Calendar) -> String {
-        let label = Briefing.dayLabel(date, now: now, calendar: calendar)
-        return label.prefix(1).uppercased() + label.dropFirst()
+        Words.capitalizedFirst(Words.moment(date, now: now, calendar: calendar))
     }
 }
 

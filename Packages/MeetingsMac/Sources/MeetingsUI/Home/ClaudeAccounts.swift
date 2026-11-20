@@ -1,4 +1,5 @@
 import Foundation
+import PolhubDesign
 
 /// A Claude account as Vigie says it to its read token (0.36.0, 18/11): its name and how much of it is used — never
 /// an address, a folder or a key.
@@ -47,7 +48,7 @@ enum ClaudeAccountsText {
         var percent: String
         /// The model whose own limit is the tightest: « Fable ».
         var model: String?
-        /// « tient · lun. 20 h », « plein jeu. 14 h », « plein · reprend lun. 20 h », « pas de relevé récent ».
+        /// « tient · lun. 20:00 », « plein jeu. 14:00 », « plein · reprend lun. 20:00 », « pas de relevé récent ».
         var verdict: String
         /// Full, or to be before the reset: said in the color of attention (design system v2, 19/11).
         var alarming: Bool
@@ -91,22 +92,15 @@ enum ClaudeAccountsText {
                    alarming: alarming, session: session)
     }
 
-    /// « 71 % », with the narrow space French puts before %.
+    /// « 71 % », with the narrow space French puts before % (lot 10, 20/11: `Words.percent`, Vigie's 0 to 100 as a share).
     static func percent(_ pct: Double) -> String {
-        "\(Int(pct.rounded()))\u{202F}%"
+        Words.percent(pct / 100)
     }
 
-    private static let weekdays = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."]
-
-    /// « 23:40 » today, « demain 9 h », « lun. 20 h », « lun. 20 h 15 ».
+    /// « 23:40 » today, « demain 9:00 », « lun. 20:00 », « lun. 20:15 » (lot 10, 20/11: `Words.shortMoment`, the hour
+    /// written as everywhere, never « 9 h » after a day).
     static func moment(_ date: Date, now: Date, calendar: Calendar) -> String {
-        let parts = calendar.dateComponents([.hour, .minute, .weekday], from: date)
-        let hour = parts.hour ?? 0, minute = parts.minute ?? 0
-        let away = calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: calendar.startOfDay(for: date)).day ?? 0
-        if away == 0 { return "\(hour):\(minute < 10 ? "0" : "")\(minute)" }
-        let clock = minute == 0 ? "\(hour) h" : "\(hour) h \(minute < 10 ? "0" : "")\(minute)"
-        if away == 1 { return "demain \(clock)" }
-        return "\(weekdays[((parts.weekday ?? 1) - 1 + 7) % 7]) \(clock)"
+        Words.shortMoment(date, now: now, calendar: calendar)
     }
 
     /// « à 23:40 » today, else as `moment` says it.

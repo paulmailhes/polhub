@@ -75,15 +75,15 @@ import UserNotifications
         }
         let one = NotificationPlan.draftNotices([draft("d1")], now: now)
         #expect(one.map(\.id) == ["brouillon|d1"])
-        #expect(one.first?.title == "Colin" && one.first?.body == "Brouillon prêt pour Claire. On le valide ?")
+        #expect(one.first?.title == "Colin" && one.first?.body == "Brouillon prêt pour Claire. À relire.")
         #expect(one.first?.kind == .draft && one.first?.threadKey == "moi@exemple.fr|d1" && one.first?.fireDate == now)
         // Three at once: one each; without a recipient, no name.
         let three = NotificationPlan.draftNotices([draft("d1"), draft("d2", "Marc"), draft("d3", "")], now: now)
-        #expect(three.map(\.body) == ["Brouillon prêt pour Claire. On le valide ?", "Brouillon prêt pour Marc. On le valide ?", "Brouillon prêt. On le valide ?"])
+        #expect(three.map(\.body) == ["Brouillon prêt pour Claire. À relire.", "Brouillon prêt pour Marc. À relire.", "Brouillon prêt. À relire."])
         // Four: one line for all.
         let burst = NotificationPlan.draftNotices((1...4).map { draft("d\($0)") }, now: now)
         #expect(burst.count == 1)
-        #expect(burst.first?.title == "Colin" && burst.first?.body == "4 brouillons prêts. On les valide ?" && burst.first?.kind == .draft)
+        #expect(burst.first?.title == "Colin" && burst.first?.body == "4 brouillons prêts. À relire." && burst.first?.kind == .draft)
         #expect(burst.first?.threadKey == nil)
         #expect(NotificationPlan.draftNotices([], now: now).isEmpty)
     }

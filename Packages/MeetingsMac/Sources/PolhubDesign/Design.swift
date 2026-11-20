@@ -283,6 +283,7 @@ public struct Avatar: View {
     let initials: String
     let size: CGFloat
     let tint: Color
+    @Environment(\.self) private var environment
 
     public init(_ initials: String, size: CGFloat = 30, tint: Color = .secondary) {
         self.initials = initials
@@ -294,7 +295,9 @@ public struct Avatar: View {
         Text(initials.isEmpty ? "?" : initials)
             .font(.system(size: size * 0.4, weight: .semibold))
             .frame(width: size, height: size)
-            .foregroundStyle(tint)
+            // The initials in a shade of their color that reads on its circle, as a chip's text (lot 10, 20/11: the raw
+            // color, a yellow or an orange under 4.5:1); the grey of nobody stays as it is.
+            .foregroundStyle(tint == .secondary ? tint : tint.readable(in: environment))
             .background(tint.opacity(0.16), in: Circle())
     }
 }

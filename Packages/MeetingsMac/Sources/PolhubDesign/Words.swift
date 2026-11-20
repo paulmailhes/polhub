@@ -6,7 +6,7 @@ import Foundation
 ///
 /// The formats keep the behaviors the app's own functions were tested on (`Briefing`, `MailText`, `DurationText`,
 /// `ContactsModel`, `PanelModel`, `ClaudeAccountsText`). They write plain spaces: the typography of the screen (spaces
-/// that never break, the curled apostrophe) is laid at display by `typeset`, which the components call. Two exceptions,
+/// that never break) is laid at display by `typeset`, which the components call. Two exceptions,
 /// part of the number itself: the thousands' separator and the space before « % », narrow and unbreakable.
 public enum Words {
     // MARK: - The language
@@ -223,9 +223,10 @@ public enum Words {
 
     /// French typography, laid at display (lot 10, 20/11): a space that never breaks before « : », « ; », « ? », « ! »
     /// and inside « », a narrow one before « % »; a number never parted from what it counts (« 3 contacts », « 45 min »,
-    /// « 1 h 05 »); an en dash that never starts a line (« 9:30 – 10:00 »); the apostrophe curled between two letters
-    /// (« aujourd’hui »). The components that show a text call it; never an address, a link, a path or what Paul types.
-    /// Applied twice, it changes nothing more.
+    /// « 1 h 05 »); a range of hours never parted (« 9:30 – 10:00 »). The apostrophe stays straight (merge of lot
+    /// 10, 20/11): only the components call `typeset`, and a page showed « d’affichage » beside « Aujourd'hui »; it curls
+    /// once every text goes through here. The components that show a text call it; never an address, a link, a path or
+    /// what Paul types. Applied twice, it changes nothing more.
     public static func typeset(_ text: String) -> String {
         let characters = Array(text)
         var result = ""
@@ -235,10 +236,10 @@ public enum Words {
             let next = index + 1 < characters.count ? characters[index + 1] : nil
             switch character {
             case " ":
+                // A line may break after a dash whatever follows it: a word joiner holds « – » to the hour after it.
+                if previous == "–", next?.isNumber == true { result.append("\u{2060}") }
                 result.append(space(previous: previous, next: next, twoBack: index > 1 ? characters[index - 2] : nil,
                                     threeBack: index > 2 ? characters[index - 3] : nil))
-            case "'" where previous?.isLetter == true && next?.isLetter == true:
-                result.append("’")
             case "%" where previous?.isNumber == true && (next.map { !$0.isLetter && !$0.isNumber } ?? true):
                 result.append(narrowSpace)
                 result.append("%")
@@ -254,6 +255,8 @@ public enum Words {
     private static func space(previous: Character?, next: Character?, twoBack: Character?, threeBack: Character?) -> Character {
         if let next, [":", ";", "?", "!", "»", "–"].contains(next) { return unbreakableSpace }
         if previous == "«" { return unbreakableSpace }
+        // « 9:30 – 10:00 » whole: a line broke after « 10:00 – » in the calendar's bubble (merge of lot 10, 20/11).
+        if previous == "–", next?.isNumber == true { return unbreakableSpace }
         if next == "%", previous?.isNumber == true { return narrowSpace }
         // « 3 contacts », « 45 min », « 12 nov. »: a number keeps the word it counts.
         if previous?.isNumber == true, next?.isLetter == true { return unbreakableSpace }

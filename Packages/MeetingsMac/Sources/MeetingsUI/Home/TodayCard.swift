@@ -1,3 +1,4 @@
+import Agenda
 import Persistence
 import PolhubDesign
 import SwiftUI
@@ -47,11 +48,12 @@ struct TodayCard: View {
             HomeCard(shown.title) {
                 if shown.events.isEmpty {
                     let day = shown.tomorrow ? calendar.date(byAdding: .day, value: 1, to: now) ?? now : now
-                    if shown.tomorrow, !agenda.accounts.isEmpty { EmptyLine("Rien demain.") }
+                    // « Aucun rendez-vous » and the day it speaks of, today's or tomorrow's (lot 10, 20/11).
+                    if shown.tomorrow, !agenda.accounts.isEmpty { EmptyLine("Aucun rendez-vous demain.") }
                     if let coming = HomeModel.upcoming(agenda.shown, after: day, calendar: calendar) {
                         upcoming(coming, now: now)
                     } else if !shown.tomorrow || agenda.accounts.isEmpty {
-                        EmptyLine(agenda.accounts.isEmpty ? "Connecte tes agendas dans Calendrier." : "Aucun rendez-vous.")
+                        EmptyLine(agenda.accounts.isEmpty ? "Connecte tes agendas dans Calendrier." : "Aucun rendez-vous aujourd'hui.")
                     }
                 }
                 let hasNext = next.map { next in shown.events.contains { $0.id == next.id } } ?? false
@@ -74,7 +76,8 @@ struct TodayCard: View {
         let left = minutes(to: event, now: now)
         let soon = left <= 15
         let when = HomeModel.when(event, now: now)
-        let rest = TodayText.next(when: when, hour: event.startAt.formatted(date: .omitted, time: .shortened), project: projectName(event.projectID))
+        // The hour as « dans 12 min · 9:05 » writes it, by `Words.time` as `HomeModel.when` (lot 10, 20/11).
+        let rest = TodayText.next(when: when, hour: Words.time(event.startAt, calendar: calendar), project: projectName(event.projectID))
             .dropFirst(when.count)
         // Far off (tomorrow's first, from the evening): no « Rejoindre » before its last ten minutes.
         let join = event.meetCode != nil && !event.allDay ? TodayText.join(minutesLeft: left, sameDay: calendar.isDate(event.startAt, inSameDayAs: now)) : nil
@@ -104,13 +107,14 @@ struct TodayCard: View {
                 Button { agenda.join(event) } label: { Label("Rejoindre", systemImage: "video.fill") }
                     .buttonStyle(.primary)
                     .controlSize(.small)
-                    .help("Ouvre le Meet dans Dia avec le compte \(event.account)")
+                    // One sentence for every « Rejoindre », the account by its short name (lot 10, 20/11).
+                    .help(Words.joinHelp(account: AccountStyle.label(for: event.account)))
             case .secondary:
                 // Before: an outline, as small (lot 5, 19/11: one outline for the whole Accueil).
                 Button { agenda.join(event) } label: { Label("Rejoindre", systemImage: "video") }
                     .buttonStyle(.secondary)
                     .controlSize(.small)
-                    .help("Ouvre le Meet dans Dia avec le compte \(event.account)")
+                    .help(Words.joinHelp(account: AccountStyle.label(for: event.account)))
             case nil:
                 EmptyView()
             }
@@ -122,7 +126,9 @@ struct TodayCard: View {
         let joinable = event.meetCode != nil && !event.allDay
         return RowButton(action: { router.openEvent(event.id) }) {
             HStack(alignment: .firstTextBaseline, spacing: Space.s) {
-                Text(event.allDay ? "Journée" : event.startAt.formatted(date: .omitted, time: .shortened))
+                // « 9:05 », by `Words.time` (lot 10, 20/11). « Journée » stays: « Toute la journée » does not hold in the
+                // column of 44 points (a question for Paul, in the report of lot 10).
+                Text(event.allDay ? "Journée" : Words.time(event.startAt, calendar: calendar))
                     .font(.meta.monospacedDigit()).foregroundStyle(.secondary).frame(width: 44, alignment: .leading)
                 Text(event.title).font(.rowBody).foregroundStyle(.primary).lineLimit(1)
                 Spacer(minLength: Space.s)
@@ -131,7 +137,7 @@ struct TodayCard: View {
             }
         }
         .overlay(alignment: .trailing) {
-            if joinable { IconButton("video", help: "Rejoindre avec \(event.account)") { agenda.join(event) } }
+            if joinable { IconButton("video", help: Words.joinHelp(account: AccountStyle.label(for: event.account))) { agenda.join(event) } }
         }
     }
 

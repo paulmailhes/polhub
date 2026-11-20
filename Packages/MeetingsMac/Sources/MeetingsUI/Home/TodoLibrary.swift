@@ -53,17 +53,18 @@ import Persistence
     }
 
     /// « Livré »: « Livré le 18/11 » in the project's journal, and the deadline cleared — or, given the project's next
-    /// call (0.37.0), set to its day: a date taken from a meeting, which stays a call.
-    public func deliver(_ line: TodoRules.Line, next call: CalendarEventRow? = nil) {
+    /// visio (0.37.0), set to its day: a date taken from a meeting, which stays a visio. Its words are `TodoRules`'
+    /// (lot 10, 20/11: the event is named `meeting`, as the guard of the words reads « call » in the strings).
+    public func deliver(_ line: TodoRules.Line, next meeting: CalendarEventRow? = nil) {
         let date = now()
         let journal = TodoRules.delivered(date, calendar: calendar)
-        guard let call else {
+        guard let meeting else {
             set(line, to: nil, journal: journal, saying: "\(line.name) livré")
             return
         }
-        set(line, to: calendar.startOfDay(for: call.startAt), journal: journal,
-            saying: "\(line.name) livré · \(TodoRules.callWords(call.startAt, now: date, calendar: calendar))",
-            by: store.signed(.paul, reason: "Livré", source: "event:\(call.id)"))
+        set(line, to: calendar.startOfDay(for: meeting.startAt), journal: journal,
+            saying: "\(line.name) livré · \(TodoRules.callWords(meeting.startAt, now: date, calendar: calendar))",
+            by: store.signed(.paul, reason: "Livré", source: "event:\(meeting.id)"))
     }
 
     /// « Reporter » to one of its choices.

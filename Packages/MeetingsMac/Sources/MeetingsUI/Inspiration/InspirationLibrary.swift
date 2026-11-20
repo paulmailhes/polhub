@@ -2,6 +2,7 @@ import Foundation
 import GRDB
 import Inspiration
 import Persistence
+import PolhubDesign
 
 /// « Supprimer », while « Annuler » can bring the item back.
 public struct InspirationUndo: Identifiable, Equatable, Sendable {
@@ -182,7 +183,7 @@ public final class InspirationLibrary: ObservableObject {
         recompute(kind)
     }
 
-    /// « Tout afficher »: no filter, no search.
+    /// « Effacer les filtres » (« Tout afficher » until lot 10, 20/11): no filter, no search.
     public func clearFilters(_ kind: InspirationKind) {
         filters[kind] = [:]
         queries[kind] = ""
@@ -200,7 +201,7 @@ public final class InspirationLibrary: ObservableObject {
         do {
             try store.setCategories(id: item.id, categories, at: Date())
         } catch {
-            message = "Les catégories n'ont pas pu être enregistrées : \(Self.text(error))"
+            message = text(error, failed: "Les catégories n'ont pas pu être enregistrées")
         }
     }
 
@@ -213,7 +214,7 @@ public final class InspirationLibrary: ObservableObject {
         do {
             try store.moveToTrash(id: item.id, at: Date())
         } catch {
-            message = "« \(item.title) » n'a pas pu être supprimé : \(Self.text(error))"
+            message = text(error, failed: "« \(item.title) » n'a pas pu être supprimé")
             return
         }
         undoToken += 1
@@ -232,12 +233,12 @@ public final class InspirationLibrary: ObservableObject {
         try? store.restore(id: undo.itemID, at: Date())
     }
 
-    /// Apple's model proposes the item's categories.
+    /// Apple's AI proposes the item's categories.
     public func tag(_ item: InspirationItemRow) async {
         do {
             try await services.tag(item.id)
         } catch {
-            message = Self.text(error)
+            message = text(error, failed: "Les catégories n'ont pas pu être proposées")
         }
     }
 
@@ -273,7 +274,7 @@ public final class InspirationLibrary: ObservableObject {
         do {
             try await services.collectNow()
         } catch {
-            message = Self.text(error)
+            message = text(error, failed: "La collecte n'a pas pu se faire")
         }
         await refreshStatus()
     }
@@ -311,7 +312,7 @@ public final class InspirationLibrary: ObservableObject {
             try store.saveSource(row)
             return nil
         } catch {
-            return "La page n'a pas pu être enregistrée : \(Self.text(error))"
+            return text(error, failed: "La page n'a pas pu être enregistrée")
         }
     }
 
@@ -319,11 +320,18 @@ public final class InspirationLibrary: ObservableObject {
         do {
             try store.deleteSource(id: source.id)
         } catch {
-            message = "« \(source.name) » n'a pas pu être retirée : \(Self.text(error))"
+            message = text(error, failed: "« \(source.name) » n'a pas pu être retirée")
         }
     }
 
-    nonisolated static func text(_ error: any Error) -> String {
-        (error as? LocalizedError)?.errorDescription ?? String(describing: error)
+    /// What went wrong, in French (lot 10, 20/11): what failed, why when Polhub knows it, then what to do
+    /// (`Words.problem`), the system's own text kept for the journal of Réglages, never shown. Polhub's own errors
+    /// already say it in a sentence of their own (« Pas de connexion à Internet : réessaie plus tard. »), shown as is.
+    func text(_ error: any Error, failed: String) -> String {
+        let problem = Words.problem(failed, error)
+        database.journal(problem)
+        // `journal` is empty for Polhub's own errors only.
+        if problem.journal == nil, let own = (error as? LocalizedError)?.errorDescription, !own.isEmpty { return own }
+        return problem.sentence
     }
 }

@@ -25,20 +25,21 @@ extension InspirationKind {
         }
     }
 
-    /// « 212 sites », « 488 branding », « 292 mock-ups ».
+    /// « 212 sites », « 488 branding », « 292 mock-ups »: the number and its word accorded by `Words` (lot 10, 20/11).
     func count(_ count: Int) -> String {
         switch self {
-        case .website: "\(count) site\(count > 1 ? "s" : "")"
-        case .branding: "\(count) branding"
-        case .mockup: "\(count) mock-up\(count > 1 ? "s" : "")"
+        case .website: Words.count(count, "site")
+        case .branding: Words.count(count, "branding", "branding")
+        case .mockup: Words.count(count, "mock-up")
         }
     }
 
+    /// « Chercher » and what is found, without « … » (lot 10, 20/11): a category typed in full still becomes a filter.
     var searchPrompt: String {
         switch self {
-        case .website: "Chercher un site, un style, une techno…"
-        case .branding: "Chercher un projet, un studio, un style…"
-        case .mockup: "Chercher un mock-up, un type…"
+        case .website: "Chercher un site"
+        case .branding: "Chercher un branding"
+        case .mockup: "Chercher un mock-up"
         }
     }
 
@@ -64,7 +65,8 @@ extension InspirationKind {
         switch self {
         case .website: "Chaque site du jour d'Awwwards arrive ici, avec ceux que tu ajoutes."
         case .branding: "Les nouveaux posts de tes pages LinkedIn arrivent ici."
-        case .mockup: "Les mock-ups que tu ajoutes arrivent ici, avec leur aperçu et le lien vers leur dossier."
+        // Fifteen words at most (lot 10, 20/11).
+        case .mockup: "Les mock-ups que tu ajoutes arrivent ici, avec leur aperçu et leur dossier."
         }
     }
 }
@@ -72,7 +74,6 @@ extension InspirationKind {
 enum InspirationBrowse {
     /// The LinkedIn pages a branding came from: filtered as a family of its own, first on Branding.
     static let sourceFamily = "source"
-    static let locale = Locale(identifier: "fr_FR")
 
     /// A filter of the search field: a value of a family (« Minimal », in Style), or a LinkedIn page.
     struct InspirationToken: Identifiable, Hashable, Sendable {
@@ -114,7 +115,8 @@ enum InspirationBrowse {
     // MARK: - Search
 
     static func fold(_ text: String) -> String {
-        text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: locale)
+        // French, fixed once by `Words` (lot 10, 20/11).
+        text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Words.locale)
     }
 
     static func words(_ query: String) -> [String] {
@@ -278,7 +280,8 @@ enum InspirationBrowse {
     static func label(_ value: String) -> String {
         if let known = spelled[value.lowercased()] { return known }
         let words = value.filter { $0 == "-" }.count >= 2 ? value.replacingOccurrences(of: "-", with: " ") : value
-        return words.prefix(1).uppercased() + words.dropFirst()
+        // The capital at the head, by `Words` (lot 10, 20/11).
+        return Words.capitalizedFirst(words)
     }
 
     static let spelled = [
@@ -290,17 +293,10 @@ enum InspirationBrowse {
     /// The window's subtitle: « 212 sites », « 4 sites sur 212 » while filtered, nothing for an empty page.
     static func subtitle(_ kind: InspirationKind, shown: Int, total: Int) -> String {
         guard total > 0 else { return "" }
-        return shown == total ? kind.count(total) : "\(kind.count(shown)) sur \(total)"
+        return shown == total ? kind.count(total) : "\(kind.count(shown)) sur \(Words.number(total))"
     }
 
     // MARK: - A card's meta line
-
-    /// « 20 oct. » this year, « 20 oct. 2025 » before.
-    static func dateText(_ date: Date, now: Date = Date(), calendar: Calendar = .current) -> String {
-        var style = Date.FormatStyle(locale: locale, calendar: calendar, timeZone: calendar.timeZone).day().month(.abbreviated)
-        if calendar.component(.year, from: date) != calendar.component(.year, from: now) { style = style.year() }
-        return date.formatted(style)
-    }
 
     /// `galerie-lumiere.example.com` for `https://www.galerie-lumiere.example.com/fr/`.
     static func host(_ url: String?) -> String? {
@@ -309,9 +305,9 @@ enum InspirationBrowse {
     }
 
     /// Websites: the date and the site's host; Branding: the date and the studio (or the page); Mock-ups: their
-    /// types (the date without one).
-    static func meta(_ item: InspirationItemRow, now: Date = Date(), calendar: Calendar = .current) -> String {
-        let date = dateText(item.date, now: now, calendar: calendar)
+    /// types (the date without one). The date by `Words`: « 20 oct. », « 20 oct. 2025 » another year (lot 10, 20/11).
+    static func meta(_ item: InspirationItemRow, now: Date = Date(), calendar: Calendar = Words.calendar) -> String {
+        let date = Words.shortDate(item.date, now: now, calendar: calendar)
         switch item.kind {
         case .website:
             return [date, host(item.url)].compactMap { $0 }.joined(separator: " · ")
@@ -402,8 +398,9 @@ enum InspirationBrowse {
         var id: String { title }
     }
 
-    /// The item's main links: « Ouvrir le site », « Voir sur LinkedIn », « Ouvrir le dossier » (in the Finder when
-    /// the folder is on the Mac, else its Nextcloud link).
+    /// The item's main links: « Ouvrir le site », « Ouvrir sur LinkedIn », « Ouvrir le dossier » (in the Finder when
+    /// the folder is on the Mac, else its Nextcloud link). « Ouvrir » leads to a thing, « Voir » unfolds in place (lot 10,
+    /// 20/11).
     static func links(_ item: InspirationItemRow, folderExists: (String) -> Bool = { path in
         var folder: ObjCBool = false
         return FileManager.default.fileExists(atPath: path, isDirectory: &folder) && folder.boolValue
@@ -417,7 +414,7 @@ enum InspirationBrowse {
         case .website:
             return web(item.url).map { [Link(title: "Ouvrir le site", target: .web($0))] } ?? []
         case .branding:
-            return web(item.url).map { [Link(title: "Voir sur LinkedIn", target: .web($0))] } ?? []
+            return web(item.url).map { [Link(title: "Ouvrir sur LinkedIn", target: .web($0))] } ?? []
         case .mockup:
             if let local = item.extra.localFolder, folderExists(local) {
                 return [Link(title: "Ouvrir le dossier", target: .finder(URL(fileURLWithPath: local, isDirectory: true)))]

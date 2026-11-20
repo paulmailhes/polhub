@@ -22,11 +22,11 @@ struct CalendarSettingsPane: View {
                         Text("\(AccountStyle.label(for: account.email)) · \(account.email)").tag(account.email)
                     }
                 }
+                // « 30 min », « 1 h », « 1 h 30 »: the lengths by `Words` (lot 10, 20/11).
                 Picker("Durée", selection: $eventMinutes) {
-                    Text("30 min").tag(30)
-                    Text("45 min").tag(45)
-                    Text("1 h").tag(60)
-                    Text("1 h 30").tag(90)
+                    ForEach([30, 45, 60, 90], id: \.self) { minutes in
+                        Text(Words.duration(minutes * 60)).tag(minutes)
+                    }
                 }
                 // What a name does not say, said under it (lot 7, 19/11).
                 SettingRow("Visio Google Meet", help: SettingsText.eventMeetHelp) {
@@ -37,7 +37,8 @@ struct CalendarSettingsPane: View {
                 Toggle("Afficher le week-end", isOn: $showWeekend)
                 SettingRow("La grille s'ouvre à", help: SettingsText.dayStartHelp) {
                     Picker("La grille s'ouvre à", selection: $dayStartHour) {
-                        ForEach([6, 7, 8, 9, 10], id: \.self) { Text("\($0) h").tag($0) }
+                        // « 8 h »: an hour without a day, by `Words` (lot 10, 20/11).
+                        ForEach([6, 7, 8, 9, 10], id: \.self) { Text(Words.hour($0)).tag($0) }
                     }
                 }
             }
@@ -45,7 +46,7 @@ struct CalendarSettingsPane: View {
             Section("Accueil") {
                 SettingRow("L'Accueil montre demain à partir de", help: SettingsText.tomorrowHelp) {
                     Picker("L'Accueil montre demain à partir de", selection: $homeTomorrowFrom) {
-                        ForEach(16...23, id: \.self) { Text("\($0) h").tag($0 * 60) }
+                        ForEach(16...23, id: \.self) { Text(Words.hour($0)).tag($0 * 60) }
                     }
                 }
             }
