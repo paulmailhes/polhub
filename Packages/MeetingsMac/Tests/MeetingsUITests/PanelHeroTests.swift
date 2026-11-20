@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import Persistence
+import PolhubDesign
 import SwiftUI
 import Testing
 @testable import MeetingsUI
@@ -10,7 +11,58 @@ import Testing
 @MainActor @Suite struct PanelHeroTests {
     let now = Date(timeIntervalSince1970: 1_763_220_000)
     /// The panel's width less its margins.
-    static let width: CGFloat = 360 - 2 * 14
+    static let width: CGFloat = MenuBarPanel.width - 2 * MenuBarPanel.margin
+
+    /// On the scale (lot 9, 20/11: margins 14, gaps 10, tiles of 161 and a hero 12 above and 10 under its text before):
+    /// margins 16 and gaps 8, two tiles of 160 × 80 with 12 inside, the hero 16 from its edge on every side.
+    @Test func thePanelSitsOnTheScale() {
+        #expect(MenuBarPanel.margin == Space.l && MenuBarPanel.gap == Space.s)
+        #expect(PanelTiles.size == CGSize(width: 160, height: 80) && PanelTiles.padding == Space.m)
+        #expect(HeroMetrics.padding == EdgeInsets(top: Space.l, leading: Space.l, bottom: Space.l, trailing: Space.l))
+    }
+
+    /// A hero's buttons hold on one line (lot 9, 20/11: « Arrêter maintenant » broke on two beside « Jamais pour ce lien »
+    /// or « Voir la réunion », on the captures of 19/11 and 20/11, though both fit): with its second action beside it, the
+    /// presumed end is no taller than with « Arrêter maintenant » alone.
+    @Test func aHerosButtonsHoldOnOneLine() {
+        _ = NSApplication.shared
+        let context = CoupDoeilContext(app: AppModel(), router: WindowRouter())
+        func height(_ hero: PanelModel.Hero, width: CGFloat = Self.width) -> CGFloat {
+            NSHostingController(rootView: PanelHero(hero: hero, now: now, context: context, agenda: nil, library: nil))
+                .sizeThatFits(in: CGSize(width: width, height: 10_000)).height
+        }
+        let alone = height(.presumedEnded(title: "Revue de maquettes", stopsAt: now.addingTimeInterval(500), meetingID: nil, canForget: false))
+        let withLink = height(.presumedEnded(title: "Revue de maquettes", stopsAt: now.addingTimeInterval(500), meetingID: nil, canForget: true))
+        let withMeeting = height(.presumedEnded(title: "Revue de maquettes", stopsAt: now.addingTimeInterval(500), meetingID: UUID(), canForget: false))
+        #expect(abs(withLink - alone) < 0.5, "« Jamais pour ce lien » : \(withLink) pt au lieu de \(alone)")
+        #expect(abs(withMeeting - alone) < 0.5, "« Voir la réunion » : \(withMeeting) pt au lieu de \(alone)")
+        // A summary on its way: where it stands and « Ouvrir la réunion » on one line when they fit (« Résumé en attente »),
+        // nothing moves with room to spare; when they do not (« Transcription en attente »), the button goes whole under
+        // it, a row of its own, instead of breaking on two lines (8 points) or cutting the words (none).
+        func report(_ stage: PanelModel.Report.Stage) -> PanelModel.Hero {
+            .report(PanelModel.Report(meetingID: UUID(), title: "Revue de maquettes", seconds: 9 * 60, stage: stage, since: nil, summaryToCome: true))
+        }
+        let fits = report(.summaryWaiting)
+        #expect(abs(height(fits) - height(fits, width: 600)) < 0.5, "« Résumé en attente » : \(height(fits)) pt au lieu de \(height(fits, width: 600))")
+        let waiting = report(.transcriptionWaiting)
+        let narrow = height(waiting), wide = height(waiting, width: 600)
+        #expect(narrow - wide >= RoleButton.height, "« Ouvrir la réunion » : \(narrow) pt, \(wide) pt avec de la place")
+    }
+
+    /// A tile's value takes a second line when it has no detail under it (lot 9, 20/11): under « Libre jusqu'à 16:30 »,
+    /// the Calendrier tile names « Revue de maquettes » whole instead of « Revue de maque… ».
+    @Test func aTileWithoutDetailGivesItsValueTwoLines() {
+        #expect(PanelTile.valueLines(PanelModel.Tile(value: "Revue de maquettes", count: 2)) == 2)
+        #expect(PanelTile.valueLines(PanelModel.Tile(value: "Appel Hugo", detail: "Ensuite à 18:30", count: 2)) == 1)
+    }
+
+    /// What floats over every app reads as the panel (lot 9, 20/11: 13 and 11 points before, under the app's floor of
+    /// 12): the card before a visio and the HUD, a title of 15 points and its line of 13, 16 points from their edge.
+    @Test func theFloatingCardsReadAsThePanel() {
+        #expect(FloatingMetrics.title == Font.rowTitle.weight(.semibold))
+        #expect(FloatingMetrics.meta == Font.meta)
+        #expect(FloatingMetrics.margin == Space.l)
+    }
 
     private var event: CalendarEventRow {
         CalendarEventRow(account: "paul@atelier-nord.fr", eventID: "revue", title: "Revue de maquettes", startAt: now.addingTimeInterval(480),
@@ -41,16 +93,17 @@ import Testing
         ]
     }
 
-    /// From 90 to 130 points; one exception, « Réunion détectée » with a Meet link: the five lines of the brief's mockup
-    /// (the countdown, the title, « S'enregistre seule dans 7 s », the two answers, « Jamais pour ce lien ») do not fit
-    /// in 130, for its ten seconds.
-    @Test func everyHeroStaysBetween90And130Points() {
+    /// From 90 to 145 points (lot 9, 20/11: 130 before, when the card had 12 above its text and 10 under it, and its
+    /// buttons touched the text; now 16 on every side and 8 above the buttons, the tallest, « Résumé prêt », is 144);
+    /// one exception, « Réunion détectée » with a Meet link: the five lines of the brief's mockup (the countdown, the
+    /// title, « S'enregistre seule dans 7 s », the two answers, « Jamais pour ce lien ») do not fit, for its ten seconds.
+    @Test func everyHeroStaysBetween90And145Points() {
         _ = NSApplication.shared
         let context = CoupDoeilContext(app: AppModel(), router: WindowRouter())
         for (name, hero) in heroes {
             let view = PanelHero(hero: hero, now: now, context: context, agenda: nil, library: nil).frame(width: Self.width)
             let height = NSHostingController(rootView: view).view.fittingSize.height
-            let range: ClosedRange<CGFloat> = name == "détectée" ? 90...150 : 90...130
+            let range: ClosedRange<CGFloat> = name == "détectée" ? 90...165 : 90...145
             #expect(range.contains(height), "\(name) : \(height) pt")
         }
     }

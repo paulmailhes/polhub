@@ -43,6 +43,11 @@ struct PanelHero: View {
 
     // MARK: - The meeting
 
+    /// The hero's first line, in its own case (lot 9, 20/11).
+    private var eyebrow: HeroEyebrow {
+        HeroEyebrow(PanelModel.eyebrow(hero, now: now))
+    }
+
     /// The HUD's question, here too, with the same countdown: both answers go through the coordinator, so the HUD
     /// and the panel close together. As the brief's mockup: what happens at the end of the countdown under the title,
     /// the two answers, then « Jamais pour ce lien » under them, only for a Meet link.
@@ -53,7 +58,7 @@ struct PanelHero: View {
         // system v2, 19/11).
         return HeroCard(tint: nil) {
             HStack(alignment: .firstTextBaseline) {
-                HeroEyebrow("Réunion détectée", systemImage: "record.circle", tint: nil)
+                eyebrow
                 Spacer(minLength: Space.s)
                 TimelineView(countdown) { timeline in
                     Text("\(HUDText.remaining(until: deadline, now: timeline.date)) s")
@@ -95,7 +100,7 @@ struct PanelHero: View {
     private func recording(title: String, since: Date, detail: String?, meetingID: UUID?) -> some View {
         HeroCard(tint: Tint.recording) {
             HStack(alignment: .firstTextBaseline) {
-                HeroEyebrow("Enregistre", systemImage: "circle.fill", tint: Tint.recording, pulse: true)
+                eyebrow.pulsing()
                 Spacer(minLength: Space.s)
                 TimelineView(.periodic(from: since, by: 1)) { timeline in
                     Text(DurationText.clock(Int(timeline.date.timeIntervalSince(since))))
@@ -119,7 +124,7 @@ struct PanelHero: View {
     /// It still records, and asks for a look: attention's orange (`Tint.attention`, design system v2, 19/11).
     private func presumedEnded(title: String, stopsAt: Date?, meetingID: UUID?, canForget: Bool) -> some View {
         HeroCard(tint: Tint.attention) {
-            HeroEyebrow("Fin de réunion ?", systemImage: "record.circle", tint: Tint.attention)
+            eyebrow
             HeroTitle(title)
             HeroDetail(stopsAt.map { "S'arrête seule à \(PanelModel.clock($0)), sauf si l'on reparle" }
                        ?? "S'arrête seule, sauf si l'on reparle", lines: 2)
@@ -147,13 +152,9 @@ struct PanelHero: View {
         let color = agenda?.color(for: event.account) ?? Color.secondary
         return HeroCard(tint: upcoming.started ? Tint.attention : nil) {
             HStack(alignment: .firstTextBaseline) {
-                if upcoming.started {
-                    HeroEyebrow("En cours · pas enregistrée", systemImage: "exclamationmark.circle.fill", tint: Tint.attention)
-                } else {
-                    HeroEyebrow(HomeModel.when(event, now: now), systemImage: "calendar", tint: Tint.attention)
-                }
+                eyebrow
                 Spacer(minLength: Space.s)
-                HStack(spacing: 5) {
+                HStack(spacing: Space.xs) {
                     ColorDot(color, size: 8)
                     Text(AccountStyle.label(for: event.account)).font(.meta).foregroundStyle(.secondary).lineLimit(1)
                 }
@@ -191,7 +192,7 @@ struct PanelHero: View {
     /// One action, beside the title: the card stays short.
     private func paused(until: Date, missed: CalendarEventRow?) -> some View {
         HeroCard(tint: nil) {
-            HeroEyebrow("Détection suspendue", systemImage: "pause.circle.fill", tint: nil)
+            eyebrow
             HStack(alignment: .center, spacing: Space.m) {
                 HeroTitle("Jusqu'à \(PanelModel.clock(until))")
                 Spacer(minLength: Space.s)
@@ -200,6 +201,7 @@ struct PanelHero: View {
                 Button { actions.resumeDetection() } label: { Label("Reprendre", systemImage: "play.fill") }
                     .buttonStyle(.primary)
                     .controlSize(HeroMetrics.buttons)
+                    .fixedSize()
                     .keyboardShortcut(.defaultAction)
                     .help("Reprendre la détection (↩)")
             }
@@ -224,8 +226,7 @@ struct PanelHero: View {
         return HeroCard(tint: tint) {
             HStack(alignment: .firstTextBaseline) {
                 // A failure colors its icon only: never a colored sentence.
-                HeroEyebrow(eyebrow(report), systemImage: failed ? "exclamationmark.triangle.fill" : report.isPreparing ? "sparkles" : "checkmark.circle.fill",
-                            tint: tint, iconOnly: failed)
+                eyebrow
                 Spacer(minLength: Space.s)
                 // When it got ready; while it is prepared, the meeting's length.
                 if let since = report.since, !report.isPreparing {
@@ -233,19 +234,11 @@ struct PanelHero: View {
                 } else if let seconds = report.seconds {
                     Text(DurationText.short(seconds)).font(.meta).foregroundStyle(.secondary).lineLimit(1)
                 }
-                // Paul, 16/11: a summary already dealt with goes with a click, for good.
-                Button { context.app.putAway(report: report.meetingID) } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .bold))
-                        .frame(width: 22, height: 22)
-                }
-                .buttonStyle(.hover(.circle))
-                .foregroundStyle(.secondary)
-                // Its circle spills into the margins: the line keeps the eyebrow's height.
-                .padding(.vertical, -5)
-                .padding(.trailing, -Space.xs)
-                .help("Ne plus afficher ce compte rendu ici")
-                .accessibilityLabel("Ranger ce compte rendu")
+                // Paul, 16/11: a summary already dealt with goes with a click, for good. The app's discreet button (lot 9,
+                // 20/11); its circle spills into the margins, the line keeps the eyebrow's height.
+                IconButton("xmark", help: "Ne plus afficher ce compte rendu ici", size: 13) { context.app.putAway(report: report.meetingID) }
+                    .padding(.vertical, -Space.s)
+                    .padding(.trailing, -Space.s)
             }
             HeroTitle(report.title, lines: 1)
             switch report.stage {
@@ -261,18 +254,19 @@ struct PanelHero: View {
                 }
             }
             if report.isPreparing {
-                // Where it stands, and the way to the meeting, on one line.
-                HStack(alignment: .center, spacing: Space.s) {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(report.stageText).font(.meta.weight(.semibold).monospacedDigit()).lineLimit(1)
-                        if case .transcribing = report.stage, report.summaryToCome {
-                            Text("Puis le résumé").font(.meta).foregroundStyle(.secondary).lineLimit(1)
-                        }
+                // Where it stands, and the way to the meeting, on one line; short of room, the button goes under it, on
+                // the right, as every bar of buttons (lot 9, 20/11: « Ouvrir la réunion » broke on two lines beside
+                // « Transcription en attente »). Neither is ever squeezed.
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .center, spacing: Space.s) {
+                        stage(report).fixedSize()
+                        Spacer(minLength: Space.s)
+                        reportAction(report).controlSize(HeroMetrics.buttons).fixedSize()
                     }
-                    // Where it stands, on one line: the button keeps its size, the text takes the rest first.
-                    .layoutPriority(1)
-                    Spacer(minLength: Space.s)
-                    reportAction(report).controlSize(HeroMetrics.buttons)
+                    VStack(alignment: .trailing, spacing: Space.s) {
+                        stage(report).frame(maxWidth: .infinity, alignment: .leading)
+                        reportAction(report).controlSize(HeroMetrics.buttons).fixedSize()
+                    }
                 }
                 .padding(.top, 2)
             } else {
@@ -287,13 +281,13 @@ struct PanelHero: View {
         }
     }
 
-    private func eyebrow(_ report: PanelModel.Report) -> String {
-        switch report.stage {
-        case .ready: "Résumé prêt"
-        case .transcriptReady: "Transcription prête"
-        case .transcriptionFailed: "Transcription échouée"
-        case .summaryFailed: "Résumé impossible"
-        default: "Compte rendu en cours"
+    /// Where a summary on its way stands: « Transcription 58 % », and « Puis le résumé » under it.
+    private func stage(_ report: PanelModel.Report) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(report.stageText).font(.meta.weight(.semibold).monospacedDigit()).lineLimit(1)
+            if case .transcribing = report.stage, report.summaryToCome {
+                Text("Puis le résumé").font(.meta).foregroundStyle(.secondary).lineLimit(1)
+            }
         }
     }
 
@@ -327,30 +321,13 @@ struct PanelHero: View {
 
     // MARK: - The day
 
-    /// Nothing else to say: the day, calm; a click opens Accueil.
+    /// Nothing else to say: the day, calm. A card to read, as the others (lot 9, 20/11): « Ouvrir Polhub », at the foot,
+    /// is the one way to the Accueil; the day's chevron was a second.
     private func day(title: String, line: String?) -> some View {
-        Button { context.openHome() } label: {
-            HStack(alignment: .center, spacing: Space.m) {
-                VStack(alignment: .leading, spacing: Space.xs) {
-                    Text(title.uppercased())
-                        .font(.meta.weight(.semibold))
-                        .tracking(0.3)
-                        .foregroundStyle(.secondary)
-                    HeroTitle(line ?? (context.app.isWatching ? "Polhub guette les réunions" : "La détection est coupée"))
-                }
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(Space.l)
-            .frame(maxWidth: .infinity, minHeight: HeroMetrics.minHeight, alignment: .leading)
-            .fixedSize(horizontal: false, vertical: true)
-            .background(PanelSurface.card, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        HeroCard(tint: nil, centered: true) {
+            eyebrow
+            HeroTitle(line ?? (context.app.isWatching ? "Polhub guette les réunions" : "La détection est coupée"))
         }
-        .buttonStyle(PanelCardStyle(radius: Radius.card))
-        .help(context.agenda != nil ? "Ouvrir l'Accueil" + (SidebarItem.home.shortcut.map { " (⌘\($0))" } ?? "") : "Ouvrir Polhub")
     }
 }
 
@@ -365,28 +342,32 @@ enum HeroMetrics {
     static let clock = Font.title.weight(.semibold).monospacedDigit()
     /// The buttons' size: the regular one, the large took the hero past 130 points (finding of 16/11).
     static let buttons = ControlSize.regular
-    /// The buttons' gap to the text, besides the card's spacing (4 points): none, the glass of a button draws its own
-    /// margin.
-    static let aboveButtons: CGFloat = 0
-    /// The card's padding: 16 on the sides, 12 above, 10 below, where a button's glass draws its own margin.
-    static let padding = EdgeInsets(top: Space.m, leading: Space.l, bottom: 10, trailing: Space.l)
+    /// The buttons' gap to the text, besides the card's spacing (4 points): 8 in all (lot 9, 20/11: the buttons, no longer
+    /// in glass, touched the text).
+    static let aboveButtons: CGFloat = Space.xs
+    /// The card's padding: 16 on every side (lot 9, 20/11: 12 above and 10 below, the bottom button 9 points from the
+    /// edge).
+    static let padding = EdgeInsets(top: Space.l, leading: Space.l, bottom: Space.l, trailing: Space.l)
     /// The brief's floor: the day, alone in its card, is not shorter than the others.
     static let minHeight: CGFloat = 90
 }
 
 /// The hero's card: its color at 10 % (16 % in dark), a firmer edge of it; without a color (`tint` nil), the panel's
-/// calm card (`PanelSurface`), as the tiles and the mails (design system v2, 19/11). Radius 16 (`Radius.card`). No
-/// glass under its text. From 90 to 130 points tall, as the brief wants, so the grid under it moves little from one
-/// state to the next: a little less padding above and below than on the sides, buttons of the regular size. One
-/// exception: « Réunion détectée » with a Meet link, the five lines of the brief's mockup, for its ten seconds.
+/// calm card (`PanelSurface`), as the tiles and the mails (design system v2, 19/11). Radius 16 (`Radius.card`), 16 of
+/// padding on every side (lot 9, 20/11). No glass under its text. From 90 to 145 points tall, so the grid under it moves
+/// little from one state to the next: buttons of the regular size. One exception: « Réunion détectée » with a Meet
+/// link, the five lines of the brief's mockup, for its ten seconds.
 private struct HeroCard<Content: View>: View {
     /// `Tint.recording` or `Tint.attention`; nil, neutral.
     let tint: Color?
+    /// The day's two lines sit in the middle of the card's least height, not at its top (lot 9, 20/11).
+    var centered = false
     let content: Content
     @Environment(\.colorScheme) private var scheme
 
-    init(tint: Color?, @ViewBuilder content: () -> Content) {
+    init(tint: Color?, centered: Bool = false, @ViewBuilder content: () -> Content) {
         self.tint = tint
+        self.centered = centered
         self.content = content()
     }
 
@@ -395,7 +376,7 @@ private struct HeroCard<Content: View>: View {
         let dark = scheme == .dark
         VStack(alignment: .leading, spacing: Space.xs) { content }
             .padding(HeroMetrics.padding)
-            .frame(maxWidth: .infinity, minHeight: HeroMetrics.minHeight, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: HeroMetrics.minHeight, alignment: centered ? .leading : .topLeading)
             // Never squeezed under its content: short of room, its buttons spilled over the tiles (16/11).
             .fixedSize(horizontal: false, vertical: true)
             .background(tint.map { PanelTint.fill($0, dark: dark) } ?? PanelSurface.card, in: shape)
@@ -441,35 +422,38 @@ private struct HeroWarning: View {
     }
 }
 
-/// « DANS 8 MIN », « ENREGISTRE »: the hero's first line, in its color (a `Tint`, already one text reads in), grey
-/// without one. A problem colors its icon only (`iconOnly`), never its words (design system v2, 19/11).
+/// « Dans 8 min », « Enregistrement »: the hero's first line (lot 9, 20/11), a grey label of 12 points in its own case,
+/// as « En retard » on the Accueil (« DANS 8 MIN » in capitals of 13 before). One thing of it takes its color (a `Tint`,
+/// already one text reads in), never the whole line: the symbol of a state, or the words of a delay.
 private struct HeroEyebrow: View {
-    let text: String
-    let systemImage: String
-    let tint: Color?
-    var iconOnly = false
+    let eyebrow: PanelModel.Eyebrow
     var pulse = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    init(_ text: String, systemImage: String, tint: Color?, iconOnly: Bool = false, pulse: Bool = false) {
-        self.text = text
-        self.systemImage = systemImage
-        self.tint = tint
-        self.iconOnly = iconOnly
-        self.pulse = pulse
+    init(_ eyebrow: PanelModel.Eyebrow) {
+        self.eyebrow = eyebrow
+    }
+
+    /// The recording's dot beats.
+    func pulsing() -> HeroEyebrow {
+        var copy = self
+        copy.pulse = true
+        return copy
     }
 
     var body: some View {
-        let colored = tint.map { AnyShapeStyle($0) } ?? AnyShapeStyle(.secondary)
-        HStack(alignment: .firstTextBaseline, spacing: 5) {
-            Image(systemName: systemImage)
-                .font(.system(size: 11, weight: .bold))
-                .symbolEffect(.pulse, isActive: pulse && !reduceMotion)
-                .foregroundStyle(colored)
-            Text(text.uppercased()).tracking(0.3).lineLimit(1)
-                .foregroundStyle(iconOnly ? AnyShapeStyle(.secondary) : colored)
+        let tint = eyebrow.tint.map { AnyShapeStyle($0.color) } ?? AnyShapeStyle(.secondary)
+        HStack(alignment: .firstTextBaseline, spacing: Space.xs) {
+            if let systemImage = eyebrow.systemImage {
+                Image(systemName: systemImage)
+                    .symbolEffect(.pulse, isActive: pulse && !reduceMotion)
+                    .foregroundStyle(eyebrow.colored == .symbol ? tint : AnyShapeStyle(.secondary))
+            }
+            Text(eyebrow.text)
+                .lineLimit(1)
+                .foregroundStyle(eyebrow.colored == .words ? tint : AnyShapeStyle(.secondary))
         }
-        .font(.meta.weight(.semibold))
+        .font(.tag.weight(.semibold))
     }
 }
 
@@ -508,7 +492,8 @@ private struct HeroDetail: View {
     }
 }
 
-/// The hero's buttons, on the right: the second action, then the main one.
+/// The hero's buttons, together on the right: the second action, then the main one, as a dialog of macOS (lot 9, 20/11:
+/// « Détails » sat alone on the left).
 private struct HeroButtons<Secondary: View, Primary: View>: View {
     let secondary: Secondary
     let primary: Primary
@@ -520,9 +505,11 @@ private struct HeroButtons<Secondary: View, Primary: View>: View {
 
     var body: some View {
         HStack(spacing: Space.s) {
-            secondary
-            Spacer(minLength: Space.s)
-            primary
+            Spacer(minLength: 0)
+            // Each at its own width: the stack shared the row evenly and broke « Arrêter maintenant » on two lines
+            // beside « Jamais pour ce lien », with room for both (lot 9, 20/11).
+            secondary.fixedSize()
+            primary.fixedSize()
         }
         .controlSize(HeroMetrics.buttons)
         .padding(.top, HeroMetrics.aboveButtons)

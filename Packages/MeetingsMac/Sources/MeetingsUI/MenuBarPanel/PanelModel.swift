@@ -5,12 +5,13 @@ import GoogleKit
 import MeetingDetection
 import Persistence
 import Pipeline
+import PolhubDesign
 import Summarization
 import SwiftUI
 import Updates
 
-/// What « Coup d'œil » says (15/11), from what Polhub already holds in memory: the hero and its fixed order, the four
-/// tiles' words, the lines « À régler », the mails to read, the footer's line. Pure: tested on made-up data, without a
+/// What « Coup d'œil » says (15/11), from what Polhub already holds in memory: the hero, its fixed order and its first
+/// line, the two tiles' words, the lines « À régler », the mails to read, the footer's line. Pure: tested on made-up data, without a
 /// screen. Nothing here reads the base, the network or the clock: `now` comes from the view's timeline.
 enum PanelModel {
     /// Paul's calendar, as Calendrier's: French, weeks from Monday, the Mac's time zone.
@@ -332,6 +333,55 @@ enum PanelModel {
         return report
     }
 
+    // MARK: - The hero's first line
+
+    /// The hero's first line (lot 9, 20/11): its words in their own case, as the Accueil writes « Jeudi 19 novembre »
+    /// (« DANS 8 MIN » and « ENREGISTRE » were in capitals), and one thing of it in color, never the whole line.
+    struct Eyebrow: Equatable {
+        /// What carries the color: the symbol of a state (the recording's dot, a problem's icon), or the words of a delay.
+        enum Colored: Equatable { case nothing, symbol, words }
+
+        var text: String
+        var systemImage: String?
+        var tint: Tint.Role?
+        var colored: Colored
+    }
+
+    static func eyebrow(_ hero: Hero, now: Date) -> Eyebrow {
+        switch hero {
+        case .detected:
+            // Grey, as the logo's outlined circle: nothing records yet (design system v2, 19/11).
+            Eyebrow(text: "Réunion détectée", systemImage: "record.circle", tint: nil, colored: .nothing)
+        case .recording:
+            Eyebrow(text: "Enregistrement", systemImage: "circle.fill", tint: .recording, colored: .symbol)
+        case .presumedEnded:
+            Eyebrow(text: "Fin de réunion ?", systemImage: "record.circle", tint: .attention, colored: .symbol)
+        case .upcoming(let upcoming) where upcoming.started:
+            Eyebrow(text: "En cours · pas enregistrée", systemImage: "exclamationmark.circle.fill", tint: .attention, colored: .symbol)
+        case .upcoming(let upcoming):
+            // « Dans 8 min », its words at attention's color, as « dans 12 min » on the Accueil.
+            Eyebrow(text: sentence(HomeModel.when(upcoming.event, now: now)), systemImage: "calendar", tint: .attention, colored: .words)
+        case .paused:
+            Eyebrow(text: "Détection suspendue", systemImage: "pause.circle.fill", tint: nil, colored: .nothing)
+        case .report(let report):
+            switch report.stage {
+            case .ready: Eyebrow(text: "Résumé prêt", systemImage: "checkmark.circle.fill", tint: nil, colored: .nothing)
+            case .transcriptReady: Eyebrow(text: "Transcription prête", systemImage: "checkmark.circle.fill", tint: nil, colored: .nothing)
+            // A problem colors its icon only: never a colored sentence.
+            case .transcriptionFailed: Eyebrow(text: "Transcription échouée", systemImage: "exclamationmark.triangle.fill", tint: .attention, colored: .symbol)
+            case .summaryFailed: Eyebrow(text: "Résumé impossible", systemImage: "exclamationmark.triangle.fill", tint: .attention, colored: .symbol)
+            default: Eyebrow(text: "Compte rendu en cours", systemImage: "sparkles", tint: nil, colored: .nothing)
+            }
+        case .day(let title, _):
+            Eyebrow(text: title, systemImage: nil, tint: nil, colored: .nothing)
+        }
+    }
+
+    /// « dans 8 min » → « Dans 8 min ».
+    static func sentence(_ text: String) -> String {
+        text.prefix(1).uppercased() + text.dropFirst()
+    }
+
     /// « Dimanche 15 novembre ».
     static func dayTitle(_ date: Date, calendar: Calendar = calendar) -> String {
         let formatter = DateFormatter()
@@ -362,28 +412,27 @@ enum PanelModel {
         var count: Int?
     }
 
-    /// Calendrier: the next two events of today (without the hero's), else the next one to come.
-    static func calendarTile(_ events: [CalendarEventRow]?, hiding: String?, now: Date, calendar: Calendar = calendar) -> Tile {
+    /// Calendrier: the next event of today, its title whole, then its time under it (lot 9, 20/11: « 16:30 Revue de… »
+    /// was cut on its 161 points); else the next one to come. It never says again what the hero says: the hero's event is
+    /// left out (« Ensuite à 17:30 »), and under the day's « Libre jusqu'à 16:30 » the next event's start is not repeated.
+    /// The count: the events left today.
+    static func calendarTile(_ events: [CalendarEventRow]?, hero: Hero, now: Date, calendar: Calendar = calendar) -> Tile {
         guard let events else { return Tile(value: "Aucun agenda", detail: "Relier un compte Google") }
         let leftToday = SidebarCounts.eventsLeftToday(events, now: now, calendar: calendar)
         let count = leftToday > 0 ? leftToday : nil
-        let next = today(events, now: now, calendar: calendar).filter { $0.startAt > now && $0.id != hiding }
-        func line(_ event: CalendarEventRow) -> String { "\(clock(event.startAt, calendar: calendar)) \(event.title)" }
-        switch next.count {
-        case 0:
+        let hiding = hero.eventID
+        let left = today(events, now: now, calendar: calendar)
+        guard let event = left.first(where: { $0.startAt > now && $0.id != hiding }) else {
             let later = events.filter { !$0.allDay && !declined($0) && $0.startAt > now && !calendar.isDate($0.startAt, inSameDayAs: now) }
                 .min { $0.startAt < $1.startAt }
             guard let later else { return Tile(value: hiding == nil ? "Rien de prévu" : "Plus rien ensuite", count: count) }
             return Tile(value: later.title, detail: "\(day(later.startAt, now: now, calendar: calendar, capitalized: true)) \(clock(later.startAt, calendar: calendar))",
                         count: count)
-        case 1:
-            let event = next[0]
-            let detail = hiding == nil ? "\(clock(event.startAt, calendar: calendar)) – \(clock(event.endAt, calendar: calendar))"
-                : "Ensuite à \(clock(event.startAt, calendar: calendar))"
-            return Tile(value: event.title, detail: detail, count: count)
-        default:
-            return Tile(value: line(next[0]), detail: line(next[1]), count: count)
         }
+        if hiding != nil { return Tile(value: event.title, detail: "Ensuite à \(clock(event.startAt, calendar: calendar))", count: count) }
+        // The day says « Libre jusqu'à 16:30 » (nothing under way, `dayLine`): that start is the tile's own.
+        if case .day = hero, !left.contains(where: { $0.startAt <= now }) { return Tile(value: event.title, count: count) }
+        return Tile(value: event.title, detail: "\(clock(event.startAt, calendar: calendar)) – \(clock(event.endAt, calendar: calendar))", count: count)
     }
 
     /// What the Mails tile and card read of the mails.
@@ -408,21 +457,24 @@ enum PanelModel {
     }
 
     /// Mails: « 5 nouveaux » and the first names of the latest senders, or « Rien de neuf »; a mailbox to reconnect;
-    /// « Relier Gmail » without one.
-    static func mailsTile(_ mails: Mails?) -> Tile {
+    /// « Relier Gmail » without one. Nothing said twice (lot 9, 20/11): while the card under the tiles lists the mails
+    /// (`listed`), their senders are its own; a mailbox to reconnect that « À régler » names (`issues`) is its own too.
+    static func mailsTile(_ mails: Mails?, listed: Bool = false, issues: [Issue] = []) -> Tile {
         guard let mails, mails.hasMailboxes else { return Tile(value: "Relier Gmail", detail: "Dans Réglages") }
-        if let failure = mails.failure, needsReconnecting(failure.text) {
+        if let failure = mails.failure, needsReconnecting(failure.text), !issues.contains(where: { $0.id == Issue.account(failure.account) }) {
             return Tile(value: "\(AccountStyle.label(for: failure.account)) déconnecté", detail: "À reconnecter")
         }
         let count = mails.unread.count
         guard count > 0 else { return Tile(value: "Rien de neuf") }
+        let value = count == 1 ? "1 nouveau" : "\(count) nouveaux"
+        if listed { return Tile(value: value) }
         var names: [String] = []
         for thread in mails.unread {
             let name = firstName(sender(of: thread))
             if !names.contains(name) { names.append(name) }
             if names.count == 2 { break }
         }
-        return Tile(value: count == 1 ? "1 nouveau" : "\(count) nouveaux", detail: names.joined(separator: ", "))
+        return Tile(value: value, detail: names.joined(separator: ", "))
     }
 
     // MARK: - « À régler »
@@ -443,6 +495,9 @@ enum PanelModel {
         var action: Action
         /// What the click does, in the tooltip.
         var help: String
+
+        /// The line of a Google account to reconnect: one per account, for its agenda and its mails.
+        static func account(_ email: String) -> String { "account-\(email)" }
     }
 
     /// What the updates say (`UpdateService`).
@@ -464,11 +519,11 @@ enum PanelModel {
         let calendarBroken = accounts.filter { $0.lastError.map(needsReconnecting) ?? false }.map(\.email)
         var mailBroken: [String] = []
         if let mailFailure, needsReconnecting(mailFailure.text) { mailBroken.append(mailFailure.account) }
-        for email in calendarBroken + mailBroken where !issues.contains(where: { $0.id == "account-\(email)" }) {
+        for email in calendarBroken + mailBroken where !issues.contains(where: { $0.id == Issue.account(email) }) {
             let both = calendarBroken.contains(email) && mailBroken.contains(email)
             let detail = both ? "Son agenda et ses mails ne se mettent plus à jour" : calendarBroken.contains(email)
                 ? "Son agenda ne se met plus à jour" : "Ses mails ne se mettent plus à jour"
-            issues.append(Issue(id: "account-\(email)", title: "Compte \(AccountStyle.label(for: email)) à reconnecter", detail: detail,
+            issues.append(Issue(id: Issue.account(email), title: "Compte \(AccountStyle.label(for: email)) à reconnecter", detail: detail,
                                 action: .accounts, help: "Ouvrir Réglages › Comptes Google"))
         }
         if let updates, let version = updates.latest {
@@ -606,23 +661,21 @@ enum PanelModel {
     // MARK: - The height
 
     /// How many of the card's mails show under the panel's cap: all of them when they fit, else as many whole rows as
-    /// fit (never a row cut through its subject); 0 when not one does (the card keeps its header and « Voir les N
-    /// nouveaux »); nil when not even that fits (the card goes, the Mails tile still says how many). `fixed` is the
-    /// height of everything but the card, `chrome` the card without its rows; `rowHeight` 0 before they were measured.
+    /// fit (never a row cut through its subject); nil when not one does: the card has no header left to keep (lot 9,
+    /// 20/11), it goes and the Mails tile names the senders. `fixed` is the height of everything but the card, `chrome`
+    /// the card without its rows; `rowHeight` 0 before they were measured.
     static func mailRowsShown(cap: CGFloat, fixed: CGFloat, chrome: CGFloat, gap: CGFloat, rowHeight: CGFloat, count: Int) -> Int? {
         guard rowHeight > 0 else { return count }
         // Half a point of slack: the measures come rounded.
         let room = cap - fixed - gap - chrome + 0.5
-        guard room >= 0 else { return nil }
-        return min(count, Int((room / rowHeight).rounded(.down)))
+        let rows = min(count, Int((room / rowHeight).rounded(.down)))
+        return rows > 0 ? rows : nil
     }
 
-    /// The card's link: every mail it does not show, « Voir les 2 autres »; « Voir les 5 nouveaux » when only its
-    /// header is left; nil when it shows them all.
+    /// The card's link: every mail it does not show, « Voir les 2 autres »; nil when it shows them all.
     static func moreMails(total: Int, shown: Int) -> String? {
         let hidden = total - shown
         guard hidden > 0 else { return nil }
-        if shown == 0 { return hidden == 1 ? "Voir le nouveau" : "Voir les \(hidden) nouveaux" }
         return hidden == 1 ? "Voir l'autre" : "Voir les \(hidden) autres"
     }
 

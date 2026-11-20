@@ -2,11 +2,12 @@ import Persistence
 import PolhubDesign
 import SwiftUI
 
-/// « Nouveaux mails » (15/11): the unread mails of people in the inbox, those filed in a project first (a dot of its
-/// color), then those of a known contact, then the others; three at most, then « Voir les N autres » opens Mails.
-/// Hidden during a meeting. The only part of the panel that gives way under its height cap: by whole rows, never a row
-/// cut through its subject, the link counting every mail it does not show; with no room for a row, its header and
-/// « Voir les N nouveaux » alone (finding of 16/11).
+/// The new mails (15/11): the unread mails of people in the inbox, those filed in a project first (a dot of its color),
+/// then those of a known contact, then the others; three at most, then « Voir les N autres » opens Mails. Hidden during a
+/// meeting. No header (lot 9, 20/11): the Mails tile above it says « Mails » and how many, the card only lists them. The
+/// only part of the panel that gives way under its height cap: by whole rows, never a row cut through its subject, the
+/// link counting every mail it does not show; with no room for a row, it goes and the tile names the senders (finding
+/// of 16/11).
 struct PanelMailCard: View {
     let lines: [PanelModel.MailLine]
     @ObservedObject var mails: MailLibrary
@@ -21,29 +22,22 @@ struct PanelMailCard: View {
     var body: some View {
         let shown = Array(lines.prefix(min(max(0, rows), PanelModel.mailLimit)))
         VStack(alignment: .leading, spacing: Space.xs) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Nouveaux mails").font(.meta.weight(.semibold)).foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-                Text("\(lines.count)").font(.meta.weight(.semibold).monospacedDigit()).foregroundStyle(.secondary)
-            }
-            if !shown.isEmpty {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(shown) { line in
-                        PanelMailRow(line: line, open: { open(.mail(line.id)) }, markRead: { mails.markRead(line.thread) })
-                            // The rows are alike: the first one's height is the others'.
-                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
-                                guard line.id == shown.first?.id else { return }
-                                rowHeight = height
-                                report(rows: shown.count)
-                            }
-                    }
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(shown) { line in
+                    PanelMailRow(line: line, open: { open(.mail(line.id)) }, markRead: { mails.markRead(line.thread) })
+                        // The rows are alike: the first one's height is the others'.
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                            guard line.id == shown.first?.id else { return }
+                            rowHeight = height
+                            report(rows: shown.count)
+                        }
                 }
             }
             if let more = PanelModel.moreMails(total: lines.count, shown: shown.count) {
                 Button { open(.mail(nil)) } label: {
                     HStack(spacing: Space.xs) {
                         Text(more)
-                        Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold))
+                        Image(systemName: "chevron.right").font(.caption2.weight(.semibold))
                     }
                     .font(.meta.weight(.medium))
                     .padding(.horizontal, Space.s)
@@ -57,8 +51,9 @@ struct PanelMailCard: View {
                 .help("Ouvrir la boîte de réception" + (SidebarItem.mails.shortcut.map { " (⌘\($0))" } ?? ""))
             }
         }
+        // 12 on the sides, as the tiles above; 8 above and under, which the rows' own 4 bring to 12 (lot 9, 20/11).
         .padding(.horizontal, Space.m)
-        .padding(.vertical, 10)
+        .padding(.vertical, Space.s)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(PanelSurface.card, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(PanelSurface.edge))

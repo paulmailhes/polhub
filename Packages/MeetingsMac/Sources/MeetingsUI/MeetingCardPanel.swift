@@ -117,6 +117,8 @@ struct MeetingCardStack: View {
 
 /// One card, in glass (it floats over everything): the account's color in its round, the title, « Dans 2 min »,
 /// « Rejoindre » in Polhub's ink (design system v2, 19/11: an account's color never goes on a button), and the cross.
+/// It reads as « Coup d'œil » (lot 9, 20/11): its title in 15 points and its line in 13 (13 and 11 before, under the
+/// app's floor), 16 from its edge, « Rejoindre » the panel's main button and the cross the app's discreet one.
 struct MeetingCardView: View {
     let event: CalendarEventRow
     let color: Color
@@ -126,50 +128,38 @@ struct MeetingCardView: View {
     var body: some View {
         HStack(spacing: Space.m) {
             Image(systemName: "video.fill")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.meta.weight(.semibold))
                 .foregroundStyle(.white)
                 .frame(width: 32, height: 32)
                 .background(color, in: Circle())
             VStack(alignment: .leading, spacing: 2) {
                 Text(event.title)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(FloatingMetrics.title)
                     .lineLimit(1)
                     .help(event.title)
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     Text(MeetingCardPlan.when(event.startAt, now: context.date) + " · Google Meet")
-                        .font(.system(size: 11))
+                        .font(FloatingMetrics.meta)
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
                         .lineLimit(1)
                 }
             }
+            // The title takes all the room the buttons leave, before it is cut (lot 9, 20/11).
+            .layoutPriority(1)
             Spacer(minLength: Space.xs)
-            // Drawn by hand in Polhub's ink, its label the ink's opposite, rather than as a prominent button: the panel
-            // never becomes key, and a prominent button turns grey there. The account stays in its round (design
-            // system v2, 19/11).
-            Button(action: join) {
-                Text("Rejoindre")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Tint.onAccent.color)
-                    .padding(.horizontal, Space.m)
-                    .padding(.vertical, 6)
-                    .background(Tint.accent, in: Capsule())
-                    .contentShape(Capsule())
-            }
-            .buttonStyle(.plain)
-            .help("Ouvrir le Meet dans Dia avec le compte \(event.account)")
-            Button(action: close) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 22, height: 22)
-            }
-            .buttonStyle(.hover(.circle))
-            .help("Fermer")
-            .accessibilityLabel("Fermer le rappel")
+            // The panel's main button, drawn by hand in Polhub's ink (`.primary`): the panel never becomes key, and a
+            // prominent button of the system turns grey there. It answers the pointer and the press, as every button of
+            // the app (lot 9, 20/11: a plain capsule before). The account stays in its round (design system v2, 19/11).
+            Button("Rejoindre", action: join)
+                .buttonStyle(.primary)
+                .fixedSize()
+                .help("Ouvrir le Meet dans Dia avec le compte \(event.account)")
+            IconButton("xmark", help: "Fermer le rappel", size: 13, action: close)
         }
-        .padding(.leading, Space.m)
-        .padding(.trailing, Space.s + 2)
+        .padding(.leading, FloatingMetrics.margin)
+        // The cross's circle keeps its own air: its glyph sits 16 from the edge.
+        .padding(.trailing, Space.xs)
         .frame(width: MeetingCardMetrics.width, height: MeetingCardMetrics.height)
         .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
     }

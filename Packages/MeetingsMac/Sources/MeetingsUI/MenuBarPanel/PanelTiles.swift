@@ -11,8 +11,10 @@ struct PanelTiles: View {
     let hasAgenda: Bool
     let hasMailboxes: Bool
 
-    /// Two columns of 161 points in a panel of 360, margins 14 and a gap of 10.
+    /// Two columns of 160 points in a panel of 360, margins 16 and a gap of 8 (lot 9, 20/11: 161, 14 and 10 before).
     static let size = CGSize(width: (MenuBarPanel.width - 2 * MenuBarPanel.margin - MenuBarPanel.gap) / 2, height: 80)
+    /// The air inside a tile, on every side (lot 9, 20/11: 12 on the sides, 10 above and 9 under before).
+    static let padding: CGFloat = Space.m
 
     var body: some View {
         HStack(spacing: MenuBarPanel.gap) {
@@ -32,11 +34,16 @@ struct PanelTile: View {
     let tile: PanelModel.Tile
     let action: () -> Void
 
+    /// The value's lines (lot 9, 20/11): two when no detail sits under it, so a title takes the room (« Revue de
+    /// maquettes » under « Libre jusqu'à 16:30 », cut at « Revue de maque… » on one line).
+    static func valueLines(_ tile: PanelModel.Tile) -> Int { tile.detail == nil ? 2 : 1 }
+
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .center, spacing: 6) {
+            // From the top (lot 9, 20/11): the two tiles' values start on the same line, one or two lines long.
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .center, spacing: Space.s) {
                     AppIconImage(item.appIcon, size: 17)
                         .foregroundStyle(Color(hex: item.tint))
                     Text(item.title)
@@ -50,20 +57,22 @@ struct PanelTile: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(tile.value)
+                        .font(.rowTitle.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(Self.valueLines(tile))
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let detail = tile.detail {
+                        Text(detail)
+                            .font(.meta)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
                 Spacer(minLength: 0)
-                Text(tile.value)
-                    .font(.rowTitle.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                Text(tile.detail ?? " ")
-                    .font(.meta)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .padding(.top, 1)
             }
-            .padding(.horizontal, Space.m)
-            .padding(.top, 10)
-            .padding(.bottom, 9)
+            .padding(PanelTiles.padding)
             .frame(width: PanelTiles.size.width, height: PanelTiles.size.height, alignment: .topLeading)
             .background(PanelSurface.card, in: shape)
             .contentShape(shape)
