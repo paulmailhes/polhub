@@ -25,7 +25,7 @@ GitHub, et l'app la montre dans Réglages › Mises à jour.
   Nord » ».
 - **La typographie française** : une espace insécable avant « : » et dans « », « 42 % », un nombre jamais séparé du
   mot qu'il compte, une plage d'heures jamais coupée (« 10:00 – 11:00 »). Les initiales en couleur d'une personne se
-  lisent sur leur rond.
+  lisent sur leur rond. « de » s'élide devant un nom : « Attend le retour d'Anne-Sophie », « Se désabonner d'Atelier ».
 
 ## 0.46.0 — 20 novembre 2026
 

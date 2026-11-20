@@ -774,7 +774,7 @@ struct MailThreadView: View {
                 if let message = model.messages.last(where: { $0.listUnsubscribe != nil }), let sender = message.sender,
                    let method = mails.unsubscribeMethod(listUnsubscribe: message.listUnsubscribe, post: message.listUnsubscribePost,
                                                         authenticated: message.authenticated) {
-                    Button("Se désabonner de \(sender.display)…") { mails.askUnsubscribe(sender: sender, method: method) }
+                    Button("Se désabonner \(Words.of(sender.display))…") { mails.askUnsubscribe(sender: sender, method: method) }
                 }
                 Button("Signaler comme spam") {
                     mails.reportSpam(thread)
@@ -1139,9 +1139,9 @@ struct MailSubscriptionsView: View {
                         .buttonStyle(.secondary)
                         .help({
                             switch method {
-                            case .oneClick: "Se désabonner en un clic, auprès de \(method.domain)"
+                            case .oneClick: "Se désabonner en un clic, auprès \(Words.of(method.domain))"
                             case .mail: "Se désabonner par un mail que tu enverras toi-même"
-                            case .page: "Se désabonner sur la page de \(method.domain)"
+                            case .page: "Se désabonner sur la page \(Words.of(method.domain))"
                             }
                         }())
                 }

@@ -594,7 +594,7 @@ public final class MailLibrary: ObservableObject {
     }
 
     static func filedText(_ filing: MailFiling, project: String?, sender: String?) -> String {
-        let next = sender.map { "les prochains mails de \($0)" } ?? "les prochains mails"
+        let next = sender.map { "les prochains mails \(Words.of($0))" } ?? "les prochains mails"
         switch filing {
         case .project: return "Rangé dans « \(project ?? "le projet") » : \(next) suivront."
         // The tab « Personnes » is gone: a thread without a case goes to the folder (lot 10, 20/11).
@@ -1792,7 +1792,7 @@ public final class MailLibrary: ObservableObject {
                     guard (200..<400).contains(status) else { throw GoogleError.http(status) }
                     remember(unsubscribedFrom: sender)
                     // « Archiver » takes them out of the inbox; « Ranger » puts in a project or a case (lot 10, 20/11).
-                    message = "Désabonné de \(sender). Les mails déjà reçus restent ; « Tout archiver » les sort de la boîte de réception."
+                    message = "Désabonné \(Words.of(sender)). Les mails déjà reçus restent ; « Tout archiver » les sort de la boîte de réception."
                 } catch {
                     // What failed, then what does the same; one « : » in the sentence; the system's text to the journal
                     // (lot 10, 20/11).

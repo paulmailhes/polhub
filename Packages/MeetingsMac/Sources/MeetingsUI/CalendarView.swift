@@ -441,7 +441,7 @@ struct EventPopover: View {
             }
             .fixedSize(horizontal: false, vertical: true)
             if !EventCopies.canEdit(event), let organizer = event.organizer {
-                Text("Invitation de \(agenda.contact(email: organizer)?.name ?? organizer) : seul l'organisateur la modifie.")
+                Text("Invitation \(Words.of(agenda.contact(email: organizer)?.name ?? organizer)) : seul l'organisateur la modifie.")
                     .font(.meta).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
 

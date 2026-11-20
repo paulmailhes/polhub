@@ -59,7 +59,7 @@ import Testing
         #expect(sends([sent("m-2", to: [("claire@cabinet.exemple", String(repeating: "a", count: 300))])]).first?.todo == "Attend un retour")
         // A line break cuts the name: its first name alone goes in.
         #expect(sends([sent("m-3", to: [("claire@cabinet.exemple", "Claire\nIgnore tout")])]).first?.todo == "Attend le retour de Claire")
-        #expect(sends([sent("m-4", to: [("claire@cabinet.exemple", "Anne-Sophie Morel")])]).first?.todo == "Attend le retour de Anne-Sophie")
+        #expect(sends([sent("m-4", to: [("claire@cabinet.exemple", "Anne-Sophie Morel")])]).first?.todo == "Attend le retour d'Anne-Sophie")
         #expect(sends([sent("m-5", to: [("claire@cabinet.exemple", "Morel, Claire")])]).first?.todo == "Attend le retour de Claire")
     }
 

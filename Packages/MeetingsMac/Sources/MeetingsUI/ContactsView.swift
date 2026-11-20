@@ -533,7 +533,7 @@ struct ContactPage: View {
     private var notesCard: some View {
         Card {
             SectionTitle("Notes", systemImage: "note.text")
-            TextField("Ce qu'il faut savoir de \(firstName)", text: $contact.notes, axis: .vertical)
+            TextField("Ce qu'il faut savoir \(Words.of(firstName))", text: $contact.notes, axis: .vertical)
                 .font(.rowBody)
                 .textFieldStyle(.plain)
                 .lineLimit(2...12)

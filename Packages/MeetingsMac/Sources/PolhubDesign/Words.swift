@@ -272,6 +272,17 @@ public enum Words {
         text.prefix(1).uppercased() + text.dropFirst()
     }
 
+    /// « de Marc », « d'Anne-Sophie »: « de » before a name, a project or a sender, elided before a vowel (merge of lot
+    /// 10, 20/11). A « y » counts as a vowel before a consonant (« d'Yves », « de Yasmine »); an « h » never does, as it
+    /// may be aspirated.
+    public static func of(_ name: String) -> String {
+        let letters = Array(name.prefix(2).folding(options: [.caseInsensitive, .diacriticInsensitive], locale: locale))
+        let vowels: Set<Character> = ["a", "e", "i", "o", "u", "æ", "œ"]
+        guard let first = letters.first else { return "de \(name)" }
+        let elided = vowels.contains(first) || (first == "y" && letters.count > 1 && !vowels.contains(letters[1]) && letters[1].isLetter)
+        return elided ? "d'\(name)" : "de \(name)"
+    }
+
     // MARK: - Words said in many places
 
     /// A thread without a subject.

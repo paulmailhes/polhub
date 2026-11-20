@@ -65,7 +65,7 @@ struct MailPanels: ViewModifier {
             // One Quick Look for the list's chips and the open thread's files (15/11): two would fight over the
             // window's single preview panel.
             .quickLookPreview($mails.preview)
-            .confirmationDialog("Se désabonner de \(mails.unsubscribeRequest?.name ?? "") ?",
+            .confirmationDialog("Se désabonner \(Words.of(mails.unsubscribeRequest?.name ?? "")) ?",
                                 isPresented: Binding(get: { mails.unsubscribeRequest != nil }, set: { if !$0 { mails.unsubscribeRequest = nil } }),
                                 presenting: mails.unsubscribeRequest) { request in
                 Button("Se désabonner") { mails.unsubscribe(from: request.sender, by: request.method) }
@@ -74,7 +74,7 @@ struct MailPanels: ViewModifier {
                 switch request.method {
                 case .oneClick: Text("La demande part vers \(request.method.domain), le serveur de l'expéditeur. Les mails déjà reçus restent.")
                 case .mail(let to, _): Text("Un mail de désabonnement vers \(to) est préparé : tu l'envoies toi-même.")
-                case .page: Text("La page de désabonnement de \(request.method.domain) s'ouvre dans ton navigateur.")
+                case .page: Text("La page de désabonnement \(Words.of(request.method.domain)) s'ouvre dans ton navigateur.")
                 }
             }
             .sheet(isPresented: Binding(get: { mails.original != nil }, set: { if !$0 { mails.original = nil } })) {

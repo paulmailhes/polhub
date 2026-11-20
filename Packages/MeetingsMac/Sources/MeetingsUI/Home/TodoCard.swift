@@ -219,7 +219,7 @@ struct TodoCard: View {
                 .buttonStyle(.secondary)
                 .menuIndicator(.hidden)
                 .fixedSize()
-                .help("Reporter l'échéance de \(line.name)")
+                .help("Reporter l'échéance \(Words.of(line.name))")
             if TodoRules.nextCall(line.id, events: agenda.shown, now: Date()) != nil {
                 Menu { deliverItems(line) } label: { Text("Livré") }
                     .menuStyle(.button)

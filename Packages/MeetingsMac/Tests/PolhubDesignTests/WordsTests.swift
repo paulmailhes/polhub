@@ -195,6 +195,21 @@ import Testing
         #expect(Words.capitalizedFirst("aujourd'hui 16:30") == "Aujourd'hui 16:30" && Words.capitalizedFirst("") == "")
     }
 
+    /// « de » before a name loses its vowel before a vowel: « le retour d'Anne-Sophie », never « de Anne-Sophie ».
+    @Test func deIsElidedBeforeAVowel() {
+        #expect(Words.of("Marc") == "de Marc")
+        #expect(Words.of("Anne-Sophie") == "d'Anne-Sophie")
+        #expect(Words.of("Émile") == "d'Émile")
+        #expect(Words.of("atelier.exemple") == "d'atelier.exemple")
+        // A « y » before a consonant sounds as a vowel; before a vowel, it does not.
+        #expect(Words.of("Yves") == "d'Yves")
+        #expect(Words.of("Yasmine") == "de Yasmine")
+        // An « h » may be aspirated: « de » stays, the safe side.
+        #expect(Words.of("Hugo") == "de Hugo")
+        #expect(Words.of("contact@cabinet.exemple") == "de contact@cabinet.exemple")
+        #expect(Words.of("« Atelier »") == "de « Atelier »")
+    }
+
     // MARK: - Help bubbles
 
     @Test func aHelpBubbleIsAVerbAndItsShortcut() {

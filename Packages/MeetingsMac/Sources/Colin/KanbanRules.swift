@@ -34,7 +34,7 @@ public enum KanbanRules {
                 card.status = .priorite1
             }
             // « Attend le retour de Marc », as Réglages › Colin says it (lot 10, 20/11: « En attente retour de … »).
-            let task = name.map { "Attend le retour de \($0)" } ?? "Attend un retour"
+            let task = name.map { "Attend le retour \(Words.of($0))" } ?? "Attend un retour"
             if card.todo != task, !touched.contains(ProjectFieldKey(projectID: id, field: .todo)) {
                 edit.todo = task
                 card.todo = task

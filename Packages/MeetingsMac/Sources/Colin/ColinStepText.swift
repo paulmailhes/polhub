@@ -1,5 +1,6 @@
 import Foundation
 import Persistence
+import PolhubDesign
 
 /// What a step is about, as the screen can say it: a thread by its subject and person, a meeting by its title, and the
 /// project — found in Polhub's own base by the screen, never copied from what the tool gave back.
@@ -91,7 +92,7 @@ public enum ColinStepText {
         case "projets":
             return ("Regarde tes projets", "A regardé tes projets")
         case "actions":
-            return project.map { ("Lit les actions de \($0)", "A lu les actions de \($0)") } ?? ("Lit les actions", "A lu les actions")
+            return project.map { ("Lit les actions \(Words.of($0))", "A lu les actions \(Words.of($0))") } ?? ("Lit les actions", "A lu les actions")
         case "reunions":
             return ("Cherche tes réunions\(at)", "A cherché tes réunions\(at)")
         case "reunion":
