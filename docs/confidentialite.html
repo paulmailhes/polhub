@@ -10,7 +10,7 @@
 <main>
   <p><a href="index.html">← hub-board</a></p>
   <h1>Règles de confidentialité</h1>
-  <p class="meta">En vigueur le 18 novembre 2026.</p>
+  <p class="meta">En vigueur le 20 novembre 2026.</p>
 
   <p>hub est une application macOS installée sur l'ordinateur de son utilisateur. Elle n'a pas de serveur :
   l'éditeur de hub ne reçoit, ne voit et ne stocke aucune donnée de ses utilisateurs.</p>
@@ -57,8 +57,9 @@
     Google, pour lire les agendas et les boîtes autorisées et y écrire ce que l'utilisateur fait lui-même ou
     demande à un assistant qu'il a branché, à
     GitHub, pour vérifier
-    qu'une nouvelle version de l'application existe (sans aucune donnée de l'utilisateur), et, quand l'utilisateur a
-    allumé Colin, à Anthropic, par le programme Claude Code de son Mac (voir « Colin »).</li>
+    qu'une nouvelle version de l'application existe (sans aucune donnée de l'utilisateur), quand l'utilisateur a
+    allumé Colin, à Anthropic, par le programme Claude Code de son Mac (voir « Colin »), et, quand il a installé
+    l'add-on iPhone, à Apple, pour sa copie iCloud et ses notifications (voir « iPhone »).</li>
     <li>Première exception : afficher les images distantes d'un message contacte le serveur de son expéditeur, qui
     voit alors l'adresse IP du Mac et l'heure d'ouverture. hub ne les charge que pour les expéditeurs que
     l'utilisateur connaît (ses contacts, les personnes à qui il a écrit) quand Gmail confirme l'origine du message,
@@ -102,6 +103,22 @@
   <p>Si l'application Vigie est installée sur le même Mac, l'Accueil affiche l'usage de chaque compte Claude (la part
   de la semaine et des cinq heures consommée) : hub le lit chez Vigie, sur ce Mac, avec un jeton de lecture seule
   que Vigie lui réserve. Rien de cette lecture ne quitte la machine.</p>
+
+  <h2>iPhone</h2>
+  <p>L'add-on iPhone, que l'utilisateur installe lui-même dans Réglages › Add-ons, ouvre hub à l'app hub de son
+  iPhone :</p>
+  <ul>
+    <li>L'iPhone lit le Mac de l'utilisateur directement, par le réseau privé et chiffré qu'il a lui-même installé sur
+    ses appareils (Tailscale), avec un jeton donné une seule fois en scannant un code. Ce qu'il montre (mails,
+    rendez-vous, projets, réunions) vient du Mac ; il en garde une copie sur l'iPhone, protégée par le chiffrement
+    d'iOS.</li>
+    <li>Une copie des projets, des réunions et de leurs comptes rendus, des rendez-vous et du fil de Colin est rangée
+    dans la base iCloud privée de l'utilisateur (CloudKit), le contenu dans les champs chiffrés de bout en bout,
+    pour que l'iPhone les montre quand le Mac est éteint. <strong>Les mails n'y vont jamais.</strong></li>
+    <li>Les notifications passent par le service de notifications d'Apple : pour un nouveau mail, l'expéditeur, l'objet
+    et les premiers mots ; pour un rendez-vous, son titre et son heure. Apple les remet à l'iPhone de l'utilisateur
+    et ne s'en sert pour rien d'autre.</li>
+  </ul>
 
   <h2>Partage</h2>
   <p>En dehors de ce que l'utilisateur choisit de faire lire à ses propres assistants, ou à Colin s'il l'allume, aucune donnée n'est vendue,
