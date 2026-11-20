@@ -31,6 +31,6 @@ import Testing
         let kept = try #require(try ColinStore(base).messages(before: nil, limit: 10).first { $0.id == answer.id })
         #expect(kept.steps == answer.steps && kept.durationMs == 1_200)
         let backups = try FileManager.default.contentsOfDirectory(atPath: folder.appending(path: "Sauvegardes").path(percentEncoded: false))
-        #expect(backups.contains { $0.hasPrefix("Polhub-avant-v19-") })
+        #expect(backups.contains { $0.hasPrefix("hub-board-avant-v19-") })
     }
 }

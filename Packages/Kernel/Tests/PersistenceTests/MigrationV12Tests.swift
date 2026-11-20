@@ -95,7 +95,7 @@ import Testing
         #expect(try database.writer.read { try String.fetchOne($0, sql: "SELECT status FROM project") } == "priorité 1")
         let backups = folder.appending(path: "Sauvegardes", directoryHint: .isDirectory)
         let copies = try FileManager.default.contentsOfDirectory(atPath: backups.path(percentEncoded: false)).filter { $0.hasSuffix(".sqlite") }
-        #expect(copies.count == 1 && copies[0].hasPrefix("Polhub-avant-v12-") && copies[0].hasSuffix(".sqlite"))
+        #expect(copies.count == 1 && copies[0].hasPrefix("hub-board-avant-v12-") && copies[0].hasSuffix(".sqlite"))
         let copy = try DatabaseQueue(path: backups.appending(path: copies[0]).path(percentEncoded: false))
         #expect(try copy.read { try String.fetchOne($0, sql: "SELECT status FROM project") } == "idée")
         // Opened again, nothing left to migrate: no other copy.
@@ -124,7 +124,7 @@ import Testing
         #expect(try FileManager.default.contentsOfDirectory(atPath: backups.path(percentEncoded: false)).isEmpty)
         try AppDatabase.protect(queue, backups: backups, now: Date())
         let copies = try FileManager.default.contentsOfDirectory(atPath: backups.path(percentEncoded: false))
-        #expect(copies.count == 1 && copies[0].hasPrefix("Polhub-avant-v12-") && copies[0].hasSuffix(".sqlite"))
+        #expect(copies.count == 1 && copies[0].hasPrefix("hub-board-avant-v12-") && copies[0].hasSuffix(".sqlite"))
         let copy = try DatabaseQueue(path: backups.appending(path: copies[0]).path(percentEncoded: false))
         #expect(try copy.read { try String.fetchOne($0, sql: "SELECT status FROM project") } == "idée")
     }
@@ -152,6 +152,6 @@ import Testing
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = .current
         let day = calendar.date(from: DateComponents(year: 2026, month: 11, day: 15, hour: 12))!
-        #expect(AppDatabase.backupName(before: "v12", on: day) == "Polhub-avant-v12-20261115.sqlite")
+        #expect(AppDatabase.backupName(before: "v12", on: day) == "hub-board-avant-v12-20261115.sqlite")
     }
 }

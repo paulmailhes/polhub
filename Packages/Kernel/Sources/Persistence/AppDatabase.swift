@@ -83,12 +83,12 @@ public final class AppDatabase: Sendable {
         }
     }
 
-    /// `Polhub-avant-v12-20261115.sqlite`.
+    /// `hub-board-avant-v12-20261115.sqlite` (`Polhub-avant-…` before 20/11).
     public static func backupName(before migration: String, on date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyyMMdd"
-        return "Polhub-avant-\(migration)-\(formatter.string(from: date)).sqlite"
+        return "hub-board-avant-\(migration)-\(formatter.string(from: date)).sqlite"
     }
 
     private init(writer: any DatabaseWriter, author: ChangeAuthor = .paul) throws {

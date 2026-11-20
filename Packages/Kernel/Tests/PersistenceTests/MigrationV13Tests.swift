@@ -63,7 +63,7 @@ import Testing
         #expect(try database.writer.read { try $0.tableExists("inspiration_item") })
         let backups = folder.appending(path: "Sauvegardes", directoryHint: .isDirectory)
         let copies = try FileManager.default.contentsOfDirectory(atPath: backups.path(percentEncoded: false)).filter { $0.hasSuffix(".sqlite") }
-        #expect(copies.count == 1 && copies[0].hasPrefix("Polhub-avant-v13-"))
+        #expect(copies.count == 1 && copies[0].hasPrefix("hub-board-avant-v13-"))
     }
 
     /// The images live beside the base, one folder per kind, in the flavor's own folder.

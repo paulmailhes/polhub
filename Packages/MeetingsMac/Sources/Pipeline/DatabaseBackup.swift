@@ -6,26 +6,30 @@ import Persistence
 /// to be decided with Paul).
 public enum DatabaseBackup {
     public static let keep = 7
-    /// The copies made before a migration (`Polhub-avant-v12-20261115.sqlite`, AppDatabase): the three newest.
+    /// The copies made before a migration (`hub-board-avant-v12-20261115.sqlite`, AppDatabase): the three newest.
     public static let keepBeforeMigration = 3
 
     public static func name(for date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyyMMdd"
-        return "Polhub-\(formatter.string(from: date)).sqlite"
+        return "hub-board-\(formatter.string(from: date)).sqlite"
     }
 
     /// The daily copies beyond the seven most recent, and those made before a migration beyond the three most
     /// recent; any other file is left alone.
+    /// The copies of both names count together, by their day: `hub-board-…` since 20/11, `Polhub-…` before.
     public static func toRemove(_ names: [String]) -> [String] {
-        let copies = names.filter { $0.wholeMatch(of: /Polhub-\d{8}\.sqlite/) != nil }.sorted(by: >)
-        let beforeMigration = names.compactMap { name -> (day: String, name: String)? in
-            guard let match = name.wholeMatch(of: /Polhub-avant-[A-Za-z0-9_.]+-(\d{8})\.sqlite/) else { return nil }
-            return (String(match.output.1), name)
+        func newestFirst(_ pattern: Regex<(Substring, Substring)>) -> [String] {
+            names.compactMap { name -> (day: String, name: String)? in
+                guard let match = name.wholeMatch(of: pattern) else { return nil }
+                return (String(match.output.1), name)
+            }
+            .sorted { ($0.day, $0.name) > ($1.day, $1.name) }
+            .map(\.name)
         }
-        .sorted { ($0.day, $0.name) > ($1.day, $1.name) }
-        .map(\.name)
+        let copies = newestFirst(/(?:hub-board|Polhub)-(\d{8})\.sqlite/)
+        let beforeMigration = newestFirst(/(?:hub-board|Polhub)-avant-[A-Za-z0-9_.]+-(\d{8})\.sqlite/)
         return Array(copies.dropFirst(keep)) + Array(beforeMigration.dropFirst(keepBeforeMigration))
     }
 

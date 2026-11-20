@@ -145,7 +145,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
     // The meetings.
     private(set) var store: MeetingStore?
-    private(set) var paths = AppPaths.standard(AppFlavor.current)
+    /// The folders, moved under the name hub-board at the first launch that has it (20/11), before anything opens the base.
+    private(set) var paths: AppPaths = {
+        for line in AppFolders.moveLegacyFolders(dev: AppFlavor.current == .dev) { NSLog("%@", line) }
+        return AppPaths.standard(AppFlavor.current)
+    }()
     private var coordinator: MeetingCoordinator?
     private var watcher: DiaWatcher?
     private var presenter: HUDPresenter?
@@ -416,7 +420,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         }
         UserDefaults.standard.set(version, forKey: key)
         guard !isDevelopment, let current = SemanticVersion(version) else { return }
-        // The version that changes its name registers the relaunch again if it was on (0.57.1, 20/11).
+        // The app changed its name (Polhub.app → hub.app, 0.58.0): the relaunch that was on is registered again from its
+        // new place, once. launchd then starts its own copy, which this one hands over to.
+        let reregistered = "relanceReinscrite"
+        if UserDefaults.standard.bool(forKey: Preferences.Key.relaunchHint), !UserDefaults.standard.bool(forKey: reregistered) {
+            UserDefaults.standard.set(true, forKey: reregistered)
+            _ = RelaunchAgent.disable()
+            if let problem = RelaunchAgent.enable() { NSLog("%@", problem) }
+        }
+        // Whether the relaunch is on, for the version that changes its name (0.57.1, 20/11).
         UserDefaults.standard.set(RelaunchAgent.isEnabled, forKey: Preferences.Key.relaunchHint)
         // The swap script waits for this: the new version has really started.
         LaunchSignal.write(version: version)

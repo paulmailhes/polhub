@@ -36,7 +36,7 @@ import Testing
         #expect(stamp == ["at", "batch", "id", "reason", "source", "who"])
         #expect(base.author == .paul)
         let backups = try FileManager.default.contentsOfDirectory(atPath: folder.appending(path: "Sauvegardes").path(percentEncoded: false))
-        #expect(backups.contains { $0.hasPrefix("Polhub-avant-v18-") })
+        #expect(backups.contains { $0.hasPrefix("hub-board-avant-v18-") })
     }
 
     /// The helpers already running in open sessions keep their program of before: their writes still go through,

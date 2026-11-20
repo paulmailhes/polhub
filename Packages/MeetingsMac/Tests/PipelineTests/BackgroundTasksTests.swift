@@ -83,6 +83,17 @@ import Testing
         #expect(DatabaseBackup.toRemove(Array(before.prefix(3))).isEmpty)
     }
 
+    /// 20/11 : les copies s'appellent désormais hub-board-… ; celles d'avant, Polhub-…, comptent avec elles, par leur date.
+    @Test func backupsOfBothNamesShareTheCopiesKept() {
+        let daily = (1...5).map { String(format: "Polhub-202611%02d.sqlite", $0) } + (6...9).map { String(format: "hub-board-202611%02d.sqlite", $0) }
+        #expect(DatabaseBackup.toRemove(daily) == ["Polhub-20261102.sqlite", "Polhub-20261101.sqlite"])
+        let before = ["Polhub-avant-v12-20261101.sqlite", "hub-board-avant-v20-20261121.sqlite", "Polhub-avant-v13-20261102.sqlite",
+                      "Polhub-avant-v14-20261103.sqlite"]
+        #expect(DatabaseBackup.toRemove(before) == ["Polhub-avant-v12-20261101.sqlite"])
+        let day = Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 11, day: 21, hour: 12))!
+        #expect(DatabaseBackup.name(for: day) == "hub-board-20261121.sqlite")
+    }
+
     @Test func aMemorySampleIsComplete() {
         let sample = MemorySampler.sample(pressure: .warning, at: now)
         #expect(sample.pressure == "warning" && sample.at == now)

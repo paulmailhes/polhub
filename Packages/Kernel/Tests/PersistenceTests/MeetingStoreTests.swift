@@ -81,10 +81,13 @@ import Testing
         #expect(try store.memorySampleCount() == 1)
     }
 
+    /// The folders' names, whether the app has moved them yet (hub-board, 20/11) or not (Polhub).
     @Test func theDevFlavorNeverTouchesTheRealData() {
-        #expect(AppPaths.standard(.dev).database.path.contains("/Application Support/Polhub-dev/"))
-        #expect(AppPaths.standard(.prod).meetings.path.hasSuffix("/Application Support/Polhub/Reunions"))
-        #expect(AppPaths.standard(.dev).database != AppPaths.standard(.prod).database)
-        #expect(AppPaths.standard(.prod).logs.path.hasSuffix("/Library/Logs/Polhub"))
+        let dev = AppPaths.standard(.dev), prod = AppPaths.standard(.prod)
+        #expect(["hub-board-dev", "Polhub-dev"].contains(dev.root.lastPathComponent))
+        #expect(["hub-board", "Polhub"].contains(prod.root.lastPathComponent) && prod.root.path.contains("/Application Support/"))
+        #expect(prod.meetings == prod.root.appending(path: "Reunions", directoryHint: .isDirectory))
+        #expect(dev.database != prod.database && prod.database.lastPathComponent == "Polhub.sqlite")
+        #expect(["hub-board", "Polhub"].contains(prod.logs.lastPathComponent) && prod.logs.path.contains("/Library/Logs/"))
     }
 }

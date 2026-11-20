@@ -241,6 +241,6 @@ import Testing
         #expect(columns == ["createdAt", "id", "kind", "lastMessageAt", "projectID", "reason", "subject", "times"])
         // The copy of the base made before the migration is named after it.
         let backups = try FileManager.default.contentsOfDirectory(atPath: folder.appending(path: "Sauvegardes").path(percentEncoded: false))
-        #expect(backups.contains { $0.hasPrefix("Polhub-avant-v16-") })
+        #expect(backups.contains { $0.hasPrefix("hub-board-avant-v16-") })
     }
 }

@@ -1,4 +1,5 @@
 import Foundation
+import Observability
 
 /// Downloads a release, checks it, and hands over to the swap script.
 public struct Installer: Sendable {
@@ -33,9 +34,9 @@ public struct Installer: Sendable {
     public let signal: URL
 
     public init(
-        installed: URL = Bundle.main.bundleURL.pathExtension == "app" ? Bundle.main.bundleURL : URL(fileURLWithPath: "/Applications/Polhub.app"),
-        keepOld: URL = URL.applicationSupportDirectory.appending(path: "Polhub/Ancienne version", directoryHint: .isDirectory),
-        log: URL = URL.libraryDirectory.appending(path: "Logs/Polhub/mise-a-jour.log"),
+        installed: URL = Bundle.main.bundleURL.pathExtension == "app" ? Bundle.main.bundleURL : URL(fileURLWithPath: "/Applications/hub.app"),
+        keepOld: URL = AppFolders.support(dev: false).appending(path: "Ancienne version", directoryHint: .isDirectory),
+        log: URL = AppFolders.resolve(in: AppFolders.logsParent, dev: false).appending(path: "mise-a-jour.log"),
         signal: URL = LaunchSignal.file
     ) {
         self.installed = installed
@@ -153,7 +154,8 @@ public struct Installer: Sendable {
 
 /// Written by the app once it has really started: the swap script waits for it (review, important 3).
 public enum LaunchSignal {
-    public static var file: URL { URL.applicationSupportDirectory.appending(path: "Polhub/lancement.txt") }
+    /// In the data folder, where it is now: the bridge 0.57.1 reads it by the old path, which the move leaves as a link.
+    public static var file: URL { AppFolders.support(dev: false).appending(path: "lancement.txt") }
 
     public static func write(version: String) {
         try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)

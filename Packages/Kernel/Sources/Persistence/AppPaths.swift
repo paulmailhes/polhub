@@ -1,5 +1,6 @@
 import Domain
 import Foundation
+import Observability
 
 /// Where the app keeps its data. The development flavor has its own folders: it never reads or writes the
 /// production base or recordings.
@@ -12,18 +13,19 @@ public struct AppPaths: Sendable, Equatable {
         self.logs = logs
     }
 
+    /// The folders `hub-board` (20/11), or `Polhub` while the app has not moved them yet (`AppFolders`).
     public static func standard(_ flavor: AppFlavor) -> AppPaths {
-        let manager = FileManager.default
-        let support = manager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let library = manager.urls(for: .libraryDirectory, in: .userDomainMask)[0]
-        let name = flavor == .dev ? "Polhub-dev" : "Polhub"
-        return AppPaths(
-            root: support.appending(path: name, directoryHint: .isDirectory),
-            logs: library.appending(path: "Logs/\(name)", directoryHint: .isDirectory)
+        AppPaths(
+            root: AppFolders.resolve(in: AppFolders.supportParent, dev: flavor == .dev),
+            logs: AppFolders.resolve(in: AppFolders.logsParent, dev: flavor == .dev)
         )
     }
 
-    public var database: URL { root.appending(path: "Polhub.sqlite") }
+    /// A hidden identifier: the base keeps its file name of before 20/11, so that the previous version, after a
+    /// rollback, and a `polhub mcp` of an open session open the same base.
+    public static let databaseFileName = "Polhub.sqlite"
+
+    public var database: URL { root.appending(path: Self.databaseFileName) }
     public var meetings: URL { root.appending(path: "Reunions", directoryHint: .isDirectory) }
     public var backups: URL { root.appending(path: "Sauvegardes", directoryHint: .isDirectory) }
     /// The projects' logos, and the sites they come from (15/11): outside the base.

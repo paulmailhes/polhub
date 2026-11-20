@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import Observability
 import Network
 import Security
 
@@ -137,7 +138,7 @@ public struct GoogleClientConfig: Sendable {
     public static let authorizationEndpoint = URL(string: "https://accounts.google.com/o/oauth2/auth")!
     public static let tokenEndpoint = URL(string: "https://oauth2.googleapis.com/token")!
 
-    public static var file: URL { URL.applicationSupportDirectory.appending(path: "Polhub/google-client.json") }
+    public static var file: URL { AppFolders.support(dev: false).appending(path: "google-client.json") }
 
     public init(clientID: String, clientSecret: String) {
         self.clientID = clientID

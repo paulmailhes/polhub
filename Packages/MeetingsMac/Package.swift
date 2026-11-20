@@ -44,7 +44,7 @@ let package = Package(
         .target(name: "Transcription", dependencies: [.product(name: "Domain", package: "Kernel")]),
         // Updates from the versions published on GitHub, never during a meeting.
         // Lot 10 (20/11): what it says of an update that failed comes from `Words` (PolhubDesign).
-        .target(name: "Updates", dependencies: ["PolhubDesign"]),
+        .target(name: "Updates", dependencies: ["PolhubDesign", .product(name: "Observability", package: "Kernel")]),
         // Google calendars, contacts, and the automatic links between events, meetings, contacts and projects.
         // The design system: tokens and components every screen uses (14/11, docs/design-system.md).
         // Its icons are Phosphor's, duotone weight (MIT, the license beside them in Icons/) (15/11).
@@ -63,7 +63,7 @@ let package = Package(
             .product(name: "Persistence", package: "Kernel"),
         ]),
         // What every Google service shares: sign-in, Keychain, one session per app (14/11).
-        .target(name: "GoogleKit"),
+        .target(name: "GoogleKit", dependencies: [.product(name: "Observability", package: "Kernel")]),
         .target(name: "Agenda", dependencies: [
             "GoogleKit",
             .product(name: "Domain", package: "Kernel"),

@@ -36,7 +36,7 @@ import Testing
         #expect(knowledge == ["id", "text", "updatedAt"])
         // The copy of the base made before the migration is named after it.
         let backups = try FileManager.default.contentsOfDirectory(atPath: folder.appending(path: "Sauvegardes").path(percentEncoded: false))
-        #expect(backups.contains { $0.hasPrefix("Polhub-avant-v17-") })
+        #expect(backups.contains { $0.hasPrefix("hub-board-avant-v17-") })
     }
 
     @Test func aHelperOfV16StillReadsABaseOfV17() throws {
