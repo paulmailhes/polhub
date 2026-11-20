@@ -61,6 +61,12 @@ public enum TranscriptChecks {
     ]
     static let loneWords: Set<String> = ["merci", "ok", "okay", "merci beaucoup"]
 
+    /// A sentence Whisper invents in the silence, as a whole (the Dictée, 20/11).
+    public static func isPhantom(_ text: String) -> Bool {
+        let said = normalized(text)
+        return phantomPatterns.contains { said.range(of: $0, options: .regularExpression) != nil }
+    }
+
     public static func clean(_ results: [ChunkResult]) -> [CleanChunk] {
         var chunks = results.map(cleanOne)
         removeRepeats(&chunks)

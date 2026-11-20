@@ -41,6 +41,8 @@ let package = Package(
     ],
     targets: [
         .target(name: "AudioCapture"),
+        // La Dictée (20/11) : ce qui se teste sans micro ni modèle.
+        .target(name: "Dictation", dependencies: ["Transcription"]),
         .target(name: "Transcription", dependencies: [.product(name: "Domain", package: "Kernel"), .product(name: "Observability", package: "Kernel")]),
         // Updates from the versions published on GitHub, never during a meeting.
         // Lot 10 (20/11): what it says of an update that failed comes from `Words` (HubDesign).
@@ -179,6 +181,7 @@ let package = Package(
         .testTarget(name: "MailTests", dependencies: ["Mail", "GoogleKit", "MailFormat", .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel"),
                                                       .product(name: "GRDB", package: "GRDB.swift")]),
         .testTarget(name: "MailFormatTests", dependencies: ["MailFormat", .product(name: "Persistence", package: "Kernel")]),
+        .testTarget(name: "DictationTests", dependencies: ["Dictation"]),
         .testTarget(name: "TranscriptionTests", dependencies: ["Transcription", .product(name: "Domain", package: "Kernel")]),
         .testTarget(name: "MeetingDetectionTests", dependencies: ["MeetingDetection"], resources: [.copy("Fixtures")]),
         .testTarget(name: "MeetingsUITests", dependencies: ["MeetingsUI", "Colin", "ProjectsUI", "HubDesign", "Notifications", "Inspiration", "Agenda", "GoogleKit", "Mail", "MailFormat", "Updates", "Pipeline", "Recording", "AudioCapture", "LocalServer", .product(name: "HubLink", package: "Link"), .product(name: "HubCloud", package: "Link"), .product(name: "Domain", package: "Kernel"), .product(name: "Persistence", package: "Kernel")]),
