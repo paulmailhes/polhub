@@ -12,6 +12,9 @@ public struct PhoneDevice: Codable, Equatable, Sendable, Identifiable {
     public var lastSeenAt: Date?
     /// Where Apple's push service reaches it (20/11); nil until it allowed the notifications.
     public var pushToken: String?
+    /// The key its notifications are sealed with (20/11), made by the iPhone; nil for an app before 1.7.0, which then
+    /// gets « Nouveau mail » without its content.
+    public var pushKey: String?
 
     /// Known through iCloud for its notifications, not paired by a code: it reads nothing.
     public var byICloud: Bool { tokenHash.isEmpty }
@@ -64,25 +67,29 @@ public final class PhoneDevices: @unchecked Sendable {
     }
 
     /// The iPhone's push token, given by the iPhone, or forgotten (nil) when Apple no longer knows it.
-    public func setPushToken(_ token: String?, for id: UUID) {
+    public func setPushToken(_ token: String?, key: String? = nil, for id: UUID) {
         lock.withLock {
             var devices = stored()
-            guard let index = devices.firstIndex(where: { $0.id == id }), devices[index].pushToken != token else { return }
+            guard let index = devices.firstIndex(where: { $0.id == id }) else { return }
+            let newKey = token == nil ? nil : (key ?? devices[index].pushKey)
+            guard devices[index].pushToken != token || devices[index].pushKey != newKey else { return }
             devices[index].pushToken = token
+            devices[index].pushKey = newKey
             save(devices)
         }
     }
 
     /// An iPhone that gave its notifications' address through iCloud (20/11): known by it, never by a token, so it reads
     /// nothing; its address replaces the one it gave before.
-    public func setCloudPushToken(_ token: String, name: String, id: UUID, at date: Date) {
+    public func setCloudPushToken(_ token: String, name: String, id: UUID, key: String? = nil, at date: Date) {
         lock.withLock {
             var devices = stored()
             if let index = devices.firstIndex(where: { $0.id == id }) {
                 devices[index].pushToken = token
+                if let key { devices[index].pushKey = key }
                 devices[index].lastSeenAt = date
             } else {
-                devices.append(PhoneDevice(id: id, name: name, tokenHash: "", pairedAt: date, lastSeenAt: date, pushToken: token))
+                devices.append(PhoneDevice(id: id, name: name, tokenHash: "", pairedAt: date, lastSeenAt: date, pushToken: token, pushKey: key))
             }
             save(devices)
         }

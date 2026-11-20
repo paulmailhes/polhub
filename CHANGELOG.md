@@ -3,6 +3,16 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.60.0 — 20 novembre 2026
+
+**Les notifications de l'iPhone passent chiffrées.**
+
+- Le Mac chiffre chaque notification avec une clé que ton iPhone a faite et lui a donnée. Apple ne transporte plus que
+  « Nouveau mail » et un texte illisible. Ton iPhone (1.7.0) le déchiffre et te montre l'expéditeur, l'objet et les
+  premiers mots, comme avant.
+- Tant que l'iPhone n'a pas donné sa clé, ses notifications disent seulement « Nouveau mail ». Il la donne dès que tu
+  ouvres hub sur l'iPhone.
+
 ## 0.59.0 — 20 novembre 2026
 
 **Réglages › Add-ons : ce que hub sait faire, à installer ou à retirer.**

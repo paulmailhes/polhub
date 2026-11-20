@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import HubLink
 import Notifications
 
 /// hub's notifications on the iPhone (20/11): what the Mac notifies — new mails, new events, a summary ready, a
@@ -57,21 +58,36 @@ final class PhonePush {
 
     /// What Apple receives: the title and the body, and what to open on a touch (the thread, the event).
     /// Each iPhone once: one paired by Tailscale and known through iCloud has one address (20/11).
-    static func targets(_ devices: [PhoneDevice]) -> [(UUID, String)] {
+    struct Target: Equatable {
+        let id: UUID
+        let token: String
+        let key: String?
+    }
+
+    static func targets(_ devices: [PhoneDevice]) -> [Target] {
         var seen: Set<String> = []
         return devices.compactMap { device in
             guard let token = device.pushToken, seen.insert(token).inserted else { return nil }
-            return (device.id, token)
+            // Two records of one iPhone (paired, and known through iCloud): the key either of them knows.
+            let key = device.pushKey ?? devices.first { $0.pushToken == token && $0.pushKey != nil }?.pushKey
+            return Target(id: device.id, token: token, key: key)
         }
     }
 
-    static func payload(_ notice: PlannedNotice, badge: Int? = nil) -> Data {
-        var alert = ["title": notice.title, "body": notice.body]
-        if let subtitle = notice.subtitle { alert["subtitle"] = subtitle }
-        var aps: [String: Any] = ["alert": alert, "sound": "default"]
+    /// What Apple carries (20/11): never a mail's or an event's words in clear. With the iPhone's key, they go sealed
+    /// in « hub », opened by its notification extension; without it, only « Nouveau mail » or « hub ». What to open on a
+    /// touch (the thread, the event) stays: identifiers, no content.
+    static func payload(_ notice: PlannedNotice, badge: Int? = nil, key: String?) -> Data {
+        let placeholder = notice.kind == .mail ? "Nouveau mail" : "Nouvelle notification"
+        var aps: [String: Any] = ["alert": ["title": "hub", "body": placeholder], "sound": "default"]
         if let badge { aps["badge"] = badge }
         if let thread = notice.threadKey { aps["thread-id"] = thread }
-        var payload: [String: Any] = ["aps": aps]
+        var payload: [String: Any] = [:]
+        if let key, let sealed = try? PushSeal.seal(PushContent(title: notice.title, subtitle: notice.subtitle, body: notice.body), key: key) {
+            aps["mutable-content"] = 1
+            payload["hub"] = sealed
+        }
+        payload["aps"] = aps
         if let thread = notice.threadKey { payload["fil"] = thread }
         if let event = notice.eventID { payload["rendez-vous"] = event }
         return (try? JSONSerialization.data(withJSONObject: payload)) ?? Data()
@@ -88,22 +104,23 @@ final class PhonePush {
     /// Sent now to every iPhone; a token Apple no longer knows is forgotten.
     func send(_ notice: PlannedNotice) async {
         let count = badge?()
-        await post(Self.payload(notice, badge: count), collapse: notice.id, priority: 10)
+        await post({ target in Self.payload(notice, badge: count, key: target.key) }, collapse: notice.id, priority: 10)
     }
 
     /// The icon's number changed: it goes alone.
     func sendBadge(_ count: Int) async {
-        await post(Self.badgePayload(count), collapse: "badge", priority: 5)
+        await post({ _ in Self.badgePayload(count) }, collapse: "badge", priority: 5)
     }
 
-    private func post(_ body: Data, collapse: String, priority: Int) async {
+    private func post(_ body: (Target) -> Data, collapse: String, priority: Int) async {
         let targets = Self.targets(devices.all)
         guard !targets.isEmpty, let token = providerToken() else { return }
-        for (id, device) in targets {
-            guard let url = URL(string: "https://api.push.apple.com/3/device/\(device)") else { continue }
+        for target in targets {
+            let id = target.id
+            guard let url = URL(string: "https://api.push.apple.com/3/device/\(target.token)") else { continue }
             var request = URLRequest(url: url, timeoutInterval: 15)
             request.httpMethod = "POST"
-            request.httpBody = body
+            request.httpBody = body(target)
             request.setValue("bearer \(token)", forHTTPHeaderField: "authorization")
             request.setValue(Self.topic, forHTTPHeaderField: "apns-topic")
             request.setValue("alert", forHTTPHeaderField: "apns-push-type")

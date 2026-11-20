@@ -230,6 +230,8 @@ targets:
         product: HubLink
       - package: Link
         product: HubCloud
+      # The notification extension (20/11): it opens the sealed notifications.
+      - target: HubPhoneNotifications
     settings:
       base:
         PRODUCT_NAME: hub
@@ -247,6 +249,35 @@ targets:
         CODE_SIGN_INJECT_BASE_ENTITLEMENTS: YES
         OTHER_CODE_SIGN_FLAGS: ""
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+  # hub's notifications on the iPhone, opened (20/11): Apple carries them sealed, this extension shows their words.
+  HubPhoneNotifications:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "27.0"
+    sources:
+      - path: App/HubPhoneNotifications
+        excludes:
+          - "*.plist"
+          - "*.entitlements"
+      - path: App/HubPhone/PushKeyStore.swift
+    dependencies:
+      - package: Link
+        product: HubLink
+    settings:
+      base:
+        PRODUCT_NAME: HubPhoneNotifications
+        PRODUCT_BUNDLE_IDENTIFIER: fr.paulmailhes.polhub.ios.notifications
+        IPHONEOS_DEPLOYMENT_TARGET: "27.0"
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: App/HubPhoneNotifications/Info.plist
+        CODE_SIGN_ENTITLEMENTS: App/HubPhoneNotifications/HubPhoneNotifications.entitlements
+        MARKETING_VERSION: "1.0.0"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: CQ43U6XX4Z
+        CODE_SIGN_INJECT_BASE_ENTITLEMENTS: YES
+        OTHER_CODE_SIGN_FLAGS: ""
 schemes:
   HubPhone:
     build:

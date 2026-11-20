@@ -187,9 +187,10 @@ import Testing
         #expect(answer.status == 200 && api.devices.all.first?.pushToken == hex)
         let notice = PlannedNotice(id: "mail|moi@exemple.fr|a|1", fireDate: Date(), title: "Camille Martin", body: "Maquette v2 du site",
                                    eventID: nil, meetCode: nil, account: nil, threadKey: "moi@exemple.fr|a", kind: .mail)
-        let payload = try #require(try JSONSerialization.jsonObject(with: PhonePush.payload(notice)) as? [String: Any])
+        let payload = try #require(try JSONSerialization.jsonObject(with: PhonePush.payload(notice, key: nil)) as? [String: Any])
         #expect(payload["fil"] as? String == "moi@exemple.fr|a")
-        #expect(((payload["aps"] as? [String: Any])?["alert"] as? [String: String])?["title"] == "Camille Martin")
+        // Without the iPhone's key, Apple carries no word of the mail (20/11).
+        #expect(((payload["aps"] as? [String: Any])?["alert"] as? [String: String]) == ["title": "hub", "body": "Nouveau mail"])
     }
 
     @Test func theProviderTokenIsSignedByTheKey() throws {

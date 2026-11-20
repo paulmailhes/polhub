@@ -149,10 +149,12 @@ final class PhoneSession {
     func givePushToken(_ token: String) async {
         guard !demo else { return }
         var given = false
+        // The key the notifications are sealed with goes with the address (20/11): Apple then reads nothing of them.
+        let key = PushKeyStore.key(create: true)
         if let cloud, let device = UIDevice.current.identifierForVendor?.uuidString {
-            given = await cloud.give(pushToken: token, name: UIDevice.current.name, device: device)
+            given = await cloud.give(pushToken: token, name: UIDevice.current.name, device: device, key: key)
         }
-        if client != nil, (try? await post(LinkStatus.self, LinkAPI.Path.push, body: LinkPushToken(token: token))) != nil { given = true }
+        if client != nil, (try? await post(LinkStatus.self, LinkAPI.Path.push, body: LinkPushToken(token: token, key: key))) != nil { given = true }
         if given {
             pushGivenAt = Date()
             UserDefaults.standard.set(pushGivenAt, forKey: "notifications.donne")

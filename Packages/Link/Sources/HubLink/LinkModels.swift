@@ -471,9 +471,12 @@ public struct LinkPushToken: Codable, Sendable, Equatable {
     public var token: String
     /// The iPhone's name, when it gives its address through iCloud (20/11).
     public var name: String?
+    /// The key its notifications are sealed with (`PushSeal`, 20/11); absent from an iPhone app before 1.7.0.
+    public var key: String?
 
-    public init(token: String, name: String? = nil) {
+    public init(token: String, name: String? = nil, key: String? = nil) {
         self.token = token
         self.name = name
+        self.key = key
     }
 }

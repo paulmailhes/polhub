@@ -27,10 +27,40 @@ import Testing
     @Test func eachPushCarriesTheNumberAndOneCanCarryItAlone() throws {
         let notice = PlannedNotice(id: "mail|a", fireDate: Date(), title: "Camille Martin", body: "Bonjour", eventID: nil, meetCode: nil,
                                    account: nil, threadKey: "moi@exemple.fr|a", kind: .mail)
-        let payload = try #require(try JSONSerialization.jsonObject(with: PhonePush.payload(notice, badge: 4)) as? [String: Any])
+        let payload = try #require(try JSONSerialization.jsonObject(with: PhonePush.payload(notice, badge: 4, key: nil)) as? [String: Any])
         #expect((payload["aps"] as? [String: Any])?["badge"] as? Int == 4)
         let alone = try #require(try JSONSerialization.jsonObject(with: PhonePush.badgePayload(2)) as? [String: Any])
         #expect(alone as NSDictionary == ["aps": ["badge": 2]] as NSDictionary)
+    }
+
+    /// 20/11 : Apple ne lit plus rien d'un mail. Avec la clé de l'iPhone, le contenu part chiffré ; sans elle (une app
+    /// d'avant), seulement « Nouveau mail ».
+    @Test func applePassesOnlyWhatItCannotRead() throws {
+        let notice = PlannedNotice(id: "mail|a", fireDate: Date(), title: "Camille Martin", body: "Bonjour, voici le devis", eventID: nil,
+                                   meetCode: nil, account: nil, threadKey: "moi@exemple.fr|a", kind: .mail, subtitle: "Devis du site")
+        let key = PushSeal.newKey()
+        let data = PhonePush.payload(notice, badge: 1, key: key)
+        let text = String(decoding: data, as: UTF8.self)
+        #expect(!text.contains("Camille") && !text.contains("Devis") && !text.contains("Bonjour"))
+        let payload = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let aps = try #require(payload["aps"] as? [String: Any])
+        #expect(aps["mutable-content"] as? Int == 1)
+        #expect((aps["alert"] as? [String: String])?["body"] == "Nouveau mail")
+        let sealed = try #require(payload["hub"] as? String)
+        #expect(PushSeal.open(sealed, key: key) == PushContent(title: "Camille Martin", subtitle: "Devis du site", body: "Bonjour, voici le devis"))
+        let plain = PhonePush.payload(notice, badge: 1, key: nil)
+        let without = String(decoding: plain, as: UTF8.self)
+        #expect(!without.contains("Camille") && without.contains("Nouveau mail"))
+        #expect((try JSONSerialization.jsonObject(with: plain) as? [String: Any])?["hub"] == nil)
+    }
+
+    @Test func theMacKeepsTheKeyTheIPhoneGives() throws {
+        let devices = PhoneDevices(defaults: try #require(UserDefaults(suiteName: "cles-\(UUID().uuidString)")))
+        let id = UUID()
+        let key = PushSeal.newKey()
+        devices.setCloudPushToken("0a1b", name: "iPhone", id: id, key: key, at: Date())
+        #expect(devices.all.first?.pushKey == key)
+        #expect(PhonePush.targets(devices.all).first?.key == key)
     }
 
     @Test func aSwipeOnTheIPhoneDeletesTheThreadOnTheMac() async throws {

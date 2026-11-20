@@ -41,8 +41,8 @@ final class PhoneCloudReader {
 
     /// Where to send this iPhone's notifications, for the Mac to read (20/11): one record by iPhone, written again
     /// when the address changes, even when Tailscale never joined the Mac.
-    func give(pushToken token: String, name: String, device: String) async -> Bool {
-        guard await drive.available(), let data = try? LinkAPI.encoder.encode(LinkPushToken(token: token, name: name)) else { return false }
+    func give(pushToken token: String, name: String, device: String, key: String?) async -> Bool {
+        guard await drive.available(), let data = try? LinkAPI.encoder.encode(LinkPushToken(token: token, name: name, key: key)) else { return false }
         let request = CloudRequest(key: CloudRequest.notifications + "-" + device, kind: CloudRequest.notifications, data: data, date: Date())
         return (try? await drive.send(request)) != nil
     }

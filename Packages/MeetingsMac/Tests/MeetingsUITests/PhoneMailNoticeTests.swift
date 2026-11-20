@@ -18,9 +18,11 @@ import Testing
         #expect(notices.count == 2)
         #expect(notices[0].title == "Camille Martin" && notices[0].subtitle == "Maquette v2" && notices[0].body == "Voici la nouvelle version du site.")
         #expect(notices[1].threadKey == "moi@exemple.fr|b" && notices[1].kind == .mail)
-        let payload = try #require(try JSONSerialization.jsonObject(with: PhonePush.payload(notices[0])) as? [String: Any])
-        let alert = try #require((payload["aps"] as? [String: Any])?["alert"] as? [String: String])
-        #expect(alert == ["title": "Camille Martin", "subtitle": "Maquette v2", "body": "Voici la nouvelle version du site."])
+        // Sealed for the iPhone (20/11): the iPhone opens the same three lines.
+        let key = PushSeal.newKey()
+        let payload = try #require(try JSONSerialization.jsonObject(with: PhonePush.payload(notices[0], key: key)) as? [String: Any])
+        let sealed = try #require(payload["hub"] as? String)
+        #expect(PushSeal.open(sealed, key: key) == PushContent(title: "Camille Martin", subtitle: "Maquette v2", body: "Voici la nouvelle version du site."))
         #expect((payload["aps"] as? [String: Any])?["thread-id"] as? String == "moi@exemple.fr|a")
     }
 

@@ -115,9 +115,10 @@
     <li>Une copie des projets, des réunions et de leurs comptes rendus, des rendez-vous et du fil de Colin est rangée
     dans la base iCloud privée de l'utilisateur (CloudKit), le contenu dans les champs chiffrés de bout en bout,
     pour que l'iPhone les montre quand le Mac est éteint. <strong>Les mails n'y vont jamais.</strong></li>
-    <li>Les notifications passent par le service de notifications d'Apple : pour un nouveau mail, l'expéditeur, l'objet
-    et les premiers mots ; pour un rendez-vous, son titre et son heure. Apple les remet à l'iPhone de l'utilisateur
-    et ne s'en sert pour rien d'autre.</li>
+    <li>Les notifications passent par le service de notifications d'Apple, <strong>chiffrées de bout en bout</strong> :
+    l'iPhone fait une clé, qu'il donne au Mac par le réseau privé de l'utilisateur ou par son iCloud, jamais par
+    Apple. Apple ne transmet qu'un texte chiffré et « Nouveau mail » ; l'iPhone le déchiffre lui-même pour montrer
+    l'expéditeur, l'objet et les premiers mots.</li>
   </ul>
 
   <h2>Partage</h2>

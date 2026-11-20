@@ -127,7 +127,8 @@ import HubLink
                 let prefix = CloudRequest.notifications + "-"
                 guard request.key.hasPrefix(prefix), let id = UUID(uuidString: String(request.key.dropFirst(prefix.count))),
                       let push = try? LinkAPI.decoder.decode(LinkPushToken.self, from: request.data), !push.token.isEmpty else { continue }
-                api.devices.setCloudPushToken(push.token, name: push.name ?? "iPhone", id: id, at: request.date)
+                api.devices.setCloudPushToken(push.token, name: push.name ?? "iPhone", id: id,
+                                              key: push.key.flatMap { PushSeal.isKey($0) ? $0 : nil }, at: request.date)
             }
             token = page.token
             defaults.set(token, forKey: Self.requestsKey)

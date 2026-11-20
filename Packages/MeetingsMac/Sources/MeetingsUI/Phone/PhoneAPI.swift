@@ -201,7 +201,8 @@ final class PhoneAPI {
             let push = try body(LinkPushToken.self)
             let token = push.token.filter(\.isHexDigit)
             guard token.count >= 32 else { throw LinkError("Ce jeton de notifications est illisible.") }
-            devices.setPushToken(token, for: device.id)
+            // Its key seals the notifications (20/11); a text that is no key is ignored.
+            devices.setPushToken(token, key: push.key.flatMap { PushSeal.isKey($0) ? $0 : nil }, for: device.id)
             return try Self.json(LinkStatus(appVersion: appVersion, device: device.name, badge: badge?(), addOns: addOnNames))
         case LinkAPI.Path.colinUndo:
             let undo = try body(LinkUndo.self)
