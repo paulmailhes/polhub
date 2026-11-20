@@ -19,7 +19,10 @@ final class PhoneAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
         Task { @MainActor in await session?.givePushToken(token) }
     }
 
-    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: any Error) {}
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: any Error) {
+        let message = error.localizedDescription
+        Task { @MainActor in session?.pushProblem = message }
+    }
 
     /// Shown even while Polhub is open.
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,

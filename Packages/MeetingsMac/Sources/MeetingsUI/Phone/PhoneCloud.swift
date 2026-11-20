@@ -15,6 +15,8 @@ import PolhubLink
     /// The fingerprint of each meeting in the list when its detail was copied: a long transcript is not read again.
     static let meetingsKey = "icloud.reunions"
     static let lastKey = "icloud.derniereCopie"
+    /// Where the Mac stopped reading the iPhone's requests.
+    static let requestsKey = "icloud.demandes"
     static let interval: Duration = .seconds(120)
     /// The meetings copied with their detail: those the iPhone lists.
     static let meetingCount = 50
@@ -87,6 +89,7 @@ import PolhubLink
             problem = Texts.signedOut
             return
         }
+        await readRequests(drive)
         let plan = plan()
         var hashes = defaults.dictionary(forKey: Self.hashesKey) as? [String: String] ?? [:]
         let changed = plan.answers.filter { hashes[$0.key] != Self.hash($0.value) }
@@ -111,6 +114,23 @@ import PolhubLink
             }
         } catch {
             problem = Texts.failed
+        }
+    }
+
+    /// What the iPhone asked through iCloud: where to send its notifications, even when Tailscale never joined them.
+    func readRequests(_ drive: any CloudDrive) async {
+        var token = defaults.data(forKey: Self.requestsKey)
+        while true {
+            guard let page = try? await drive.requests(since: token) else { return }
+            for request in page.requests where request.kind == CloudRequest.notifications {
+                let prefix = CloudRequest.notifications + "-"
+                guard request.key.hasPrefix(prefix), let id = UUID(uuidString: String(request.key.dropFirst(prefix.count))),
+                      let push = try? LinkAPI.decoder.decode(LinkPushToken.self, from: request.data), !push.token.isEmpty else { continue }
+                api.devices.setCloudPushToken(push.token, name: push.name ?? "iPhone", id: id, at: request.date)
+            }
+            token = page.token
+            defaults.set(token, forKey: Self.requestsKey)
+            if !page.more { return }
         }
     }
 

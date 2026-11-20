@@ -536,6 +536,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         }
         // The new mails of the main tab (14/11).
         mails?.onArrival = { arrived in Task { await hub.mailsArrived(arrived) } }
+        // Every new mail on the iPhone, as Gmail would show it (20/11).
+        mails?.onPhoneArrival = { arrived in Task { await hub.phoneMailsArrived(arrived) } }
         mails?.onSendFailed = { subject, thread in Task { await hub.mailNotSent(subject: subject, threadKey: thread) } }
         // A programmed mail that left late, waits for Paul or did not leave (wave B).
         mails?.onScheduleNotice = { notice in Task { await hub.mailScheduleNotice(notice) } }

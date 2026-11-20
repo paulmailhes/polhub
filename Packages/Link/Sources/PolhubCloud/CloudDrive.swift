@@ -16,6 +16,19 @@ public struct CloudChanges: Equatable, Sendable {
     }
 }
 
+/// The iPhone's requests since the Mac's last look, and where to look next time.
+public struct CloudRequests: Equatable, Sendable {
+    public var requests: [CloudRequest]
+    public var token: Data?
+    public var more: Bool
+
+    public init(requests: [CloudRequest], token: Data?, more: Bool) {
+        self.requests = requests
+        self.token = token
+        self.more = more
+    }
+}
+
 /// The copy in iCloud, as the Mac writes it and the iPhone reads it; the tests give their own.
 public protocol CloudDrive: Sendable {
     /// Whether this device is signed in to iCloud.
@@ -24,6 +37,10 @@ public protocol CloudDrive: Sendable {
     func save(_ copies: [CloudCopy]) async throws -> [String: String]
     func delete(_ keys: [String]) async throws
     func changes(since token: Data?) async throws -> CloudChanges
+    /// The iPhone writes a request (its notifications' address).
+    func send(_ request: CloudRequest) async throws
+    /// The Mac reads the requests, without the copies it wrote itself.
+    func requests(since token: Data?) async throws -> CloudRequests
 }
 
 /// The user's private iCloud database, in the zone `Polhub` of the container shared by the Mac and the iPhone.
@@ -90,6 +107,36 @@ public final class ICloudDrive: CloudDrive, @unchecked Sendable {
             return CloudChanges(copies: [], deleted: [], token: nil, more: false)
         } catch let error as CKError where error.code == .changeTokenExpired && token != nil {
             return try await changes(since: nil)
+        }
+    }
+
+    public func send(_ request: CloudRequest) async throws {
+        try await ensureZone()
+        let (saved, _) = try await database.modifyRecords(saving: [CloudRecords.record(request)], deleting: [], savePolicy: .allKeys, atomically: false)
+        for (_, result) in saved { if case .failure(let error) = result { throw error } }
+    }
+
+    public func requests(since token: Data?) async throws -> CloudRequests {
+        let since = token.flatMap { try? NSKeyedUnarchiver.unarchivedObject(ofClass: CKServerChangeToken.self, from: $0) }
+        do {
+            // Only the kind of each record: the copies' contents are not downloaded again.
+            let result = try await database.recordZoneChanges(inZoneWith: CloudRecords.zoneID, since: since, desiredKeys: ["genre"])
+            let ids = result.modificationResultsByID.compactMap { id, item -> CKRecord.ID? in
+                guard case .success(let modification) = item, modification.record.recordType == CloudRecords.requestType else { return nil }
+                return id
+            }
+            var requests: [CloudRequest] = []
+            if !ids.isEmpty {
+                for (_, item) in try await database.records(for: ids) {
+                    if case .success(let record) = item, let request = CloudRecords.request(record) { requests.append(request) }
+                }
+            }
+            let next = try? NSKeyedArchiver.archivedData(withRootObject: result.changeToken, requiringSecureCoding: true)
+            return CloudRequests(requests: requests, token: next, more: result.moreComing)
+        } catch let error as CKError where error.code == .zoneNotFound || error.code == .userDeletedZone {
+            return CloudRequests(requests: [], token: nil, more: false)
+        } catch let error as CKError where error.code == .changeTokenExpired && token != nil {
+            return try await requests(since: nil)
         }
     }
 }

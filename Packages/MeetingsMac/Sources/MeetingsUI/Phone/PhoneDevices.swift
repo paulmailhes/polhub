@@ -12,6 +12,9 @@ public struct PhoneDevice: Codable, Equatable, Sendable, Identifiable {
     public var lastSeenAt: Date?
     /// Where Apple's push service reaches it (20/11); nil until it allowed the notifications.
     public var pushToken: String?
+
+    /// Known through iCloud for its notifications, not paired by a code: it reads nothing.
+    public var byICloud: Bool { tokenHash.isEmpty }
 }
 
 /// The iPhones paired with this Mac, in its preferences. A QR code not scanned within ten minutes is forgotten.
@@ -49,7 +52,7 @@ public final class PhoneDevices: @unchecked Sendable {
         let hash = Self.hash(token)
         return lock.withLock {
             var devices = stored()
-            guard let index = devices.firstIndex(where: { $0.tokenHash == hash }) else { return nil }
+            guard let index = devices.firstIndex(where: { !$0.tokenHash.isEmpty && $0.tokenHash == hash }) else { return nil }
             if devices[index].lastSeenAt == nil, now.timeIntervalSince(devices[index].pairedAt) >= Self.pairingLifetime { return nil }
             // Noted once a minute at most: the preferences are not written on every request.
             if devices[index].lastSeenAt.map({ now.timeIntervalSince($0) >= 60 }) ?? true {
@@ -66,6 +69,21 @@ public final class PhoneDevices: @unchecked Sendable {
             var devices = stored()
             guard let index = devices.firstIndex(where: { $0.id == id }), devices[index].pushToken != token else { return }
             devices[index].pushToken = token
+            save(devices)
+        }
+    }
+
+    /// An iPhone that gave its notifications' address through iCloud (20/11): known by it, never by a token, so it reads
+    /// nothing; its address replaces the one it gave before.
+    public func setCloudPushToken(_ token: String, name: String, id: UUID, at date: Date) {
+        lock.withLock {
+            var devices = stored()
+            if let index = devices.firstIndex(where: { $0.id == id }) {
+                devices[index].pushToken = token
+                devices[index].lastSeenAt = date
+            } else {
+                devices.append(PhoneDevice(id: id, name: name, tokenHash: "", pairedAt: date, lastSeenAt: date, pushToken: token))
+            }
             save(devices)
         }
     }

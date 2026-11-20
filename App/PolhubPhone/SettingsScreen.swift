@@ -23,9 +23,20 @@ struct PhoneSettingsScreen: View {
                         Button("Ouvrir les Réglages de l'iPhone") {
                             if let url = URL(string: UIApplication.openNotificationSettingsURLString) { UIApplication.shared.open(url) }
                         }
+                    } else if notifications == .notDetermined {
+                        Button("Activer les notifications") {
+                            Task {
+                                await PhoneAppDelegate.ask()
+                                notifications = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+                            }
+                        }
+                    }
+                    LabeledContent("Adresse donnée au Mac", value: session.pushGivenAt.map { "à " + LinkWords.time($0) } ?? "pas encore")
+                    if let problem = session.pushProblem {
+                        Text(problem).font(.footnote).foregroundStyle(.red)
                     }
                 } footer: {
-                    Text("Les nouveaux mails, les rendez-vous, les rappels et les comptes rendus arrivent ici quand le Mac est allumé.")
+                    Text("Chaque nouveau mail, les rendez-vous, les rappels et les comptes rendus arrivent ici quand le Mac est allumé.")
                 }
                 Section {
                     Button("Délier cet iPhone", role: .destructive) { confirming = true }

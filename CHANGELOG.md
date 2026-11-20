@@ -3,6 +3,19 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.56.0 — 20 novembre 2026
+
+**Chaque nouveau mail sonne sur l'iPhone, comme dans Gmail.**
+
+- Tous les nouveaux mails de tes boîtes arrivent en notification sur l'iPhone, et plus seulement ceux de l'onglet
+  « Personnes » : l'expéditeur, l'objet et le début du texte, regroupés par fil. Au-delà de dix d'un coup, une ligne
+  dit le reste.
+- Le Mac garde ses propres réglages de notifications de mails ; l'iPhone ne reçoit plus deux fois le même mail.
+- L'iPhone donne au Mac son adresse de notifications par iCloud, même quand Tailscale ne joint pas le Mac. Il l'avait
+  donnée seulement par Tailscale, au premier lancement : elle n'était jamais arrivée. Réglages › iPhone le montre
+  (« Notifications par iCloud »).
+- Un iPhone relié et connu par iCloud ne reçoit qu'une notification.
+
 ## 0.55.0 — 20 novembre 2026
 
 **Une copie dans ton iCloud, pour l'iPhone quand le Mac est éteint.**

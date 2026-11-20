@@ -37,3 +37,16 @@ import Testing
         #expect(try CloudRecords.copy(other) == nil)
     }
 }
+
+/// What the iPhone asks of the Mac through iCloud (20/11): first, where to send its notifications.
+@Suite struct CloudRequestTests {
+    @Test func aRequestIsEncryptedAndComesBack() throws {
+        let request = CloudRequest(key: "notifications-AAAA", kind: CloudRequest.notifications, data: Data(#"{"token":"ab"}"#.utf8),
+                                   date: Date(timeIntervalSince1970: 1_795_000_000))
+        let record = CloudRecords.record(request)
+        #expect(record.recordType == "Demande" && record.recordID.recordName == "notifications-AAAA")
+        #expect(record.encryptedValues["contenu"] as? Data == request.data && record["contenu"] == nil)
+        #expect(CloudRecords.request(record) == request)
+        #expect(try CloudRecords.copy(record) == nil)
+    }
+}

@@ -34,6 +34,18 @@ import Testing
 
         func delete(_ keys: [String]) async throws { lock.withLock { for key in keys { copies[key] = nil } } }
         func changes(since token: Data?) async throws -> CloudChanges { CloudChanges(copies: Array(stored.values), deleted: [], token: nil, more: false) }
+
+        private var asked: [CloudRequest] = []
+        func ask(_ request: CloudRequest) { lock.withLock { asked.append(request) } }
+        func send(_ request: CloudRequest) async throws { ask(request) }
+        /// Each request once, as iCloud's changes would give them.
+        func requests(since token: Data?) async throws -> CloudRequests {
+            lock.withLock {
+                let given = asked
+                asked = []
+                return CloudRequests(requests: given, token: Data("jeton".utf8), more: false)
+            }
+        }
     }
 
     struct World {

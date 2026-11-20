@@ -56,8 +56,19 @@ final class PhonePush {
     }
 
     /// What Apple receives: the title and the body, and what to open on a touch (the thread, the event).
+    /// Each iPhone once: one paired by Tailscale and known through iCloud has one address (20/11).
+    static func targets(_ devices: [PhoneDevice]) -> [(UUID, String)] {
+        var seen: Set<String> = []
+        return devices.compactMap { device in
+            guard let token = device.pushToken, seen.insert(token).inserted else { return nil }
+            return (device.id, token)
+        }
+    }
+
     static func payload(_ notice: PlannedNotice) -> Data {
-        var aps: [String: Any] = ["alert": ["title": notice.title, "body": notice.body], "sound": "default"]
+        var alert = ["title": notice.title, "body": notice.body]
+        if let subtitle = notice.subtitle { alert["subtitle"] = subtitle }
+        var aps: [String: Any] = ["alert": alert, "sound": "default"]
         if let thread = notice.threadKey { aps["thread-id"] = thread }
         var payload: [String: Any] = ["aps": aps]
         if let thread = notice.threadKey { payload["fil"] = thread }
@@ -67,7 +78,7 @@ final class PhonePush {
 
     /// Sent now to every paired iPhone; a token Apple no longer knows is forgotten.
     func send(_ notice: PlannedNotice) async {
-        let targets = devices.all.compactMap { device in device.pushToken.map { (device.id, $0) } }
+        let targets = Self.targets(devices.all)
         guard !targets.isEmpty, let token = providerToken() else { return }
         let body = Self.payload(notice)
         for (id, device) in targets {

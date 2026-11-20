@@ -438,6 +438,11 @@ public struct LinkColin: Codable, Sendable, Equatable {
 /// Where Apple's push service reaches this iPhone, in hexadecimal.
 public struct LinkPushToken: Codable, Sendable, Equatable {
     public var token: String
+    /// The iPhone's name, when it gives its address through iCloud (20/11).
+    public var name: String?
 
-    public init(token: String) { self.token = token }
+    public init(token: String, name: String? = nil) {
+        self.token = token
+        self.name = name
+    }
 }

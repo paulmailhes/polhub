@@ -15,6 +15,8 @@ public struct PlannedNotice: Equatable, Sendable {
     public var fireDate: Date
     public var title: String
     public var body: String
+    /// Under the title, on the iPhone: a mail's subject (20/11).
+    public var subtitle: String?
     /// The event's row id (`account|eventID`), for a click that opens it.
     public var eventID: String?
     public var meetCode: String?
@@ -29,8 +31,9 @@ public struct PlannedNotice: Equatable, Sendable {
     public var kind: Kind
 
     public init(id: String, fireDate: Date, title: String, body: String, eventID: String?, meetCode: String?, account: String?,
-                meetingID: UUID? = nil, threadKey: String? = nil, folder: String? = nil, kind: Kind = .reminder) {
+                meetingID: UUID? = nil, threadKey: String? = nil, folder: String? = nil, kind: Kind = .reminder, subtitle: String? = nil) {
         self.id = id
+        self.subtitle = subtitle
         self.fireDate = fireDate
         self.title = title
         self.body = body
@@ -132,6 +135,22 @@ public enum NotificationPlan {
             PlannedNotice(id: "mail|\(mail.threadKey)|\(Int(now.timeIntervalSince1970))", fireDate: now, title: mail.sender, body: mail.subject,
                           eventID: nil, meetCode: nil, account: nil, threadKey: mail.threadKey, kind: .mail)
         }
+    }
+
+    /// The mails on the iPhone (Paul, 20/11: « comme si c'était Gmail qui me l'affichait »): each one, its sender, its
+    /// subject and its first words, grouped by thread; past ten at once, one line for the rest.
+    public static func phoneMailNotices(_ mails: [(threadKey: String, sender: String, subject: String, snippet: String)], now: Date) -> [PlannedNotice] {
+        let shown = mails.prefix(10).map { mail in
+            PlannedNotice(id: "mail|\(mail.threadKey)|\(Int(now.timeIntervalSince1970))", fireDate: now, title: mail.sender,
+                          body: mail.snippet.isEmpty ? mail.subject : mail.snippet, eventID: nil, meetCode: nil, account: nil,
+                          threadKey: mail.threadKey, kind: .mail, subtitle: mail.snippet.isEmpty ? nil : mail.subject)
+        }
+        guard mails.count > 10 else { return shown }
+        let rest = mails.count - 10
+        return shown + [PlannedNotice(id: "mails|\(Int(now.timeIntervalSince1970))", fireDate: now,
+                                      title: rest == 1 ? "1 autre nouveau mail" : "\(rest) autres nouveaux mails",
+                                      body: mails.dropFirst(10).prefix(3).map(\.sender).joined(separator: ", ") + (rest > 3 ? "…" : ""),
+                                      eventID: nil, meetCode: nil, account: nil, kind: .mail)]
     }
 
     /// The drafts an agent just prepared (18/11), said by Colin: one notice each, or one line for more than three.

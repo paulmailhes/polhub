@@ -38,10 +38,10 @@ public final class NotificationHub: ObservableObject {
     public var phoneReminders: (([PlannedNotice]) -> Void)?
 
     /// The one door of the notifications shown now: macOS shows it, the list keeps it, the iPhone gets it.
-    private func deliver(_ notice: PlannedNotice) async {
+    private func deliver(_ notice: PlannedNotice, toPhone: Bool = true) async {
         await client.deliverNow(notice, sound: settings().sound)
         inbox?.record(notice, at: notice.fireDate)
-        await phone?(notice)
+        if toPhone { await phone?(notice) }
     }
 
     /// The reminders whose time came since the last look go to the list, at the time macOS showed them.
@@ -130,13 +130,14 @@ public final class NotificationHub: ObservableObject {
 
     /// New mails of the main tab, as the mail engine heard them (14/11).
     public func mailsArrived(_ mails: [(threadKey: String, sender: String, subject: String)]) async {
-        guard !mails.isEmpty else { return }
-        // The iPhone hears of them even when the Mac keeps quiet about mails (20/11).
-        guard settings().mailNotices else {
-            for notice in NotificationPlan.mailNotices(mails, now: Date()) { await phone?(notice) }
-            return
-        }
-        for notice in NotificationPlan.mailNotices(mails, now: Date()) { await deliver(notice) }
+        guard !mails.isEmpty, settings().mailNotices else { return }
+        // The iPhone has its own, for every mail (`phoneMailsArrived`).
+        for notice in NotificationPlan.mailNotices(mails, now: Date()) { await deliver(notice, toPhone: false) }
+    }
+
+    /// Every new mail, on the iPhone, as Gmail would show it (20/11), whatever the Mac says of mails.
+    public func phoneMailsArrived(_ mails: [(threadKey: String, sender: String, subject: String, snippet: String)]) async {
+        for notice in NotificationPlan.phoneMailNotices(mails, now: Date()) { await phone?(notice) }
     }
 
     /// The drafts an agent just prepared (18/11): Colin says they are ready, by the first name of who each is written

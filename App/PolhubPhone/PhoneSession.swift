@@ -4,6 +4,7 @@ import PolhubCloud
 import PolhubLink
 import Security
 import SwiftUI
+import UIKit
 
 /// The iPhone's link to its Mac (20/11): the address and the key, kept in the Keychain; the last answers, kept on the
 /// iPhone. In the demonstration mode (`-demo`), made-up answers and nothing leaves the iPhone.
@@ -119,10 +120,24 @@ final class PhoneSession {
     /// What a touched notification opens: the tabs and the mails follow it, then clear it.
     var opening: Opening?
 
-    /// The push token, given to the Mac, which sends the notifications.
+    /// When the Mac last received where to send the notifications: through iCloud, or Tailscale.
+    private(set) var pushGivenAt = UserDefaults.standard.object(forKey: "notifications.donne") as? Date
+    /// Why Apple gave no address for the notifications, if it refused.
+    var pushProblem: String?
+
+    /// The push token, given to the Mac, which sends the notifications: through iCloud, which needs no Tailscale, and
+    /// directly when the Mac answers (20/11).
     func givePushToken(_ token: String) async {
         guard !demo else { return }
-        _ = try? await post(LinkStatus.self, LinkAPI.Path.push, body: LinkPushToken(token: token))
+        var given = false
+        if let cloud, let device = UIDevice.current.identifierForVendor?.uuidString {
+            given = await cloud.give(pushToken: token, name: UIDevice.current.name, device: device)
+        }
+        if client != nil, (try? await post(LinkStatus.self, LinkAPI.Path.push, body: LinkPushToken(token: token))) != nil { given = true }
+        if given {
+            pushGivenAt = Date()
+            UserDefaults.standard.set(pushGivenAt, forKey: "notifications.donne")
+        }
     }
 
     // MARK: - Writing (lot 3, 20/11)

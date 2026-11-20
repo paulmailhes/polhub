@@ -152,6 +152,8 @@ enum PhoneSettingsText {
     /// « Relié le 20 nov. · vu il y a 4 min », « En attente du code ».
     static func seen(_ device: PhoneDevice, now: Date = Date()) -> String {
         guard let seen = device.lastSeenAt else { return "En attente du code" }
+        // Known through iCloud for its notifications only (20/11).
+        if device.byICloud { return "Notifications par iCloud · vu \(Words.ago(seen, now: now))" }
         return "Relié le \(Words.shortDate(device.pairedAt, now: now)) · vu \(Words.ago(seen, now: now))"
     }
 }

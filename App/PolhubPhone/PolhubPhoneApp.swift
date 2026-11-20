@@ -29,6 +29,9 @@ struct PolhubPhoneApp: App {
             // At launch and back in front, the Mac's copy in iCloud.
             .task(id: phase) {
                 guard phase == .active else { return }
+                // Each time in front: the notifications' address goes again to the Mac, through iCloud (20/11).
+                delegate.session = session
+                if !session.demo { await PhoneAppDelegate.ask() }
                 await session.refreshCloud()
             }
             // Paired: the notifications are asked once, and their token goes to the Mac at each launch.

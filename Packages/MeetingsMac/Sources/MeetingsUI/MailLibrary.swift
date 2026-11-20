@@ -255,6 +255,9 @@ public final class MailLibrary: ObservableObject {
     private var tellingDraftNews = false
     /// The new mails of the main tab, for the notifications (set by the app).
     public var onArrival: (([(threadKey: String, sender: String, subject: String)]) -> Void)?
+    /// Every new mail of an inbox, for the iPhone (Paul, 20/11: « une notification pour tous les mails »), with its first
+    /// words.
+    public var onPhoneArrival: (([(threadKey: String, sender: String, subject: String, snippet: String)]) -> Void)?
     /// A mail that did not leave, for the notifications (set by the app): its subject, its thread.
     public var onSendFailed: ((String, String?) -> Void)?
     /// A programmed mail that left late, waits for Paul or did not leave (wave B), for the notifications.
@@ -469,6 +472,9 @@ public final class MailLibrary: ObservableObject {
     private func arrived(_ rows: [MailMessageRow]) {
         let visible = rows.filter { !hidden.contains($0.account) }
         guard !visible.isEmpty else { return }
+        onPhoneArrival?(visible.sorted { $0.date > $1.date }.map {
+            (threadKey: $0.threadKey, sender: $0.sender?.display ?? "Nouveau mail", subject: $0.subject, snippet: $0.snippet)
+        })
         let threads = Dictionary(((try? store.threads(keys: Array(Set(visible.map(\.threadKey))))) ?? []).map { ($0.id, $0) },
                                  uniquingKeysWith: { first, _ in first })
         let projectsOnly = defaults.bool(forKey: Preferences.Key.mailNoticesProjects)
