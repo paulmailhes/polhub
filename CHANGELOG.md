@@ -3,6 +3,14 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.63.2 — 20 novembre 2026
+
+**La Dictée remarche avec des écouteurs Bluetooth.**
+
+- Avec des écouteurs comme micro, l'écoute de la Dictée s'arrêtait net : elle croyait le micro à 48 kHz alors qu'il
+  tourne à 24 kHz. Elle lit maintenant le micro comme l'enregistreur des réunions, à son vrai format, quel qu'il soit.
+- Changer de micro dans Réglages › Dictée marche dès la dictée suivante.
+
 ## 0.63.1 — 20 novembre 2026
 
 **La Dictée remarche.**
