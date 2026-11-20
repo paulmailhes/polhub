@@ -50,7 +50,7 @@ struct PhoneSettingsPane: View {
                     if let pairing = access.pairing {
                         PairingCode(link: pairing.link, until: pairing.until) { access.endPairing() }
                     } else {
-                        Button("Relier un iPhone") { access.pair() }
+                        Button("Relier un iPhone") { Task { await access.pair() } }
                     }
                 }
             }
@@ -82,7 +82,16 @@ struct PairingCode: View {
             VStack(alignment: .leading, spacing: Space.s) {
                 Text(PhoneSettingsText.scan)
                 Text("Valable jusqu'à \(Words.time(until)).").font(.meta).foregroundStyle(.secondary)
-                Button("Fermer", action: done)
+                HStack {
+                    // Universal Clipboard: copied here, pasted on the iPhone by « Coller le lien du code » (20/11).
+                    Button("Copier le lien") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(link.absoluteString, forType: .string)
+                    }
+                    .help("Copier le lien, à coller dans Polhub sur l'iPhone")
+                    Button("Fermer", action: done)
+                }
+                Text(PhoneSettingsText.paste).font(.meta).foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, Space.s)
@@ -106,6 +115,7 @@ enum PhoneSettingsText {
     static let addressHelp = "L'adresse de ce Mac sur Tailscale, que l'iPhone appelle."
     static let serveHelp = "Tailscale ne publie pas encore Polhub : colle cette commande dans le Terminal, une seule fois."
     static let scan = "Scanne ce code avec l'appareil photo de ton iPhone : il ouvre Polhub et le relie à ce Mac."
+    static let paste = "Ou « Copier le lien », puis sur l'iPhone, dans Polhub : « Coller le lien du code »."
 
     /// « Relié le 20 nov. · vu il y a 4 min », « En attente du code ».
     static func seen(_ device: PhoneDevice, now: Date = Date()) -> String {

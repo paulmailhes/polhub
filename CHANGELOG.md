@@ -3,6 +3,13 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.52.1 — 20 novembre 2026
+
+- Réglages › iPhone trouve seul l'adresse du Mac sur Tailscale : celle que `tailscale serve` publie. Lancée depuis Polhub,
+  la commande de Tailscale essayait d'ouvrir son app au lieu de répondre, et l'adresse restait vide.
+- Sous le QR code, « Copier le lien » : collé sur l'iPhone par « Coller le lien du code », il relie l'iPhone sans
+  l'appareil photo.
+
 ## 0.52.0 — 20 novembre 2026
 
 **Depuis l'iPhone, on écrit et on parle à Colin.**

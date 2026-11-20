@@ -89,7 +89,7 @@ struct SettingsScreenTests {
         let phone = PhoneAccess(database: agenda.database, agenda: agenda, mails: mails, appVersion: "0.51.0", defaults: phoneDefaults, port: 0)
         let (_, seen) = phone.store.pair(name: "iPhone")
         _ = phone.store.device(for: seen)
-        phone.pair()
+        await phone.pair()
 
         func window(_ startup: StartupControl) -> some View {
             MainWindowView(library: library, projects: projects, agenda: agenda, mails: mails, thread: thread, colinProbe: probe,

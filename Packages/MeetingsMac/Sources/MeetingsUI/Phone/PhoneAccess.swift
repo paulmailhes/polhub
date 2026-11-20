@@ -33,7 +33,14 @@ public final class PhoneAccess: ObservableObject {
         set {
             objectWillChange.send()
             defaults.set(newValue, forKey: Self.enabledKey)
-            if newValue { Task { await start() } } else { stop() }
+            if newValue {
+                Task {
+                    await start()
+                    await readTailscale()
+                }
+            } else {
+                stop()
+            }
         }
     }
 
@@ -81,10 +88,11 @@ public final class PhoneAccess: ObservableObject {
         pairing = nil
     }
 
-    /// A QR code for a new iPhone, valid ten minutes; nil without an address.
-    public func pair() {
+    /// A QR code for a new iPhone, valid ten minutes. Without an address, Tailscale is asked first.
+    public func pair() async {
+        if Self.base(address) == nil { await readTailscale() }
         guard let base = Self.base(address) else {
-            problem = "Indique d'abord l'adresse du Mac sur ton réseau Tailscale."
+            problem = "Polhub n'a pas trouvé l'adresse du Mac sur Tailscale : colle-la dans « Adresse » (https://…:8443)."
             return
         }
         problem = nil
@@ -119,14 +127,29 @@ public final class PhoneAccess: ObservableObject {
 
     // MARK: - Tailscale
 
-    /// Reads the Mac's name on the tailnet, for the address, and whether `tailscale serve` publishes the server.
+    /// Reads the address `tailscale serve` publishes (else the Mac's name on the tailnet), and whether it publishes the
+    /// server.
     public func readTailscale() async {
-        let status = await Self.run(["status", "--json"])
         let serve = await Self.run(["serve", "status", "--json"])
-        if address.isEmpty, let name = Self.dnsName(status) {
+        published = serve.map { $0.contains("127.0.0.1:\(port)") }
+        guard Self.base(address) == nil else { return }
+        if let published = Self.publishedAddress(serve) {
+            address = published
+        } else if let name = Self.dnsName(await Self.run(["status", "--json"])) {
             address = "https://\(name):\(LinkAPI.publishedPort)"
         }
-        published = serve.map { $0.contains("127.0.0.1:\(LinkAPI.port)") }
+    }
+
+    /// « https://mac.exemple.ts.net:8443 »: the address `tailscale serve` publishes the server at.
+    static func publishedAddress(_ json: String?, port: UInt16 = LinkAPI.port) -> String? {
+        guard let data = json?.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let web = object["Web"] as? [String: Any] else { return nil }
+        let host = web.first { _, value in
+            guard let handlers = (value as? [String: Any])?["Handlers"] as? [String: Any] else { return false }
+            return handlers.values.contains { (($0 as? [String: Any])?["Proxy"] as? String)?.contains("127.0.0.1:\(port)") == true }
+        }?.key
+        return host.map { "https://\($0)" }
     }
 
     /// The Mac's name on the tailnet (`Self.DNSName`), without its final dot.
@@ -137,17 +160,23 @@ public final class PhoneAccess: ObservableObject {
         return name.hasSuffix(".") ? String(name.dropLast()) : name
     }
 
-    /// The Tailscale command line, read only; nil when it is not installed or fails.
+    /// The Tailscale command line, read only; nil when it is not installed, fails or does not answer within five seconds.
+    /// Launched from an app, the Tailscale app's binary may start as the app itself unless told it is its command line
+    /// (`TAILSCALE_BE_CLI`, measured on 20/11: the address stayed empty).
     nonisolated static func run(_ arguments: [String]) async -> String? {
         await Task.detached {
             guard FileManager.default.isExecutableFile(atPath: tailscale.path) else { return nil }
             let process = Process()
             process.executableURL = tailscale
             process.arguments = arguments
+            process.environment = ProcessInfo.processInfo.environment.merging(["TAILSCALE_BE_CLI": "1"]) { _, new in new }
             let output = Pipe()
             process.standardOutput = output
             process.standardError = Pipe()
+            process.standardInput = FileHandle.nullDevice
             do { try process.run() } catch { return nil }
+            let deadline = DispatchTime.now() + 5
+            DispatchQueue.global().asyncAfter(deadline: deadline) { if process.isRunning { process.terminate() } }
             let data = output.fileHandleForReading.readDataToEndOfFile()
             process.waitUntilExit()
             return process.terminationStatus == 0 ? String(decoding: data, as: UTF8.self) : nil

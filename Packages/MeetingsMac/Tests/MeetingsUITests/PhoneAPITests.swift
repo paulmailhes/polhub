@@ -172,6 +172,14 @@ import Testing
         #expect(PhoneAccess.base("mac") == nil)
     }
 
+    /// 20/11: the address `tailscale serve` publishes, read from its own answer.
+    @Test func thePublishedAddressIsReadFromTailscaleServe() {
+        let serve = #"{"TCP": {"8443": {"HTTPS": true}}, "Web": {"mac.exemple.ts.net:8443": {"Handlers": {"/": {"Proxy": "http://127.0.0.1:8790"}}}}}"#
+        #expect(PhoneAccess.publishedAddress(serve) == "https://mac.exemple.ts.net:8443")
+        #expect(PhoneAccess.publishedAddress(serve, port: 8791) == nil)
+        #expect(PhoneAccess.publishedAddress(#"{"TCP": {}}"#) == nil && PhoneAccess.publishedAddress(nil) == nil)
+    }
+
     @Test func theMacsNameIsReadFromTailscale() {
         #expect(PhoneAccess.dnsName(#"{"Self": {"DNSName": "mac.exemple.ts.net."}}"#) == "mac.exemple.ts.net")
         #expect(PhoneAccess.dnsName("pas du json") == nil && PhoneAccess.dnsName(nil) == nil)
