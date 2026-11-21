@@ -5,12 +5,13 @@ import Domain
 import GoogleKit
 import HubDesign
 import Transcription
+import VigieKit
 
 /// What the app gives the Add-ons page (21/11): what this Mac has, and what a need's button does.
 @MainActor public enum AddOnWiring {
     /// Read each time a tile asks: an authorization given in Réglages Système shows within two seconds.
     public static func facts(agenda: AgendaLibrary?, mails: MailLibrary?, phone: PhoneAccess?, claudeFound: Bool,
-                             meetingsChecked: Bool) -> AddOnFacts {
+                             meetingsChecked: Bool, vigie: VigieLibrary? = nil) -> AddOnFacts {
         var facts = AddOnFacts()
         facts.modelsReady = ModelLocations.standard.missing().isEmpty
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
@@ -27,6 +28,9 @@ import Transcription
         facts.colinOn = (UserDefaults.standard.object(forKey: Preferences.Key.colinOn) as? Bool) ?? false
         facts.iCloud = FileManager.default.ubiquityIdentityToken != nil
         facts.phones = phone?.devices.filter { $0.lastSeenAt != nil }.count ?? 0
+        facts.vigieInstalled = VigieEngine().isInstalled
+        // Not installed in hub: nothing asks the engine, the file alone says it is there.
+        facts.vigieRunning = vigie.map { $0.link == .running } ?? facts.vigieInstalled
         return facts
     }
 
@@ -60,7 +64,8 @@ import Transcription
 
     /// « Ses réglages » on a tile.
     public static func openSettings(of addOn: AddOn, router: WindowRouter) {
-        router.openSettings(addOn.pane)
+        guard let pane = addOn.settings else { return }
+        router.openSettings(pane)
     }
 
     private static func open(_ address: String) {

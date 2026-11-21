@@ -50,6 +50,20 @@ import Testing
         #expect(AddOnState.notInstalled.text == "À installer")
     }
 
+    /// 21/11 : Vigie a besoin de son moteur, posé par l'app Vigie, et en marche.
+    @Test func vigieNeedsItsEngineThereAndRunning() throws {
+        var facts = AddOnFacts()
+        let allDone = AddOnNeeds.list(.vigie, facts).allSatisfy(\.done)
+        #expect(allDone)
+        facts.vigieRunning = false
+        let stopped = AddOnNeeds.list(.vigie, facts)
+        #expect(stopped.map(\.done) == [true, false] && stopped[1].note == "Ouvre l'app Vigie : elle le relance.")
+        facts.vigieInstalled = false
+        let absent = AddOnNeeds.list(.vigie, facts)
+        #expect(absent.map(\.done) == [false, false] && absent[0].note?.contains("app Vigie") == true && absent[1].note == nil)
+        #expect(AddOnNeeds.next(absent) == nil)
+    }
+
     @Test func colinAndTheIPhoneSayWhatHubCannotDo() {
         var facts = AddOnFacts()
         facts.claudeFound = false

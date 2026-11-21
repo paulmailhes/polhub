@@ -11,6 +11,8 @@ public enum AppIcon: String, CaseIterable, Sendable {
     case home, projects, meetings, calendar, mails, contacts, settings
     /// « Dictée » (20/11).
     case dictation
+    /// « Vigie » (21/11): its binoculars, as in its own menu bar.
+    case vigie
     /// The notifications center.
     case bell
     // The mail folders.
@@ -34,6 +36,7 @@ public enum AppIcon: String, CaseIterable, Sendable {
         case .projects: "folders"
         case .meetings: "microphone"
         case .dictation: "waveform"
+        case .vigie: "binoculars"
         case .calendar: "calendar-dots"
         case .mails: "envelope-simple"
         case .contacts: "address-book"

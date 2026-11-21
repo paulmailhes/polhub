@@ -9,7 +9,7 @@ import Updates
 
 /// The sidebar keeps the work; the app's own pages (diagnostic, journal) live in Réglages (Paul, 13/11).
 public enum SidebarItem: String, Hashable, Sendable {
-    case home, projects, meetings, calendar, mails, contacts, inspiration, dictation, settings
+    case home, projects, meetings, calendar, mails, contacts, inspiration, dictation, vigie, settings
 
     var title: String {
         switch self {
@@ -21,6 +21,7 @@ public enum SidebarItem: String, Hashable, Sendable {
         case .contacts: "Contacts"
         case .inspiration: "Inspiration"
         case .dictation: "Dictée"
+        case .vigie: "Vigie"
         case .settings: "Réglages"
         }
     }
@@ -36,6 +37,7 @@ public enum SidebarItem: String, Hashable, Sendable {
         case .contacts: .contacts
         case .inspiration: .inspiration
         case .dictation: .dictation
+        case .vigie: .vigie
         case .settings: .settings
         }
     }
@@ -50,6 +52,7 @@ public enum SidebarItem: String, Hashable, Sendable {
         case .contacts: "person.2.fill"
         case .inspiration: "lightbulb.fill"
         case .dictation: "waveform"
+        case .vigie: "binoculars.fill"
         case .settings: "gearshape.fill"
         }
     }
@@ -65,6 +68,7 @@ public enum SidebarItem: String, Hashable, Sendable {
         case .contacts: Palette.green
         case .inspiration: Palette.yellow
         case .dictation: Palette.indigo
+        case .vigie: Palette.cyan
         case .settings: Palette.gray
         }
     }
@@ -73,11 +77,11 @@ public enum SidebarItem: String, Hashable, Sendable {
     /// Contacts need the agenda (13/11). « Inspiration » on one row, after Mails; Contacts at the bottom, with Réglages
     /// (lot 4, 19/11: « Mails court »).
     /// Réunions only when its add-on is installed (20/11).
-    /// Dictée last (20/11): the keys ⌘1 to ⌘7 of the others do not move, and it has none.
+    /// Dictée last (20/11): the keys ⌘1 to ⌘7 of the others do not move, and it has none. Vigie after it (21/11), the same.
     static func visible(hasProjects: Bool, hasAgenda: Bool, hasMails: Bool = false, hasInspiration: Bool = false,
-                        hasMeetings: Bool = true, hasDictation: Bool = false) -> [SidebarItem] {
+                        hasMeetings: Bool = true, hasDictation: Bool = false, hasVigie: Bool = false) -> [SidebarItem] {
         [hasAgenda ? .home : nil, hasProjects ? .projects : nil, hasMeetings ? .meetings : nil, hasAgenda ? .calendar : nil,
-         hasMails ? .mails : nil, hasInspiration ? .inspiration : nil, hasDictation ? .dictation : nil].compactMap { $0 }
+         hasMails ? .mails : nil, hasInspiration ? .inspiration : nil, hasDictation ? .dictation : nil, hasVigie ? .vigie : nil].compactMap { $0 }
     }
 
     /// The rows at the bottom of the sidebar, apart from the work (lot 4, 19/11): Contacts, then Réglages.
@@ -471,7 +475,7 @@ public final class WindowRouter: ObservableObject {
         case .projects: place.project != nil ? .project : nil
         case .inspiration: place.inspirationItem != nil ? .inspirationItem : nil
         case .settings: place.settingsPane != nil ? .settingsPane : nil
-        case .meetings, .calendar, .contacts, .dictation: nil
+        case .meetings, .calendar, .contacts, .dictation, .vigie: nil
         }
     }
 
@@ -690,6 +694,8 @@ public struct MainWindowView<Diagnostic: View>: View {
     /// The Dictée, when installed (20/11).
     let dictation: DictationLibrary?
     let dictationService: DictationService?
+    /// Vigie, when installed (21/11).
+    let vigie: VigieLibrary?
     @ObservedObject var router: WindowRouter
     let paths: AppPaths
     let diagnostic: Diagnostic
@@ -699,7 +705,7 @@ public struct MainWindowView<Diagnostic: View>: View {
         library: MeetingLibrary, projects: ProjectLibrary? = nil, agenda: AgendaLibrary? = nil, mails: MailLibrary? = nil, colin: ColinLibrary? = nil,
         thread: ColinThread? = nil, colinProbe: ColinProbeControl? = nil, claudeAccounts: ClaudeAccountsModel? = nil, inspiration: InspirationLibrary? = nil, updates: UpdateService? = nil, notifications: NotificationHub? = nil,
         startup: StartupControl? = nil, phone: PhoneAccess? = nil, addOns: Set<AddOn> = Set(AddOn.allCases), addOnControl: AddOnControl? = nil,
-        dictation: DictationLibrary? = nil, dictationService: DictationService? = nil,
+        dictation: DictationLibrary? = nil, dictationService: DictationService? = nil, vigie: VigieLibrary? = nil,
         router: WindowRouter, paths: AppPaths,
         @ViewBuilder diagnostic: () -> Diagnostic
     ) {
@@ -708,6 +714,7 @@ public struct MainWindowView<Diagnostic: View>: View {
         self.addOnControl = addOnControl
         self.dictation = dictation
         self.dictationService = dictationService
+        self.vigie = vigie
         self.notifications = notifications
         self.startup = startup
         self.library = library
@@ -732,8 +739,8 @@ public struct MainWindowView<Diagnostic: View>: View {
             Sidebar(router: router, library: library, agenda: agenda, mails: mails,
                     items: SidebarItem.visible(hasProjects: projects != nil, hasAgenda: agenda != nil, hasMails: mails != nil,
                                                hasInspiration: inspiration != nil, hasMeetings: addOns.contains(.meetings),
-                                               hasDictation: dictation != nil),
-                    footer: SidebarItem.footer(hasAgenda: agenda != nil))
+                                               hasDictation: dictation != nil, hasVigie: vigie != nil),
+                    footer: SidebarItem.footer(hasAgenda: agenda != nil), vigie: vigie)
                 // One width, always: a sidebar free to resize changed size from one section to the next (Paul, 15/11).
                 .navigationSplitViewColumnWidth(Self.sidebarWidth)
                 // The window is made by hand: SwiftUI does not add this button there. It keeps a toolbar on every
@@ -771,6 +778,8 @@ public struct MainWindowView<Diagnostic: View>: View {
                 if let inspiration { InspirationSectionView(library: inspiration, router: router) }
             case .dictation:
                 if let dictation { DictationPage(library: dictation, service: dictationService) }
+            case .vigie:
+                if let vigie { VigiePage(library: vigie) }
             case .projects:
                 if let projects {
                     ProjectsView(library: projects)

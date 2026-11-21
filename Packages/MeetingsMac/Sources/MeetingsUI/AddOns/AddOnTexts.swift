@@ -27,6 +27,7 @@ public enum AddOnTexts {
         case .mails: "Tes boîtes Gmail"
         case .inspiration: "Sites, branding et mock-ups"
         case .colin: "L'agent de l'Accueil"
+        case .vigie: "Claude Code sous bonne garde"
         case .iphone: "L'app iPhone, même Mac éteint"
         }
     }
@@ -41,6 +42,7 @@ public enum AddOnTexts {
         case .mails: "Tes boîtes Gmail dans hub : lire, écrire, et ranger chaque fil dans son projet."
         case .inspiration: "Les sites, le branding et les mock-ups que tu gardes, collectés et rangés pour toi."
         case .colin: "L'agent de l'Accueil : il lit tes mails et ton agenda, et tient tes projets à jour."
+        case .vigie: "Vigie veille sur Claude Code : hub te montre ce qui attend ta décision, et où en est chaque conversation."
         case .iphone: "hub dans ta poche : tes mails, ton agenda et tes projets, même Mac éteint."
         }
     }
@@ -63,6 +65,7 @@ public enum AddOnTexts {
         case .dictation: "le modèle de Réunions (1,6 Go), l'Accessibilité"
         case .calendar, .mails: "un compte Google"
         case .colin: "Claude Code sur ce Mac"
+        case .vigie: "le moteur de Vigie sur ce Mac"
         case .iphone: "iCloud"
         case .projects, .inspiration: nil
         }

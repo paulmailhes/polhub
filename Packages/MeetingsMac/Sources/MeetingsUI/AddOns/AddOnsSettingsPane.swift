@@ -76,8 +76,8 @@ struct AddOnsSettingsPane: View {
 }
 
 extension AddOn {
-    /// Its family in Réglages: its icon, its color, its own settings.
-    var pane: SettingsPane {
+    /// Its own page of Réglages; none yet for Vigie, whose settings come at a later step.
+    var settings: SettingsPane? {
         switch self {
         case .projects: .projects
         case .meetings: .meetings
@@ -86,9 +86,14 @@ extension AddOn {
         case .mails: .mails
         case .inspiration: .inspiration
         case .colin: .colin
+        case .vigie: nil
         case .iphone: .iphone
         }
     }
+
+    /// Its symbol and its color, as its family in Réglages; Vigie's are its section's.
+    var symbol: String { settings?.icon ?? SidebarItem.vigie.icon }
+    var tint: String { settings?.tint ?? SidebarItem.vigie.tint }
 }
 
 /// An add-on's icon in its colored square, as its family in Réglages.
@@ -97,11 +102,11 @@ struct AddOnBadge: View {
     var side: CGFloat = 32
 
     var body: some View {
-        Image(systemName: addOn.pane.icon)
+        Image(systemName: addOn.symbol)
             .font(.rowTitle.weight(.semibold))
             .foregroundStyle(.white)
             .frame(width: side, height: side)
-            .background(Color(hex: addOn.pane.tint), in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
+            .background(Color(hex: addOn.tint), in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
             .accessibilityHidden(true)
     }
 }
@@ -177,7 +182,7 @@ struct AddOnTile: View {
                 Spacer(minLength: 0)
                 if installed, control.working != addOn {
                     Menu {
-                        Button("Ses réglages") { control.openSettings(addOn) }
+                        if addOn.settings != nil { Button("Ses réglages") { control.openSettings(addOn) } }
                         Button("Désinstaller", role: .destructive) { ask(false) }
                     } label: {
                         Label("Plus", systemImage: "ellipsis").labelStyle(.iconOnly)

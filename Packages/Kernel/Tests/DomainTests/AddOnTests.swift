@@ -50,8 +50,8 @@ import Testing
     }
 
     @Test func theIdentifiersAndNamesAreFixed() {
-        #expect(AddOn.allCases.map(\.rawValue) == ["projets", "reunions", "dictee", "calendrier", "mails", "inspiration", "colin", "iphone"])
-        #expect(AddOn.allCases.map(\.title) == ["Projets", "Réunions", "Dictée", "Calendrier", "Mails", "Inspiration", "Colin", "iPhone"])
+        #expect(AddOn.allCases.map(\.rawValue) == ["projets", "reunions", "dictee", "calendrier", "mails", "inspiration", "colin", "vigie", "iphone"])
+        #expect(AddOn.allCases.map(\.title) == ["Projets", "Réunions", "Dictée", "Calendrier", "Mails", "Inspiration", "Colin", "Vigie", "iPhone"])
         #expect(AddOnStore.key == "addOns.installes")
     }
 }

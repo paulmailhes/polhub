@@ -3,6 +3,22 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.66.0 — 21 novembre 2026
+
+**Vigie arrive dans hub : première étape.**
+
+- **Un nouvel add-on « Vigie »**, à installer dans Réglages › Add-ons. Il se branche sur le moteur que l'app Vigie a
+  déjà installé sur ton Mac : rien à télécharger. Sa tuile dit si le moteur est là et s'il répond.
+- **Une section « Vigie » dans la barre latérale**, sa « Vue d'ensemble » :
+  - **T'attendent** : les actions sensibles à autoriser ou refuser, avec la commande entière ; les questions que
+    Vigie a répondues pour toi (« Ça me va ») ; les plans ;
+  - **À regarder** : une limite atteinte, un compte à reconnecter ;
+  - **Conversations** : chaque conversation de Claude Code, ce qu'elle fait, son projet et son compte ; un clic
+    l'ouvre dans VS Code.
+- Le nombre de demandes qui t'attendent s'affiche à côté de « Vigie », et une ligne du Coup d'œil y mène.
+- L'app Vigie reste à côté et continue d'envoyer les notifications. Les comptes, les MCP, les agents et les
+  réglages arrivent aux étapes suivantes.
+
 ## 0.65.1 — 21 novembre 2026
 
 **Dictée : tes mots s'affichent de nouveau pendant que tu parles.**

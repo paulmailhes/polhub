@@ -148,6 +148,7 @@ struct PanelBody: View {
             VStack(alignment: .leading, spacing: MenuBarPanel.gap) {
                 // The Dictée (20/11): its last text, copied in one click.
                 if let dictation = context.dictation { PanelLastDictation(library: dictation) }
+                if let vigie = context.vigie { PanelVigie(library: vigie) { context.open(.section(.vigie)) } }
                 PanelButtons(context: context, hasMailboxes: mailState?.hasMailboxes ?? false)
                 PanelFooter(context: context, updateLine: PanelModel.updateLine(updateState))
             }

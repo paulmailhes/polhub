@@ -82,6 +82,8 @@ struct Sidebar: View {
     let items: [SidebarItem]
     /// The rows at the bottom: Contacts (with the agenda), then Réglages.
     var footer: [SidebarItem] = [.settings]
+    /// Vigie, when installed (21/11): its row counts what waits for Paul.
+    var vigie: VigieLibrary?
     @AppStorage(Preferences.Key.mailSidebarOpen) private var mailsOpen = true
     @AppStorage(Preferences.Key.mailMoreOpen) private var moreOpen = false
 
@@ -143,6 +145,12 @@ struct Sidebar: View {
             }
         case .meetings:
             SidebarLabel(item: item, recording: library.meetingActive).tag(SidebarRow.section(item))
+        case .vigie:
+            if let vigie {
+                Observing(vigie) { SidebarLabel(item: item, count: $0.waiting.count) }.tag(SidebarRow.section(item))
+            } else {
+                SidebarLabel(item: item).tag(SidebarRow.section(item))
+            }
         default:
             SidebarLabel(item: item).tag(SidebarRow.section(item))
         }

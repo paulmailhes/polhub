@@ -133,6 +133,8 @@ public enum Palette {
     public static let gray = "#8E8E93"
     /// The Dictée's (20/11).
     public static let indigo = "#6366F1"
+    /// Vigie's (21/11).
+    public static let cyan = "#0891B2"
 }
 
 extension Color {

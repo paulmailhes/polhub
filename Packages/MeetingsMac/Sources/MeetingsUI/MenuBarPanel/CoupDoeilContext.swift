@@ -80,6 +80,8 @@ public final class CoupDoeilContext {
     public private(set) var updates: UpdateService?
     /// The Dictée, when installed (20/11): « Copier la dernière dictée ».
     public var dictation: DictationLibrary?
+    /// Vigie, when installed (21/11): what waits for Paul, one line.
+    public var vigie: VigieLibrary?
 
     /// Watches the meeting open in the window: once transcribed, its summary is read (16/11).
     @ObservationIgnored private var openedMeeting: AnyCancellable?

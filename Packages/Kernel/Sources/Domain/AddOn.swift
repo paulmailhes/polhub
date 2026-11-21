@@ -11,6 +11,8 @@ public enum AddOn: String, CaseIterable, Codable, Sendable {
     case mails = "mails"
     case inspiration = "inspiration"
     case colin = "colin"
+    /// Vigie (21/11): it watches over Claude Code; hub shows what its engine sees.
+    case vigie = "vigie"
     case iphone = "iphone"
 
     /// Its name, as the page and the sidebar say it.
@@ -23,6 +25,7 @@ public enum AddOn: String, CaseIterable, Codable, Sendable {
         case .mails: "Mails"
         case .inspiration: "Inspiration"
         case .colin: "Colin"
+        case .vigie: "Vigie"
         case .iphone: "iPhone"
         }
     }
@@ -32,7 +35,7 @@ public enum AddOn: String, CaseIterable, Codable, Sendable {
         switch self {
         case .mails: [.calendar]
         case .colin: [.mails, .calendar]
-        case .projects, .meetings, .dictation, .calendar, .inspiration, .iphone: []
+        case .projects, .meetings, .dictation, .calendar, .inspiration, .vigie, .iphone: []
         }
     }
 }

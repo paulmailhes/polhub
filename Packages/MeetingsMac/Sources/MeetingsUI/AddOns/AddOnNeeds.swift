@@ -22,6 +22,9 @@ public struct AddOnFacts: Equatable, Sendable {
     public var colinOn = true
     public var iCloud = true
     public var phones = 0
+    /// Vigie's engine has run on this Mac, and it answers now.
+    public var vigieInstalled = true
+    public var vigieRunning = true
 
     public init() {}
 }
@@ -99,6 +102,11 @@ public enum AddOnNeeds {
             [AddOnNeed("claude", "Claude Code sur ce Mac", done: facts.claudeFound,
                        note: "Installe Claude Code et connecte ton compte, puis relance hub."),
              AddOnNeed("marche", "Colin mis en marche", done: facts.colinOn, action: .openColin, button: "Ouvrir ses réglages")]
+        case .vigie:
+            [AddOnNeed("moteur", "Le moteur de Vigie sur ce Mac", done: facts.vigieInstalled,
+                       note: "Il vient avec l'app Vigie : installe-la. hub le posera lui-même à une prochaine étape."),
+             AddOnNeed("marche", "Le moteur en marche", done: facts.vigieInstalled && facts.vigieRunning,
+                       note: facts.vigieInstalled ? "Ouvre l'app Vigie : elle le relance." : nil)]
         case .iphone:
             [AddOnNeed("icloud", "iCloud sur ce Mac", done: facts.iCloud, note: "Connecte ce Mac à iCloud dans Réglages Système."),
              AddOnNeed("relie", "Un iPhone relié", done: facts.phones > 0, action: .openPhone, button: "Relier un iPhone")]

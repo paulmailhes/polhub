@@ -148,6 +148,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var addOnControl: AddOnControl?
     private var dictation: DictationLibrary?
     private var dictationService: DictationService?
+    /// Vigie, when installed (21/11): it talks to Vigie's own engine, already on the Mac.
+    private var vigie: VigieLibrary?
     // The meetings.
     private(set) var store: MeetingStore?
     /// The folders, moved under the name hub-board at the first launch that has it (20/11), before anything opens the base.
@@ -282,7 +284,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         control.facts = { [weak self, weak control] in
             guard let self else { return AddOnFacts() }
             return AddOnWiring.facts(agenda: self.agenda, mails: self.mails, phone: self.phone, claudeFound: control?.claudeFound ?? true,
-                                     meetingsChecked: UserDefaults.standard.bool(forKey: Self.checklistDoneKey))
+                                     meetingsChecked: UserDefaults.standard.bool(forKey: Self.checklistDoneKey), vigie: self.vigie)
         }
         control.perform = { [weak self] action in
             guard let self else { return }
@@ -350,6 +352,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             guard control.showsGuide else { return }
             self.router.openSettings(.addOns)
             self.showMainWindow()
+        }
+        // Vigie (21/11): what its engine sees, read every few seconds; the app Vigie stays beside hub and notifies.
+        if addOns.contains(.vigie) {
+            let library = VigieLibrary()
+            library.start()
+            vigie = library
+            coupDoeil.vigie = library
         }
         if addOns.contains(.inspiration) { startInspiration(database: store.database) }
         // Before the diagnostic, which may open the window: the window takes the update service as it is
@@ -923,7 +932,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             let probe = colinProbe
             let view = MainWindowView(library: library, projects: projects, agenda: agenda, mails: mails, colin: colin, thread: colinThread, colinProbe: colinProbe, claudeAccounts: claudeAccounts, inspiration: inspiration,
                                       updates: updates, notifications: notifications, startup: startup, phone: phone, addOns: addOns, addOnControl: addOnControl,
-                                      dictation: dictation, dictationService: dictationService, router: router, paths: paths) {
+                                      dictation: dictation, dictationService: dictationService, vigie: vigie, router: router, paths: paths) {
                 if let diagnostic {
                     DiagnosticView(model: diagnostic, colin: probe) { [weak self] in self?.showProbeWindow() }
                 }
