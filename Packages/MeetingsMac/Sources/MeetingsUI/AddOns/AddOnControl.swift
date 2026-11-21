@@ -114,14 +114,18 @@ import Foundation
     }
 
     /// After a relaunch: the guide for what was just installed and still needs something; always after the Bienvenue,
-    /// whose last step it is.
-    public func openPendingGuide() {
+    /// whose last step it is. Returns what was just installed: the window opens on it (21/11, Paul: « ça m'a fermé la
+    /// fenêtre… elle est restée ouverte en fond »).
+    @discardableResult
+    public func openPendingGuide() -> [AddOn] {
         let pending = store.takePendingGuide()
-        let waiting = pending.addOns.filter { installed.contains($0) && needs($0).contains { !$0.done } }
-        guard pending.welcome || !waiting.isEmpty else { return }
+        let added = pending.addOns.filter { installed.contains($0) }
+        let waiting = added.filter { needs($0).contains { !$0.done } }
+        guard pending.welcome || !waiting.isEmpty else { return added }
         guide = waiting
         guideIsWelcome = pending.welcome
         showsGuide = true
+        return added
     }
 
     /// The Bienvenue's last step without a relaunch (nothing new was installed): what is installed and needs something.

@@ -348,13 +348,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             control.showsWelcome = true
             DispatchQueue.main.async { [weak self] in self?.showMainWindow() }
         }
-        // After an installation's relaunch: the guide of what the new add-ons need, over Réglages › Add-ons. A moment
-        // after the launch: the Google accounts are read from the base by then.
+        // After an installation's relaunch, the window comes back (21/11, Paul: « ça m'a fermé la fenêtre… elle est
+        // restée ouverte en fond »): on the guide of what the new add-ons need, over Réglages, or on the new tool itself.
+        // A moment after the launch: the Google accounts are read from the base by then.
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self, weak control] in
             guard let self, let control else { return }
-            control.openPendingGuide()
-            guard control.showsGuide else { return }
-            self.router.openSettings(.addOns)
+            let added = control.openPendingGuide()
+            guard control.showsGuide || !added.isEmpty else { return }
+            if !control.showsGuide, let section = added.compactMap(\.section).first {
+                self.router.section = section
+            } else {
+                self.router.openSettings(.addOns)
+            }
             self.showMainWindow()
         }
         // Vigie (21/11): what its engine sees, read every few seconds; its decisions' count rides the logo of the menu bar.

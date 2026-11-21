@@ -71,8 +71,11 @@ import Testing
         let (control, store, _) = try control([])
         await control.install(.projects)
         let after = AddOnControl(store: store, isBusy: { false }, relaunch: {})
-        after.openPendingGuide()
+        // No guide, but the window comes back on what was just installed (21/11, Paul: « ça m'a fermé la fenêtre »).
+        #expect(after.openPendingGuide() == [.projects] && AddOn.projects.section == .projects)
         #expect(!after.showsGuide)
+        // Once only.
+        #expect(AddOnControl(store: store, isBusy: { false }, relaunch: {}).openPendingGuide().isEmpty)
     }
 
     @Test func aButtonThatLeavesThePageClosesTheGuide() throws {

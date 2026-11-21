@@ -40,6 +40,21 @@ extension AddOn {
         }
     }
 
+    /// Its place in the sidebar, where the window opens once it is installed; Colin lives on the Accueil.
+    public var section: SidebarItem? {
+        switch self {
+        case .projects: .projects
+        case .meetings: .meetings
+        case .dictation: .dictation
+        case .calendar: .calendar
+        case .mails: .mails
+        case .inspiration: .inspiration
+        case .vigie: .vigie
+        case .colin: .home
+        case .iphone: nil
+        }
+    }
+
     /// Its color, as its section in the sidebar and its family in Réglages.
     var tint: String { settings?.tint ?? SidebarItem.vigie.tint }
 }

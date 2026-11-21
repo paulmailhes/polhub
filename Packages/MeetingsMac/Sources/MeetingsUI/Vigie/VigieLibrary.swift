@@ -25,11 +25,15 @@ import VigieKit
         public var open: (URL) -> Void
         /// Restarts the engine as the app Vigie did: `launchctl kickstart` of its agent. True when it went.
         public var restart: () async -> Bool
+        /// The app Vigie is still on this Mac, where its engine would install its new versions.
+        public var appInstalled: () -> Bool
 
-        public init(copy: @escaping (String) -> Void, open: @escaping (URL) -> Void, restart: @escaping () async -> Bool) {
+        public init(copy: @escaping (String) -> Void, open: @escaping (URL) -> Void, restart: @escaping () async -> Bool,
+                    appInstalled: @escaping () -> Bool = { true }) {
             self.copy = copy
             self.open = open
             self.restart = restart
+            self.appInstalled = appInstalled
         }
 
         @MainActor public static var system: Actions { Actions(
@@ -38,7 +42,8 @@ import VigieKit
                 NSPasteboard.general.setString(text, forType: .string)
             },
             open: { NSWorkspace.shared.open($0) },
-            restart: { await VigieLibrary.kickstart() }
+            restart: { await VigieLibrary.kickstart() },
+            appInstalled: { VigieLibrary.appIsInstalled() }
         ) }
     }
 
@@ -63,6 +68,7 @@ import VigieKit
 
     let client: VigieClient
     let actions: Actions
+    let defaults: UserDefaults
     /// After each reading that shows what the engine says now: the notifications (21/11).
     public var onRead: ((VigieOverview) -> Void)?
     private var loop: Task<Void, Never>?
@@ -72,9 +78,10 @@ import VigieKit
     /// A write under way: a read that left before it is not shown.
     private var writes = 0
 
-    public init(client: VigieClient = VigieClient(), actions: Actions? = nil) {
+    public init(client: VigieClient = VigieClient(), actions: Actions? = nil, defaults: UserDefaults = .standard) {
         self.client = client
         self.actions = actions ?? .system
+        self.defaults = defaults
     }
 
     public func start() {
@@ -119,6 +126,7 @@ import VigieKit
             if fresh != overview { overview = fresh }
             set(.running)
             onRead?(fresh)
+            if fresh.settings?.autoUpdate == true { await turnOffUpdatesWithoutTheApp() }
         } catch VigieFailure.absent {
             if overview != VigieOverview() { overview = VigieOverview() }
             set(.absent)
@@ -217,6 +225,26 @@ import VigieKit
         } else {
             problem = "Le moteur de Vigie n'a pas pu être relancé."
         }
+    }
+
+    /// The app Vigie is gone (21/11, the migration; Paul's choice: « Les couper »): the engine's own updates would install
+    /// it again with each new version of Vigie. hub turns them off, once, and says so; Paul turns them on again in
+    /// Réglages › Vigie if he wants, and hub leaves them then.
+    static let updatesTurnedOffKey = "vigie.updatesTurnedOff"
+
+    private func turnOffUpdatesWithoutTheApp() async {
+        guard !defaults.bool(forKey: Self.updatesTurnedOffKey), !actions.appInstalled() else { return }
+        defaults.set(true, forKey: Self.updatesTurnedOffKey)
+        await setAutoUpdate(false)
+        if problem == nil { info = "L'app Vigie n'est plus sur ce Mac : hub a coupé les mises à jour du moteur, qui l'auraient réinstallée." }
+    }
+
+    /// Where the engine says the app Vigie is (`data/app.path`, written by its installer), else in Applications.
+    nonisolated static func appIsInstalled(folder: URL = VigieEngine().folder) -> Bool {
+        let noted = (try? String(contentsOf: folder.appending(path: "data/app.path"), encoding: .utf8))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let places = [noted, "/Applications/Vigie.app"].compactMap { $0 }.filter { !$0.isEmpty }
+        return places.contains { FileManager.default.fileExists(atPath: $0) }
     }
 
     // MARK: - A conversation

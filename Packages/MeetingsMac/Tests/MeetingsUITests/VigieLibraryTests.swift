@@ -124,6 +124,29 @@ import VigieKit
         #expect(posts == ["/api/v2/pending/91234", "/api/v2/questions/7f3a/review", "/api/v2/review/s:c2:3/dismiss", "/api/v2/open"])
     }
 
+    /// The app Vigie gone, its engine's updates would install it again: hub turns them off once, and leaves them if Paul
+    /// turns them on again.
+    @Test func theEnginesUpdatesStopOnceTheAppIsGone() async throws {
+        let defaults = try #require(UserDefaults(suiteName: "vigie-maj-\(UUID().uuidString)"))
+        let folder = FileManager.default.temporaryDirectory.appending(path: "vigie-maj-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder.appending(path: "data"), withIntermediateDirectories: true)
+        try Data("jeton-d-essai".utf8).write(to: folder.appending(path: "data/api-token"))
+        let engine = Engine()
+        let client = VigieClient(engine: VigieEngine(folder: folder)) { request in try engine.respond(request) }
+        let actions = VigieLibrary.Actions(copy: { _ in }, open: { _ in }, restart: { true }, appInstalled: { false })
+        let library = VigieLibrary(client: client, actions: actions, defaults: defaults)
+        engine.answer(#"{ "settings": { "autoAccept": true, "autoUpdate": true } }"#)
+        await library.refresh()
+        await library.refresh()
+        let posts = engine.requests.filter { $0.httpMethod == "POST" }
+        #expect(posts.count == 1 && posts.first?.url?.path() == "/api/v2/settings")
+        #expect((try? JSONSerialization.jsonObject(with: posts.first?.httpBody ?? Data())) as? NSDictionary == ["autoUpdate": false] as NSDictionary)
+        #expect(library.info?.hasPrefix("L'app Vigie n'est plus sur ce Mac") == true)
+        // The app's path as its installer noted it.
+        try Data("/nulle/part/Vigie.app\n".utf8).write(to: folder.appending(path: "data/app.path"))
+        #expect(!VigieLibrary.appIsInstalled(folder: folder) || FileManager.default.fileExists(atPath: "/Applications/Vigie.app"))
+    }
+
     @Test func aRefusedGestureSaysWhyInTheEnginesWords() async throws {
         let (library, engine) = try library()
         engine.answer(Self.overview)

@@ -3,6 +3,15 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.72.0 — 21 novembre 2026
+
+**L'app Vigie est retirée : hub prend tout le relais.**
+
+- **Après l'installation d'un add-on, la fenêtre revient** sur l'outil installé, ou sur ce qu'il lui manque. Avant,
+  hub se relançait en arrière-plan, fenêtre fermée.
+- **Quand l'app Vigie n'est plus sur le Mac, hub coupe une fois les mises à jour du moteur**, qui l'auraient
+  réinstallée à chaque nouvelle version de Vigie, et le dit. Tu peux les rallumer dans Réglages › Vigie.
+
 ## 0.71.0 — 21 novembre 2026
 
 **Vigie dans hub, quatrième étape : la page d'une conversation, et changer de compte.**
