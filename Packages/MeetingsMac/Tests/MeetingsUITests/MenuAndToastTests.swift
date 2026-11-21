@@ -24,6 +24,18 @@ import Testing
     }
 
     // « Coup d'œil » (15/11): filled, hub watches for meetings; in outline, it does not.
+    /// 21/11 (Paul's choice: hub's own icon carries Vigie's count): the red count rides the logo at rest, never the
+    /// recording's red circle.
+    @MainActor @Test func vigiesDecisionsRideTheLogo() {
+        let now = Date()
+        let rest = MenuBarLabel.make(status: .idle, now: now, decisions: 3)
+        #expect(rest.decisions == 3 && rest.icon == .columns(.filled, badge: false) && !rest.image.isTemplate)
+        #expect(rest.image.size.width > MenuBarGlyph.size.width && rest.image.accessibilityDescription?.contains("3 décisions") == true)
+        #expect(MenuBarLabel.make(status: .idle, now: now).image.isTemplate)
+        let recording = MenuBarLabel.make(status: .recording(title: "Point", since: now), now: now, decisions: 3)
+        #expect(recording.decisions == 0 && recording.icon == .recording)
+    }
+
     @Test func atRestTheColumnsAreFilled() {
         let now = Date(timeIntervalSince1970: 10_000)
         #expect(MenuBarLabel.make(status: .idle, now: now) == MenuBarLabel(icon: .columns(.filled, badge: false), text: nil))

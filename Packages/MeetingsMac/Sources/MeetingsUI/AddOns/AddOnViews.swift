@@ -10,7 +10,7 @@ import SwiftUI
 // hub, and says who comes with it or goes with it.
 
 extension AddOn {
-    /// Its own page of Réglages; none yet for Vigie, whose settings come at a later step.
+    /// Its own page of Réglages.
     var settings: SettingsPane? {
         switch self {
         case .projects: .projects
@@ -20,7 +20,7 @@ extension AddOn {
         case .mails: .mails
         case .inspiration: .inspiration
         case .colin: .colin
-        case .vigie: nil
+        case .vigie: .vigie
         case .iphone: .iphone
         }
     }

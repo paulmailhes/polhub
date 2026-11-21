@@ -142,6 +142,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var badgeObserver: AnyCancellable?
     private var terminationSource: DispatchSourceSignal?
     private var guideObserver: AnyCancellable?
+    /// Vigie's count, for the menu bar's logo (21/11).
+    private var vigieObserver: AnyCancellable?
 
     /// The add-ons installed (20/11), settled at launch: what is not installed is never made.
     private(set) var addOns = Set(AddOn.allCases)
@@ -353,12 +355,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             self.router.openSettings(.addOns)
             self.showMainWindow()
         }
-        // Vigie (21/11): what its engine sees, read every few seconds; the app Vigie stays beside hub and notifies.
+        // Vigie (21/11): what its engine sees, read every few seconds; its decisions' count rides the logo of the menu bar.
         if addOns.contains(.vigie) {
             let library = VigieLibrary()
             library.start()
             vigie = library
             coupDoeil.vigie = library
+            vigieObserver = library.objectWillChange.receive(on: RunLoop.main).sink { [weak self, weak library] _ in
+                guard let self, let library else { return }
+                self.model.vigieDecisions = library.decisions.count
+            }
         }
         if addOns.contains(.inspiration) { startInspiration(database: store.database) }
         // Before the diagnostic, which may open the window: the window takes the update service as it is

@@ -108,7 +108,7 @@ public enum SidebarItem: String, Hashable, Sendable {
 /// The families of Réglages, entered one by one, as in Apple's settings (Paul, 14/11). Every new feature puts
 /// its settings in its family.
 public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
-    case addOns, general, accounts, iphone, calendar, mails, colin, projects, meetings, inspiration, dictation, diagnostic, journal
+    case addOns, general, accounts, iphone, calendar, mails, colin, projects, meetings, inspiration, dictation, vigie, diagnostic, journal
 
     public var title: String {
         switch self {
@@ -123,6 +123,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .meetings: "Réunions"
         case .inspiration: "Inspiration"
         case .dictation: "Dictée"
+        case .vigie: "Vigie"
         case .diagnostic: "Diagnostic"
         case .journal: "Journal"
         }
@@ -141,6 +142,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .meetings: "mic.fill"
         case .inspiration: "lightbulb.fill"
         case .dictation: "waveform"
+        case .vigie: "binoculars.fill"
         case .diagnostic: "stethoscope"
         case .journal: "list.bullet.rectangle.fill"
         }
@@ -161,6 +163,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .meetings: .meetings
         case .inspiration: .inspiration
         case .dictation: .dictation
+        case .vigie: .vigie
         case .diagnostic: .diagnostic
         case .journal: .journal
         }
@@ -180,6 +183,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .meetings: Palette.violet
         case .inspiration: Palette.yellow
         case .dictation: Palette.indigo
+        case .vigie: Palette.cyan
         case .diagnostic: Palette.green
         case .journal: Palette.brown
         }
@@ -200,6 +204,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .meetings: "Comptes rendus, langue, notifications"
         case .inspiration: "Pages LinkedIn, collecte, catégories"
         case .dictation: "Touche, fenêtre, texte, son, historique"
+        case .vigie: "Auto-accept, questions, garde-fous, moteur"
         case .diagnostic: "Autorisations et connexions, pour chaque outil"
         case .journal: "Ce que hub a fait et vu"
         }
@@ -231,6 +236,7 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .mails: .mails
         case .inspiration: .inspiration
         case .dictation: .dictation
+        case .vigie: .vigie
         case .addOns, .general, .accounts, .iphone, .diagnostic, .journal: nil
         }
     }
@@ -854,7 +860,7 @@ public struct MainWindowView<Diagnostic: View>: View {
             case .settings:
                 SettingsPage(router: router, updates: updates, projects: projects, agenda: agenda, mails: mails, inspiration: inspiration,
                              library: library, notifications: notifications, startup: startup, colinThread: thread, colinProbe: colinProbe,
-                             phone: phone, addOns: addOns, addOnControl: addOnControl, dictationService: dictationService) {
+                             phone: phone, addOns: addOns, addOnControl: addOnControl, dictationService: dictationService, vigie: vigie) {
                     diagnostic
                 } journal: {
                     JournalView(entries: library.journal)

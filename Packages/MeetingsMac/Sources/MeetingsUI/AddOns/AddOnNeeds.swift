@@ -106,7 +106,7 @@ public enum AddOnNeeds {
             [AddOnNeed("moteur", "Le moteur de Vigie sur ce Mac", done: facts.vigieInstalled,
                        note: "Il vient avec l'app Vigie : installe-la. hub le posera lui-même à une prochaine étape."),
              AddOnNeed("moteur-marche", "Le moteur en marche", done: facts.vigieInstalled && facts.vigieRunning,
-                       note: facts.vigieInstalled ? "Ouvre l'app Vigie : elle le relance." : nil)]
+                       note: facts.vigieInstalled ? "Relance-le depuis la page Vigie de hub." : nil)]
         case .iphone:
             [AddOnNeed("icloud", "iCloud sur ce Mac", done: facts.iCloud, note: "Connecte ce Mac à iCloud dans Réglages Système."),
              AddOnNeed("relie", "Un iPhone relié", done: facts.phones > 0, action: .openPhone, button: "Relier un iPhone")]

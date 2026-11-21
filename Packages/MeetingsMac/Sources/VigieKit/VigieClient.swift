@@ -49,14 +49,15 @@ public struct VigieClient: Sendable {
         self.transport = transport ?? Self.local
     }
 
-    /// Straight to the Mac itself: no proxy, no cache, no cookie, five seconds at most.
+    /// Straight to the Mac itself: no proxy, no cache, no cookie; each request says how long it waits (`Patience`).
     static let local: Transport = { request in
         try await session.data(for: request)
     }
 
     private static let session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
-        configuration.timeoutIntervalForRequest = 5
+        configuration.timeoutIntervalForRequest = Patience.read.rawValue
+        configuration.timeoutIntervalForResource = Patience.long.rawValue
         configuration.connectionProxyDictionary = [:]
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         configuration.httpShouldSetCookies = false
@@ -71,6 +72,14 @@ public struct VigieClient: Sendable {
         return http.statusCode == 200
     }
 
+    /// How long hub waits: a read, a write, and the writes the engine takes its time for (opening VS Code and waiting
+    /// for its window, ~27 s by its contract).
+    public enum Patience: TimeInterval, Sendable {
+        case read = 5
+        case write = 30
+        case long = 90
+    }
+
     /// Everything the « Vue d'ensemble » shows.
     public func overview() async throws -> VigieOverview {
         let data = try await send("GET", "api/v2/overview", body: nil)
@@ -83,9 +92,30 @@ public struct VigieClient: Sendable {
         _ = try await send("POST", "api/v2/pending/\(Self.segment(id))", body: ["decision": allow ? "allow" : "deny"])
     }
 
+    /// A question that waits: Paul's answers, one per question, as a click in VS Code.
+    public func answer(pending id: String, answers: [String: String]) async throws {
+        _ = try await send("POST", "api/v2/pending/\(Self.segment(id))", body: ["answers": answers])
+    }
+
     /// A question Vigie answered for Paul: « Ça me va ».
     public func approve(question id: String) async throws {
         _ = try await send("POST", "api/v2/questions/\(Self.segment(id))/review", body: ["action": "ok"])
+    }
+
+    /// What the engine gives back when Paul changes an answer: the text to send the conversation, and where to paste it.
+    public struct Correction: Decodable, Equatable, Sendable {
+        public var correction: String?
+        public var openURL: String?
+
+        enum CodingKeys: String, CodingKey {
+            case correction, openURL = "openUrl"
+        }
+    }
+
+    /// A question Vigie answered for Paul, answered otherwise: « Changer ». The engine never sends it itself.
+    public func change(question id: String, answers: [String: String]) async throws -> Correction {
+        let data = try await send("POST", "api/v2/questions/\(Self.segment(id))/review", body: ["action": "change", "answers": answers])
+        return (try? JSONDecoder().decode(Correction.self, from: data)) ?? Correction()
     }
 
     /// Takes a notice away from what is to see.
@@ -93,9 +123,37 @@ public struct VigieClient: Sendable {
         _ = try await send("POST", "api/v2/review/\(Self.segment(id))/dismiss", body: [:])
     }
 
-    /// Opens the conversation in VS Code.
-    public func open(conversation id: String) async throws {
-        _ = try await send("POST", "api/v2/open", body: ["kind": "conversation", "id": id])
+    /// What the engine said of an opening: a sentence to show when the conversation itself could not be opened.
+    public struct Opening: Decodable, Equatable, Sendable {
+        public var opened: String?
+        public var message: String?
+        public var mode: String?
+    }
+
+    /// Opens the conversation in VS Code: the engine waits for the project's window, up to ~27 s.
+    @discardableResult
+    public func open(conversation id: String) async throws -> Opening {
+        let data = try await send("POST", "api/v2/open", body: ["kind": "conversation", "id": id], patience: .long)
+        return (try? JSONDecoder().decode(Opening.self, from: data)) ?? Opening()
+    }
+
+    /// Terminal opens with the command typed, not run: Paul presses Enter and types his password. `id`: the element the
+    /// command comes from, for the engine to find a masked command's exact text.
+    @discardableResult
+    public func openTerminal(command: String, cwd: String?, review id: String?) async throws -> Opening {
+        var body: [String: Any] = ["kind": "terminal", "command": command]
+        if let cwd { body["cwd"] = cwd }
+        if let id { body["id"] = id }
+        let data = try await send("POST", "api/v2/open", body: body, patience: .long)
+        return (try? JSONDecoder().decode(Opening.self, from: data)) ?? Opening()
+    }
+
+    /// Changes general settings: only the keys given; `guard` takes its own keys (`enabled`, `waitMin`, `rules`).
+    @discardableResult
+    public func settings(_ changes: [String: Any]) async throws -> VigieSettings? {
+        let data = try await send("POST", "api/v2/settings", body: changes)
+        struct Answer: Decodable { let settings: VigieSettings? }
+        return (try? JSONDecoder().decode(Answer.self, from: data))?.settings
     }
 
     static func segment(_ id: String) -> String {
@@ -104,17 +162,18 @@ public struct VigieClient: Sendable {
         return id.addingPercentEncoding(withAllowedCharacters: allowed) ?? id
     }
 
-    private func send(_ method: String, _ path: String, body: [String: String]?) async throws -> Data {
+    private func send(_ method: String, _ path: String, body: [String: Any]?, patience: Patience? = nil) async throws -> Data {
         guard engine.isInstalled, let token = engine.token() else { throw VigieFailure.absent }
         guard let url = URL(string: path, relativeTo: base.appending(path: "/")) else { throw VigieFailure.unreadable }
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue(token, forHTTPHeaderField: "X-Vigie-Token")
+        request.timeoutInterval = (patience ?? (body == nil ? .read : .write)).rawValue
         if let body {
             // The engine's rule for every write.
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.setValue("1", forHTTPHeaderField: "X-Vigie")
-            request.httpBody = try? JSONEncoder().encode(body)
+            request.httpBody = try? JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])
         }
         let data: Data, response: URLResponse
         do {

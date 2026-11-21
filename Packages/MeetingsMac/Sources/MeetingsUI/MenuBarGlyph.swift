@@ -62,6 +62,45 @@ public enum MenuBarGlyph {
         return image
     }
 
+    /// The logo with Vigie's red count beside it (21/11, Paul's choice: hub's own icon carries the decisions that wait,
+    /// no second icon). Not a template, for the red to stay: the columns are drawn in the menu bar's text color when the
+    /// image is drawn, so they follow a light and a dark bar.
+    @MainActor
+    public static func counted(style: Style = .filled, badge: Bool = false, count: Int) -> NSImage {
+        let text = count > 99 ? "99+" : "\(count)"
+        let key = CountKey(style: style, badge: badge, text: text)
+        if let image = countedCache[key] { return image }
+        let font = NSFont.systemFont(ofSize: 9, weight: .bold)
+        let label = NSAttributedString(string: text, attributes: [.font: font, .foregroundColor: NSColor.white])
+        let pill = NSSize(width: max(countHeight, ceil(label.size().width) + 6), height: countHeight)
+        let logo = size(badge: badge)
+        let size = NSSize(width: logo.width + countGap + pill.width, height: logo.height)
+        let image = NSImage(size: size, flipped: false) { _ in
+            draw(style: style, badge: badge, in: NSRect(origin: .zero, size: MenuBarGlyph.size), color: .labelColor)
+            let frame = NSRect(x: logo.width + countGap, y: (size.height - pill.height) / 2, width: pill.width, height: pill.height)
+            NSColor.systemRed.setFill()
+            NSBezierPath(roundedRect: frame, xRadius: pill.height / 2, yRadius: pill.height / 2).fill()
+            let textSize = label.size()
+            label.draw(at: NSPoint(x: frame.midX - textSize.width / 2, y: frame.midY - textSize.height / 2))
+            return true
+        }
+        image.isTemplate = false
+        image.accessibilityDescription = description(style: style, badge: badge) + ", " + (count == 1 ? "1 décision t'attend" : "\(count) décisions t'attendent")
+            + " dans Claude Code"
+        countedCache[key] = image
+        return image
+    }
+
+    static let countHeight: CGFloat = 12
+    static let countGap: CGFloat = 3
+    @MainActor private static var countedCache: [CountKey: NSImage] = [:]
+
+    private struct CountKey: Hashable {
+        let style: Style
+        let badge: Bool
+        let text: String
+    }
+
     static func description(style: Style, badge: Bool) -> String {
         // The detection is active or suspended, never « arrêtée » (lot 10, 20/11).
         let state = style == .filled ? "hub" : "hub, détection suspendue"
@@ -70,8 +109,8 @@ public enum MenuBarGlyph {
 
     /// Filled: the columns as the icon draws them, rounded at 0.3 of their width. In outline: the line inside the
     /// same box, as on 14/11. `bounds` is the columns' box; the badge spills past its right edge.
-    static func draw(style: Style, badge: Bool, in bounds: NSRect) {
-        NSColor.black.set()
+    static func draw(style: Style, badge: Bool, in bounds: NSRect, color: NSColor = .black) {
+        color.set()
         switch style {
         case .filled:
             for column in columns(in: bounds) {

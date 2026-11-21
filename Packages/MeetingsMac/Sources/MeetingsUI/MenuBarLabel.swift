@@ -24,10 +24,13 @@ public struct MenuBarLabel: Equatable, Sendable {
 
     public let icon: Icon
     public let text: String?
+    /// Vigie's decisions that wait for Paul in Claude Code (21/11): their red count beside the logo.
+    public let decisions: Int
 
-    public init(icon: Icon, text: String?) {
+    public init(icon: Icon, text: String?, decisions: Int = 0) {
         self.icon = icon
         self.text = text
+        self.decisions = decisions
     }
 
     /// - Parameters:
@@ -38,7 +41,16 @@ public struct MenuBarLabel: Equatable, Sendable {
     ///   - danger: a recording is at risk (`AppModel.recordingsAtRisk`).
     ///   - watching: detection is on (it is off before launch ends, or in the development build until switched on).
     public static func make(status: RecorderStatus, now: Date, promptDeadline: Date? = nil, minutesToMeet: Int? = nil,
-                            danger: Bool = false, watching: Bool = true, isDevelopment: Bool = false) -> MenuBarLabel {
+                            danger: Bool = false, watching: Bool = true, isDevelopment: Bool = false, decisions: Int = 0) -> MenuBarLabel {
+        let label = plain(status: status, now: now, promptDeadline: promptDeadline, minutesToMeet: minutesToMeet, danger: danger,
+                          watching: watching, isDevelopment: isDevelopment)
+        // The count rides the logo, never the recording's red circle: during a meeting, the clock says enough.
+        guard decisions > 0, case .columns = label.icon else { return label }
+        return MenuBarLabel(icon: label.icon, text: label.text, decisions: decisions)
+    }
+
+    static func plain(status: RecorderStatus, now: Date, promptDeadline: Date?, minutesToMeet: Int?, danger: Bool, watching: Bool,
+                      isDevelopment: Bool) -> MenuBarLabel {
         // « 12:47 », « 7 s », « 8 min » (`Words`, lot 10, 20/11).
         switch status {
         case .recording(_, let since):
@@ -76,7 +88,8 @@ public struct MenuBarLabel: Equatable, Sendable {
         switch icon {
         case .recording: Self.redCircle
         case .listening: Self.listening
-        case .columns(let style, let badge): MenuBarGlyph.image(style: style, badge: badge)
+        case .columns(let style, let badge):
+            decisions > 0 ? MenuBarGlyph.counted(style: style, badge: badge, count: decisions) : MenuBarGlyph.image(style: style, badge: badge)
         }
     }
 

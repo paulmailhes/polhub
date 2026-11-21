@@ -3,6 +3,31 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.69.0 — 21 novembre 2026
+
+**Vigie dans hub, deuxième étape : tout ce que l'app Vigie faisait sur sa vue d'ensemble, et ses réglages.**
+
+- **Le nombre rouge des décisions sur le logo de hub**, dans la barre des menus, comme les jumelles de Vigie. Il
+  apparaît quand une conversation de Claude Code attend ta décision.
+- **L'interrupteur Auto-accept** est dans le Coup d'œil et en haut de la page Vigie.
+- **« À décider » compte comme Vigie** : une action sensible, une question ou un plan, une conversation qui t'attend
+  dans VS Code. Celle qui sera refusée le plus tôt passe en tête.
+- **Répondre à une question de Claude depuis hub**, comme dans VS Code.
+- **Changer une réponse que Vigie a choisie pour toi** : le message est copié et la conversation s'ouvre, tu n'as plus
+  qu'à le coller.
+- **Lancer dans Terminal** une commande sudo, ou **Copier** une commande. Une commande qui cache une clé n'est jamais
+  copiée.
+- **Relancer le moteur** quand il ne répond plus. Un relevé manqué ne suffit plus à le dire arrêté, et ouvrir une
+  conversation laisse à VS Code le temps d'ouvrir sa fenêtre.
+- **Réglages › Vigie** :
+  - l'Auto-accept ;
+  - la réponse aux questions quand tu n'es pas là ;
+  - les garde-fous et leurs règles ;
+  - les mises à jour du moteur ;
+  - les Chrome oubliés ;
+  - les MCP du compte.
+- La page Vigie passe à la Notion. Ce qui vient de Codex reste dehors.
+
 ## 0.68.1 — 21 novembre 2026
 
 **Plus d'orange dans la barre latérale, et les mots de la Dictée qui défilent.**

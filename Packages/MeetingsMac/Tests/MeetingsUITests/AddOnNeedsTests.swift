@@ -57,7 +57,7 @@ import Testing
         #expect(allDone)
         facts.vigieRunning = false
         let stopped = AddOnNeeds.list(.vigie, facts)
-        #expect(stopped.map(\.done) == [true, false] && stopped[1].note == "Ouvre l'app Vigie : elle le relance.")
+        #expect(stopped.map(\.done) == [true, false] && stopped[1].note == "Relance-le depuis la page Vigie de hub.")
         facts.vigieInstalled = false
         let absent = AddOnNeeds.list(.vigie, facts)
         #expect(absent.map(\.done) == [false, false] && absent[0].note?.contains("app Vigie") == true && absent[1].note == nil)

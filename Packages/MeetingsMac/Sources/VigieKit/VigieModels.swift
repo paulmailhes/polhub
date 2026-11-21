@@ -7,22 +7,41 @@ public struct VigieOverview: Decodable, Equatable, Sendable {
     public var toReview: [VigieReview]
     public var conversations: [VigieConversation]
     public var accounts: [VigieAccount]
+    /// The engine's general settings: Auto-accept, the questions, the safeguards.
+    public var settings: VigieSettings?
+    /// The engine's short sentences to show (an account's folder repaired…).
+    public var notices: [String]
 
-    public init(toReview: [VigieReview] = [], conversations: [VigieConversation] = [], accounts: [VigieAccount] = []) {
+    public init(toReview: [VigieReview] = [], conversations: [VigieConversation] = [], accounts: [VigieAccount] = [],
+                settings: VigieSettings? = nil, notices: [String] = []) {
         self.toReview = toReview
         self.conversations = conversations
         self.accounts = accounts
+        self.settings = settings
+        self.notices = notices
     }
 
     enum CodingKeys: String, CodingKey {
-        case toReview, conversations, accounts
+        case toReview, conversations, accounts, settings, engine
+    }
+
+    enum EngineKeys: String, CodingKey {
+        case notices
     }
 
     public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
-        toReview = Self.each(values, .toReview)
-        conversations = Self.each(values, .conversations)
-        accounts = Self.each(values, .accounts)
+        // Codex is left out of hub (Paul, 20/11): its conversations, its accounts and what they ask.
+        conversations = (Self.each(values, .conversations) as [VigieConversation]).filter { !$0.isCodex }
+        accounts = (Self.each(values, .accounts) as [VigieAccount]).filter { !$0.isCodex }
+        let codex = Set((try? values.decodeIfPresent([Lenient<VigieConversation>].self, forKey: .conversations))??
+            .compactMap(\.value).filter(\.isCodex).map(\.id) ?? [])
+        toReview = (Self.each(values, .toReview) as [VigieReview]).filter { review in
+            !review.isCodex && !(review.conversationID.map(codex.contains) ?? false)
+        }
+        settings = try? values.decodeIfPresent(VigieSettings.self, forKey: .settings)
+        let engine = try? values.nestedContainer(keyedBy: EngineKeys.self, forKey: .engine)
+        notices = ((try? engine?.decodeIfPresent([Lenient<VigieNotice>].self, forKey: .notices)) ?? [])?.compactMap(\.value?.text) ?? []
     }
 
     /// The elements that can be read: one the engine writes in a way hub does not know is left out, the rest stays.
@@ -34,6 +53,135 @@ public struct VigieOverview: Decodable, Equatable, Sendable {
     public func accountLabel(_ id: String?) -> String? {
         guard let id else { return nil }
         return accounts.first { $0.id == id }?.label
+    }
+
+    /// What waits for Paul's decision now, as Vigie's red count (21/11): a sensitive action that waits, a question or a
+    /// plan that waits, a conversation that waits in VS Code. The soonest refusal first, then the longest wait.
+    public var decisions: [VigieReview] {
+        // At equal times, the engine's order: a sort that keeps it.
+        let waiting = toReview.filter(\.isDecision).enumerated()
+        let timed = waiting.filter { $0.element.expiresAt != nil }
+            .sorted { ($0.element.expiresAt ?? .distantFuture, $0.offset) < ($1.element.expiresAt ?? .distantFuture, $1.offset) }
+        let untimed = waiting.filter { $0.element.expiresAt == nil }
+            .sorted { ($0.element.at ?? .distantFuture, $0.offset) < ($1.element.at ?? .distantFuture, $1.offset) }
+        return (timed + untimed).map(\.element)
+    }
+
+    /// The questions Vigie answered for Paul, to read again.
+    public var toRead: [VigieReview] { toReview.filter { $0.kind == .question } }
+
+    /// What is only to see: a refusal to do oneself, a limit reached, an account to connect again, a notice.
+    public var toSee: [VigieReview] { toReview.filter { !$0.isDecision && $0.kind != .question } }
+}
+
+/// A sentence of the engine: a text, or an object with one.
+struct VigieNotice: Decodable {
+    let text: String
+
+    enum Keys: String, CodingKey {
+        case text, message, title
+    }
+
+    init(from decoder: Decoder) throws {
+        if let single = try? decoder.singleValueContainer(), let text = try? single.decode(String.self) {
+            self.text = text
+            return
+        }
+        let values = try decoder.container(keyedBy: Keys.self)
+        guard let text = (try? values.decode(String.self, forKey: .text)) ?? (try? values.decode(String.self, forKey: .message))
+            ?? (try? values.decode(String.self, forKey: .title)), !text.isEmpty else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "avis vide"))
+        }
+        self.text = text
+    }
+}
+
+/// The engine's general settings (`overview.settings`).
+public struct VigieSettings: Decodable, Equatable, Sendable {
+    public struct Safeguards: Decodable, Equatable, Sendable {
+        public struct Rule: Decodable, Equatable, Sendable, Identifiable {
+            public var id: String
+            public var label: String
+            public var disabled: Bool
+
+            public init(id: String, label: String, disabled: Bool = false) {
+                self.id = id
+                self.label = label
+                self.disabled = disabled
+            }
+
+            enum CodingKeys: String, CodingKey {
+                case id, label, disabled
+            }
+
+            public init(from decoder: Decoder) throws {
+                let values = try decoder.container(keyedBy: CodingKeys.self)
+                id = try values.decode(String.self, forKey: .id)
+                label = (try? values.decodeIfPresent(String.self, forKey: .label)) ?? id
+                disabled = (try? values.decodeIfPresent(Bool.self, forKey: .disabled)) ?? false
+            }
+        }
+
+        public var enabled: Bool
+        /// Minutes before an action left waiting is refused.
+        public var waitMinutes: Int
+        public var rules: [Rule]
+
+        public init(enabled: Bool = true, waitMinutes: Int = 10, rules: [Rule] = []) {
+            self.enabled = enabled
+            self.waitMinutes = waitMinutes
+            self.rules = rules
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case enabled, waitMin, rules
+        }
+
+        public init(from decoder: Decoder) throws {
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            enabled = (try? values.decodeIfPresent(Bool.self, forKey: .enabled)) ?? true
+            waitMinutes = (try? values.decodeIfPresent(Int.self, forKey: .waitMin)) ?? 10
+            rules = ((try? values.decodeIfPresent([Lenient<Rule>].self, forKey: .rules)) ?? [])?.compactMap(\.value) ?? []
+        }
+    }
+
+    public var autoAccept: Bool
+    /// « Quand je ne suis pas là, Claude choisit l'option recommandée ».
+    public var questionsAuto: Bool
+    public var questionWaitMinutes: Int
+    /// The account's MCP in new conversations: « on » or « off ».
+    public var connectorsDefault: String?
+    /// The engine installs Vigie's new versions by itself — and with them the app Vigie.
+    public var autoUpdate: Bool?
+    /// Chrome windows left behind by the agents are stopped by themselves.
+    public var stopForgotten: Bool?
+    public var safeguards: Safeguards
+
+    public init(autoAccept: Bool = true, questionsAuto: Bool = false, questionWaitMinutes: Int = 20, connectorsDefault: String? = nil,
+                autoUpdate: Bool? = nil, stopForgotten: Bool? = nil, safeguards: Safeguards = Safeguards()) {
+        self.autoAccept = autoAccept
+        self.questionsAuto = questionsAuto
+        self.questionWaitMinutes = questionWaitMinutes
+        self.connectorsDefault = connectorsDefault
+        self.autoUpdate = autoUpdate
+        self.stopForgotten = stopForgotten
+        self.safeguards = safeguards
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case autoAccept, questionsAuto, questionWaitMin, connectorsDefault, autoUpdate, stopForgotten
+        case safeguards = "guard"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        autoAccept = (try? values.decodeIfPresent(Bool.self, forKey: .autoAccept)) ?? true
+        questionsAuto = (try? values.decodeIfPresent(Bool.self, forKey: .questionsAuto)) ?? false
+        questionWaitMinutes = (try? values.decodeIfPresent(Int.self, forKey: .questionWaitMin)) ?? 20
+        connectorsDefault = try? values.decodeIfPresent(String.self, forKey: .connectorsDefault)
+        autoUpdate = try? values.decodeIfPresent(Bool.self, forKey: .autoUpdate)
+        stopForgotten = try? values.decodeIfPresent(Bool.self, forKey: .stopForgotten)
+        safeguards = (try? values.decodeIfPresent(Safeguards.self, forKey: .safeguards)) ?? Safeguards()
     }
 }
 
@@ -79,10 +227,30 @@ public struct VigieReview: Decodable, Equatable, Sendable, Identifiable {
     public var needsPassword: Bool
     /// The question answered for Paul, with what was chosen.
     public var question: VigieQuestion?
+    /// A question that waits for Paul: its choices, to answer from hub (with `pendingID`).
+    public var questions: [VigieQuestion.Item]
+    /// Where the action runs, and which agent asked for it.
+    public var cwd: String?
+    public var byAgent: String?
+    /// A refusal: why (« delai », « jamais », « sous-agent », « echec »).
+    public var reason: String?
+    /// A limit reached: on which account, which window, and when it starts again.
+    public var accountID: String?
+    public var scope: String?
+    public var resetsAt: Date?
 
     public init(id: String, kind: Kind, conversationID: String? = nil, conversationTitle: String? = nil, title: String, detail: String? = nil,
                 at: Date? = nil, state: String? = nil, pendingID: String? = nil, expiresAt: Date? = nil, rule: String? = nil,
-                command: String? = nil, needsPassword: Bool = false, question: VigieQuestion? = nil) {
+                command: String? = nil, needsPassword: Bool = false, question: VigieQuestion? = nil, questions: [VigieQuestion.Item] = [],
+                cwd: String? = nil, byAgent: String? = nil, reason: String? = nil, accountID: String? = nil, scope: String? = nil,
+                resetsAt: Date? = nil) {
+        self.questions = questions
+        self.cwd = cwd
+        self.byAgent = byAgent
+        self.reason = reason
+        self.accountID = accountID
+        self.scope = scope
+        self.resetsAt = resetsAt
         self.id = id
         self.kind = kind
         self.conversationID = conversationID
@@ -101,6 +269,7 @@ public struct VigieReview: Decodable, Equatable, Sendable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case id, kind, conversationId, conversationTitle, title, detail, ts, state, pendingId, expiresAt, rule, command, needsPassword, question
+        case questions, cwd, byAgent, reason, accountId, scope, resetsAt
     }
 
     public init(from decoder: Decoder) throws {
@@ -120,6 +289,13 @@ public struct VigieReview: Decodable, Equatable, Sendable, Identifiable {
         command = try? values.decodeIfPresent(String.self, forKey: .command)
         needsPassword = (try? values.decodeIfPresent(Bool.self, forKey: .needsPassword)) ?? false
         question = try? values.decodeIfPresent(VigieQuestion.self, forKey: .question)
+        questions = ((try? values.decodeIfPresent([Lenient<VigieQuestion.Item>].self, forKey: .questions)) ?? [])?.compactMap(\.value) ?? []
+        cwd = try? values.decodeIfPresent(String.self, forKey: .cwd)
+        byAgent = try? values.decodeIfPresent(String.self, forKey: .byAgent)
+        reason = try? values.decodeIfPresent(String.self, forKey: .reason)
+        accountID = try? values.decodeIfPresent(String.self, forKey: .accountId)
+        scope = try? values.decodeIfPresent(String.self, forKey: .scope)
+        resetsAt = VigieDate.read(values, .resetsAt)
     }
 
     /// A sensitive action the conversation still waits on: « Autoriser » or « Refuser » answers it.
@@ -127,34 +303,81 @@ public struct VigieReview: Decodable, Equatable, Sendable, Identifiable {
         kind == .blocked && state == "waiting" && pendingID != nil
     }
 
-    /// Something to decide or to answer: what the count of « T'attendent » holds. A notice is only to see.
+    /// What Vigie counts in red, « à décider »: a sensitive action that waits (`g:`), a question or a plan that waits
+    /// (`w:`), a conversation that waits in VS Code (`c:`).
+    public var isDecision: Bool {
+        isPendingDecision || (kind == .waiting && (id.hasPrefix("w:") || id.hasPrefix("c:")))
+    }
+
+    /// Something to decide or to answer, or a question answered for Paul to read again; a notice is only to see.
     public var needsPaul: Bool {
-        switch kind {
-        case .question, .waiting: true
-        case .blocked: state == "waiting"
-        case .limit, .notice, .other: false
-        }
+        isDecision || kind == .question
+    }
+
+    /// A question that waits, with its choices: « Répondre » answers it from hub.
+    public var canAnswer: Bool {
+        id.hasPrefix("w:") && pendingID != nil && !questions.isEmpty
+    }
+
+    /// Codex's own (a hook to accept, an action held for it): left out of hub.
+    public var isCodex: Bool {
+        id == "codex-hook" || id.hasPrefix("v:")
+    }
+
+    /// A command masked by the engine (a key in it): never copied.
+    public var commandIsMasked: Bool {
+        command?.contains("••••") ?? false
     }
 }
 
 public struct VigieQuestion: Decodable, Equatable, Sendable {
+    public struct Option: Decodable, Equatable, Sendable, Hashable {
+        public var label: String
+        public var description: String?
+
+        public init(label: String, description: String? = nil) {
+            self.label = label
+            self.description = description
+        }
+    }
+
     public struct Item: Decodable, Equatable, Sendable {
         public var question: String
-        public var chosen: String?
+        public var header: String?
+        public var multiSelect: Bool
+        public var options: [Option]
+        /// What was chosen: one option, or several for a question with several answers.
+        public var chosen: [String]
 
-        public init(question: String, chosen: String? = nil) {
+        public init(question: String, header: String? = nil, multiSelect: Bool = false, options: [Option] = [], chosen: [String] = []) {
             self.question = question
+            self.header = header
+            self.multiSelect = multiSelect
+            self.options = options
             self.chosen = chosen
         }
 
         enum CodingKeys: String, CodingKey {
-            case question, chosen
+            case question, header, multiSelect, options, chosen
         }
 
         public init(from decoder: Decoder) throws {
             let values = try decoder.container(keyedBy: CodingKeys.self)
             question = (try? values.decodeIfPresent(String.self, forKey: .question)) ?? ""
-            chosen = try? values.decodeIfPresent(String.self, forKey: .chosen)
+            header = try? values.decodeIfPresent(String.self, forKey: .header)
+            multiSelect = (try? values.decodeIfPresent(Bool.self, forKey: .multiSelect)) ?? false
+            options = ((try? values.decodeIfPresent([Lenient<Option>].self, forKey: .options)) ?? [])?.compactMap(\.value) ?? []
+            // One text, or a list: the engine writes a list for several answers.
+            if let one = try? values.decodeIfPresent(String.self, forKey: .chosen) {
+                chosen = one.isEmpty ? [] : [one]
+            } else {
+                chosen = (try? values.decodeIfPresent([String].self, forKey: .chosen)) ?? []
+            }
+        }
+
+        /// What was chosen, in words.
+        public var chosenText: String? {
+            chosen.isEmpty ? nil : chosen.joined(separator: ", ")
         }
     }
 
@@ -206,9 +429,17 @@ public struct VigieConversation: Decodable, Equatable, Sendable, Identifiable {
     public var headline: String?
     public var agentsRunning: Int
     public var progress: Progress?
+    /// The tool it runs in: « codex » is left out.
+    public var agent: String?
+    public var cwd: String?
+
+    public var isCodex: Bool { agent == "codex" }
 
     public init(id: String, title: String, project: String? = nil, status: Status = .idle, running: Bool = false, accountID: String? = nil,
-                lastActivity: Date? = nil, needsYou: Int = 0, headline: String? = nil, agentsRunning: Int = 0, progress: Progress? = nil) {
+                lastActivity: Date? = nil, needsYou: Int = 0, headline: String? = nil, agentsRunning: Int = 0, progress: Progress? = nil,
+                agent: String? = nil, cwd: String? = nil) {
+        self.agent = agent
+        self.cwd = cwd
         self.id = id
         self.title = title
         self.project = project
@@ -223,7 +454,7 @@ public struct VigieConversation: Decodable, Equatable, Sendable, Identifiable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, title, project, status, running, accountId, lastActivity, needsYou, headline, agentsRunning, progress
+        case id, title, project, status, running, accountId, lastActivity, needsYou, headline, agentsRunning, progress, agent, cwd
     }
 
     public init(from decoder: Decoder) throws {
@@ -239,6 +470,8 @@ public struct VigieConversation: Decodable, Equatable, Sendable, Identifiable {
         headline = try? values.decodeIfPresent(String.self, forKey: .headline)
         agentsRunning = (try? values.decodeIfPresent(Int.self, forKey: .agentsRunning)) ?? 0
         progress = try? values.decodeIfPresent(Progress.self, forKey: .progress)
+        agent = try? values.decodeIfPresent(String.self, forKey: .agent)
+        cwd = try? values.decodeIfPresent(String.self, forKey: .cwd)
     }
 }
 
@@ -246,20 +479,26 @@ public struct VigieConversation: Decodable, Equatable, Sendable, Identifiable {
 public struct VigieAccount: Decodable, Equatable, Sendable, Identifiable {
     public var id: String
     public var label: String
+    /// « codex » for Codex's account, left out.
+    public var kind: String?
 
-    public init(id: String, label: String) {
+    public var isCodex: Bool { kind == "codex" }
+
+    public init(id: String, label: String, kind: String? = nil) {
         self.id = id
         self.label = label
+        self.kind = kind
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, label
+        case id, label, kind
     }
 
     public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         id = try values.decode(String.self, forKey: .id)
         label = (try? values.decodeIfPresent(String.self, forKey: .label)) ?? id
+        kind = try? values.decodeIfPresent(String.self, forKey: .kind)
     }
 }
 

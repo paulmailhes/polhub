@@ -169,7 +169,7 @@ struct Sidebar: View {
             SidebarLabel(item: item, recording: library.meetingActive)
         case .vigie:
             if let vigie {
-                Observing(vigie) { SidebarLabel(item: item, count: $0.waiting.count) }
+                Observing(vigie) { SidebarLabel(item: item, count: $0.decisions.count) }
             } else {
                 SidebarLabel(item: item)
             }

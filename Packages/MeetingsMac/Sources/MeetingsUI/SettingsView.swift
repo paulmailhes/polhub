@@ -35,6 +35,8 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
     let addOnControl: AddOnControl?
     /// Réglages › Dictée (20/11), when the Dictée is installed.
     let dictationService: DictationService?
+    /// Réglages › Vigie (21/11), when Vigie is installed.
+    let vigie: VigieLibrary?
     let diagnostic: Diagnostic
     let journal: Journal
     @State private var query = ""
@@ -45,9 +47,10 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
          inspiration: InspirationLibrary? = nil, library: MeetingLibrary,
          notifications: NotificationHub? = nil, startup: StartupControl? = nil, colinThread: ColinThread? = nil, colinProbe: ColinProbeControl? = nil,
          phone: PhoneAccess? = nil, addOns: Set<AddOn> = Set(AddOn.allCases), addOnControl: AddOnControl? = nil,
-         dictationService: DictationService? = nil,
+         dictationService: DictationService? = nil, vigie: VigieLibrary? = nil,
          @ViewBuilder diagnostic: () -> Diagnostic, @ViewBuilder journal: () -> Journal) {
         self.dictationService = dictationService
+        self.vigie = vigie
         self.phone = phone
         self.addOns = addOns
         self.addOnControl = addOnControl
@@ -105,7 +108,8 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
         case .inspiration: return inspiration != nil ? pane : nil
         case .dictation: return dictationService != nil ? pane : nil
         case .colin: return hasMails ? pane : nil
-        case .projects, .meetings, .mails, .iphone, .vigie: return pane
+        case .vigie: return vigie != nil ? pane : nil
+        case .projects, .meetings, .mails, .iphone: return pane
         }
     }
 
@@ -246,6 +250,8 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
             if let inspiration { InspirationSettingsPane(library: inspiration, router: router) }
         case .dictation:
             if let dictationService { DictationSettingsPane(service: dictationService) }
+        case .vigie:
+            if let vigie { VigieSettingsPane(library: vigie) }
         case .diagnostic:
             diagnostic.frame(maxWidth: SettingsMetrics.width)
         case .journal:

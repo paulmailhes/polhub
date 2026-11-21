@@ -36,6 +36,8 @@ public final class AppModel {
     /// Dia's tabs are read and fed to the coordinator. Off before launch ends, and in the development build until
     /// switched on.
     public var detectionOn = false
+    /// Vigie's decisions that wait for Paul in Claude Code (21/11): their count rides the logo.
+    public var vigieDecisions = 0
     /// The Meet code of the meeting under way, told by the coordinator; nil without one or without a meeting.
     public private(set) var meetCode: String?
     /// The start of the next event with a Meet link, not started yet (`updateNextMeet`).
@@ -196,7 +198,7 @@ public final class AppModel {
     public func menuBarLabel(meetMinutes: Bool) -> MenuBarLabel {
         MenuBarLabel.make(status: shownStatus, now: now, promptDeadline: promptDeadline,
                           minutesToMeet: meetMinutes ? minutesToMeet : nil, danger: recordingsAtRisk,
-                          watching: detectionOn, isDevelopment: isDevelopment)
+                          watching: detectionOn, isDevelopment: isDevelopment, decisions: vigieDecisions)
     }
 }
 
