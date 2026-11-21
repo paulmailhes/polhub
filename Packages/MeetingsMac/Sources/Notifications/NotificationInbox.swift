@@ -10,6 +10,8 @@ public enum NoticeSection: String, Sendable {
     case calendar, meetings, mails, polhub
     /// The Accueil: what Colin says (18/11).
     case home
+    /// Vigie (21/11).
+    case vigie
 }
 
 extension PlannedNotice.Kind {
@@ -20,6 +22,7 @@ extension PlannedNotice.Kind {
         case .mail: .mails
         case .test: .polhub
         case .draft: .home
+        case .vigie: .vigie
         }
     }
 }
@@ -41,12 +44,16 @@ public enum NoticeAction: Equatable, Sendable {
     case window
     /// The Accueil: a draft ready waits there, at the head of « À valider » (18/11).
     case home
+    /// Vigie's page, on the conversation it names when there is one (21/11).
+    case vigie(String?)
 
     /// A mail opens its thread, else its folder; a reminder or a meeting not recorded joins the Meet when `join`
     /// (« Rejoindre », or a click on it); otherwise the meeting, the event, or Calendrier (review of 14/11).
     public static func of(kind: PlannedNotice.Kind?, eventID: String?, meetCode: String?, account: String?, meetingID: UUID?,
-                          threadKey: String?, folder: String?, join: Bool) -> NoticeAction {
+                          threadKey: String?, folder: String?, join: Bool, vigie: String? = nil) -> NoticeAction {
         switch kind {
+        case .vigie:
+            return .vigie(vigie.flatMap { $0.isEmpty ? nil : $0 })
         case .mail:
             return threadKey.map(NoticeAction.mailThread) ?? .mailFolder(folder)
         case .test:
@@ -77,6 +84,8 @@ public struct InboxNotice: Codable, Equatable, Identifiable, Sendable {
     public var meetingID: UUID?
     public var threadKey: String?
     public var folder: String?
+    /// Vigie's conversation a click opens (21/11).
+    public var vigie: String?
     /// How many notifications this card stands for: repeats collapse into one, the latest on top.
     public var count: Int
     public var seen: Bool
@@ -94,6 +103,7 @@ public struct InboxNotice: Codable, Equatable, Identifiable, Sendable {
         meetingID = notice.meetingID
         threadKey = notice.threadKey
         folder = notice.folder
+        vigie = notice.vigie
         count = 1
         self.seen = seen
     }
@@ -107,6 +117,8 @@ public struct InboxNotice: Codable, Equatable, Identifiable, Sendable {
         case .test: "essai"
         // One card by draft, whatever its thread: its notice carries its name.
         case .draft: notice.id
+        // One card by element of Vigie.
+        case .vigie: notice.id
         }
         return "\(notice.kind.rawValue)|\(subject)"
     }
@@ -116,7 +128,7 @@ public struct InboxNotice: Codable, Equatable, Identifiable, Sendable {
     public func action(now: Date) -> NoticeAction {
         let join = (kind == .reminder || kind == .unrecorded) && now.timeIntervalSince(date) < NotificationInbox.joinWindow
         return .of(kind: kind, eventID: eventID, meetCode: meetCode, account: account, meetingID: meetingID, threadKey: threadKey,
-                   folder: folder, join: join)
+                   folder: folder, join: join, vigie: vigie)
     }
 }
 

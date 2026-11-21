@@ -44,6 +44,16 @@ public final class NotificationHub: ObservableObject {
         if toPhone { await phone?(notice) }
     }
 
+    /// Vigie's notifications (21/11): shown by macOS and kept in the list, never sent to the iPhone.
+    public func vigie(_ notice: PlannedNotice) async {
+        await deliver(notice, toPhone: false)
+    }
+
+    /// Vigie's waits that ended: their notifications go.
+    public func removeVigie(_ ids: [String]) async {
+        await client.removeDelivered(ids)
+    }
+
     /// The reminders whose time came since the last look go to the list, at the time macOS showed them.
     func recordDueReminders(now: Date) {
         let due = scheduled.filter { $0.fireDate <= now }

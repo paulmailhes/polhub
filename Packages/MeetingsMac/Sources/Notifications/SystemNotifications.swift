@@ -10,6 +10,8 @@ public enum NoticeKey {
     public static let thread = "fil"
     public static let folder = "dossier"
     public static let kind = "genre"
+    /// Vigie's conversation (21/11).
+    public static let vigie = "vigie"
     /// The « Rejoindre » button.
     public static let joinAction = "rejoindre"
     static let joinCategory = "rendez-vous"
@@ -86,11 +88,18 @@ public struct SystemNotifications: NotificationCenterClient {
         try? await center.add(UNNotificationRequest(identifier: notice.id, content: Self.content(notice, sound: sound), trigger: nil))
     }
 
+    public func removeDelivered(_ ids: [String]) async {
+        center.removeDeliveredNotifications(withIdentifiers: ids)
+    }
+
     static func content(_ notice: PlannedNotice, sound: Bool) -> UNMutableNotificationContent {
         let content = UNMutableNotificationContent()
         content.title = notice.title
         content.body = notice.body
-        content.sound = sound ? .default : nil
+        content.sound = sound && !notice.quiet ? .default : nil
+        // What asks nothing goes to the center without a banner (21/11, Vigie's « discrètes »).
+        if notice.quiet { content.interruptionLevel = .passive }
+        if notice.kind == .vigie, let subtitle = notice.subtitle, !subtitle.isEmpty { content.subtitle = subtitle }
         content.categoryIdentifier = notice.joinable ? NoticeKey.joinCategory : NoticeKey.plainCategory
         var info: [String: String] = [NoticeKey.kind: notice.kind.rawValue]
         info[NoticeKey.event] = notice.eventID
@@ -99,6 +108,7 @@ public struct SystemNotifications: NotificationCenterClient {
         info[NoticeKey.meeting] = notice.meetingID?.uuidString
         info[NoticeKey.thread] = notice.threadKey
         info[NoticeKey.folder] = notice.folder
+        info[NoticeKey.vigie] = notice.vigie
         content.userInfo = info
         // One thread per event: its reminders stack together.
         content.threadIdentifier = notice.eventID ?? notice.kind.rawValue

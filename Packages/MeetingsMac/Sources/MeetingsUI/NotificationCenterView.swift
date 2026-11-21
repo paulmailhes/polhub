@@ -33,6 +33,8 @@ extension WindowRouter {
             // A thread left open over the Accueil would hide the draft that waits.
             homeMail = nil
             section = .home
+        case .vigie:
+            section = .vigie
         }
         return true
     }
@@ -47,6 +49,7 @@ extension NoticeSection {
         case .mails: .mails
         case .polhub: nil
         case .home: .home
+        case .vigie: .vigie
         }
     }
 

@@ -3,6 +3,30 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.70.0 — 21 novembre 2026
+
+**Vigie dans hub, troisième étape : hub notifie à la place de l'app Vigie.**
+
+- **Les notifications de Vigie viennent de hub**, avec les mêmes sortes que l'app :
+  - une action sensible à autoriser ;
+  - une conversation qui t'attend ou te pose une question ;
+  - une action autorisée qui a échoué ;
+  - une réponse choisie pour toi ;
+  - une conversation arrêtée par une limite ;
+  - un compte à 80 puis 90 % de sa semaine, ou à 90 % de sa session ;
+  - une demande ou un workflow fini, avec « À toi » ;
+  - une conversation qui s'emballe.
+- **Les règles de Vigie** :
+  - rien au premier lancement ;
+  - une seule fois par élément, même après une relance de hub ;
+  - trois bannières au plus, la plus importante d'abord ;
+  - ce qui ne demande rien va dans le centre de notifications, sans bannière ni son ;
+  - une attente finie retire sa notification.
+- **Jamais deux fois** : tant que l'app Vigie tourne, c'est elle qui notifie ; hub prend le relais dès qu'elle est
+  fermée.
+- **Un clic ouvre la page Vigie**, depuis macOS comme depuis la cloche de hub.
+- **Réglages › Vigie › Notifications** : un interrupteur par sorte.
+
 ## 0.69.0 — 21 novembre 2026
 
 **Vigie dans hub, deuxième étape : tout ce que l'app Vigie faisait sur sa vue d'ensemble, et ses réglages.**

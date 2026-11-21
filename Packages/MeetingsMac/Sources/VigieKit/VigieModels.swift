@@ -11,18 +11,21 @@ public struct VigieOverview: Decodable, Equatable, Sendable {
     public var settings: VigieSettings?
     /// The engine's short sentences to show (an account's folder repaired…).
     public var notices: [String]
+    /// What finished: a request, a workflow, a page published.
+    public var reports: [VigieReport]
 
     public init(toReview: [VigieReview] = [], conversations: [VigieConversation] = [], accounts: [VigieAccount] = [],
-                settings: VigieSettings? = nil, notices: [String] = []) {
+                settings: VigieSettings? = nil, notices: [String] = [], reports: [VigieReport] = []) {
         self.toReview = toReview
         self.conversations = conversations
         self.accounts = accounts
         self.settings = settings
         self.notices = notices
+        self.reports = reports
     }
 
     enum CodingKeys: String, CodingKey {
-        case toReview, conversations, accounts, settings, engine
+        case toReview, conversations, accounts, settings, engine, reports
     }
 
     enum EngineKeys: String, CodingKey {
@@ -42,6 +45,14 @@ public struct VigieOverview: Decodable, Equatable, Sendable {
         settings = try? values.decodeIfPresent(VigieSettings.self, forKey: .settings)
         let engine = try? values.nestedContainer(keyedBy: EngineKeys.self, forKey: .engine)
         notices = ((try? engine?.decodeIfPresent([Lenient<VigieNotice>].self, forKey: .notices)) ?? [])?.compactMap(\.value?.text) ?? []
+        reports = (Self.each(values, .reports) as [VigieReport]).filter { !($0.conversationID.map(codex.contains) ?? false) }
+    }
+
+    /// A conversation's short name, for a notification: its title, else its project.
+    public func conversationName(_ id: String?, fallback: String?) -> String {
+        let conversation = id.flatMap { id in conversations.first { $0.id == id } }
+        let title = conversation?.title.isEmpty == false ? conversation?.title : fallback
+        return title ?? conversation?.project ?? "Une conversation"
     }
 
     /// The elements that can be read: one the engine writes in a way hub does not know is left out, the rest stays.
@@ -72,6 +83,66 @@ public struct VigieOverview: Decodable, Equatable, Sendable {
 
     /// What is only to see: a refusal to do oneself, a limit reached, an account to connect again, a notice.
     public var toSee: [VigieReview] { toReview.filter { !$0.isDecision && $0.kind != .question } }
+}
+
+/// Something that finished: a request (`missionDone`), a workflow (`workflowDone`), a page published (`artifact`).
+public struct VigieReport: Decodable, Equatable, Sendable {
+    public var id: String?
+    public var kind: String
+    public var conversationID: String?
+    public var conversationTitle: String?
+    public var title: String?
+    public var detail: String?
+    /// The real request, without « continue ».
+    public var prompt: String?
+    /// The report ends with this question.
+    public var question: String?
+    /// What Claude leaves to Paul (« À toi : … »).
+    public var toYou: String?
+    public var duration: TimeInterval?
+    /// A workflow: done, failed, killed.
+    public var status: String?
+    public var agentsFailed: Int?
+    public var at: Date?
+
+    public init(id: String? = nil, kind: String, conversationID: String? = nil, conversationTitle: String? = nil, title: String? = nil,
+                detail: String? = nil, prompt: String? = nil, question: String? = nil, toYou: String? = nil, duration: TimeInterval? = nil,
+                status: String? = nil, agentsFailed: Int? = nil, at: Date? = nil) {
+        self.id = id
+        self.kind = kind
+        self.conversationID = conversationID
+        self.conversationTitle = conversationTitle
+        self.title = title
+        self.detail = detail
+        self.prompt = prompt
+        self.question = question
+        self.toYou = toYou
+        self.duration = duration
+        self.status = status
+        self.agentsFailed = agentsFailed
+        self.at = at
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, kind, conversationId, conversationTitle, title, detail, prompt, question, toYou, durationMs, status, agentsFailed, ts
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try? values.decodeIfPresent(String.self, forKey: .id)
+        kind = (try? values.decodeIfPresent(String.self, forKey: .kind)) ?? ""
+        conversationID = try? values.decodeIfPresent(String.self, forKey: .conversationId)
+        conversationTitle = try? values.decodeIfPresent(String.self, forKey: .conversationTitle)
+        title = try? values.decodeIfPresent(String.self, forKey: .title)
+        detail = try? values.decodeIfPresent(String.self, forKey: .detail)
+        prompt = try? values.decodeIfPresent(String.self, forKey: .prompt)
+        question = try? values.decodeIfPresent(String.self, forKey: .question)
+        toYou = try? values.decodeIfPresent(String.self, forKey: .toYou)
+        duration = (try? values.decodeIfPresent(Double.self, forKey: .durationMs)).map { $0 / 1_000 }
+        status = try? values.decodeIfPresent(String.self, forKey: .status)
+        agentsFailed = try? values.decodeIfPresent(Int.self, forKey: .agentsFailed)
+        at = VigieDate.read(values, .ts)
+    }
 }
 
 /// A sentence of the engine: a text, or an object with one.
@@ -324,6 +395,14 @@ public struct VigieReview: Decodable, Equatable, Sendable, Identifiable {
         id == "codex-hook" || id.hasPrefix("v:")
     }
 
+    /// A plan to approve (`ExitPlanMode`): the engine says it by its title only (`docs/api-v2.md`, `w:`; « Plan à
+    /// valider » before 7/11/2026). It is approved in VS Code.
+    public var isPlan: Bool {
+        Self.planTitles.contains(title)
+    }
+
+    static let planTitles: Set<String> = ["Plan à approuver", "Plan à valider"]
+
     /// A command masked by the engine (a key in it): never copied.
     public var commandIsMasked: Bool {
         command?.contains("••••") ?? false
@@ -432,6 +511,31 @@ public struct VigieConversation: Decodable, Equatable, Sendable, Identifiable {
     /// The tool it runs in: « codex » is left out.
     public var agent: String?
     public var cwd: String?
+    /// « S'emballe »: an unusual consumption, a test that fails in a loop, an agent that repeats itself.
+    public var alert: Alert?
+
+    public struct Alert: Decodable, Equatable, Sendable {
+        public var kind: String?
+        public var since: Date?
+        public var reason: String?
+
+        public init(kind: String? = nil, since: Date? = nil, reason: String? = nil) {
+            self.kind = kind
+            self.since = since
+            self.reason = reason
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case kind, since, reason
+        }
+
+        public init(from decoder: Decoder) throws {
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            kind = try? values.decodeIfPresent(String.self, forKey: .kind)
+            since = VigieDate.read(values, .since)
+            reason = try? values.decodeIfPresent(String.self, forKey: .reason)
+        }
+    }
 
     public var isCodex: Bool { agent == "codex" }
 
@@ -454,7 +558,7 @@ public struct VigieConversation: Decodable, Equatable, Sendable, Identifiable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, title, project, status, running, accountId, lastActivity, needsYou, headline, agentsRunning, progress, agent, cwd
+        case id, title, project, status, running, accountId, lastActivity, needsYou, headline, agentsRunning, progress, agent, cwd, alert
     }
 
     public init(from decoder: Decoder) throws {
@@ -472,6 +576,7 @@ public struct VigieConversation: Decodable, Equatable, Sendable, Identifiable {
         progress = try? values.decodeIfPresent(Progress.self, forKey: .progress)
         agent = try? values.decodeIfPresent(String.self, forKey: .agent)
         cwd = try? values.decodeIfPresent(String.self, forKey: .cwd)
+        alert = try? values.decodeIfPresent(Alert.self, forKey: .alert)
     }
 }
 
@@ -481,17 +586,50 @@ public struct VigieAccount: Decodable, Equatable, Sendable, Identifiable {
     public var label: String
     /// « codex » for Codex's account, left out.
     public var kind: String?
+    /// Its 5-hour session and its week; nil when the reading is old (the engine never gives a stale one).
+    public var session: Window?
+    public var week: Window?
+
+    public struct Window: Decodable, Equatable, Sendable {
+        public var percent: Double
+        public var resetsAt: Date?
+        /// The week will be full before it starts again, at this time.
+        public var fullAt: Date?
+
+        public init(percent: Double, resetsAt: Date? = nil, fullAt: Date? = nil) {
+            self.percent = percent
+            self.resetsAt = resetsAt
+            self.fullAt = fullAt
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case pct, resetsAt, fullAt
+        }
+
+        public init(from decoder: Decoder) throws {
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            percent = try values.decode(Double.self, forKey: .pct)
+            resetsAt = VigieDate.read(values, .resetsAt)
+            fullAt = VigieDate.read(values, .fullAt)
+        }
+    }
 
     public var isCodex: Bool { kind == "codex" }
 
-    public init(id: String, label: String, kind: String? = nil) {
+    public init(id: String, label: String, kind: String? = nil, session: Window? = nil, week: Window? = nil) {
         self.id = id
         self.label = label
         self.kind = kind
+        self.session = session
+        self.week = week
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, label, kind
+        case id, label, kind, usage
+    }
+
+    enum UsageKeys: String, CodingKey {
+        case session, week
     }
 
     public init(from decoder: Decoder) throws {
@@ -499,6 +637,9 @@ public struct VigieAccount: Decodable, Equatable, Sendable, Identifiable {
         id = try values.decode(String.self, forKey: .id)
         label = (try? values.decodeIfPresent(String.self, forKey: .label)) ?? id
         kind = try? values.decodeIfPresent(String.self, forKey: .kind)
+        let usage = try? values.nestedContainer(keyedBy: UsageKeys.self, forKey: .usage)
+        session = try? usage?.decodeIfPresent(Window.self, forKey: .session)
+        week = try? usage?.decodeIfPresent(Window.self, forKey: .week)
     }
 }
 

@@ -9,6 +9,8 @@ public struct PlannedNotice: Equatable, Sendable {
     /// Calendrier). `draft`: a draft an agent prepared waits for Paul on the Accueil (18/11).
     public enum Kind: String, Codable, CaseIterable, Sendable {
         case reminder, newEvent, unrecorded, summary, mail, test, draft
+        /// Vigie (21/11): what waits for Paul in Claude Code, what finished, an account full.
+        case vigie
     }
 
     public var id: String
@@ -29,10 +31,17 @@ public struct PlannedNotice: Equatable, Sendable {
     /// The mails' folder a click opens when there is no thread (« Programmés », wave B).
     public var folder: String?
     public var kind: Kind
+    /// Vigie: the conversation a click opens (empty: the page).
+    public var vigie: String?
+    /// Asks nothing: the notification center only, without a banner or a sound (21/11, as the app Vigie).
+    public var quiet = false
 
     public init(id: String, fireDate: Date, title: String, body: String, eventID: String?, meetCode: String?, account: String?,
-                meetingID: UUID? = nil, threadKey: String? = nil, folder: String? = nil, kind: Kind = .reminder, subtitle: String? = nil) {
+                meetingID: UUID? = nil, threadKey: String? = nil, folder: String? = nil, kind: Kind = .reminder, subtitle: String? = nil,
+                vigie: String? = nil, quiet: Bool = false) {
         self.id = id
+        self.vigie = vigie
+        self.quiet = quiet
         self.subtitle = subtitle
         self.fireDate = fireDate
         self.title = title
@@ -182,6 +191,12 @@ public protocol NotificationCenterClient: Sendable {
     func schedule(_ notice: PlannedNotice, sound: Bool) async
     func removePending(_ ids: [String]) async
     func deliverNow(_ notice: PlannedNotice, sound: Bool) async
+    /// Takes away notifications already shown (21/11: Vigie's waits that ended).
+    func removeDelivered(_ ids: [String]) async
+}
+
+extension NotificationCenterClient {
+    public func removeDelivered(_ ids: [String]) async {}
 }
 
 /// Brings macOS's pending reminders in line with the plan: hub's stale ones go, missing ones come; nothing else

@@ -66,6 +66,15 @@ struct VigieSettingsPane: View {
                         .disabled(library.sending.contains("moteur") || library.link == .absent)
                 }
             }
+            // The notifications of Vigie, kind by kind, as the app Vigie's (21/11: « les notifications dans chaque outil »).
+            Section {
+                ForEach(VigieNotifications.Kind.allCases, id: \.self) { kind in VigieNotifyToggle(kind: kind) }
+            } header: {
+                Text("Notifications")
+            } footer: {
+                Text(Words.typeset(VigieNotifier.isAppRunning() ? VigieSettingsText.appNotifies : VigieSettingsText.hubNotifies))
+                    .font(.meta).foregroundStyle(.secondary)
+            }
             if let problem = library.problem {
                 Section { ErrorLine(problem) }
             }
@@ -89,6 +98,8 @@ enum VigieSettingsText {
     static let stopForgottenHelp = "Les fenêtres de Chrome laissées par les agents s'arrêtent seules quand leur conversation est finie."
     static let connectorsHelp = "Gmail, Drive… branchés d'office dans chaque nouvelle conversation de Claude Code."
     static let restartHelp = "Quand il ne répond plus : macOS le relance, rien n'est perdu."
+    static let appNotifies = "L'app Vigie tourne : c'est elle qui notifie. hub prend le relais dès qu'elle est fermée."
+    static let hubNotifies = "hub notifie à la place de l'app Vigie ; une attente finie retire sa notification."
 
     /// The waits the engine takes for the questions (1 to 120 min), the current one kept.
     static func questionWaits(_ current: Int) -> [Int] {
@@ -108,5 +119,20 @@ enum VigieSettingsText {
         case .trouble(let why): why
         case .running: "Vigie n'a pas encore donné ses réglages."
         }
+    }
+}
+
+/// A kind of Vigie's notifications, on or off.
+struct VigieNotifyToggle: View {
+    let kind: VigieNotifications.Kind
+    @AppStorage private var on: Bool
+
+    init(kind: VigieNotifications.Kind) {
+        self.kind = kind
+        _on = AppStorage(wrappedValue: true, VigieNotifier.key(kind))
+    }
+
+    var body: some View {
+        Toggle(Words.typeset(kind.title), isOn: $on)
     }
 }

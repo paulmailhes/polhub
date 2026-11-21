@@ -63,6 +63,8 @@ import VigieKit
 
     let client: VigieClient
     let actions: Actions
+    /// After each reading that shows what the engine says now: the notifications (21/11).
+    public var onRead: ((VigieOverview) -> Void)?
     private var loop: Task<Void, Never>?
     /// Reads missed in a row, and the last one that answered: « ne répond pas » after two, or eight seconds.
     private var misses = 0
@@ -116,6 +118,7 @@ import VigieKit
             hidden = hidden.filter { listed.contains($0.key) && Date().timeIntervalSince($0.value) < 60 }
             if fresh != overview { overview = fresh }
             set(.running)
+            onRead?(fresh)
         } catch VigieFailure.absent {
             if overview != VigieOverview() { overview = VigieOverview() }
             set(.absent)

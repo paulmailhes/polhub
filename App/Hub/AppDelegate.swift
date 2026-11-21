@@ -144,6 +144,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var guideObserver: AnyCancellable?
     /// Vigie's count, for the menu bar's logo (21/11).
     private var vigieObserver: AnyCancellable?
+    /// Vigie's notifications, in the app Vigie's place (21/11).
+    private var vigieNotifier: VigieNotifier?
 
     /// The add-ons installed (20/11), settled at launch: what is not installed is never made.
     private(set) var addOns = Set(AddOn.allCases)
@@ -364,6 +366,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             vigieObserver = library.objectWillChange.receive(on: RunLoop.main).sink { [weak self, weak library] _ in
                 guard let self, let library else { return }
                 self.model.vigieDecisions = library.decisions.count
+            }
+            // hub notifies in the app Vigie's place, never while it runs (21/11, the migration).
+            let notifier = VigieNotifier(post: { [weak self] notice in
+                if let hub = self?.notifications { await hub.vigie(notice) } else { await SystemNotifications().deliverNow(notice, sound: !notice.quiet) }
+            }, remove: { [weak self] ids in
+                if let hub = self?.notifications { await hub.removeVigie(ids) } else { await SystemNotifications().removeDelivered(ids) }
+            })
+            vigieNotifier = notifier
+            library.onRead = { [weak self] overview in
+                Task { @MainActor in
+                    // The Vigie page in front: no banner for what it already shows.
+                    let front = NSApp.isActive && self?.router.section == .vigie
+                    await notifier.process(overview, inFront: { _ in front })
+                }
             }
         }
         if addOns.contains(.inspiration) { startInspiration(database: store.database) }
@@ -762,7 +778,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         let opened = NoticeAction.of(kind: kind, eventID: info[NoticeKey.event] as? String, meetCode: info[NoticeKey.meet] as? String,
                                      account: info[NoticeKey.account] as? String,
                                      meetingID: (info[NoticeKey.meeting] as? String).flatMap(UUID.init(uuidString:)),
-                                     threadKey: info[NoticeKey.thread] as? String, folder: info[NoticeKey.folder] as? String, join: join)
+                                     threadKey: info[NoticeKey.thread] as? String, folder: info[NoticeKey.folder] as? String, join: join,
+                                     vigie: info[NoticeKey.vigie] as? String)
         completionHandler()
         Task { @MainActor in self.perform(opened) }
     }
