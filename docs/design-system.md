@@ -49,8 +49,10 @@ ils prennent Liquid Glass tout seuls. Aucun fond personnalisé sur une barre.
   la place manque (`ViewThatFits`), comme celle d'un mail ouvert.
 - **Un trait de grille fait un pixel**, posé sur un pixel (`PixelGrid`) et de la couleur de séparation du système :
   un demi-point s'effaçait sur un écran qui n'est pas Retina, d'autant plus que la fenêtre s'élargissait.
-- **La barre latérale** est une `List` native (sa sélection et son verre sont ceux du système, jamais de verre
-  ni de fond ajouté sur une rangée) : de grandes rangées (`sidebarRowSize` `.large`), la pastille de chaque
+- **La barre latérale** garde le verre du système, mais dessine ses rangées elle-même depuis le 21/11 (`SidebarLine`,
+  `SidebarRowButton`) : une liste native allumait la rangée choisie à la couleur d'accent du Mac (l'orange de Paul) dès
+  qu'elle avait le focus. La rangée montrée est d'un gris doux, focus ou pas, sans anneau de focus ; de grandes rangées
+  (36 points), la pastille de chaque
   section (`ToolBadge`, 24 points, 21/11 : la teinte d'un glyphe ne s'appliquait plus, les icônes sortaient grises), un nombre à droite quand il sert (mails non lus, rendez-vous qui
   restent aujourd'hui), un point rouge sur Réunions pendant un enregistrement. Elle ne liste que des lieux
   (« Mails court », lot 4, 19/11) : Accueil, Projets, Réunions, Calendrier, Mails (Boîte de réception, Brouillons,

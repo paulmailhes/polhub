@@ -26,6 +26,23 @@ enum SidebarRow: Hashable {
     }
 }
 
+/// A line of the sidebar's list, top to bottom (21/11: the list is drawn by hand, from these lines).
+enum SidebarLine: Hashable {
+    case section(SidebarItem)
+    case folder(MailFolder)
+    /// « Plus », which unfolds the rarer folders.
+    case more
+
+    /// The sections; under « Mails » open, its three folders and « Plus », then the others while « Plus » is open.
+    static func lines(items: [SidebarItem], hasMails: Bool, mailsOpen: Bool, moreOpen: Bool, showingScheduled: Bool) -> [SidebarLine] {
+        items.flatMap { item -> [SidebarLine] in
+            guard item == .mails, hasMails, mailsOpen else { return [.section(item)] }
+            return [.section(.mails)] + MailFolder.sidebar.map(SidebarLine.folder) + [.more]
+                + (moreOpen ? MailFolder.more(showingScheduled: showingScheduled).map(SidebarLine.folder) : [])
+        }
+    }
+}
+
 extension MailFolder {
     /// Under « Mails », always (lot 4, 19/11: « Mails court »): the three Paul goes to.
     static let sidebar: [MailFolder] = [.inbox, .drafts, .sent]
@@ -72,8 +89,13 @@ extension MailLibrary {
 }
 
 /// The sidebar, one for every window (lot 4, 19/11: « Mails court »): the sections of the work, « Mails » open on three
-/// folders and « Plus », Inspiration on one row; Contacts and Réglages at the bottom. Larger rows, a color per section,
-/// as Mail's and the Finder's. The notifications' bell is up in the toolbar, beside the sidebar's button.
+/// folders and « Plus », Inspiration on one row; Contacts and Réglages at the bottom. Larger rows, a badge per section.
+/// The notifications' bell is up in the toolbar, beside the sidebar's button.
+///
+/// Its rows are drawn by hand since 21/11 (Paul: « Boîte de réception, Brouillons… encore en orange quand je rentre dans
+/// Mail… il faut l'enlever »): a native list lit the row chosen in the Mac's accent color whenever it had the focus, and
+/// nothing in SwiftUI changes that color. The row shown is now a soft grey, focus or not, as Contacts and Réglages at the
+/// bottom always were.
 struct Sidebar: View {
     @ObservedObject var router: WindowRouter
     @ObservedObject var library: MeetingLibrary
@@ -98,111 +120,114 @@ struct Sidebar: View {
                     list(mails: nil)
                 }
             }
-            SidebarFooter(router: router, indent: mails != nil ? SidebarFooterMetrics.outlineIndent : 0, items: footer) { item in
+            SidebarFooter(router: router, items: footer) { item in
                 router.show(item, mails: mails)
             }
         }
-        .environment(\.sidebarRowSize, .large)
     }
 
     private func list(mails: MailLibrary?) -> some View {
-        List(selection: selection(mails)) {
-            ForEach(items, id: \.self) { item in
-                if item == .mails, let mails {
-                    mailsGroup(mails)
-                } else {
-                    row(item)
+        let selected = SidebarRow.selected(section: router.section, folder: mails?.folder, mailsOpen: mailsOpen)
+        let more = SidebarRow.moreOpen(stored: moreOpen, section: router.section, folder: mails?.folder)
+        let lines = SidebarLine.lines(items: items, hasMails: mails != nil, mailsOpen: mailsOpen, moreOpen: more,
+                                      showingScheduled: mails?.showsScheduled ?? false)
+        return ScrollView {
+            VStack(alignment: .leading, spacing: SidebarFooterMetrics.rowGap) {
+                ForEach(lines, id: \.self) { line in
+                    switch line {
+                    case .section(.mails):
+                        if let mails { mailsRow(mails, selected: selected) }
+                    case .section(let item):
+                        SidebarRowButton(selected: selected == .section(item), help: SidebarLabel.help(item)) {
+                            router.show(item, mails: mails)
+                        } label: {
+                            label(item)
+                        }
+                    case .folder(let folder):
+                        if let mails { folderRow(folder, in: mails, selected: selected) }
+                    case .more:
+                        moreRow(open: more)
+                    }
                 }
             }
+            .padding(.horizontal, SidebarFooterMetrics.listInset)
+            .padding(.vertical, Space.s)
         }
-    }
-
-    private func selection(_ mails: MailLibrary?) -> Binding<SidebarRow?> {
-        Binding {
-            SidebarRow.selected(section: router.section, folder: mails?.folder, mailsOpen: mailsOpen)
-        } set: { row in
-            switch row {
-            case .section(let item)?:
-                router.show(item, mails: mails)
-                if item == .mails { mailsOpen = true }
-            case .mail(let folder)?:
-                guard let mails else { return }
-                mails.show(folder, router: router)
-                mailsOpen = true
-            case nil: break
-            }
-        }
+        .scrollIndicators(.never)
     }
 
     @ViewBuilder
-    private func row(_ item: SidebarItem) -> some View {
+    private func label(_ item: SidebarItem) -> some View {
         switch item {
         case .calendar:
             if let agenda {
-                CalendarSidebarLabel(agenda: agenda).tag(SidebarRow.section(item))
+                CalendarSidebarLabel(agenda: agenda)
             } else {
-                SidebarLabel(item: item).tag(SidebarRow.section(item))
+                SidebarLabel(item: item)
             }
         case .meetings:
-            SidebarLabel(item: item, recording: library.meetingActive).tag(SidebarRow.section(item))
+            SidebarLabel(item: item, recording: library.meetingActive)
         case .vigie:
             if let vigie {
-                Observing(vigie) { SidebarLabel(item: item, count: $0.waiting.count) }.tag(SidebarRow.section(item))
+                Observing(vigie) { SidebarLabel(item: item, count: $0.waiting.count) }
             } else {
-                SidebarLabel(item: item).tag(SidebarRow.section(item))
+                SidebarLabel(item: item)
             }
         default:
-            SidebarLabel(item: item).tag(SidebarRow.section(item))
+            SidebarLabel(item: item)
         }
     }
 
-    /// « Mails » open on Boîte de réception, Brouillons and Envoyés, then « Plus » on the others (lot 4, 19/11; Paul,
-    /// 15/11: « quand on clique dessus on a des sous-menus : boîte de réception, envoyés… »). The boxes are a menu of the
-    /// list's bar; « Nouveau mail » is in its toolbar (Paul, 15/11: not in the sidebar).
-    private func mailsGroup(_ mails: MailLibrary) -> some View {
-        let more = SidebarRow.moreOpen(stored: moreOpen, section: router.section, folder: mails.folder)
-        return DisclosureGroup(isExpanded: $mailsOpen) {
-            ForEach(MailFolder.sidebar, id: \.self) { folder in folderRow(folder, in: mails) }
-            // « Plus » unfolds the others under it, at the same depth, as Gmail's: a third depth cut their names in a
-            // sidebar of 224 points.
-            moreRow(open: more)
-            if more {
-                ForEach(MailFolder.more(showingScheduled: mails.showsScheduled), id: \.self) { folder in folderRow(folder, in: mails) }
+    /// « Mails » (lot 4, 19/11; Paul, 15/11: « quand on clique dessus on a des sous-menus : boîte de réception,
+    /// envoyés… »): open on Boîte de réception, Brouillons and Envoyés, then « Plus » on the others. The boxes are a menu of
+    /// the list's bar; « Nouveau mail » is in its toolbar. A click on « Mails » opens it and shows its folder; its arrow
+    /// only folds or unfolds it.
+    private func mailsRow(_ mails: MailLibrary, selected: SidebarRow?) -> some View {
+        ZStack(alignment: .trailing) {
+            SidebarRowButton(selected: selected == .section(.mails), help: SidebarLabel.help(.mails)) {
+                router.show(.mails, mails: mails)
+                mailsOpen = true
+            } label: {
+                SidebarLabel(item: .mails, count: mailsOpen ? 0 : mails.unreadCount, room: SidebarFooterMetrics.arrowRoom)
             }
-        } label: {
-            SidebarLabel(item: .mails, count: mailsOpen ? 0 : mails.unreadCount).tag(SidebarRow.section(.mails))
+            Button { mailsOpen.toggle() } label: {
+                Image(systemName: mailsOpen ? "chevron.down" : "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: SidebarFooterMetrics.arrowRoom, height: SidebarFooterMetrics.rowHeight)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .focusEffectDisabled()
+            .help(mailsOpen ? "Replier Mails" : "Déplier Mails")
         }
     }
 
     /// « Plus »: not a place, a click unfolds it; it stays unfolded on a folder of its own shown.
     private func moreRow(open: Bool) -> some View {
-        Button { moreOpen = !open } label: {
-            HStack(spacing: Space.s) {
-                AppLabel("Plus", icon: .more)
-                Spacer(minLength: 0)
+        // « Verbe + objet »: « Voir » unfolds in place, « Voir moins » folds back (lot 10, 20/11).
+        SidebarRowButton(selected: false, help: open ? "Voir moins" : "Voir les autres dossiers") {
+            moreOpen = !open
+        } label: {
+            SidebarFolderLabel(title: "Plus", icon: .more) {
                 Image(systemName: open ? "chevron.down" : "chevron.right")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.tertiary)
             }
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .listItemTint(.monochrome)
-        // « Verbe + objet »: « Voir » unfolds in place, « Voir moins » folds back (lot 10, 20/11; the folders' list was no
-        // verb).
-        .help(open ? "Voir moins" : "Voir les autres dossiers")
     }
 
-    /// A folder: its name keeps whole in 224 points, a hair smaller if it must (« Boîte de réception » and its count).
-    private func folderRow(_ folder: MailFolder, in mails: MailLibrary) -> some View {
-        Label {
-            Text(folder.title).lineLimit(1).minimumScaleFactor(0.85).allowsTightening(true)
-        } icon: {
-            AppIconImage(folder.appIcon, size: AppLabel.sidebarSize)
+    /// A folder, under « Mails »: its name keeps whole in 224 points, a hair smaller if it must.
+    private func folderRow(_ folder: MailFolder, in mails: MailLibrary, selected: SidebarRow?) -> some View {
+        SidebarRowButton(selected: selected == .mail(folder), help: folder.title) {
+            mails.show(folder, router: router)
+            mailsOpen = true
+        } label: {
+            SidebarFolderLabel(title: folder.title, icon: folder.appIcon) {
+                let count = count(folder, in: mails)
+                if count > 0 { SidebarCount(count) }
+            }
         }
-        .listItemTint(.monochrome)
-        .badge(count(folder, in: mails))
-        .tag(SidebarRow.mail(folder))
     }
 
     private func count(_ folder: MailFolder, in mails: MailLibrary) -> Int {
@@ -216,42 +241,53 @@ struct Sidebar: View {
     }
 }
 
-/// A section's row: its badge, its count, a red dot while a meeting records.
+/// A row of the sidebar: the whole width answers; a soft grey under the pointer, a stronger one when it is the page
+/// shown — never the Mac's accent color, and no focus ring.
+struct SidebarRowButton<Label: View>: View {
+    let selected: Bool
+    let help: String
+    let action: () -> Void
+    @ViewBuilder var label: () -> Label
+
+    var body: some View {
+        Button(action: action) { label() }
+            .buttonStyle(SidebarRowButtonStyle(selected: selected))
+            .focusEffectDisabled()
+            .help(help)
+            .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+/// A section's row: its badge, its name, its count or a red dot while a meeting records.
 struct SidebarLabel: View {
     let item: SidebarItem
     var count = 0
     var recording = false
+    /// Room kept free on the right, for « Mails »' arrow.
+    var room: CGFloat = 0
 
     var body: some View {
-        Group {
+        HStack(spacing: SidebarFooterMetrics.iconGap) {
+            // Its badge, as everywhere (21/11, Paul: « utiliser plus ce système de couleurs… dans les icônes sur la gauche »).
+            ToolBadge(item.appIcon, color: item.tint, size: .sidebar)
+            Text(item.title).font(SidebarFooterMetrics.font).lineLimit(1)
+            Spacer(minLength: Space.xs)
             if recording {
-                HStack(spacing: Space.s) {
-                    label
-                    Spacer(minLength: 0)
-                    Image(systemName: "circle.fill")
-                        .font(.system(size: 8))
-                        // The red of the recording, its only meaning (design system v2, 19/11).
-                        .foregroundStyle(Tint.recording)
-                        .symbolEffect(.pulse)
-                        .help("Enregistrement en cours")
-                        .accessibilityLabel("Enregistrement en cours")
-                }
-            } else {
-                label
+                Image(systemName: "circle.fill")
+                    .font(.system(size: 8))
+                    // The red of the recording, its only meaning (design system v2, 19/11).
+                    .foregroundStyle(Tint.recording)
+                    .symbolEffect(.pulse)
+                    .help("Enregistrement en cours")
+                    .accessibilityLabel("Enregistrement en cours")
+            } else if count > 0 {
+                SidebarCount(count)
             }
         }
-        .listItemTint(.fixed(Color(hex: item.tint)))
-        .badge(count)
-        .help(Self.help(item))
-    }
-
-    /// Its badge, as everywhere (21/11, Paul: « utiliser plus ce système de couleurs… dans les icônes sur la gauche »).
-    private var label: some View {
-        Label {
-            Text(item.title)
-        } icon: {
-            ToolBadge(item.appIcon, color: item.tint, size: .sidebar)
-        }
+        .padding(.leading, SidebarFooterMetrics.rowPadding)
+        .padding(.trailing, SidebarFooterMetrics.rowPadding + room)
+        .frame(height: SidebarFooterMetrics.rowHeight)
+        .contentShape(Rectangle())
     }
 
     /// The row's key in its help (lot 4, 19/11): « Calendrier (⌘4) », « Réglages (⌘,) », written by `Words.help` (lot 10,
@@ -259,6 +295,44 @@ struct SidebarLabel: View {
     static func help(_ item: SidebarItem) -> String {
         if item == .settings { return Words.help("Réglages", .command(",")) }
         return item.shortcut.map { Words.help(item.title, .command("\($0)")) } ?? item.title
+    }
+}
+
+/// A folder's row under « Mails »: its grey glyph under « Mails »' name, its name, then what it shows on the right.
+struct SidebarFolderLabel<Trailing: View>: View {
+    let title: String
+    let icon: AppIcon
+    @ViewBuilder var trailing: () -> Trailing
+
+    var body: some View {
+        HStack(spacing: SidebarFooterMetrics.iconGap) {
+            AppIconImage(icon, size: SidebarFooterMetrics.folderIcon)
+                .foregroundStyle(.secondary)
+            // A step smaller than the sections: the folders sit under « Mails », and « Boîte de réception » keeps whole
+            // beside its count.
+            HStack(spacing: Space.xs) {
+                Text(title).font(.rowBody).lineLimit(1).minimumScaleFactor(0.85).allowsTightening(true)
+                Spacer(minLength: Space.xs)
+                trailing()
+            }
+        }
+        .padding(.leading, SidebarFooterMetrics.rowPadding + SidebarFooterMetrics.folderIndent)
+        .padding(.trailing, SidebarFooterMetrics.rowPadding)
+        .frame(height: SidebarFooterMetrics.rowHeight)
+        .contentShape(Rectangle())
+    }
+}
+
+/// A count on the right of a row: unread mails, events left today, what waits in Vigie.
+struct SidebarCount: View {
+    let count: Int
+
+    init(_ count: Int) {
+        self.count = count
+    }
+
+    var body: some View {
+        Text("\(count)").font(.meta.monospacedDigit()).foregroundStyle(.secondary)
     }
 }
 
@@ -278,19 +352,15 @@ struct CalendarSidebarLabel: View {
     }
 }
 
-/// Contacts and Réglages, at the bottom (lot 4, 19/11): drawn by hand, they look and answer as the rows of the list
-/// above. Clicking Réglages again goes back to the families.
+/// Contacts and Réglages, at the bottom (lot 4, 19/11), drawn as the rows above. Clicking Réglages again goes back to
+/// the families.
 struct SidebarFooter: View {
     @ObservedObject var router: WindowRouter
-    /// How far the rows of the work move right once the list holds a group that opens (« Mails »): the room of
-    /// its disclosure arrow (measured on 15/11, macOS 27: 9 points).
-    var indent: CGFloat = 0
     let items: [SidebarItem]
     let open: (SidebarItem) -> Void
 
-    init(router: WindowRouter, indent: CGFloat = 0, items: [SidebarItem] = [.settings], open: @escaping (SidebarItem) -> Void) {
+    init(router: WindowRouter, items: [SidebarItem] = [.settings], open: @escaping (SidebarItem) -> Void) {
         self.router = router
-        self.indent = indent
         self.items = items
         self.open = open
     }
@@ -300,20 +370,13 @@ struct SidebarFooter: View {
             // A line across the whole sidebar, with room above and below: the bottom sits apart from the work
             // (Paul, 15/11: « la barre un peu plus haut, un bel alignement »).
             Rectangle().fill(Color.primary.opacity(0.1)).frame(height: 1)
-            VStack(spacing: Space.xs) {
+            VStack(spacing: SidebarFooterMetrics.rowGap) {
                 ForEach(items, id: \.self) { item in
-                    Button { open(item) } label: {
-                        HStack(spacing: SidebarFooterMetrics.iconGap) {
-                            ToolBadge(item.appIcon, color: item.tint, size: .sidebar)
-                            Text(item.title).font(SidebarFooterMetrics.font)
-                            Spacer(minLength: 0)
-                        }
-                        .padding(.leading, SidebarFooterMetrics.rowPadding + indent)
-                        .frame(height: SidebarFooterMetrics.rowHeight)
-                        .contentShape(Rectangle())
+                    SidebarRowButton(selected: router.section == item, help: SidebarLabel.help(item)) {
+                        open(item)
+                    } label: {
+                        SidebarLabel(item: item)
                     }
-                    .buttonStyle(SidebarRowButtonStyle(selected: router.section == item))
-                    .help(SidebarLabel.help(item))
                 }
             }
             .padding(.horizontal, SidebarFooterMetrics.listInset)
@@ -341,14 +404,19 @@ struct SidebarRowButtonStyle: ButtonStyle {
 }
 
 enum SidebarFooterMetrics {
-    static let outlineIndent: CGFloat = 9
-    /// The list's own margin on each side, then a row's padding before its icon (measured on 15/11, macOS 27).
+    /// The sidebar's margin on each side, then a row's padding before its badge (measured on 15/11, macOS 27).
     static let listInset: CGFloat = 10
     static let rowPadding: CGFloat = 10
-    static let iconGap: CGFloat = 6
-    /// A large row of the sidebar and its text.
+    static let iconGap: CGFloat = 9
+    /// A row of the sidebar and its text.
     static let rowHeight: CGFloat = 36
+    static let rowGap: CGFloat = 2
     static let font = Font.system(size: 15)
+    /// A folder under « Mails »: its glyph a little smaller than a badge, under « Mails »' name, as the list drew it.
+    static let folderIcon: CGFloat = 20
+    static let folderIndent: CGFloat = 30
+    /// The room of « Mails »' arrow, on the right of its row.
+    static let arrowRoom: CGFloat = 22
 }
 
 /// Draws `content` again whenever `object` changes: a view can follow an object it may not have.

@@ -9,6 +9,10 @@ import SwiftUI
 @MainActor final class DictationPill {
     static let width: CGFloat = 540
     static let height: CGFloat = 220
+    /// Paul's words: three lines, the window's width less its margins and a few points, as SwiftUI lays a line a hair
+    /// wider than AppKit measures it.
+    static let wordsLines = 3
+    static let wordsWidth: CGFloat = width - 2 * Space.l - 8
     private let panel: NSPanel
     let service: DictationService
 
@@ -65,14 +69,25 @@ struct DictationPillView: View {
                 }
             }
             if let words = content.words {
-                Text(words)
+                // While he talks, the end of what he said, the first words going up and fading (21/11); once pasted, the
+                // first ones.
+                let shown = content.mark == .done ? (text: words, cut: false)
+                    : DictationWords.tail(words, width: DictationPill.wordsWidth, lines: DictationPill.wordsLines)
+                Text(shown.text)
                     .font(.rowTitle)
-                    .lineLimit(3)
-                    // While he talks, the last words; once pasted, the first ones.
-                    .truncationMode(content.mark == .done ? .tail : .head)
+                    .lineLimit(DictationPill.wordsLines)
+                    .truncationMode(.tail)
                     .foregroundStyle(content.mark == .writing ? .secondary : .primary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
+                    .mask {
+                        if shown.cut {
+                            LinearGradient(stops: [.init(color: .black.opacity(0.2), location: 0), .init(color: .black, location: 0.34)],
+                                           startPoint: .top, endPoint: .bottom)
+                        } else {
+                            Color.black
+                        }
+                    }
             } else if let placeholder = content.placeholder {
                 Text(Words.typeset(placeholder)).font(.rowTitle).foregroundStyle(.tertiary)
             }
@@ -167,5 +182,39 @@ struct VoiceCurve: View {
         let wave = (sin(time * 7 + Double(index) * 0.55) + 1) / 2
         let voiced = min(1, level * 1.4)
         return CGFloat(3 + 23 * envelope * (0.12 + voiced * (0.45 + 0.55 * wave)))
+    }
+}
+
+/// Paul's words as they come, in the Dictée's window (21/11, Paul: « on dirait qu'il veut garder le début de la phrase…
+/// il met des trois petits points au milieu… faut que ça continue de défiler le paragraphe et que ça coupe le début ») :
+/// a text cut by SwiftUI over several lines kept its start and its end. The window shows the end of what was said that
+/// holds in its lines, in whole words; the first ones go up and fade.
+enum DictationWords {
+    /// The end of `text` that holds in `lines` lines `width` points wide, starting with a whole word; `cut` when the first
+    /// words were left out.
+    static func tail(_ text: String, width: CGFloat, lines: Int,
+                     font: NSFont = .systemFont(ofSize: TextSize.rowTitle)) -> (text: String, cut: Bool) {
+        let limit = height(lines: lines, font: font)
+        guard height(of: text, width: width, font: font) > limit else { return (text, false) }
+        let words = text.split(separator: " ", omittingEmptySubsequences: true)
+        guard words.count > 1 else { return (text, false) }
+        // The fewest first words to leave out.
+        var low = 1, high = words.count - 1
+        while low < high {
+            let middle = (low + high) / 2
+            if height(of: words[middle...].joined(separator: " "), width: width, font: font) <= limit { high = middle } else { low = middle + 1 }
+        }
+        return (words[low...].joined(separator: " "), true)
+    }
+
+    /// How tall a text is, laid out `width` points wide.
+    static func height(of text: String, width: CGFloat, font: NSFont) -> CGFloat {
+        (text as NSString).boundingRect(with: CGSize(width: width, height: .greatestFiniteMagnitude),
+                                        options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font: font]).height.rounded(.up)
+    }
+
+    /// How tall `lines` lines are.
+    static func height(lines: Int, font: NSFont) -> CGFloat {
+        height(of: Array(repeating: "Ag", count: max(1, lines)).joined(separator: "\n"), width: 10_000, font: font)
     }
 }

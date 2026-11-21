@@ -1,33 +1,27 @@
 import AppKit
 import Agenda
+import HubDesign
 import Persistence
 import SwiftUI
 import Testing
 @testable import MeetingsUI
 
-/// Correctifs du 15/11 : la ligne Réglages, en bas de la barre latérale, s'aligne sur les lignes du dessus, avec ou
-/// sans le groupe « Mails ».
+/// 21/11 (Paul : « Boîte de réception, Brouillons… encore en orange quand je rentre dans Mail… il faut l'enlever ») : une
+/// liste native allumait la rangée choisie à la couleur d'accent du Mac dès qu'elle avait le focus. La barre latérale
+/// dessine ses rangées elle-même : aucune table du système n'y reste, avec ou sans le groupe « Mails ».
 @MainActor @Suite struct SidebarAlignmentTests {
-    /// Where the rows' contents start, list by list, in the window.
-    static func rowStarts(in view: NSView) -> [[CGFloat]] {
-        var tables: [NSTableView] = []
+    /// The system's tables in the window, by where they start.
+    static func tables(in view: NSView) -> [CGRect] {
+        var frames: [CGRect] = []
         func walk(_ view: NSView) {
-            if let table = view as? NSTableView { tables.append(table) }
+            if let table = view as? NSTableView { frames.append(table.convert(table.bounds, to: nil)) }
             view.subviews.forEach(walk)
         }
         walk(view)
-        return tables.sorted { $0.convert($0.bounds, to: nil).maxY > $1.convert($1.bounds, to: nil).maxY }.map { table in
-            (0..<table.numberOfRows).compactMap { row in
-                guard let cell = table.view(atColumn: 0, row: row, makeIfNecessary: false) else { return nil }
-                return cell.convert(cell.bounds, to: nil).minX
-            }
-        }
+        return frames
     }
 
-    /// Réglages, drawn under the list since 15/11 (Paul: « pas bien aligné »), starts where the rows above draw their
-    /// icon: their cell, plus the 4 points the cell keeps before its label (measured on 15/11, macOS 27), with or
-    /// without the disclosure arrow of « Mails ».
-    @Test func reglagesLinesUpWithTheRowsAbove() async throws {
+    @Test func theSidebarHasNoSystemListToLightInTheAccentColor() async throws {
         let database = try AppDatabase.inMemory()
         let calendar = CalendarStore(database)
         try calendar.addAccount(email: "moi@exemple.fr", at: Date())
@@ -49,12 +43,16 @@ import Testing
             window.layoutIfNeeded()
             try await Task.sleep(for: .milliseconds(400))
             window.layoutIfNeeded()
-            let starts = Self.rowStarts(in: host)
-            print("MESURE mails=\(withMails) : \(starts)")
-            let work = try #require(starts.first?.first)
-            #expect(starts.count == 1)
-            let footer = SidebarFooterMetrics.listInset + SidebarFooterMetrics.rowPadding + (withMails ? SidebarFooterMetrics.outlineIndent : 0)
-            #expect(footer - work == 4)
+            // The sidebar is the window's first 224 points.
+            let inSidebar = Self.tables(in: host).filter { $0.minX < 200 }
+            #expect(inSidebar.isEmpty, "mails=\(withMails) : \(inSidebar)")
         }
+    }
+
+    /// A folder under « Mails » starts its glyph under « Mails »' name, as the list did: the hierarchy shows.
+    @Test func aFolderSitsUnderTheNameOfMails() {
+        let mailsName = SidebarFooterMetrics.rowPadding + ToolBadge.Size.sidebar.rawValue + SidebarFooterMetrics.iconGap
+        let folderGlyph = SidebarFooterMetrics.rowPadding + SidebarFooterMetrics.folderIndent
+        #expect(abs(folderGlyph - mailsName) <= 4)
     }
 }

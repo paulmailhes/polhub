@@ -3,6 +3,16 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.68.1 — 21 novembre 2026
+
+**Plus d'orange dans la barre latérale, et les mots de la Dictée qui défilent.**
+
+- **La rangée choisie dans la barre latérale est d'un gris doux**, que la barre ait le focus ou non. Elle ne prend
+  plus la couleur d'accent du Mac (l'orange chez toi). Les dossiers de Mails sont un cran plus petits, et « Boîte de
+  réception » tient en entier à côté de son nombre.
+- **Pendant une dictée, la fenêtre montre la fin de ce que tu dis**, sur trois lignes : les premiers mots montent et
+  s'effacent. Plus de « … » au milieu de la phrase.
+
 ## 0.68.0 — 21 novembre 2026
 
 **hub prend sa marque : une pastille par outil, et des pages à la Notion, en commençant par Réglages.**

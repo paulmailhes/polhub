@@ -1,5 +1,7 @@
+import AppKit
 import Dictation
 import Foundation
+import HubDesign
 import Testing
 @testable import MeetingsUI
 
@@ -59,6 +61,24 @@ import Testing
         #expect(early.mark == .notice && early.title == "La Dictée démarre…" && early.hint == "Réessaie dans un instant")
         let broken = DictationWindowContent(DictationWindowState(phase: .ready, outcome: .problem("Le micro ne s'ouvre pas.")))
         #expect(broken.mark == .problem && broken.title == "Le micro ne s'ouvre pas.")
+    }
+
+    /// 21/11 (Paul : « on dirait qu'il veut garder le début de la phrase… il met des trois petits points au milieu… faut
+    /// que ça continue de défiler le paragraphe et que ça coupe le début ») : la fenêtre montre la fin de ce qui est dit,
+    /// en mots entiers, sur ses trois lignes ; les premiers mots s'en vont.
+    @Test func theWordsScrollAndKeepTheirEnd() {
+        let font = NSFont.systemFont(ofSize: TextSize.rowTitle)
+        let limit = DictationWords.height(lines: 3, font: font)
+        let long = (1...200).map { "mot\($0)" }.joined(separator: " ")
+        let shown = DictationWords.tail(long, width: 500, lines: 3)
+        #expect(shown.cut && long.hasSuffix(shown.text) && shown.text.hasPrefix("mot") && shown.text.hasSuffix("mot200"))
+        #expect(DictationWords.height(of: shown.text, width: 500, font: font) <= limit)
+        // As many as hold: one word more would not.
+        let words = long.split(separator: " ")
+        let first = words.count - shown.text.split(separator: " ").count
+        #expect(DictationWords.height(of: words[(first - 1)...].joined(separator: " "), width: 500, font: font) > limit)
+        let short = DictationWords.tail("Bonjour Camille", width: 500, lines: 3)
+        #expect(!short.cut && short.text == "Bonjour Camille")
     }
 
     /// A new dictation hides what the one before said.

@@ -18,6 +18,8 @@ import Testing
             ("dictee-fenetre-1-micro", DictationWindowState(phase: .listening, micOpen: false)),
             ("dictee-fenetre-2-ecoute", DictationWindowState(phase: .listening, micOpen: true)),
             ("dictee-fenetre-3-mots", DictationWindowState(phase: .listening, micOpen: true, partial: words)),
+            // A long dictation (21/11): the end shows, the first words go up and fade, never « … » in the middle.
+            ("dictee-fenetre-3-mots-longs", DictationWindowState(phase: .listening, micOpen: true, partial: Array(repeating: words, count: 6).joined(separator: " ") + " et voilà ce que je dis maintenant")),
             ("dictee-fenetre-4-silence", DictationWindowState(phase: .listening, micOpen: true, partial: "Ouvre le projet hub et lance Vigie.", silenceLeft: 3)),
             ("dictee-fenetre-5-relecture", DictationWindowState(phase: .writing, micOpen: true, partial: words, progress: 0.6)),
             ("dictee-fenetre-6-colle", DictationWindowState(phase: .ready, outcome: .pasted(app: "Mail", text: words))),

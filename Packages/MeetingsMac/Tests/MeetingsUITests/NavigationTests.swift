@@ -64,30 +64,16 @@ import WebKit
 
     /// Thirteen rows at most, « Plus » folded: the list holds ten (Mails and its four), the bottom two. « Plus » shows
     /// the folder open in it.
-    @Test func theSidebarHoldsThirteenRowsAtMost() async throws {
-        let world = try await Self.mailWorld(name: "lignes")
-        defer { world.clean() }
-        let inspiration = try InspirationTestWorld(name: "lignes-inspiration")
-        defer { inspiration.clean() }
-        UserDefaults.standard.set(true, forKey: Preferences.Key.mailSidebarOpen)
-        UserDefaults.standard.set(false, forKey: Preferences.Key.mailMoreOpen)
-        let router = WindowRouter()
-        router.section = .home
-        let projects = ProjectLibrary(store: ProjectStore(world.database), meetings: MeetingStore(world.database))
-        let host = NSHostingView(rootView: MainWindowView(library: MeetingLibrary(store: MeetingStore(world.database)), projects: projects,
-                                                         agenda: world.agenda, mails: world.mails, inspiration: inspiration.library(), router: router,
-                                                         paths: AppPaths(root: world.root, logs: world.root)) { EmptyView() })
-        let window = Self.window(host)
-        defer { window.close() }
-        try await Self.settle(window)
-        let rows = try #require(SidebarAlignmentTests.rowStarts(in: host).first).count
-        #expect(rows == 10)
-        #expect(rows + SidebarItem.footer(hasAgenda: true).count <= 13)
-        world.mails.folder = .spam
-        router.section = .mails
-        try await Self.settle(window)
-        // Notifications, Abonnements, Spam, Corbeille, Tous les messages: Programmés waits for a mail.
-        #expect(try #require(SidebarAlignmentTests.rowStarts(in: host).first).count == 15)
+    @Test func theSidebarHoldsThirteenRowsAtMost() {
+        let items = SidebarItem.visible(hasProjects: true, hasAgenda: true, hasMails: true, hasInspiration: true)
+        let folded = SidebarLine.lines(items: items, hasMails: true, mailsOpen: true, moreOpen: false, showingScheduled: false)
+        #expect(folded.count == 10)
+        #expect(folded.count + SidebarItem.footer(hasAgenda: true).count <= 13)
+        // Spam open: « Plus » unfolds on Notifications, Abonnements, Spam, Corbeille, Tous les messages; Programmés waits
+        // for a mail.
+        let more = SidebarRow.moreOpen(stored: false, section: .mails, folder: .spam)
+        #expect(SidebarLine.lines(items: items, hasMails: true, mailsOpen: true, moreOpen: more, showingScheduled: false).count == 15)
+        #expect(SidebarLine.lines(items: items, hasMails: true, mailsOpen: false, moreOpen: true, showingScheduled: false).count == 6)
     }
 
     /// 224 points, once the folders and the boxes left (Paul, 19/11: 252 took 28 % of a narrow window).

@@ -57,8 +57,9 @@ import Testing
         #expect(router.section == .settings && router.settingsPane == .inspiration)
     }
 
-    /// Réglages lines up with the rows above, « Inspiration » on one row and no group that opens (lot 4, 19/11).
-    @Test func reglagesLinesUpWithInspiration() async throws {
+    /// « Inspiration » on one row and no group that opens (lot 4, 19/11); no system list in the sidebar to light in the
+    /// accent color (21/11).
+    @Test func inspirationIsOneRowOfTheSidebar() async throws {
         let world = try InspirationTestWorld(name: "alignement-inspiration")
         defer { world.clean() }
         let database = try AppDatabase.inMemory()
@@ -73,12 +74,8 @@ import Testing
         window.layoutIfNeeded()
         try await Task.sleep(for: .milliseconds(400))
         window.layoutIfNeeded()
-        let starts = SidebarAlignmentTests.rowStarts(in: host)
-        let work = try #require(starts.first?.first)
-        #expect(starts.count == 1)
+        #expect(SidebarAlignmentTests.tables(in: host).filter { $0.minX < 200 }.isEmpty)
         // Accueil, Réunions, Calendrier, Inspiration: one row each.
-        #expect(starts.first?.count == 4)
-        let footer = SidebarFooterMetrics.listInset + SidebarFooterMetrics.rowPadding
-        #expect(footer - work == 4)
+        #expect(SidebarItem.visible(hasProjects: false, hasAgenda: true, hasInspiration: true) == [.home, .meetings, .calendar, .inspiration])
     }
 }
