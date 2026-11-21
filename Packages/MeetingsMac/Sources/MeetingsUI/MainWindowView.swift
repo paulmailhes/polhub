@@ -108,13 +108,12 @@ public enum SidebarItem: String, Hashable, Sendable {
 /// The families of Réglages, entered one by one, as in Apple's settings (Paul, 14/11). Every new feature puts
 /// its settings in its family.
 public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
-    case addOns, general, notifications, accounts, iphone, calendar, mails, colin, projects, meetings, inspiration, dictation, updates, diagnostic, journal
+    case addOns, general, accounts, iphone, calendar, mails, colin, projects, meetings, inspiration, dictation, diagnostic, journal
 
     public var title: String {
         switch self {
         case .addOns: "Add-ons"
         case .general: "Général"
-        case .notifications: "Notifications"
         case .accounts: "Comptes Google"
         case .iphone: "iPhone"
         case .calendar: "Calendrier"
@@ -124,7 +123,6 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .meetings: "Réunions"
         case .inspiration: "Inspiration"
         case .dictation: "Dictée"
-        case .updates: "Mises à jour"
         case .diagnostic: "Diagnostic"
         case .journal: "Journal"
         }
@@ -134,7 +132,6 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         switch self {
         case .addOns: "puzzlepiece.extension.fill"
         case .general: "gearshape.fill"
-        case .notifications: "bell.badge.fill"
         case .accounts: "person.crop.circle.fill"
         case .iphone: "iphone"
         case .calendar: "calendar"
@@ -144,7 +141,6 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .meetings: "waveform"
         case .inspiration: "lightbulb.fill"
         case .dictation: "waveform"
-        case .updates: "arrow.down.circle.fill"
         case .diagnostic: "stethoscope"
         case .journal: "list.bullet.rectangle.fill"
         }
@@ -154,9 +150,9 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         switch self {
         case .addOns: Palette.blue
         case .general: Palette.gray
-        case .notifications: Palette.red
         case .accounts: Palette.teal
-        case .iphone: Palette.blue
+        // Grey since 21/11: beside Projets' blue in the add-ons' list, a family is found by its color.
+        case .iphone: Palette.gray
         case .calendar: Palette.orange
         case .mails: Palette.pink
         case .colin: Palette.green
@@ -164,8 +160,6 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .meetings: Palette.violet
         case .inspiration: Palette.yellow
         case .dictation: Palette.indigo
-        // Beside Général since lot 7 (19/11): no longer its grey, a family is found by its color.
-        case .updates: Palette.brown
         case .diagnostic: Palette.green
         case .journal: Palette.brown
         }
@@ -176,34 +170,35 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
     var subtitle: String {
         switch self {
         case .addOns: "Ce que hub sait faire, à installer ou à retirer"
-        case .general: "Ouverture à la session, barre des menus, diagnostic, journal"
-        case .notifications: "Rappels de rendez-vous, nouveaux rendez-vous, comptes rendus"
+        case .general: "Ouverture à la session, notifications, mises à jour, journal"
         case .accounts: "Comptes, couleurs, accès à l'agenda et aux mails"
         case .iphone: "Accès depuis ton iPhone, iPhone reliés"
-        case .calendar: "Nouveaux rendez-vous, affichage"
-        case .mails: "Liste, images, envoi, agents, tri"
+        case .calendar: "Nouveaux rendez-vous, affichage, rappels"
+        case .mails: "Liste, images, envoi, agents, notifications, tri"
         case .colin: "Marche, ce qu'il sait, ce qu'il signale"
         case .projects: "Taille des cartes du kanban"
-        case .meetings: "Comptes rendus, langue des transcriptions"
+        case .meetings: "Comptes rendus, langue, notifications"
         case .inspiration: "Pages LinkedIn, collecte, catégories"
-        case .dictation: "Touche, langue, autorisation"
-        case .updates: "Version installée, installation automatique"
-        case .diagnostic: "Autorisations, micro, Dia"
+        case .dictation: "Touche, fenêtre, texte, son, historique"
+        case .diagnostic: "Autorisations et connexions, pour chaque outil"
         case .journal: "Ce que hub a fait et vu"
         }
     }
 
-    /// The sidebar's sections, in its order from the top (lot 7, 19/11), then the whole app's: Comptes Google,
-    /// Notifications, Mises à jour, Général. Colin's family is the Accueil's, and comes with the mails: what he signals is
-    /// read in them. Diagnostic and Journal are lines of Général, no families.
-    /// Add-ons first, alone (20/11): what hub can do. Colin's and the iPhone's families follow their add-ons.
+    /// hub's own pages, under the add-ons (21/11, Paul: « moins de pages, des trucs bien rassemblés »): the Google accounts
+    /// with the agenda, the Diagnostic (everything to allow or connect, for each tool), Général.
+    static func hubPanes(hasAgenda: Bool) -> [SettingsPane] {
+        [hasAgenda ? .accounts : nil, .diagnostic, .general].compactMap { $0 }
+    }
+
+    /// The families as before 21/11, still read by the tests: Add-ons, the tools installed, hub's own.
     static func families(hasAgenda: Bool, hasProjects: Bool, hasMails: Bool = false, hasInspiration: Bool = false,
                          hasMeetings: Bool = true, hasColin: Bool = true, hasPhone: Bool = true, hasDictation: Bool = false) -> [[SettingsPane]] {
         let work = SidebarItem.visible(hasProjects: hasProjects, hasAgenda: hasAgenda, hasMails: hasMails, hasInspiration: hasInspiration,
                                        hasMeetings: hasMeetings, hasDictation: hasDictation)
             .compactMap { section in allCases.first { $0.section == section } }
             .filter { $0 != .colin || (hasMails && hasColin) }
-        return [[.addOns], work, [hasAgenda ? .accounts : nil, hasPhone ? .iphone : nil, .notifications, .updates, .general].compactMap { $0 }]
+        return [[.addOns], work + (hasPhone ? [.iphone] : []), hubPanes(hasAgenda: hasAgenda)]
     }
 
     /// The section of the sidebar a family is about (lot 7, 19/11): Colin's is the Accueil, where he lives.
@@ -216,13 +211,13 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .mails: .mails
         case .inspiration: .inspiration
         case .dictation: .dictation
-        case .addOns, .general, .notifications, .accounts, .iphone, .updates, .diagnostic, .journal: nil
+        case .addOns, .general, .accounts, .iphone, .diagnostic, .journal: nil
         }
     }
 
-    /// The pages a family opens from a line of its own (lot 7, 19/11): Général, the Diagnostic and the Journal.
+    /// The pages a family opens from a line of its own: Général, the Journal (the Diagnostic is a family since 21/11).
     var lines: [SettingsPane] {
-        self == .general ? [.diagnostic, .journal] : []
+        self == .general ? [.journal] : []
     }
 
     /// The family whose line opens this page; nil for a family.

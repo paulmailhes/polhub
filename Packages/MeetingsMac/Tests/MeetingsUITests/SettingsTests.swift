@@ -10,15 +10,15 @@ import Testing
 @MainActor @Suite struct SettingsTests {
     // MARK: - The families
 
-    /// The families follow the sidebar, from the top (Colin is the Accueil's), then the whole app's: Comptes Google,
-    /// Notifications, Mises à jour, Général.
+    /// The families follow the sidebar, from the top (Colin is the Accueil's), the iPhone after them; then hub's own:
+    /// Comptes Google, Diagnostic, Général (21/11: Notifications and Mises à jour are no pages any more).
     @Test func theFamiliesFollowTheSidebar() {
         let all = SettingsPane.families(hasAgenda: true, hasProjects: true, hasMails: true, hasInspiration: true)
-        #expect(all == [[.addOns], [.colin, .projects, .meetings, .calendar, .mails, .inspiration], [.accounts, .iphone, .notifications, .updates, .general]])
-        #expect(all[1].map(\.section) == SidebarItem.visible(hasProjects: true, hasAgenda: true, hasMails: true, hasInspiration: true))
+        #expect(all == [[.addOns], [.colin, .projects, .meetings, .calendar, .mails, .inspiration, .iphone], [.accounts, .diagnostic, .general]])
+        #expect(all[1].dropLast().map(\.section) == SidebarItem.visible(hasProjects: true, hasAgenda: true, hasMails: true, hasInspiration: true))
         #expect(SettingsPane.families(hasAgenda: true, hasProjects: true)
-            == [[.addOns], [.projects, .meetings, .calendar], [.accounts, .iphone, .notifications, .updates, .general]])
-        #expect(SettingsPane.families(hasAgenda: false, hasProjects: false) == [[.addOns], [.meetings], [.iphone, .notifications, .updates, .general]])
+            == [[.addOns], [.projects, .meetings, .calendar, .iphone], [.accounts, .diagnostic, .general]])
+        #expect(SettingsPane.families(hasAgenda: false, hasProjects: false) == [[.addOns], [.meetings, .iphone], [.diagnostic, .general]])
         // Paul finds a family by its color: none shared within a group.
         for group in all { #expect(Set(group.map(\.tint)).count == group.count) }
     }
@@ -29,19 +29,19 @@ import Testing
         #expect(SettingsPane.addOns.title == "Add-ons")
         let some = SettingsPane.families(hasAgenda: true, hasProjects: true, hasMails: true, hasInspiration: true,
                                          hasMeetings: false, hasColin: false, hasPhone: false)
-        #expect(some == [[.addOns], [.projects, .calendar, .mails, .inspiration], [.accounts, .notifications, .updates, .general]])
+        #expect(some == [[.addOns], [.projects, .calendar, .mails, .inspiration], [.accounts, .diagnostic, .general]])
         #expect(!SidebarItem.visible(hasProjects: true, hasAgenda: true, hasMails: true, hasInspiration: true, hasMeetings: false).contains(.meetings))
         #expect(SidebarItem.visible(hasProjects: false, hasAgenda: false, hasMeetings: false).isEmpty)
     }
 
-    /// Diagnostic and Journal are no families any more: two lines of Général, which says so.
+    /// The Journal is a line of Général; the Diagnostic a page of hub's own since 21/11 (« tout ce qu'il y a à accepter »).
     @Test func diagnosticAndJournalAreLinesOfGeneral() {
         let all = SettingsPane.families(hasAgenda: true, hasProjects: true, hasMails: true, hasInspiration: true).flatMap { $0 }
-        #expect(!all.contains(.diagnostic) && !all.contains(.journal))
-        #expect(SettingsPane.general.lines == [.diagnostic, .journal])
-        #expect(SettingsPane.diagnostic.parent == .general && SettingsPane.journal.parent == .general)
-        #expect(SettingsPane.allCases.filter { $0.parent != nil } == [.diagnostic, .journal])
-        #expect(SettingsPane.general.subtitle.contains("diagnostic") && SettingsPane.general.subtitle.contains("journal"))
+        #expect(all.contains(.diagnostic) && !all.contains(.journal))
+        #expect(SettingsPane.general.lines == [.journal])
+        #expect(SettingsPane.diagnostic.parent == nil && SettingsPane.journal.parent == .general)
+        #expect(SettingsPane.allCases.filter { $0.parent != nil } == [.journal])
+        #expect(SettingsPane.general.subtitle.contains("mises à jour") && SettingsPane.general.subtitle.contains("journal"))
     }
 
     /// The ‹ of a line of Général goes back where it was opened from: Général, the page that asked for the Diagnostic,
@@ -53,10 +53,6 @@ import Testing
         router.clearHistory()
         router.settingsPane = .general
         router.settle()
-        router.settingsPane = .diagnostic
-        router.settle()
-        router.closeSettings()
-        #expect(router.section == .settings && router.settingsPane == .general)
         router.settingsPane = .journal
         router.settle()
         router.closeSettings()
@@ -72,12 +68,13 @@ import Testing
         router.closeSettings()
         #expect(router.section == .projects)
 
+        // The Diagnostic is a family since 21/11: opened first thing, it closes on the families.
         let launch = WindowRouter()
         launch.openDiagnostic()
         launch.settle()
         launch.clearHistory()
         launch.closeSettings()
-        #expect(launch.section == .settings && launch.settingsPane == .general)
+        #expect(launch.section == .settings && launch.settingsPane == nil)
     }
 
     // MARK: - The reminders, in a menu

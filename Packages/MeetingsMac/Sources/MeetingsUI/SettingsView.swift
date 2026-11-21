@@ -8,8 +8,9 @@ import SwiftUI
 import Updates
 
 /// Réglages, as Apple's (Paul, 14/11): the families first; each is entered, with a way back. Every new feature
-/// puts its settings in its family (docs/design-system.md). Lot 7 (19/11): the families in the sidebar's order, one
-/// width (640) for every page, each under the toolbar.
+/// puts its settings in its family (docs/design-system.md). Lot 7 (19/11): one width (640) for every page, each under
+/// the toolbar. 21/11 (Paul: « une grande section add-on… les autres grisés… une barre de recherche ») : a search, then
+/// every add-on — those installed open their settings, the others are greyed with « Installer » —, then hub's own pages.
 struct SettingsPage<Diagnostic: View, Journal: View>: View {
     @ObservedObject var router: WindowRouter
     let updates: UpdateService?
@@ -34,6 +35,9 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
     let dictationService: DictationService?
     let diagnostic: Diagnostic
     let journal: Journal
+    @State private var query = ""
+    /// The add-on « Installer » asks about, on the home page.
+    @State private var installing: AddOn?
 
     init(router: WindowRouter, updates: UpdateService?, projects: ProjectLibrary?, agenda: AgendaLibrary? = nil, mails: MailLibrary? = nil,
          inspiration: InspirationLibrary? = nil, library: MeetingLibrary,
@@ -79,30 +83,132 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
                     // The sidebar's word, then the family: where Paul is in it (lot 4, 19/11).
                     .windowTitle("Réglages", subtitle: pane.title)
             } else {
-                families.windowTitle("Réglages")
+                home.windowTitle("Réglages")
             }
         }
         // The Diagnostic's relaunch goes through Général's switch, and its guards (lot 7, 19/11).
         .environment(\.startupControl, startup)
     }
 
-    private var families: some View {
+    /// The add-ons as this window knows them: the control's, else what the window was given.
+    private var installed: Set<AddOn> { addOnControl?.installed ?? addOns }
+
+    /// An add-on installed whose page can open here (its library is there).
+    private func page(of addOn: AddOn) -> SettingsPane? {
+        guard installed.contains(addOn), let pane = addOn.settings else { return nil }
+        switch addOn {
+        case .calendar: return agenda != nil ? pane : nil
+        case .inspiration: return inspiration != nil ? pane : nil
+        case .dictation: return dictationService != nil ? pane : nil
+        case .colin: return hasMails ? pane : nil
+        case .projects, .meetings, .mails, .iphone, .vigie: return pane
+        }
+    }
+
+    /// The pages the search looks into.
+    private var searchable: Set<SettingsPane> {
+        Set(AddOn.allCases.compactMap(page(of:)) + SettingsPane.hubPanes(hasAgenda: agenda != nil) + [.journal]
+            + (addOnControl != nil ? [.addOns] : []))
+    }
+
+    private var home: some View {
+        Group {
+            if query.trimmingCharacters(in: .whitespaces).isEmpty {
+                homeLists
+            } else {
+                results
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .belowToolbar()
+        .searchable(text: $query, placement: .toolbar, prompt: "Chercher un réglage")
+        .confirmationDialog(installing.map { "Installer \($0.title) ?" } ?? "", isPresented: Binding(get: { installing != nil }, set: { if !$0 { installing = nil } }),
+                            titleVisibility: .visible, presenting: installing) { addOn in
+            Button("Installer") { Task { await addOnControl?.install(addOn) } }
+            Button("Annuler", role: .cancel) {}
+        } message: { addOn in
+            Text(Words.typeset([addOnControl?.confirmation(installing: addOn), AddOnTexts.installing].compactMap { $0 }.joined(separator: " ")))
+        }
+    }
+
+    private var homeLists: some View {
         Form {
-            ForEach(Array(SettingsPane.families(hasAgenda: agenda != nil, hasProjects: projects != nil, hasMails: hasMails,
-                                                hasInspiration: inspiration != nil, hasMeetings: addOns.contains(.meetings),
-                                                hasColin: addOns.contains(.colin), hasPhone: phone != nil,
-                                                hasDictation: dictationService != nil).enumerated()), id: \.offset) { _, group in
-                Section {
-                    ForEach(group, id: \.self) { pane in
-                        Button { router.settingsPane = pane } label: { SettingsRow(pane: pane) }
-                            .buttonStyle(.row(radius: Radius.control, inset: Space.s))
+            Section {
+                ForEach(AddOn.allCases, id: \.self) { addOn in addOnLine(addOn) }
+            } header: {
+                HStack {
+                    Text("Add-ons")
+                    Spacer()
+                    if addOnControl != nil {
+                        Button("Gérer les add-ons") { router.settingsPane = .addOns }
+                            .buttonStyle(.link)
+                            .font(.meta)
                     }
+                }
+            }
+            Section("hub") {
+                ForEach(SettingsPane.hubPanes(hasAgenda: agenda != nil), id: \.self) { pane in
+                    Button { router.settingsPane = pane } label: { SettingsRow(pane: pane) }
+                        .buttonStyle(.row(radius: Radius.control, inset: Space.s))
                 }
             }
         }
         .settingsForm()
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .belowToolbar()
+    }
+
+    /// An add-on's line: installed, it opens its settings; not installed, greyed, with « Installer ».
+    @ViewBuilder private func addOnLine(_ addOn: AddOn) -> some View {
+        if let pane = page(of: addOn) {
+            Button { router.settingsPane = pane } label: {
+                AddOnSettingsRow(addOn: addOn, subtitle: subtitle(addOn, pane: pane), warns: missing(addOn))
+            }
+            .buttonStyle(.row(radius: Radius.control, inset: Space.s))
+        } else if installed.contains(addOn) {
+            // Installed, nothing to set yet (Vigie, 21/11).
+            AddOnSettingsRow(addOn: addOn, subtitle: missing(addOn) ? state(addOn) : "Rien à régler pour l'instant", warns: missing(addOn),
+                             opens: false)
+        } else {
+            AddOnSettingsRow(addOn: addOn, subtitle: "Pas installé", warns: false, opens: false, greyed: true) {
+                if addOnControl != nil {
+                    Button("Installer") { installing = addOn }
+                        .buttonStyle(.secondary)
+                        .disabled(addOnControl?.working != nil || (addOn == .colin && addOnControl?.claudeFound == false))
+                }
+            }
+        }
+    }
+
+    private func missing(_ addOn: AddOn) -> Bool {
+        if case .missing = addOnControl?.state(addOn) { return true }
+        return false
+    }
+
+    private func state(_ addOn: AddOn) -> String {
+        addOnControl?.state(addOn).text ?? ""
+    }
+
+    /// What its page holds, or what it lacks.
+    private func subtitle(_ addOn: AddOn, pane: SettingsPane) -> String {
+        missing(addOn) ? state(addOn) + " : voir le Diagnostic" : pane.subtitle
+    }
+
+    private var results: some View {
+        let found = SettingsIndex.search(query, in: searchable)
+        return Form {
+            Section {
+                if found.isEmpty {
+                    Text(Words.typeset("Aucun réglage ne contient « \(query.trimmingCharacters(in: .whitespaces)) ».")).foregroundStyle(.secondary)
+                } else {
+                    ForEach(found, id: \.self) { entry in
+                        Button { router.settingsPane = entry.pane } label: { SettingsSearchRow(entry: entry) }
+                            .buttonStyle(.row(radius: Radius.control, inset: Space.s))
+                    }
+                }
+            } header: {
+                Text(found.isEmpty ? "" : Words.count(found.count, "réglage trouvé", "réglages trouvés"))
+            }
+        }
+        .settingsForm()
     }
 
     @ViewBuilder
@@ -111,9 +217,7 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
         case .addOns:
             if let addOnControl { AddOnsSettingsPane(control: addOnControl) }
         case .general:
-            GeneralSettingsPane(startup: startup) { router.settingsPane = $0 }
-        case .notifications:
-            NotificationsSettingsPane(hub: notifications)
+            GeneralSettingsPane(startup: startup, updates: updates, hub: notifications) { router.settingsPane = $0 }
         case .accounts:
             if let agenda { AccountsSettingsPane(agenda: agenda) }
         case .iphone:
@@ -123,7 +227,7 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
                 ContentUnavailableView("Aucun accès", systemImage: "iphone", description: Text("La version de développement ne s'ouvre pas à l'iPhone."))
             }
         case .calendar:
-            if let agenda { CalendarSettingsPane(agenda: agenda) }
+            if let agenda { CalendarSettingsPane(agenda: agenda, hub: notifications) }
         case .mails:
             MailSettingsPane(mails: mails)
         case .colin:
@@ -136,14 +240,6 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
             if let inspiration { InspirationSettingsPane(library: inspiration, router: router) }
         case .dictation:
             if let dictationService { DictationSettingsPane(service: dictationService) }
-        case .updates:
-            if let updates {
-                UpdatesSettingsView(updates: updates)
-            } else {
-                // An empty state says « Aucun … » (lot 10, 20/11).
-                ContentUnavailableView("Aucune mise à jour", systemImage: "arrow.down.circle",
-                                       description: Text("La version de développement ne se met jamais à jour."))
-            }
         case .diagnostic:
             diagnostic.frame(maxWidth: SettingsMetrics.width)
         case .journal:
@@ -168,6 +264,70 @@ extension WindowRouter {
 extension EnvironmentValues {
     /// The relaunch's control, for the Diagnostic's line (lot 7, 19/11): the same switch and the same guards as Général's.
     @Entry var startupControl: StartupControl? = nil
+}
+
+/// An add-on on Réglages' home (21/11): its badge, its name, what its page holds or what it lacks; greyed when it is not
+/// installed, with its gesture at the end.
+struct AddOnSettingsRow<Trailing: View>: View {
+    let addOn: AddOn
+    let subtitle: String
+    var warns = false
+    var opens = true
+    var greyed = false
+    @ViewBuilder var trailing: () -> Trailing
+
+    init(addOn: AddOn, subtitle: String, warns: Bool, opens: Bool = true, greyed: Bool = false,
+         @ViewBuilder trailing: @escaping () -> Trailing = { EmptyView() }) {
+        self.addOn = addOn
+        self.subtitle = subtitle
+        self.warns = warns
+        self.opens = opens
+        self.greyed = greyed
+        self.trailing = trailing
+    }
+
+    var body: some View {
+        HStack(spacing: Space.m) {
+            AddOnBadge(addOn: addOn, side: 26)
+                .saturation(greyed ? 0 : 1)
+                .opacity(greyed ? 0.45 : 1)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(addOn.title).font(.rowBody.weight(.medium)).foregroundStyle(greyed ? .secondary : .primary)
+                Text(Words.typeset(subtitle)).font(.meta)
+                    .foregroundStyle(warns ? AnyShapeStyle(Tint.attention) : AnyShapeStyle(.secondary))
+            }
+            Spacer()
+            trailing()
+            if opens {
+                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.vertical, Space.xs)
+        .contentShape(Rectangle())
+    }
+}
+
+/// A setting found by the search: its title, and the page it is on.
+struct SettingsSearchRow: View {
+    let entry: SettingsEntry
+
+    var body: some View {
+        HStack(spacing: Space.m) {
+            Image(systemName: entry.pane.icon)
+                .font(.meta.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(width: 26, height: 26)
+                .background(Color(hex: entry.pane.tint), in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(Words.typeset(entry.title)).font(.rowBody.weight(.medium))
+                Text(entry.title == entry.pane.title ? "La page" : "Dans \(entry.pane.title)").font(.meta).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+        }
+        .padding(.vertical, Space.xs)
+        .contentShape(Rectangle())
+    }
 }
 
 /// A family of Réglages: its icon in a colored square, its name, what it holds.
@@ -252,11 +412,13 @@ enum SettingsText {
     static let details = [startupDetail, remindersDetail, mailGrantDetail]
 }
 
-/// Réglages › Général: the session, how a mail or a project opens, the menu bar; then the Diagnostic and the Journal,
-/// one line each (lot 7, 19/11: no families of their own any more).
+/// Réglages › Général: the session, how a mail or a project opens, the menu bar; what every notification shares; the
+/// updates (21/11); then the Journal, on a line (lot 7, 19/11).
 struct GeneralSettingsPane: View {
     let startup: StartupControl?
-    /// Opens a line of Général: the Diagnostic, the Journal.
+    var updates: UpdateService?
+    var hub: NotificationHub?
+    /// Opens a line of Général: the Journal.
     var open: (SettingsPane) -> Void = { _ in }
     @AppStorage(Preferences.Key.floatingPages) private var floating = true
     @AppStorage(Preferences.Key.menuBarMeetMinutes) private var meetMinutes = true
@@ -277,6 +439,14 @@ struct GeneralSettingsPane: View {
                 }
                 SettingRow(SettingsText.meetMinutes, help: SettingsText.meetMinutesHelp) {
                     Toggle(SettingsText.meetMinutes, isOn: $meetMinutes)
+                }
+            }
+            NotificationsCommonSection(hub: hub)
+            if let updates {
+                UpdatesSection(updates: updates)
+            } else {
+                Section("Mises à jour") {
+                    Text("La version de développement ne se met jamais à jour.").foregroundStyle(.secondary)
                 }
             }
             Section {
@@ -390,8 +560,8 @@ enum ReminderMenu {
     }
 }
 
-/// Réglages › Notifications (Paul, 14/11): what hub announces, and when.
-struct NotificationsSettingsPane: View {
+/// The notifications of Calendrier, in its own page (21/11: the page Notifications is gone, each tool says its own).
+struct CalendarNotificationsSection: View {
     let hub: NotificationHub?
     @AppStorage(Preferences.Key.reminders) private var reminders = true
     @AppStorage(Preferences.Key.reminderMinutes) private var minutesText = Preferences.Default.reminderMinutes
@@ -399,72 +569,35 @@ struct NotificationsSettingsPane: View {
     @AppStorage(Preferences.Key.meetingCard) private var meetingCard = true
     @AppStorage(Preferences.Key.meetingCardMinutes) private var meetingCardMinutes = Preferences.Default.meetingCardMinutes
     @AppStorage(Preferences.Key.newEvents) private var newEvents = true
-    @AppStorage(Preferences.Key.unrecorded) private var unrecorded = true
-    @AppStorage(Preferences.Key.summaryReady) private var summaryReady = true
-    @AppStorage(Preferences.Key.mailNotices) private var mailNotices = true
-    @AppStorage(Preferences.Key.mailNoticesProjects) private var mailNoticesProjects = false
-    @AppStorage(Preferences.Key.colinDraftNotice) private var draftReady = true
-    @AppStorage(Preferences.Key.sound) private var sound = true
 
     var body: some View {
-        Form {
-            Section {
-                SettingRow(SettingsText.reminders, help: SettingsText.remindersHelp, detail: SettingsText.remindersDetail) {
-                    Toggle(SettingsText.reminders, isOn: $reminders)
-                }
-                if reminders {
-                    reminderMenu
-                    // A visio is a rendez-vous with a Google Meet link: said once (lot 10, 20/11).
-                    Toggle("Seulement les visios", isOn: $meetOnly)
-                }
-                SettingRow(SettingsText.card, help: SettingsText.cardHelp) {
-                    Toggle(SettingsText.card, isOn: $meetingCard)
-                }
-                if meetingCard {
-                    Picker("Quand", selection: $meetingCardMinutes) {
-                        ForEach(Preferences.Default.meetingCardChoices, id: \.self) { minute in
-                            // The length by `Words` (lot 10, 20/11).
-                            Text(Words.duration(minute * 60) + " avant").tag(minute)
-                        }
+        Section {
+            SettingRow(SettingsText.reminders, help: SettingsText.remindersHelp, detail: SettingsText.remindersDetail) {
+                Toggle(SettingsText.reminders, isOn: $reminders)
+            }
+            if reminders {
+                reminderMenu
+                // A visio is a rendez-vous with a Google Meet link: said once (lot 10, 20/11).
+                Toggle("Seulement les visios", isOn: $meetOnly)
+            }
+            SettingRow(SettingsText.card, help: SettingsText.cardHelp) {
+                Toggle(SettingsText.card, isOn: $meetingCard)
+            }
+            if meetingCard {
+                Picker("Quand", selection: $meetingCardMinutes) {
+                    ForEach(Preferences.Default.meetingCardChoices, id: \.self) { minute in
+                        // The length by `Words` (lot 10, 20/11).
+                        Text(Words.duration(minute * 60) + " avant").tag(minute)
                     }
-                    .pickerStyle(.segmented)
                 }
-            } header: {
-                Text("Calendrier")
+                .pickerStyle(.segmented)
             }
-            Section {
-                Toggle("Nouveau rendez-vous dans tes agendas", isOn: $newEvents)
-                SettingRow(SettingsText.unrecorded, help: SettingsText.unrecordedHelp) {
-                    Toggle(SettingsText.unrecorded, isOn: $unrecorded)
-                }
-            }
-            Section("Réunions") {
-                Toggle("Compte rendu prêt", isOn: $summaryReady)
-            }
-            Section {
-                // The mails' folders, no tabs any more (lot 7, 19/11: « l'onglet Personnes » had gone).
-                SettingRow(SettingsText.mailNotices, help: SettingsText.mailNoticesHelp) {
-                    Toggle(SettingsText.mailNotices, isOn: $mailNotices)
-                }
-                if mailNotices { Toggle("Seulement les mails de tes projets", isOn: $mailNoticesProjects) }
-            } header: {
-                Text("Mails")
-            }
-            Section {
-                SettingRow(SettingsText.draftReady, help: SettingsText.draftReadyHelp) {
-                    Toggle(SettingsText.draftReady, isOn: $draftReady)
-                }
-            } header: {
-                Text("Colin")
-            }
-            Section {
-                Toggle("Son", isOn: $sound)
-                if let hub { NotificationStatus(hub: hub) }
-            }
+            Toggle("Nouveau rendez-vous dans tes agendas", isOn: $newEvents)
+        } header: {
+            Text("Notifications")
         }
-        .settingsForm()
-        .onChange(of: [reminders, meetOnly, sound]) { _, _ in replan() }
-        .onChange(of: minutesText) { _, _ in replan() }
+        .onChange(of: [reminders, meetOnly]) { _, _ in NotificationReplan.now(hub) }
+        .onChange(of: minutesText) { _, _ in NotificationReplan.now(hub) }
     }
 
     /// « Rappels    10 et 1 min avant ▾ »: each minute ticked in the menu, several at once (lot 7, 19/11), the row read as
@@ -486,8 +619,74 @@ struct NotificationsSettingsPane: View {
             Text(ReminderMenu.label(minutes))
         }
     }
+}
 
-    private func replan() {
+/// The notifications of Réunions, in its own page.
+struct MeetingNotificationsSection: View {
+    @AppStorage(Preferences.Key.summaryReady) private var summaryReady = true
+    @AppStorage(Preferences.Key.unrecorded) private var unrecorded = true
+
+    var body: some View {
+        Section("Notifications") {
+            Toggle("Compte rendu prêt", isOn: $summaryReady)
+            SettingRow(SettingsText.unrecorded, help: SettingsText.unrecordedHelp) {
+                Toggle(SettingsText.unrecorded, isOn: $unrecorded)
+            }
+        }
+    }
+}
+
+/// The notifications of Mails, in its own page.
+struct MailNotificationsSection: View {
+    @AppStorage(Preferences.Key.mailNotices) private var mailNotices = true
+    @AppStorage(Preferences.Key.mailNoticesProjects) private var mailNoticesProjects = false
+
+    var body: some View {
+        Section("Notifications") {
+            // The mails' folders, no tabs any more (lot 7, 19/11: « l'onglet Personnes » had gone).
+            SettingRow(SettingsText.mailNotices, help: SettingsText.mailNoticesHelp) {
+                Toggle(SettingsText.mailNotices, isOn: $mailNotices)
+            }
+            if mailNotices { Toggle("Seulement les mails de tes projets", isOn: $mailNoticesProjects) }
+        }
+    }
+}
+
+/// The notification of Colin, in his own page.
+struct ColinNotificationsSection: View {
+    @AppStorage(Preferences.Key.colinDraftNotice) private var draftReady = true
+
+    var body: some View {
+        Section("Notifications") {
+            SettingRow(SettingsText.draftReady, help: SettingsText.draftReadyHelp) {
+                Toggle(SettingsText.draftReady, isOn: $draftReady)
+            }
+        }
+    }
+}
+
+/// What every notification shares, in Général: the sound, macOS's answer, a test.
+struct NotificationsCommonSection: View {
+    let hub: NotificationHub?
+    @AppStorage(Preferences.Key.sound) private var sound = true
+
+    var body: some View {
+        Section {
+            Toggle("Son des notifications", isOn: $sound)
+            if let hub { NotificationStatus(hub: hub) }
+        } header: {
+            Text("Notifications")
+        } footer: {
+            Text(Words.typeset("Ce que chaque outil annonce se règle dans ses réglages."))
+                .font(.meta).foregroundStyle(.secondary)
+        }
+        .onChange(of: sound) { _, _ in NotificationReplan.now(hub) }
+    }
+}
+
+/// The reminders planned again after a change.
+enum NotificationReplan {
+    @MainActor static func now(_ hub: NotificationHub?) {
         guard let hub else { return }
         Task { await hub.refresh() }
     }
@@ -536,54 +735,52 @@ struct MeetingsSettingsPane: View {
                     }
                 }
             }
+            MeetingNotificationsSection()
         }
         .settingsForm()
     }
 }
 
-/// Réglages › Mises à jour.
-struct UpdatesSettingsView: View {
+/// Mises à jour, a section of Général since 21/11 (Paul: « moins de pages »).
+struct UpdatesSection: View {
     @ObservedObject var updates: UpdateService
 
     var body: some View {
-        Form {
-            Section {
-                LabeledContent("Version installée", value: "hub-board \(updates.current.description)")
-                // A meta: « 9:04 » today, « hier 9:04 », « 18 nov. 9:04 », by `Words` (lot 10, 20/11).
-                LabeledContent("Dernière vérification", value: updates.lastCheck.map {
-                    Words.shortMoment($0, now: Date())
-                } ?? "pas encore")
-                SettingRow(SettingsText.autoInstall, help: SettingsText.autoInstallHelp) {
-                    Toggle(SettingsText.autoInstall, isOn: $updates.autoInstall)
-                }
-                if let text = UpdateService.text(updates.state) {
-                    // A failure: said by `ErrorLine` (design system v2, 19/11); the other states in grey.
-                    if case .failed = updates.state {
-                        ErrorLine(text)
-                    } else {
-                        Text(text).foregroundStyle(.secondary)
-                    }
-                }
-                HStack {
-                    Button("Vérifier maintenant") { Task { await updates.check() } }
-                    if let latest = updates.latest {
-                        Button("Mettre à jour vers \(latest.version.description)") { Task { await updates.installNow() } }
-                            .buttonStyle(.primary)
-                    }
-                }
-                if updates.newer.isEmpty, updates.lastCheck != nil, updates.state == .idle {
-                    Text("hub est à jour.").foregroundStyle(.secondary)
-                }
-                ForEach(updates.newer, id: \.version) { release in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Version \(release.version.description)").font(.headline)
-                        Text(release.notes.isEmpty ? "Pas de description." : release.notes)
-                            .font(.callout).textSelection(.enabled)
-                    }
-                    .padding(.vertical, 4)
+        Section("Mises à jour") {
+            LabeledContent("Version installée", value: "hub-board \(updates.current.description)")
+            // A meta: « 9:04 » today, « hier 9:04 », « 18 nov. 9:04 », by `Words` (lot 10, 20/11).
+            LabeledContent("Dernière vérification", value: updates.lastCheck.map {
+                Words.shortMoment($0, now: Date())
+            } ?? "pas encore")
+            SettingRow(SettingsText.autoInstall, help: SettingsText.autoInstallHelp) {
+                Toggle(SettingsText.autoInstall, isOn: $updates.autoInstall)
+            }
+            if let text = UpdateService.text(updates.state) {
+                // A failure: said by `ErrorLine` (design system v2, 19/11); the other states in grey.
+                if case .failed = updates.state {
+                    ErrorLine(text)
+                } else {
+                    Text(text).foregroundStyle(.secondary)
                 }
             }
+            HStack {
+                Button("Vérifier maintenant") { Task { await updates.check() } }
+                if let latest = updates.latest {
+                    Button("Mettre à jour vers \(latest.version.description)") { Task { await updates.installNow() } }
+                        .buttonStyle(.primary)
+                }
+            }
+            if updates.newer.isEmpty, updates.lastCheck != nil, updates.state == .idle {
+                Text("hub est à jour.").foregroundStyle(.secondary)
+            }
+            ForEach(updates.newer, id: \.version) { release in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Version \(release.version.description)").font(.headline)
+                    Text(release.notes.isEmpty ? "Pas de description." : release.notes)
+                        .font(.callout).textSelection(.enabled)
+                }
+                .padding(.vertical, 4)
+            }
         }
-        .settingsForm()
     }
 }

@@ -105,7 +105,7 @@ public enum AddOnNeeds {
         case .vigie:
             [AddOnNeed("moteur", "Le moteur de Vigie sur ce Mac", done: facts.vigieInstalled,
                        note: "Il vient avec l'app Vigie : installe-la. hub le posera lui-même à une prochaine étape."),
-             AddOnNeed("marche", "Le moteur en marche", done: facts.vigieInstalled && facts.vigieRunning,
+             AddOnNeed("moteur-marche", "Le moteur en marche", done: facts.vigieInstalled && facts.vigieRunning,
                        note: facts.vigieInstalled ? "Ouvre l'app Vigie : elle le relance." : nil)]
         case .iphone:
             [AddOnNeed("icloud", "iCloud sur ce Mac", done: facts.iCloud, note: "Connecte ce Mac à iCloud dans Réglages Système."),
@@ -117,6 +117,22 @@ public enum AddOnNeeds {
         guard installed else { return .notInstalled }
         let missing = needs.filter { !$0.done }.count
         return missing == 0 ? .ready : .missing(missing)
+    }
+
+    /// Everything the installed add-ons need, once each, with the tools it serves (21/11, Paul: « une page avec tout ce
+    /// qu'il y a à accepter… pour quel outil c'est nécessaire… voir tout ce qui est connecté »): the Diagnostic's list.
+    public static func connections(installed: Set<AddOn>, _ facts: AddOnFacts) -> [AddOnConnection] {
+        var result: [AddOnConnection] = []
+        for addOn in AddOn.allCases where installed.contains(addOn) {
+            for need in list(addOn, facts) {
+                if let index = result.firstIndex(where: { $0.need.id == need.id }) {
+                    result[index].tools.append(addOn)
+                } else {
+                    result.append(AddOnConnection(need: need, tools: [addOn]))
+                }
+            }
+        }
+        return result
     }
 
     /// The first thing to settle, with a button: the tile's main gesture.
@@ -137,5 +153,19 @@ public enum AddOnNeeds {
         AddOnNeed("google", "Un compte Google", done: facts.googleAccounts > 0, action: facts.googleKey ? .connectGoogle : nil,
                   button: facts.googleKey ? "Connecter un compte" : nil,
                   note: facts.googleKey ? nil : "La clé Google de hub manque sur ce Mac : elle se pose une fois, hors de l'app.")
+    }
+}
+
+/// A need shared by the tools that ask for it.
+public struct AddOnConnection: Identifiable, Equatable, Sendable {
+    public var need: AddOnNeed
+    public var tools: [AddOn]
+    public var id: String { need.id }
+
+    /// « Pour Réunions et Dictée ».
+    public var forWhom: String {
+        let names = tools.map(\.title)
+        guard names.count > 1 else { return "Pour " + (names.first ?? "") }
+        return "Pour " + names.dropLast().joined(separator: ", ") + " et " + names[names.count - 1]
     }
 }

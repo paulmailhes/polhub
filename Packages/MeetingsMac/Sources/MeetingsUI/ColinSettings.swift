@@ -96,6 +96,7 @@ struct ColinSettingsPane: View {
             } header: {
                 Text("À valider")
             }
+            ColinNotificationsSection()
         }
         .settingsForm()
         .onAppear {

@@ -6,6 +6,8 @@ import SwiftUI
 /// Réglages › Calendrier (Paul, 14/11): the new events, the week. The accounts live in Réglages › Comptes Google.
 struct CalendarSettingsPane: View {
     @ObservedObject var agenda: AgendaLibrary
+    /// The reminders are planned again after a change (21/11: they came here from the page Notifications).
+    var hub: NotificationHub?
     @AppStorage(Preferences.Key.defaultAccount) private var defaultAccount = ""
     @AppStorage(Preferences.Key.eventMinutes) private var eventMinutes = Preferences.Default.eventMinutes
     @AppStorage(Preferences.Key.eventMeet) private var eventMeet = true
@@ -50,6 +52,7 @@ struct CalendarSettingsPane: View {
                     }
                 }
             }
+            CalendarNotificationsSection(hub: hub)
             Section {
                 SyncStatus(agenda: agenda)
             }

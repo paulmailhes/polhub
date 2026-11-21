@@ -82,7 +82,7 @@ import Testing
         #expect(items.last == .dictation)
         #expect(SidebarItem.dictation.shortcut == nil)
         #expect(SidebarItem.calendar.shortcut == 4)
-        #expect(SettingsPane.families(hasAgenda: true, hasProjects: true, hasDictation: true)[1].last == .dictation)
+        #expect(SettingsPane.families(hasAgenda: true, hasProjects: true, hasPhone: false, hasDictation: true)[1].last == .dictation)
     }
 
     @Test func theHelpersLinesArriveWhole() {

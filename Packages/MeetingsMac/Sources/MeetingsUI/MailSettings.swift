@@ -82,6 +82,7 @@ struct MailSettingsPane: View {
             } header: {
                 Text("Agents")
             }
+            MailNotificationsSection()
             if let mails { MailSortingSections(mails: mails) }
         }
         .settingsForm()

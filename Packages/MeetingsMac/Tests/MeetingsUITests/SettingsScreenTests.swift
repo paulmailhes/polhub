@@ -110,7 +110,7 @@ struct SettingsScreenTests {
             MainWindowView(library: library, projects: projects, agenda: agenda, mails: mails, thread: thread, colinProbe: probe,
                            inspiration: inspiration, updates: updates, startup: startup, phone: phone, addOnControl: addOnControl,
                            dictation: dictation, dictationService: dictationService, router: router, paths: world.paths) {
-                DiagnosticView(model: model, colin: probe) {}
+                DiagnosticView(model: model, colin: probe, connections: addOnControl) {}
             }
             .environment(\.projectLogos, logos)
         }
@@ -126,7 +126,7 @@ struct SettingsScreenTests {
         router.section = .dictation
         try await LiveWindow.capture(window(startup), to: output.appending(path: "dictee-historique.png"), size: Self.size, wait: .milliseconds(1_800))
         // The narrowest window, on the pages with the most helps: two lines at most, beside a list too.
-        for pane in [SettingsPane.general, .notifications, .mails, .colin, .meetings, .inspiration] {
+        for pane in [SettingsPane.general, .calendar, .mails, .colin, .meetings, .inspiration] {
             router.openSettings(pane)
             try await LiveWindow.capture(window(startup), to: output.appending(path: "reglages-\(pane.rawValue)-etroit.png"),
                                          size: NSSize(width: MainWindowView<EmptyView>.minimumWidth, height: 860))

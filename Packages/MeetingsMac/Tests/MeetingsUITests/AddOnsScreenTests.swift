@@ -1,6 +1,7 @@
 import AppKit
 import Domain
 import Foundation
+import Recording
 import SwiftUI
 import Testing
 @testable import MeetingsUI
@@ -26,6 +27,13 @@ import Testing
         control.openPendingGuide()
         try await LiveWindow.capture(AddOnGuideSheet(control: control), to: folder.appending(path: "addons-guide.png"),
                                      size: NSSize(width: 540, height: 430), wait: .milliseconds(900))
+        // The Diagnostic's list (21/11): each need once, for whom, with its button.
+        let model = DiagnosticModel(amplitude: 0.0000316, showsRelaunch: true, relaunchEnabled: { true }, setRelaunch: { _ in nil },
+                                    missingModels: { [] })
+        for item in [ChecklistItem.microphone, .systemAudio, .models, .relaunch] { model.set(item, .ok) }
+        model.set(.diaAutomation, .notRunning)
+        try await LiveWindow.capture(DiagnosticView(model: model, connections: control) {}, to: folder.appending(path: "diagnostic-connexions.png"),
+                                     size: NSSize(width: 760, height: 760), wait: .milliseconds(1_200))
         try await LiveWindow.capture(WelcomeSheet(control: control), to: folder.appending(path: "bienvenue-1.png"),
                                      size: NSSize(width: 620, height: 400), wait: .milliseconds(900))
         try await LiveWindow.capture(WelcomeSheet(control: control, step: 2, chosen: [.meetings]), to: folder.appending(path: "bienvenue-2.png"),

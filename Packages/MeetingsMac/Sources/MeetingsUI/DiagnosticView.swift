@@ -168,20 +168,43 @@ public final class DiagnosticModel: ObservableObject {
 public struct DiagnosticView: View {
     @ObservedObject var model: DiagnosticModel
     let colin: ColinProbeControl?
+    /// What every installed tool needs (21/11): the add-ons' control; nil in a capture that does not ask for it.
+    let connections: AddOnControl?
+    let notifications: NotificationHub?
     let openProbes: () -> Void
     /// Général's switch of the relaunch, given by Réglages (lot 7, 19/11): the line of the relaunch goes through it, its
     /// questions and its wait for the end of a meeting, never round them.
     @Environment(\.startupControl) private var startup
 
     /// `colin`: the probe of Colin, shown under the checks when the app gives it.
-    public init(model: DiagnosticModel, colin: ColinProbeControl? = nil, openProbes: @escaping () -> Void) {
+    public init(model: DiagnosticModel, colin: ColinProbeControl? = nil, connections: AddOnControl? = nil, notifications: NotificationHub? = nil,
+                openProbes: @escaping () -> Void) {
         self.model = model
         self.colin = colin
+        self.connections = connections
+        self.notifications = notifications
         self.openProbes = openProbes
     }
 
+    /// Réunions' own checks: always without the add-ons' control, else when Réunions is installed.
+    private var showsMeetings: Bool { connections?.installed.contains(.meetings) ?? true }
+
     public var body: some View {
         Form {
+            if let connections {
+                ConnectionsSection(control: connections, notifications: notifications)
+            }
+            if showsMeetings { meetings }
+            if let colin {
+                Section { ColinProbeSection(control: colin) }
+            }
+        }
+        .settingsForm()
+        .task { if showsMeetings, model.states.isEmpty { await model.testAll(prompt: false) } }
+    }
+
+    /// Réunions' checks: the microphone, the others' sound, Dia, the models, the relaunch.
+    @ViewBuilder private var meetings: some View {
             Section {
                 // What is missing: a problem, said by `ErrorLine` (design system v2, 19/11).
                 if model.allGood {
@@ -199,13 +222,9 @@ public struct DiagnosticView: View {
                     // A link that acts: a word at the app's accent, the discreet role (design system v2, 19/11).
                     TextButton("Sondes de mesure…", action: openProbes)
                 }
+            } header: {
+                Text(connections == nil ? "" : "Réunions : les vérifications")
             }
-            if let colin {
-                Section { ColinProbeSection(control: colin) }
-            }
-        }
-        .settingsForm()
-        .task { if model.states.isEmpty { await model.testAll(prompt: false) } }
     }
 
     @ViewBuilder private func row(_ item: ChecklistItem) -> some View {
@@ -275,5 +294,91 @@ private struct RelaunchProblem: View {
 
     var body: some View {
         if let message = startup.message { ErrorLine(message).font(.meta) }
+    }
+}
+
+/// « Autorisations et connexions » (21/11, Paul: « une page avec tout ce qu'il y a à accepter… pour quel outil c'est
+/// nécessaire… voir tout ce qui est connecté ») : what the installed tools need from macOS and from the accounts, once
+/// each, with the tools it serves and the button that settles it. Read again every two seconds: an authorization given
+/// in Réglages Système shows at once.
+struct ConnectionsSection: View {
+    @ObservedObject var control: AddOnControl
+    let notifications: NotificationHub?
+    @State private var tick = 0
+
+    var body: some View {
+        let list = AddOnNeeds.connections(installed: control.installed, control.facts())
+        Section {
+            if list.isEmpty && notifications == nil {
+                Text(Words.typeset("Tes outils ne demandent rien de plus.")).foregroundStyle(.secondary)
+            }
+            ForEach(list) { connection in
+                ConnectionRow(connection: connection) { control.settle(connection.need) }
+            }
+            if let notifications { NotificationsPermissionRow(hub: notifications) }
+        } header: {
+            Text("Autorisations et connexions")
+        } footer: {
+            Text(Words.typeset("Ce que tes outils demandent à macOS et à tes comptes. Une autorisation se retire dans Réglages Système › Confidentialité."))
+                .font(.meta).foregroundStyle(.secondary)
+        }
+        .id(tick)
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(2))
+                tick += 1
+            }
+        }
+    }
+}
+
+/// One thing to allow or to connect: done or not, for whom, and its button.
+struct ConnectionRow: View {
+    let connection: AddOnConnection
+    let settle: () -> Void
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Space.m) {
+            Image(systemName: connection.need.done ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(connection.need.done ? AnyShapeStyle(Tint.done) : AnyShapeStyle(Tint.attention))
+                .accessibilityLabel(connection.need.done ? "Fait" : "À faire")
+            VStack(alignment: .leading, spacing: 2) {
+                Text(Words.typeset(connection.need.title))
+                Text(connection.forWhom).font(.tag).foregroundStyle(.secondary)
+                if let note = connection.need.note {
+                    Text(Words.typeset(note)).font(.meta).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: Space.s)
+            if let button = connection.need.button {
+                Button(button, action: settle).buttonStyle(.secondary).fixedSize()
+            }
+        }
+    }
+}
+
+/// macOS's answer for hub's notifications, in the Diagnostic's list.
+struct NotificationsPermissionRow: View {
+    @ObservedObject var hub: NotificationHub
+
+    var body: some View {
+        let denied = hub.authorization == .denied
+        HStack(alignment: .firstTextBaseline, spacing: Space.m) {
+            Image(systemName: denied ? "circle" : "checkmark.circle.fill")
+                .foregroundStyle(denied ? AnyShapeStyle(Tint.attention) : AnyShapeStyle(Tint.done))
+                .accessibilityLabel(denied ? "À faire" : "Fait")
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Les notifications")
+                Text("Pour les rappels, les mails, les comptes rendus et Colin").font(.tag).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: Space.s)
+            if denied {
+                Button("Ouvrir Réglages Système") {
+                    NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension")!)
+                }
+                .buttonStyle(.secondary).fixedSize()
+            }
+        }
+        .task { await hub.readAuthorization() }
     }
 }

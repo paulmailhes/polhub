@@ -934,7 +934,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                                       updates: updates, notifications: notifications, startup: startup, phone: phone, addOns: addOns, addOnControl: addOnControl,
                                       dictation: dictation, dictationService: dictationService, vigie: vigie, router: router, paths: paths) {
                 if let diagnostic {
-                    DiagnosticView(model: diagnostic, colin: probe) { [weak self] in self?.showProbeWindow() }
+                    DiagnosticView(model: diagnostic, colin: probe, connections: addOnControl, notifications: notifications) { [weak self] in self?.showProbeWindow() }
                 }
             }
             // Every logo of a project reads it there; without it, initials (15/11). hub's own accent, ink, whatever

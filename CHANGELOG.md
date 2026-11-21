@@ -3,6 +3,23 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.67.0 — 21 novembre 2026
+
+**Les Réglages rangés : une recherche, tes add-ons, et trois pages pour hub.**
+
+- **Une recherche** en haut de Réglages : « micro », « rappel », « mise à jour »… mène au bon réglage, avec ou sans
+  accents.
+- **Tes add-ons**, un par ligne : ceux que tu as installés ouvrent leurs réglages ; les autres sont grisés, avec
+  « Installer ». Un add-on à qui il manque quelque chose le dit sur sa ligne. « Gérer les add-ons » mène aux tuiles.
+- **Trois pages pour hub lui-même** : Comptes Google, Diagnostic, Général.
+- **Les notifications de chaque outil vont dans ses réglages** : les rappels dans Calendrier, les comptes rendus dans
+  Réunions, les mails dans Mails, les brouillons dans Colin. Le son et l'essai restent dans Général.
+- **Les mises à jour passent dans Général.** La page Notifications et la page Mises à jour disparaissent.
+- **Le Diagnostic dit tout ce que tes outils demandent** : le micro, l'Accessibilité, les notifications, les comptes
+  Google, le moteur de Vigie, iCloud… Chaque chose une fois, avec les outils qui en ont besoin et le bouton qui la
+  règle. Les vérifications des réunions suivent, si Réunions est installé.
+- L'iPhone passe en gris dans Réglages, pour ne plus partager le bleu de Projets.
+
 ## 0.66.0 — 21 novembre 2026
 
 **Vigie arrive dans hub : première étape.**

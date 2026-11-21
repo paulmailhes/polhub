@@ -88,7 +88,7 @@ import Testing
     /// families follow the sidebar, and Colin's is the Accueil's.
     @Test func reglagesHasAColinFamilyWithTheMails() {
         let families = SettingsPane.families(hasAgenda: true, hasProjects: true, hasMails: true)
-        #expect(families[1] == [.colin, .projects, .meetings, .calendar, .mails])
+        #expect(families[1] == [.colin, .projects, .meetings, .calendar, .mails, .iphone])
         #expect(SettingsPane.colin.title == "Colin")
         #expect(SettingsPane.colin.subtitle == "Marche, ce qu'il sait, ce qu'il signale")
         #expect(SettingsPane.colin.icon == "sparkles")
@@ -103,8 +103,8 @@ import Testing
     /// then the whole app's; Diagnostic and Journal are lines of Général.
     @Test func reglagesListsItsFamilies() {
         let families = SettingsPane.families(hasAgenda: true, hasProjects: true)
-        #expect(families.map { $0.map(\.title) } == [["Add-ons"], ["Projets", "Réunions", "Calendrier"], ["Comptes Google", "iPhone", "Notifications", "Mises à jour", "Général"]])
-        #expect(SettingsPane.families(hasAgenda: false, hasProjects: false).map { $0.map(\.title) } == [["Add-ons"], ["Réunions"], ["iPhone", "Notifications", "Mises à jour", "Général"]])
+        #expect(families.map { $0.map(\.title) } == [["Add-ons"], ["Projets", "Réunions", "Calendrier", "iPhone"], ["Comptes Google", "Diagnostic", "Général"]])
+        #expect(SettingsPane.families(hasAgenda: false, hasProjects: false).map { $0.map(\.title) } == [["Add-ons"], ["Réunions", "iPhone"], ["Diagnostic", "Général"]])
     }
 
     @Test func openingTheDiagnosticEntersItsFamily() {
@@ -151,7 +151,7 @@ import Testing
         #expect(settings.reminderMinutes == [30, 10, 1])
         #expect(Preferences.minutesText([1, 15]) == "15,1")
         #expect(SettingsPane.families(hasAgenda: true, hasProjects: true).last?.last == .general)
-        #expect(SettingsPane.families(hasAgenda: true, hasProjects: true).flatMap { $0 }.contains(.notifications))
+        #expect(!SettingsPane.allCases.map(\.rawValue).contains("notifications"))
     }
 
     /// 15/11, « comme Gmail »: the list's density, the days, the undo delay and what follows a gesture, in
