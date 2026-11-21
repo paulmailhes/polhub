@@ -355,7 +355,7 @@ struct CalendarView: View {
             HStack(spacing: 3) {
                 Text(event.title).font(.caption.weight(.semibold)).lineLimit(height > 44 ? 2 : 1)
                 Spacer(minLength: 0)
-                if event.meetingID != nil { Image(systemName: "waveform").font(.caption2).foregroundStyle(color) }
+                if event.meetingID != nil { Image(systemName: "mic.fill").font(.caption2).foregroundStyle(color) }
             }
             if height > 34 {
                 // « 9:30 », by `Words` (lot 10, 20/11).
@@ -465,7 +465,7 @@ struct EventPopover: View {
                     router.open(meetingID: meetingID, at: nil)
                 } label: {
                     // A meeting is what hub recorded: « Ouvrir la réunion » (lot 10, 20/11).
-                    Label("Ouvrir la réunion", systemImage: "waveform").frame(maxWidth: .infinity)
+                    Label("Ouvrir la réunion", systemImage: "mic").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.secondary)
             }

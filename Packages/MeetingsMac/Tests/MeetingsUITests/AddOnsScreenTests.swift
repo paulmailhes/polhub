@@ -6,10 +6,10 @@ import SwiftUI
 import Testing
 @testable import MeetingsUI
 
-/// Les add-ons en tuiles, le guide et la Bienvenue, en capture (21/11). Données inventées.
+/// Le guide, le Diagnostic et la Bienvenue des add-ons, en capture (21/11). Données inventées.
 /// `HUB_LIVE=1 HUB_SNAPSHOTS=<dossier> swift test --filter AddOnsScreenTests`.
 @MainActor @Suite(.enabled(if: ProcessInfo.processInfo.environment["HUB_LIVE"] == "1")) struct AddOnsScreenTests {
-    @Test func theTilesTheGuideAndTheWelcome() async throws {
+    @Test func theGuideTheDiagnosticAndTheWelcome() async throws {
         let folder = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"]), isDirectory: true)
         let store = AddOnStore(defaults: try #require(UserDefaults(suiteName: "addons-captures-\(UUID().uuidString)")))
         store.save([.projects, .dictation, .calendar, .mails, .inspiration])
@@ -20,10 +20,7 @@ import Testing
         facts.googleAccounts = 1
         control.facts = { facts }
         control.claudeFound = false
-        try await LiveWindow.capture(AddOnsSettingsPane(control: control), to: folder.appending(path: "addons-tuiles.png"),
-                                     size: NSSize(width: 940, height: 1_060), wait: .milliseconds(1_200))
-        try await LiveWindow.capture(AddOnsSettingsPane(control: control), to: folder.appending(path: "addons-tuiles-sombre.png"),
-                                     size: NSSize(width: 940, height: 1_060), dark: true, wait: .milliseconds(1_200))
+        // The add-ons' lines are on Réglages' home since 21/11: SettingsScreenTests captures it (« reglages-familles »).
         control.openPendingGuide()
         try await LiveWindow.capture(AddOnGuideSheet(control: control), to: folder.appending(path: "addons-guide.png"),
                                      size: NSSize(width: 540, height: 430), wait: .milliseconds(900))
@@ -35,8 +32,8 @@ import Testing
         try await LiveWindow.capture(DiagnosticView(model: model, connections: control) {}, to: folder.appending(path: "diagnostic-connexions.png"),
                                      size: NSSize(width: 760, height: 760), wait: .milliseconds(1_200))
         try await LiveWindow.capture(WelcomeSheet(control: control), to: folder.appending(path: "bienvenue-1.png"),
-                                     size: NSSize(width: 620, height: 400), wait: .milliseconds(900))
+                                     size: NSSize(width: 680, height: 400), wait: .milliseconds(900))
         try await LiveWindow.capture(WelcomeSheet(control: control, step: 2, chosen: [.meetings]), to: folder.appending(path: "bienvenue-2.png"),
-                                     size: NSSize(width: 620, height: 520), wait: .milliseconds(900))
+                                     size: NSSize(width: 680, height: 640), wait: .milliseconds(900))
     }
 }

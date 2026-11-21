@@ -46,7 +46,7 @@ public enum SidebarItem: String, Hashable, Sendable {
         switch self {
         case .home: "house.fill"
         case .projects: "square.grid.3x2.fill"
-        case .meetings: "waveform"
+        case .meetings: "mic.fill"
         case .calendar: "calendar"
         case .mails: "envelope.fill"
         case .contacts: "person.2.fill"
@@ -138,11 +138,31 @@ public enum SettingsPane: String, Hashable, Sendable, CaseIterable {
         case .mails: "envelope.fill"
         case .colin: "sparkles"
         case .projects: "square.grid.3x2.fill"
-        case .meetings: "waveform"
+        case .meetings: "mic.fill"
         case .inspiration: "lightbulb.fill"
         case .dictation: "waveform"
         case .diagnostic: "stethoscope"
         case .journal: "list.bullet.rectangle.fill"
+        }
+    }
+
+    /// Its badge's glyph (21/11, Paul: « il faudrait que ce soit les mêmes logos »): the sidebar's for the tools, Phosphor
+    /// for hub's own pages.
+    var appIcon: AppIcon {
+        switch self {
+        case .addOns: .addOns
+        case .general: .settings
+        case .accounts: .accounts
+        case .iphone: .iphone
+        case .calendar: .calendar
+        case .mails: .mails
+        case .colin: .colin
+        case .projects: .projects
+        case .meetings: .meetings
+        case .inspiration: .inspiration
+        case .dictation: .dictation
+        case .diagnostic: .diagnostic
+        case .journal: .journal
         }
     }
 
@@ -820,7 +840,7 @@ public struct MainWindowView<Diagnostic: View>: View {
                                               router: router, agenda: agenda)
                                 .id(id)
                         } else {
-                            ContentUnavailableView("Aucune réunion choisie", systemImage: "waveform",
+                            ContentUnavailableView("Aucune réunion choisie", systemImage: "mic",
                                                    description: Text("Choisis une réunion dans la liste."))
                         }
                     }
@@ -870,7 +890,7 @@ struct MeetingListView: View {
             let sections = MeetingListModel.sections(library.rows, now: context.date, calendar: .current)
             if sections.isEmpty {
                 // « visio », never « un Meet »; a sentence with its « : », French typography (lot 10, 20/11).
-                ContentUnavailableView("Aucune réunion", systemImage: "waveform",
+                ContentUnavailableView("Aucune réunion", systemImage: "mic",
                                        description: Text(Words.typeset("Rejoins une visio dans Dia : elle s'enregistre toute seule.")))
             } else {
                 List(selection: $selection) {

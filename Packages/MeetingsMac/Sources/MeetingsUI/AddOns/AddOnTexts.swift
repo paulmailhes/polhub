@@ -53,10 +53,10 @@ public enum AddOnTexts {
     public static let welcomeTitle = "Bienvenue dans hub"
     public static let welcomeText = "Ton travail au même endroit : tes projets, tes réunions, tes mails, ta voix. Tout reste sur ton Mac."
     public static let welcomeChoose = "Choisis tes outils"
-    public static let welcomeChooseHelp = "hub ne montre et ne fait que ce que tu installes. Tu pourras en ajouter ou en retirer dans Réglages › Add-ons."
+    public static let welcomeChooseHelp = "hub ne montre et ne fait que ce que tu installes. Tu pourras en ajouter ou en retirer dans Réglages."
     public static let guideTitle = "Ce qu'il leur faut"
     public static let guideAllSet = "Tout est réglé : rien d'autre à faire."
-    public static let guideLater = "Ce qui reste se règle quand tu veux, sur la tuile de chaque add-on."
+    public static let guideLater = "Ce qui reste se règle quand tu veux, dans Réglages, sur la ligne de chaque add-on."
 
     /// What it asks for when it is installed; nil when nothing.
     public static func needs(_ addOn: AddOn) -> String? {

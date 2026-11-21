@@ -20,6 +20,13 @@ Le design system v2 (plan d'affinage du 19/11) tient en cinq règles :
 - **La hiérarchie vient de la taille et de l'air**, pas de la couleur.
 - **Tout ce qui se clique répond, et rien ne bouge au survol.**
 - **Peu de mots, toujours les mêmes.**
+- **hub a sa marque** (21/11, Paul : « brander le truc… comme du Notion » ; ses choix : les pages à la Notion, des
+  pastilles de couleur, le verre du Mac gardé). Un outil a **une seule marque, partout la même** : son glyphe Phosphor
+  en blanc sur un carré arrondi de sa couleur (`ToolBadge`), dans la barre latérale, dans Réglages, sur la ligne d'un
+  add-on, dans la Bienvenue et en tête de sa page. Le cadre reste celui du Mac (barre latérale et barre d'outils en
+  verre) ; les pages prennent l'allure de Notion : un en-tête avec la pastille et un grand titre (`ToolHeader`), de
+  grandes marges, des lignes sans cadre séparées d'un trait, des étiquettes douces (`NeedTag`). Les pages passent à
+  cette allure une à une : Réglages d'abord (0.68.0).
 
 Des composants standard d'abord (`NavigationSplitView`, `toolbar`, `Table`, `Form` groupé, `sheet`, `popover`) :
 ils prennent Liquid Glass tout seuls. Aucun fond personnalisé sur une barre.
@@ -43,8 +50,8 @@ ils prennent Liquid Glass tout seuls. Aucun fond personnalisé sur une barre.
 - **Un trait de grille fait un pixel**, posé sur un pixel (`PixelGrid`) et de la couleur de séparation du système :
   un demi-point s'effaçait sur un écran qui n'est pas Retina, d'autant plus que la fenêtre s'élargissait.
 - **La barre latérale** est une `List` native (sa sélection et son verre sont ceux du système, jamais de verre
-  ni de fond ajouté sur une rangée) : de grandes rangées (`sidebarRowSize` `.large`), le symbole de chaque
-  section dans sa couleur (`listItemTint`), un nombre à droite quand il sert (mails non lus, rendez-vous qui
+  ni de fond ajouté sur une rangée) : de grandes rangées (`sidebarRowSize` `.large`), la pastille de chaque
+  section (`ToolBadge`, 24 points, 21/11 : la teinte d'un glyphe ne s'appliquait plus, les icônes sortaient grises), un nombre à droite quand il sert (mails non lus, rendez-vous qui
   restent aujourd'hui), un point rouge sur Réunions pendant un enregistrement. Elle ne liste que des lieux
   (« Mails court », lot 4, 19/11) : Accueil, Projets, Réunions, Calendrier, Mails (Boîte de réception, Brouillons,
   Envoyés, puis « Plus »), Inspiration ; Contacts et Réglages en bas, à part, dessinés et sélectionnés comme les autres
@@ -217,7 +224,9 @@ ne va jamais seule : toujours un mot ou un symbole avec elle.
   une couleur de sens, celle de ce qui est fait, avec sa coche (`StatusChip`, `ProjectViews.statusRole`). « Priorité 2 »
   en orange se lisait « à vérifier ».
 - Chaque **section** garde sa couleur dans la barre latérale et dans Réglages : Accueil sarcelle, Projets bleu,
-  Réunions violet, Calendrier orange, Mails rose, Contacts vert, Inspiration jaune, Réglages gris.
+  Réunions violet, Calendrier orange, Mails rose, Contacts vert, Inspiration jaune, Dictée indigo, Vigie cyan,
+  Réglages gris. Sa pastille porte la couleur en fond, le glyphe en blanc : c'est la seule couleur d'identité posée en
+  aplat. Réunions est le micro, la Dictée les ondes : jamais l'un pour l'autre, même en SF Symbol (« mic »).
 - Les surfaces : `Surface.fill` (une carte), `.raised` (au survol, un cran plus haut), `.selected` (ce qui est
   choisi : l'encre à 12 %), `.stroke` (le seul trait).
 
@@ -227,6 +236,10 @@ ne va jamais seule : toujours un mot ou un symbole avec elle.
 |---|---|
 | `Page { }` | Une page qui défile, à la bonne largeur et aux bonnes marges |
 | `PageHeader("Titre", subtitle:)` | Le titre d'une page qui en a besoin (la page d'un projet) |
+| `ToolBadge(icône, color:, size:, muted:)` | La marque d'un outil : son glyphe en blanc sur un carré de sa couleur ; `.mini` 18 (dans une phrase), `.sidebar` 24, `.row` 32, `.line` 40, `.header` 56 ; `muted` grise un add-on pas installé |
+| `ToolHeader("Titre", icon:, color:, subtitle:)` | L'en-tête d'une page à la Notion : la pastille de 56 points, le titre en 34 gras, une phrase dessous |
+| `PartTitle("Titre") { trailing }` | Le titre d'une partie d'une page à la Notion : petit, semi-gras, gris, un trait dessous |
+| `NeedTag("Connexion Google", icon:, kind:)` | Ce qu'il faut à un outil, en étiquette douce : cochée et verte quand c'est là, couleur d'attention quand ça manque (son bouton à côté), grise pour ce que l'installation demandera |
 | `Card { }` | Une surface de contenu, 20 points de marge (`PageMetrics.cardPadding`) ; `.cardSurface()` pour une vue existante |
 | `Banner(.attention, "Titre", detail:, systemImage:) { boutons }` | Un bandeau d'information : seule l'icône porte la couleur (`.information`, `.attention`, `.late`, `.done`, `.agent`) ; `systemImage` dit de quoi il parle (la corbeille, un spam, une image) à la couleur du ton ; ses boutons passent sous le texte quand la place manque, jamais écrasés |
 | `ErrorLine("Phrase")` | Un problème en une ligne : l'icône d'attention dans sa couleur, la phrase dans celle du texte |
@@ -675,8 +688,14 @@ latérale) ; un objet ouvert (un projet, une réunion, un contact, une fiche) a 
   familles : deux lignes en bas de Général (`SettingsPane.lines`). Leur ‹ revient d'un pas, là d'où ils ont été
   ouverts : Général, ou la page qui a demandé le Diagnostic ; ouverts d'emblée (premier lancement), Général
   (`WindowRouter.closeSettings()`).
-- **Une page** : le formulaire groupé du système, à une seule largeur, 640 points (`settingsForm()`,
-  `SettingsMetrics.width`), liste des familles comprise ; elle commence sous la barre d'outils (`belowToolbar()`).
+- **L'accueil de Réglages** (21/11, à la Notion) : son en-tête (`ToolHeader`), la recherche dans la barre d'outils,
+  puis **les add-ons**, une ligne chacun : la pastille de 40 points, le nom, ce qu'il fait en une phrase
+  (`AddOnTexts.pitch`), ce qu'il lui faut en étiquettes (« Connexion Google », « Micro »…) avec le bouton de ce qui
+  manque, puis son geste : le clic ouvre ses réglages, « … » le désinstalle ; pas installé, grisé, avec « Installer ».
+  Puis les pages de hub (Comptes Google, Diagnostic, Général). Les tuiles de 0.65.0, qui redisaient tout sur une autre
+  page, ont disparu ; « Add-ons » mène à cet accueil.
+- **Une page de famille** : le formulaire groupé du système, à une seule largeur, 640 points (`settingsForm()`,
+  `SettingsMetrics.width`) ; elle commence sous la barre d'outils (`belowToolbar()`).
 - **Un réglage** (`SettingRow`) : son titre, sa phrase d'aide juste dessous, dans sa carte (`SettingHelp`, `.meta`
   gris), son contrôle à droite (un interrupteur reste un interrupteur). Une ligne, deux au plus
   (`SettingHelp.longest`, 110 caractères) ; aucune quand le titre dit tout ; jamais un paragraphe sous une carte. Le

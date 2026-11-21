@@ -26,6 +26,11 @@ public enum AppIcon: String, CaseIterable, Sendable {
     case newMail
     /// « Inspiration » and its three pages (16/11).
     case inspiration, websites, branding, mockups
+    /// The tools that had an SF Symbol of their own (21/11, Paul: « ce n'est même pas les mêmes logos qu'il y a dans la
+    /// barre sur la gauche… Réunion et Dicté ont le même logo »): Colin, the iPhone, and Réglages' own pages.
+    case colin, iphone, addOns, accounts, diagnostic, journal
+    /// What a tool needs, on its tags (21/11): « Connexion Google », Claude Code, the Accessibility, iCloud, the model.
+    case google, terminal, accessibility, cloud, download, checked
 
     /// The Phosphor glyph, shipped as `Icons/<glyph>-duotone.svg`. To change an icon: copy the new SVG from
     /// `@phosphor-icons/core` (`assets/duotone/`; those of 16/11 come from version 2.1.1) into Icons/, then change
@@ -58,6 +63,19 @@ public enum AppIcon: String, CaseIterable, Sendable {
         case .websites: "globe"
         case .branding: "palette"
         case .mockups: "frame-corners"
+        // From @phosphor-icons/core 2.1.1, as the others (21/11).
+        case .colin: "sparkle"
+        case .iphone: "device-mobile"
+        case .addOns: "puzzle-piece"
+        case .accounts: "user-circle"
+        case .diagnostic: "stethoscope"
+        case .journal: "notebook"
+        case .google: "google-logo"
+        case .terminal: "terminal-window"
+        case .accessibility: "hand-pointing"
+        case .cloud: "cloud"
+        case .download: "download-simple"
+        case .checked: "check-circle"
         }
     }
 

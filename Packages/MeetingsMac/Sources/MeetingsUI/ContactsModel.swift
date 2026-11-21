@@ -11,7 +11,7 @@ struct LastContact: Equatable, Sendable {
         var symbol: String {
             switch self {
             case .mail: "envelope"
-            case .meeting: "waveform"
+            case .meeting: "mic"
             case .event: "calendar"
             }
         }

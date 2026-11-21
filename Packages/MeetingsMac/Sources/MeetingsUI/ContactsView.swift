@@ -480,7 +480,7 @@ struct ContactPage: View {
     /// The recorded meetings they took part in, each with the first sentence of its summary; a click opens it.
     private func meetingsCard(now: Date) -> some View {
         Card {
-            SectionTitle("Réunions", systemImage: "waveform", count: meetings.count)
+            SectionTitle("Réunions", systemImage: "mic", count: meetings.count)
             if meetings.isEmpty { EmptyLine("Aucune réunion enregistrée.") }
             ShowMoreList(meetings, limit: Self.rows) { meeting in
                 RowButton(action: { router.open(meetingID: meeting.id, at: nil) }) {

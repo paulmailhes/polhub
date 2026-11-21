@@ -11,6 +11,8 @@ import Updates
 /// puts its settings in its family (docs/design-system.md). Lot 7 (19/11): one width (640) for every page, each under
 /// the toolbar. 21/11 (Paul: « une grande section add-on… les autres grisés… une barre de recherche ») : a search, then
 /// every add-on — those installed open their settings, the others are greyed with « Installer » —, then hub's own pages.
+/// 21/11 in the afternoon (Paul: « comme du Notion… les informations nécessaires au bon endroit ») : the home as a
+/// Notion page — its header, then each add-on with its badge, what it does and what it needs —; the tiles' page is gone.
 struct SettingsPage<Diagnostic: View, Journal: View>: View {
     @ObservedObject var router: WindowRouter
     let updates: UpdateService?
@@ -36,8 +38,8 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
     let diagnostic: Diagnostic
     let journal: Journal
     @State private var query = ""
-    /// The add-on « Installer » asks about, on the home page.
-    @State private var installing: AddOn?
+    /// The installation or the removal asked about, on the home page.
+    @State private var asking: AddOnQuestion?
 
     init(router: WindowRouter, updates: UpdateService?, projects: ProjectLibrary?, agenda: AgendaLibrary? = nil, mails: MailLibrary? = nil,
          inspiration: InspirationLibrary? = nil, library: MeetingLibrary,
@@ -66,7 +68,8 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
 
     var body: some View {
         Group {
-            if let pane = router.settingsPane {
+            // « Add-ons » is the home now (21/11): a link of the search, the first launch and the guide lead there.
+            if let pane = router.settingsPane, pane != .addOns {
                 content(pane)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     // Under the toolbar, as every page (lot 7, 19/11): touching it, the form drew a box of its own width there.
@@ -88,6 +91,7 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
         }
         // The Diagnostic's relaunch goes through Général's switch, and its guards (lot 7, 19/11).
         .environment(\.startupControl, startup)
+        .background { if let addOnControl { AddOnSheets(control: addOnControl) } }
     }
 
     /// The add-ons as this window knows them: the control's, else what the window was given.
@@ -122,74 +126,72 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .belowToolbar()
         .searchable(text: $query, placement: .toolbar, prompt: "Chercher un réglage")
-        .confirmationDialog(installing.map { "Installer \($0.title) ?" } ?? "", isPresented: Binding(get: { installing != nil }, set: { if !$0 { installing = nil } }),
-                            titleVisibility: .visible, presenting: installing) { addOn in
-            Button("Installer") { Task { await addOnControl?.install(addOn) } }
+        .confirmationDialog(asking?.title ?? "", isPresented: Binding(get: { asking != nil }, set: { if !$0 { asking = nil } }),
+                            titleVisibility: .visible, presenting: asking) { question in
+            Button(question.installing ? "Installer" : "Désinstaller", role: question.installing ? nil : .destructive) {
+                Task {
+                    guard let addOnControl else { return }
+                    question.installing ? await addOnControl.install(question.addOn) : await addOnControl.uninstall(question.addOn)
+                }
+            }
             Button("Annuler", role: .cancel) {}
-        } message: { addOn in
-            Text(Words.typeset([addOnControl?.confirmation(installing: addOn), AddOnTexts.installing].compactMap { $0 }.joined(separator: " ")))
+        } message: { question in
+            Text(Words.typeset(question.message))
         }
     }
 
+    /// The home, as a Notion page: its header, the add-ons, then hub's own pages.
     private var homeLists: some View {
-        Form {
-            Section {
-                ForEach(AddOn.allCases, id: \.self) { addOn in addOnLine(addOn) }
-            } header: {
-                HStack {
-                    Text("Add-ons")
-                    Spacer()
-                    if addOnControl != nil {
-                        Button("Gérer les add-ons") { router.settingsPane = .addOns }
-                            .buttonStyle(.link)
-                            .font(.meta)
+        ScrollView {
+            VStack(alignment: .leading, spacing: Space.xxl) {
+                ToolHeader("Réglages", icon: .settings, color: SidebarItem.settings.tint, subtitle: SettingsText.homeSubtitle)
+                VStack(alignment: .leading, spacing: 0) {
+                    PartTitle("Add-ons") {
+                        if let addOnControl {
+                            Button(AddOnTexts.welcomeAgain) { addOnControl.showsWelcome = true }
+                                .buttonStyle(.link)
+                                .font(.meta)
+                        }
+                    }
+                    // What an add-on needs changes outside hub (an authorization given in Réglages Système): read again.
+                    TimelineView(.periodic(from: .now, by: 1.5)) { _ in
+                        VStack(alignment: .leading, spacing: 0) {
+                            ForEach(AddOn.allCases, id: \.self) { addOn in addOnLine(addOn) }
+                        }
+                    }
+                    if let problem = addOnControl?.problem { ErrorLine(problem).padding(.top, Space.m) }
+                    Text(Words.typeset(AddOnTexts.keepsData + " " + AddOnTexts.permissions))
+                        .font(.tag)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, Space.m)
+                }
+                VStack(alignment: .leading, spacing: 0) {
+                    PartTitle("hub")
+                    ForEach(SettingsPane.hubPanes(hasAgenda: agenda != nil), id: \.self) { pane in
+                        Button { router.settingsPane = pane } label: { SettingsRow(pane: pane) }
+                            .buttonStyle(.row(radius: Radius.control, inset: Space.s))
+                            .padding(.vertical, Space.xs)
+                            .overlay(alignment: .bottom) { Rectangle().fill(Surface.stroke).frame(height: 1) }
                     }
                 }
             }
-            Section("hub") {
-                ForEach(SettingsPane.hubPanes(hasAgenda: agenda != nil), id: \.self) { pane in
-                    Button { router.settingsPane = pane } label: { SettingsRow(pane: pane) }
-                        .buttonStyle(.row(radius: Radius.control, inset: Space.s))
-                }
-            }
+            .frame(maxWidth: SettingsMetrics.width, alignment: .leading)
+            .padding(.horizontal, PageMetrics.horizontal)
+            .padding(.top, Space.xxl)
+            .padding(.bottom, PageMetrics.bottom)
+            .frame(maxWidth: .infinity)
         }
-        .settingsForm()
     }
 
     /// An add-on's line: installed, it opens its settings; not installed, greyed, with « Installer ».
     @ViewBuilder private func addOnLine(_ addOn: AddOn) -> some View {
-        if let pane = page(of: addOn) {
-            Button { router.settingsPane = pane } label: {
-                AddOnSettingsRow(addOn: addOn, subtitle: subtitle(addOn, pane: pane), warns: missing(addOn))
-            }
-            .buttonStyle(.row(radius: Radius.control, inset: Space.s))
-        } else if installed.contains(addOn) {
-            // Installed, nothing to set yet (Vigie, 21/11).
-            AddOnSettingsRow(addOn: addOn, subtitle: missing(addOn) ? state(addOn) : "Rien à régler pour l'instant", warns: missing(addOn),
-                             opens: false)
+        if let addOnControl {
+            AddOnLine(addOn: addOn, control: addOnControl, page: page(of: addOn), open: { router.settingsPane = $0 }) { asking = $0 }
         } else {
-            AddOnSettingsRow(addOn: addOn, subtitle: "Pas installé", warns: false, opens: false, greyed: true) {
-                if addOnControl != nil {
-                    Button("Installer") { installing = addOn }
-                        .buttonStyle(.secondary)
-                        .disabled(addOnControl?.working != nil || (addOn == .colin && addOnControl?.claudeFound == false))
-                }
-            }
+            AddOnLineLayout(addOn: addOn, installed: installed.contains(addOn), opens: page(of: addOn) != nil, needs: [], settle: { _ in },
+                            open: { if let pane = page(of: addOn) { router.settingsPane = pane } }) { EmptyView() }
         }
-    }
-
-    private func missing(_ addOn: AddOn) -> Bool {
-        if case .missing = addOnControl?.state(addOn) { return true }
-        return false
-    }
-
-    private func state(_ addOn: AddOn) -> String {
-        addOnControl?.state(addOn).text ?? ""
-    }
-
-    /// What its page holds, or what it lacks.
-    private func subtitle(_ addOn: AddOn, pane: SettingsPane) -> String {
-        missing(addOn) ? state(addOn) + " : voir le Diagnostic" : pane.subtitle
     }
 
     private var results: some View {
@@ -200,7 +202,11 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
                     Text(Words.typeset("Aucun réglage ne contient « \(query.trimmingCharacters(in: .whitespaces)) ».")).foregroundStyle(.secondary)
                 } else {
                     ForEach(found, id: \.self) { entry in
-                        Button { router.settingsPane = entry.pane } label: { SettingsSearchRow(entry: entry) }
+                        Button {
+                            // The add-ons are on this home: the search clears to show them.
+                            if entry.pane == .addOns { query = "" }
+                            router.settingsPane = entry.pane
+                        } label: { SettingsSearchRow(entry: entry) }
                             .buttonStyle(.row(radius: Radius.control, inset: Space.s))
                     }
                 }
@@ -215,7 +221,7 @@ struct SettingsPage<Diagnostic: View, Journal: View>: View {
     private func content(_ pane: SettingsPane) -> some View {
         switch pane {
         case .addOns:
-            if let addOnControl { AddOnsSettingsPane(control: addOnControl) }
+            EmptyView()
         case .general:
             GeneralSettingsPane(startup: startup, updates: updates, hub: notifications) { router.settingsPane = $0 }
         case .accounts:
@@ -266,58 +272,13 @@ extension EnvironmentValues {
     @Entry var startupControl: StartupControl? = nil
 }
 
-/// An add-on on Réglages' home (21/11): its badge, its name, what its page holds or what it lacks; greyed when it is not
-/// installed, with its gesture at the end.
-struct AddOnSettingsRow<Trailing: View>: View {
-    let addOn: AddOn
-    let subtitle: String
-    var warns = false
-    var opens = true
-    var greyed = false
-    @ViewBuilder var trailing: () -> Trailing
-
-    init(addOn: AddOn, subtitle: String, warns: Bool, opens: Bool = true, greyed: Bool = false,
-         @ViewBuilder trailing: @escaping () -> Trailing = { EmptyView() }) {
-        self.addOn = addOn
-        self.subtitle = subtitle
-        self.warns = warns
-        self.opens = opens
-        self.greyed = greyed
-        self.trailing = trailing
-    }
-
-    var body: some View {
-        HStack(spacing: Space.m) {
-            AddOnBadge(addOn: addOn, side: 26)
-                .saturation(greyed ? 0 : 1)
-                .opacity(greyed ? 0.45 : 1)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(addOn.title).font(.rowBody.weight(.medium)).foregroundStyle(greyed ? .secondary : .primary)
-                Text(Words.typeset(subtitle)).font(.meta)
-                    .foregroundStyle(warns ? AnyShapeStyle(Tint.attention) : AnyShapeStyle(.secondary))
-            }
-            Spacer()
-            trailing()
-            if opens {
-                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
-            }
-        }
-        .padding(.vertical, Space.xs)
-        .contentShape(Rectangle())
-    }
-}
-
 /// A setting found by the search: its title, and the page it is on.
 struct SettingsSearchRow: View {
     let entry: SettingsEntry
 
     var body: some View {
         HStack(spacing: Space.m) {
-            Image(systemName: entry.pane.icon)
-                .font(.meta.weight(.semibold))
-                .foregroundStyle(.white)
-                .frame(width: 26, height: 26)
-                .background(Color(hex: entry.pane.tint), in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
+            ToolBadge(entry.pane.appIcon, color: entry.pane.tint, size: .row)
             VStack(alignment: .leading, spacing: 1) {
                 Text(Words.typeset(entry.title)).font(.rowBody.weight(.medium))
                 Text(entry.title == entry.pane.title ? "La page" : "Dans \(entry.pane.title)").font(.meta).foregroundStyle(.secondary)
@@ -330,17 +291,13 @@ struct SettingsSearchRow: View {
     }
 }
 
-/// A family of Réglages: its icon in a colored square, its name, what it holds.
+/// A family of Réglages: its badge, its name, what it holds.
 struct SettingsRow: View {
     let pane: SettingsPane
 
     var body: some View {
         HStack(spacing: Space.m) {
-            Image(systemName: pane.icon)
-                .font(.meta.weight(.semibold))
-                .foregroundStyle(.white)
-                .frame(width: 26, height: 26)
-                .background(Color(hex: pane.tint), in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
+            ToolBadge(pane.appIcon, color: pane.tint, size: .row)
             VStack(alignment: .leading, spacing: 1) {
                 Text(pane.title).font(.rowBody.weight(.medium))
                 Text(pane.subtitle).font(.meta).foregroundStyle(.secondary)
@@ -356,6 +313,8 @@ struct SettingsRow: View {
 /// The words of Réglages' pages (lot 7, 19/11): a help of one line under each setting that needs one, the long detail
 /// behind « ⓘ ». Colin, Mails, Inspiration and Projets keep theirs beside their page.
 enum SettingsText {
+    /// Under « Réglages », on its home (21/11).
+    static let homeSubtitle = "Tes add-ons et ce qu'il leur faut, puis hub lui-même."
     // Général
     static let startup = "Ouvrir hub à l'ouverture de session"
     static let startupHelp = "Il se relance aussi tout seul s'il s'arrête."

@@ -138,7 +138,7 @@ private struct IconSheet: View {
 private struct SidebarSample: View {
     private static let rows: [(title: String, symbol: String, icon: AppIcon, tint: String)] = [
         ("Accueil", "house.fill", .home, Palette.teal), ("Projets", "square.grid.3x2.fill", .projects, Palette.blue),
-        ("Réunions", "waveform", .meetings, Palette.violet), ("Calendrier", "calendar", .calendar, Palette.orange),
+        ("Réunions", "mic.fill", .meetings, Palette.violet), ("Calendrier", "calendar", .calendar, Palette.orange),
         ("Mails", "envelope.fill", .mails, Palette.pink), ("Contacts", "person.2.fill", .contacts, Palette.green),
         ("Réglages", "gearshape.fill", .settings, Palette.gray),
     ]

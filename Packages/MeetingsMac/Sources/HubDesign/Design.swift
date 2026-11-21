@@ -27,6 +27,10 @@ public enum TextSize {
     public static let tag: CGFloat = 12
     /// The body of a message, in CSS pixels.
     public static let reading: CGFloat = 15
+    /// A page's title, under its badge, as Notion's (21/11).
+    public static let pageTitle: CGFloat = 34
+    /// The line under a page's title.
+    public static let pageSubtitle: CGFloat = 16
 }
 
 extension Font {
@@ -38,6 +42,10 @@ extension Font {
     public static let meta = Font.system(size: TextSize.meta)
     /// 12 points: a label in a capsule.
     public static let tag = Font.system(size: TextSize.tag)
+    /// 34 points, bold: a page's title (21/11).
+    public static let pageTitle = Font.system(size: TextSize.pageTitle, weight: .bold)
+    /// 16 points: the line under a page's title.
+    public static let pageSubtitle = Font.system(size: TextSize.pageSubtitle)
 }
 
 /// Corner radii, always with the continuous style (design system v2, 19/11): three, and the capsule.
@@ -48,6 +56,8 @@ public enum Radius {
     public static let inner: CGFloat = 12
     /// A card, a panel, a sheet.
     public static let card: CGFloat = 16
+    /// A soft tag: what a tool needs (21/11).
+    public static let tag: CGFloat = 6
     /// Before 19/11: 6. Now `control`.
     @available(*, deprecated, renamed: "control")
     public static let small: CGFloat = control

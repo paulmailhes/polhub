@@ -344,7 +344,11 @@ struct ConnectionRow: View {
                 .accessibilityLabel(connection.need.done ? "Fait" : "À faire")
             VStack(alignment: .leading, spacing: 2) {
                 Text(Words.typeset(connection.need.title))
-                Text(connection.forWhom).font(.tag).foregroundStyle(.secondary)
+                // The tools that ask for it, with their badges (21/11).
+                HStack(spacing: Space.xs) {
+                    ForEach(connection.tools, id: \.self) { AddOnBadge(addOn: $0, size: .mini) }
+                    Text(connection.forWhom).font(.tag).foregroundStyle(.secondary)
+                }
                 if let note = connection.need.note {
                     Text(Words.typeset(note)).font(.meta).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }

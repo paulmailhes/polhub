@@ -460,7 +460,7 @@ struct ProjectPage: View {
                 }
             }
             Card {
-                SectionTitle("Réunions", systemImage: "waveform", count: meetings.count)
+                SectionTitle("Réunions", systemImage: "mic", count: meetings.count)
                 if meetings.isEmpty { EmptyLine("Ses réunions enregistrées arrivent ici toutes seules.") }
                 ShowMoreList(meetings, limit: Self.sideRows) { meeting in
                     RowButton(action: { library.openMeeting?(meeting.id) }) {

@@ -3,6 +3,24 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.68.0 — 21 novembre 2026
+
+**hub prend sa marque : une pastille par outil, et des pages à la Notion, en commençant par Réglages.**
+
+- **Une seule marque par outil, partout la même** : son icône en blanc sur un carré de sa couleur. On la retrouve dans
+  la barre latérale, dans Réglages, dans la Bienvenue et dans le Diagnostic. Réunions est le micro, Dictée les ondes :
+  elles ne se confondent plus. Colin, l'iPhone et les pages de hub ont aussi leur icône.
+- **La barre latérale en couleur** : chaque section a sa pastille ; les icônes ne sortent plus grises.
+- **Réglages à la Notion** : un grand en-tête, puis une ligne par add-on avec :
+  - sa pastille et ce qu'il fait, en une phrase ;
+  - ce qu'il lui faut, en étiquettes (« Connexion Google », « Micro », « Accessibilité »…), cochées quand c'est
+    fait, avec le bouton de ce qui manque.
+
+  Un clic ouvre ses réglages, « … » le désinstalle. Un add-on pas installé est grisé, avec « Installer ».
+- **La page « Gérer les add-ons » disparaît** : ses tuiles redisaient la même chose. « Revoir la bienvenue » est en
+  haut de la liste des add-ons.
+- **La Bienvenue montre ce que chaque outil demandera** avant de l'installer.
+
 ## 0.67.1 — 21 novembre 2026
 
 **La Dictée bien plus rapide, surtout pour les longues dictées.**

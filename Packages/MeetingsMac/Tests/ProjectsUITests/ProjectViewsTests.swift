@@ -134,7 +134,7 @@ import Testing
     @Test func aCardSaysItsFactsInTheTextsColor() {
         let facts = ProjectViews.cardFacts(nextEvent: date(14, hour: 9), due: date(12, hour: 0), lastMeeting: date(12), now: today, calendar: paris)
         #expect(facts.map(\.text) == ["Rendez-vous demain 9:00", "En retard de 1 j", "Réunion hier"])
-        #expect(facts.map(\.icon) == ["calendar.badge.clock", "flag", "waveform"])
+        #expect(facts.map(\.icon) == ["calendar.badge.clock", "flag", "mic"])
         #expect(facts.map(\.role) == [nil, .late, nil])
         #expect(facts.map(\.strong) == [true, true, false])
         #expect(ProjectViews.cardFacts(nextEvent: nil, due: date(13, hour: 0), lastMeeting: nil, now: today, calendar: paris)

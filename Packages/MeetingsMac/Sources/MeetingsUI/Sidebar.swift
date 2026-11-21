@@ -216,7 +216,7 @@ struct Sidebar: View {
     }
 }
 
-/// A section's row: its symbol in its color, its count, a red dot while a meeting records.
+/// A section's row: its badge, its count, a red dot while a meeting records.
 struct SidebarLabel: View {
     let item: SidebarItem
     var count = 0
@@ -245,8 +245,13 @@ struct SidebarLabel: View {
         .help(Self.help(item))
     }
 
+    /// Its badge, as everywhere (21/11, Paul: « utiliser plus ce système de couleurs… dans les icônes sur la gauche »).
     private var label: some View {
-        AppLabel(item.title, icon: item.appIcon)
+        Label {
+            Text(item.title)
+        } icon: {
+            ToolBadge(item.appIcon, color: item.tint, size: .sidebar)
+        }
     }
 
     /// The row's key in its help (lot 4, 19/11): « Calendrier (⌘4) », « Réglages (⌘,) », written by `Words.help` (lot 10,
@@ -299,8 +304,7 @@ struct SidebarFooter: View {
                 ForEach(items, id: \.self) { item in
                     Button { open(item) } label: {
                         HStack(spacing: SidebarFooterMetrics.iconGap) {
-                            AppIconImage(item.appIcon, size: AppLabel.sidebarSize)
-                                .foregroundStyle(Color(hex: item.tint))
+                            ToolBadge(item.appIcon, color: item.tint, size: .sidebar)
                             Text(item.title).font(SidebarFooterMetrics.font)
                             Spacer(minLength: 0)
                         }

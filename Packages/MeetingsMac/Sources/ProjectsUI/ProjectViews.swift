@@ -75,7 +75,7 @@ public enum ProjectViews {
             facts.append(CardFact(text: state.label, icon: "flag", role: state.role, strong: state.role != nil))
         }
         if let lastMeeting {
-            facts.append(CardFact(text: meetingLabel(lastMeeting, now: now, calendar: calendar), icon: "waveform", role: nil, strong: false))
+            facts.append(CardFact(text: meetingLabel(lastMeeting, now: now, calendar: calendar), icon: "mic", role: nil, strong: false))
         }
         return facts
     }
