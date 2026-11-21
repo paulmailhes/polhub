@@ -57,6 +57,9 @@ actor Conductor {
     private var session: Session?
     private var source: (any SoundSource)?
     private var pump: Task<Void, Never>?
+    /// While a dictation is under way, macOS is told that someone waits for it: no nap, no slowed timers (21/11 — on a
+    /// busy Mac a pass took 1,6 s instead of 0,8 s).
+    private var activity: NSObjectProtocol?
 
     init(whisper: WhisperBox) {
         self.whisper = whisper
@@ -105,7 +108,8 @@ actor Conductor {
         let session = Session(options: options, whisper: whisper)
         self.session = session
         self.source = source
-        pump = Task.detached {
+        activity = ProcessInfo.processInfo.beginActivity(options: [.userInitiated, .latencyCritical], reason: "Dictée")
+        pump = Task.detached(priority: .userInitiated) {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(40))
                 let heard = source.drain()
@@ -126,6 +130,8 @@ actor Conductor {
         let rest = source.drain()
         if !rest.isEmpty { await session.hear(rest) }
         await session.finish(cancelled: cancelled)
+        if let activity { ProcessInfo.processInfo.endActivity(activity) }
+        activity = nil
     }
 
     /// A file of sound or a video, or a kept sound written again.

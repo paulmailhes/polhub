@@ -89,7 +89,8 @@ struct DictationWindowContent: Equatable, Sendable {
                       placeholder: state.liveText ? "Parle : tes mots s'écrivent ici." : "Parle, puis appuie de nouveau.",
                       hint: quiet ?? Self.keys(state))
         case .writing:
-            self.init(mark: .writing, title: state.whisperLoaded ? "Je relis avec ta mémoire…" : "Whisper se charge, puis je relis…",
+            // « Je relis » read as « je réécris » (Paul, 21/11): nothing is rewritten, the last words are being written.
+            self.init(mark: .writing, title: state.whisperLoaded ? "J'écris tes derniers mots…" : "Whisper se charge, puis j'écris…",
                       words: state.liveText ? words : nil, progress: state.whisperLoaded ? min(1, max(0, state.progress)) : nil,
                       hint: "Le texte arrive là où tu écrivais")
         case .starting:
@@ -122,6 +123,49 @@ struct DictationWindowContent: Equatable, Sendable {
         switch state.mode {
         case .toggle, .hybrid: "\(state.key) pour parler"
         case .hold: "Tiens \(state.key) pour parler"
+        }
+    }
+}
+
+/// What a dictation took, one line in the day's log (21/11, after two versions that looked fast here and slow with Paul's
+/// voice): times only, never a word, never the app.
+struct DictationTiming: Codable, Equatable, Sendable {
+    var at = Date()
+    /// From the key to the microphone's first sound, in ms.
+    var microphone: Int?
+    /// From the microphone's first sound to the first words on the screen, in ms.
+    var firstWords: Int?
+    /// How many times the words changed on the screen while Paul talked.
+    var updates = 0
+    /// From the press that finishes to the text, in ms.
+    var final: Int?
+    /// Seconds of sound, and characters written.
+    var seconds = 0.0
+    var characters = 0
+    /// How it ended: collé, copié, rien, annulé, échec.
+    var end = ""
+
+    /// One line of JSON, the keys in order.
+    var line: String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        return (try? encoder.encode(self)).map { String(decoding: $0, as: UTF8.self) } ?? "{}"
+    }
+
+    /// Appends the line to `dictee-AAAAMMJJ.jsonl` in the folder; silent when it cannot.
+    func write(in folder: URL?) {
+        guard let folder else { return }
+        let day = at.formatted(.iso8601.year().month().day().dateSeparator(.omitted))
+        let file = folder.appending(path: "dictee-\(day).jsonl")
+        let data = Data((line + "\n").utf8)
+        if let handle = try? FileHandle(forWritingTo: file) {
+            defer { try? handle.close() }
+            _ = try? handle.seekToEnd()
+            try? handle.write(contentsOf: data)
+        } else {
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try? data.write(to: file)
         }
     }
 }

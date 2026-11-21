@@ -44,7 +44,8 @@ actor WhisperBox {
     /// Runs `work` with Whisper once it is loaded and free.
     func run<Value: Sendable>(_ work: @escaping @Sendable (WhisperEngine) async throws -> Value) async throws -> Value {
         let before = last
-        let task = Task { () throws -> Value in
+        // Someone waits for every text Whisper writes here: never behind the Mac's background work.
+        let task = Task(priority: .userInitiated) { () throws -> Value in
             await before?.value
             return try await work(try await self.ready())
         }

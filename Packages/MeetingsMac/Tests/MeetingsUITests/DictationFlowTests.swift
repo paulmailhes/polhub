@@ -37,6 +37,9 @@ import Testing
         service.testSource = clip
         var delivered: [String] = []
         service.testDelivery = { delivered.append($0) }
+        let logs = FileManager.default.temporaryDirectory.appending(path: "dictee-temps-\(UUID().uuidString)")
+        service.timingFolder = logs
+        defer { try? FileManager.default.removeItem(at: logs) }
         service.start()
         defer { service.stop() }
 
@@ -62,11 +65,33 @@ import Testing
         let pressed = Date()
         press(service)
         try await waitUntil(5) { service.phase == .ready }
-        #expect(Date().timeIntervalSince(pressed) < 2)
+        #expect(Date().timeIntervalSince(pressed) < 3)
         #expect(delivered.count == 2 && delivered.last?.lowercased().contains("photos") == true)
         try await waitUntil(2) { library.history.count == 2 }
 
+        // A sentence with pauses, as a real voice has (21/11: 0.64.0 dropped its work at each pause, and the words
+        // almost never reached the screen): the words change on the screen all along.
+        if let pauses = environment["HUB_DICTEE_PAUSES"] {
+            service.testSource = pauses
+            press(service)
+            try await waitUntil(2) { service.micOpen }
+            try await Task.sleep(for: .seconds(8.4))
+            press(service)
+            try await waitUntil(5) { service.phase == .ready }
+            service.testSource = clip
+            let lines = try String(contentsOf: try #require(FileManager.default.contentsOfDirectory(at: logs, includingPropertiesForKeys: nil).first),
+                                   encoding: .utf8).split(separator: "\n")
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            let last = try decoder.decode(DictationTiming.self, from: Data(try #require(lines.last).utf8))
+            // On a busy Mac a pass of Whisper takes 1,5 s instead of 0,8 s (measured 21/11): the bounds leave room for it.
+            #expect(last.end == "collé" && last.updates >= 3, "\(last.line)")
+            #expect((last.firstWords ?? 9_999) < 3_000 && (last.final ?? 9_999) < 3_000 && (last.microphone ?? 9_999) < 1_000, "\(last.line)")
+            #expect(lines.count == 3)
+        }
+
         // Given up with Échap: nothing is written, and the next press starts again.
+        let written = delivered.count
         press(service)
         try await waitUntil(2) { service.micOpen }
         service.escape()
@@ -75,6 +100,6 @@ import Testing
         #expect(service.phase == .listening)
         service.escape()
         try await Task.sleep(for: .milliseconds(300))
-        #expect(delivered.count == 2)
+        #expect(delivered.count == written)
     }
 }

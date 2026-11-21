@@ -73,6 +73,12 @@ import Persistence
     var showsWindow = true
     var testSource: String?
     var testDelivery: ((String) -> Void)?
+    /// Where each dictation's times are written (the app's logs); nil: nowhere.
+    public var timingFolder: URL?
+    private var timing = DictationTiming()
+    private var pressedAt: TimeInterval = 0
+    private var listeningAt: TimeInterval = 0
+    private var stoppedAt: TimeInterval = 0
 
     /// `media`: `hub-media.dylib`, which pauses the music; nil: the music is never paused.
     public init(library: DictationLibrary, helper: URL, media: URL? = nil, defaults: UserDefaults = .standard,
@@ -205,6 +211,10 @@ import Persistence
             level = value
             watchSilence(value)
         case .partial(let text):
+            if phase == .listening, text != partial {
+                timing.updates += 1
+                if timing.firstWords == nil, listeningAt > 0 { timing.firstWords = Self.ms(since: listeningAt) }
+            }
             if phase == .listening || phase == .writing, settings.on(Preferences.Key.dictationLiveText) { partial = text }
         case .progress(let value):
             if phase == .writing { progress = max(progress, value) }
@@ -291,6 +301,10 @@ import Persistence
             windowAtTop = settings.windowAtTop
             dictationID = UUID()
             hideToken += 1
+            timing = DictationTiming()
+            pressedAt = ProcessInfo.processInfo.systemUptime
+            listeningAt = 0
+            stoppedAt = 0
             phase = .listening
             var listening = listeningOptions(settings)
             listening.microphones = settings.microphones
@@ -304,6 +318,7 @@ import Persistence
             phase = .writing
             silence = nil
             silenceLeft = nil
+            stoppedAt = ProcessInfo.processInfo.systemUptime
             send(.stop)
             sound.stopped(finished: true)
         case .cancel:
@@ -314,6 +329,7 @@ import Persistence
             phase = .ready
             pill?.hide()
             sound.stopped(finished: false)
+            log("annulé")
         case .none:
             break
         }
@@ -333,6 +349,8 @@ import Persistence
         guard phase == .listening, !micOpen else { return }
         micOpen = true
         startedAt = Date()
+        listeningAt = ProcessInfo.processInfo.systemUptime
+        timing.microphone = Self.ms(since: pressedAt)
         silence = settings.autoStop.map { SilenceWatch(after: $0, startedAt: ProcessInfo.processInfo.systemUptime) }
         sound.listening(inMeeting: inMeeting())
     }
@@ -368,8 +386,12 @@ import Persistence
         progress = 1
         // The names hub knows, for the next dictation: read now, not when the key is pressed.
         DispatchQueue.main.async { [weak self] in self?.refreshKnown() }
+        timing.final = Self.ms(since: stoppedAt)
+        timing.seconds = (seconds * 10).rounded() / 10
+        timing.characters = text.count
         guard !text.isEmpty else {
             library.removeSound(dictationID)
+            log("rien")
             tell(.nothing, for: 1.8)
             return
         }
@@ -378,13 +400,16 @@ import Persistence
         let space = settings.on(Preferences.Key.dictationTrailingSpace) && !text.hasSuffix("\n") ? " " : ""
         if let testDelivery {
             testDelivery(text + space)
+            log("collé")
             tell(.pasted(app: nil, text: text), for: 0.2)
         } else if trusted, AXIsProcessTrusted() {
             Paster.paste(text + space, restore: settings.on(Preferences.Key.dictationRestoreClipboard))
+            log("collé")
             tell(.pasted(app: target?.localizedName, text: text), for: 1)
         } else {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(text, forType: .string)
+            log("copié")
             tell(.copied(text: text), for: 3)
         }
     }
@@ -402,7 +427,18 @@ import Persistence
         silenceLeft = nil
         gesture = KeyGesture(mode: mode)
         phase = .ready
+        log("échec")
         tell(.problem(reason), for: 4)
+    }
+
+    /// The dictation's times, in the day's log.
+    private func log(_ end: String) {
+        timing.end = end
+        timing.write(in: timingFolder)
+    }
+
+    static func ms(since instant: TimeInterval) -> Int {
+        Int(((ProcessInfo.processInfo.systemUptime - instant) * 1_000).rounded())
     }
 
     /// Says how a dictation ended, then closes the window — unless another dictation has begun.

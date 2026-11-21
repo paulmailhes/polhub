@@ -109,6 +109,9 @@ public final class WhisperEngine: TranscribingEngine, @unchecked Sendable {
             skipSpecialTokens: true,
             withoutTimestamps: !timed,
             promptTokens: tokens,
+            // Whisper's own « this is silence » is off: the Dictée only asks when a voice was heard, and that guess threw
+            // away the first words of a sentence (measured 21/11: nothing on the screen before 2,8 s).
+            noSpeechThreshold: nil,
             concurrentWorkerCount: 4,
             chunkingStrategy: long ? .vad : ChunkingStrategy.none
         )

@@ -21,8 +21,9 @@ public enum Devices {
         return devices.compactMap { device in
             guard hasInput(device), let uid = try? HAL.string(device, kAudioDevicePropertyDeviceUID),
                   let name = try? HAL.string(device, kAudioObjectPropertyName) else { return nil }
-            // The aggregates hub makes to record a meeting are not microphones.
-            guard !uid.hasPrefix("fr.paulmailhes") else { return nil }
+            // The aggregates hub makes to record a meeting are not microphones; nor are those other apps make, nor the
+            // virtual devices (a « CADefaultDeviceAggregate » stood in Paul's list, 21/11).
+            guard !uid.hasPrefix("fr.paulmailhes"), !isAggregateOrVirtual(device) else { return nil }
             return Microphone(uid: uid, name: name)
         }
     }
@@ -40,6 +41,11 @@ public enum Devices {
     public static func isBluetooth(_ device: AudioObjectID) -> Bool {
         guard let transport = try? HAL.value(device, kAudioDevicePropertyTransportType, as: UInt32.self) else { return false }
         return transport == kAudioDeviceTransportTypeBluetooth || transport == kAudioDeviceTransportTypeBluetoothLE
+    }
+
+    static func isAggregateOrVirtual(_ device: AudioObjectID) -> Bool {
+        guard let transport = try? HAL.value(device, kAudioDevicePropertyTransportType, as: UInt32.self) else { return false }
+        return transport == kAudioDeviceTransportTypeAggregate || transport == kAudioDeviceTransportTypeVirtual
     }
 
     static func hasInput(_ device: AudioObjectID) -> Bool {

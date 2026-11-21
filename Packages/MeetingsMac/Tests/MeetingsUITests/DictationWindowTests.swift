@@ -36,11 +36,11 @@ import Testing
 
     @Test func theFinalWritingShowsItsProgress() {
         let writing = DictationWindowContent(DictationWindowState(phase: .writing, micOpen: true, partial: "Bonjour Camille", progress: 0.4))
-        #expect(writing.mark == .writing && writing.title == "Je relis avec ta mémoire…")
+        #expect(writing.mark == .writing && writing.title == "J'écris tes derniers mots…")
         #expect(writing.words == "Bonjour Camille" && writing.progress == 0.4)
         #expect(writing.hint == "Le texte arrive là où tu écrivais")
         let loading = DictationWindowContent(DictationWindowState(phase: .writing, whisperLoaded: false, progress: 0.4))
-        #expect(loading.title == "Whisper se charge, puis je relis…" && loading.progress == nil)
+        #expect(loading.title == "Whisper se charge, puis j'écris…" && loading.progress == nil)
         #expect(DictationWindowContent(DictationWindowState(phase: .writing, progress: 7)).progress == 1)
     }
 

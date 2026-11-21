@@ -328,6 +328,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
                                                default: false
                                                }
                                            })
+            // What each dictation took, in the day's log: times only, never a word (21/11).
+            service.timingFolder = paths.logs
             service.start()
             dictation = library
             dictationService = service

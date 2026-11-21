@@ -27,6 +27,8 @@ actor Session {
     /// Up to here, one pass of Whisper holds the whole dictation; beyond, a pass only writes its last seconds, for the
     /// screen, and the final text is written by several windows at the end.
     static let wholeLimit = 16_000 * 28
+    /// The voice the first pass waits for, in seconds.
+    static let firstVoice = 0.7
     /// A new pass when this much voice was said since the one before, in samples (0,4 s)…
     static let freshVoice = 6_400
     /// …or as soon as Paul has stopped for this long, in seconds: the pass that holds everything.
@@ -90,12 +92,12 @@ actor Session {
 
     /// Whisper is free and Paul said something new: a pass over what he has said so far.
     private func considerPass() {
-        // Paul has just stopped, and the pass under way started before his last words: it is dropped, so that the one
-        // that holds everything starts sooner.
-        if passRunning, let pass, !pass.dropped.isStopped, gate.silence >= Self.pauseBeforePass, gate.voiced > voicedAtPass {
-            pass.dropped.stop()
-        }
-        guard open, !passRunning, gate.voicedSeconds >= 0.3 else { return }
+        // A pass under way is never dropped while Paul talks, even at a pause: 0.64.0 dropped it at each quarter of a
+        // second of silence, and with a real voice — which pauses — the words almost never reached the screen (Paul,
+        // 21/11: « le texte, il s'affiche pas »). It is dropped only when the key is pressed and it holds too little.
+        // The first pass waits for 0,7 s of voice: on less, Whisper often writes nothing, and that pass is lost (measured
+        // 21/11: the first words at 1,9 to 2,8 s instead of 1,4 s).
+        guard open, !passRunning, gate.voicedSeconds >= (pass == nil ? Self.firstVoice : 0.3) else { return }
         let fresh = gate.voiced - voicedAtPass
         guard fresh > 0, fresh >= Self.freshVoice || gate.silence >= Self.pauseBeforePass else { return }
         let whole = samples.count <= Self.wholeLimit
@@ -104,7 +106,7 @@ actor Session {
         let dropped = StopFlag(), awaited = StopFlag(), count = WrittenCount()
         passRunning = true
         voicedAtPass = gate.voiced
-        let task = Task<String?, Never> { [weak self] in
+        let task = Task<String?, Never>(priority: .userInitiated) { [weak self] in
             let text = try? await whisper.run { engine in
                 guard whole else {
                     // Its last seconds only: the words for the screen.

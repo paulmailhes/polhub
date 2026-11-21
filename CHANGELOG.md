@@ -3,6 +3,19 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.65.1 — 21 novembre 2026
+
+**Dictée : tes mots s'affichent de nouveau pendant que tu parles.**
+
+- Depuis la 0.64.0, les mots n'arrivaient presque jamais à l'écran avec une vraie voix : hub abandonnait son travail
+  à chaque petite pause. Réparé : ils se mettent à jour pendant toute la dictée.
+- Les premiers mots arrivent plus régulièrement : Whisper jetait parfois le début d'une phrase.
+- « Je relis avec ta mémoire… » devient « J'écris tes derniers mots… » : hub ne réécrit pas ton texte, il finit de
+  l'écrire.
+- La Dictée passe devant le travail de fond du Mac.
+- Réglages › Dictée › Micros ne liste plus les appareils virtuels.
+- hub note le temps de chaque dictée dans son journal, jamais tes mots : pour trouver ce qui la ralentit.
+
 ## 0.65.0 — 21 novembre 2026
 
 **Les add-ons en tuiles, un guide pour ce qu'il leur faut, et la Bienvenue.**
