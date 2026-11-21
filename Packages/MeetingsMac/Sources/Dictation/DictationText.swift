@@ -137,8 +137,11 @@ enum SpokenPunctuation {
 
 /// The words of the memory, given to Whisper as its prompt (20/11): each once, the first ones first, within a length.
 public enum DictationPrompt {
-    /// About a hundred words: Whisper takes 224 tokens of prompt.
-    public static let limit = 600
+    /// About a dozen words (21/11, measured on Paul's Mac with the installed helper): Whisper reads the prompt word piece
+    /// by word piece before each pass, and 487 characters doubled every pass — the first words at 2,4 s instead of 1,4 s,
+    /// the text 2,1 to 2,5 s after the press instead of 1 s. WhisperKit also keeps only the end of a long prompt, so
+    /// Paul's own words, first, were the ones dropped.
+    public static let limit = 100
 
     public static func make(_ words: [String], limit: Int = limit) -> String {
         var seen: Set<String> = []

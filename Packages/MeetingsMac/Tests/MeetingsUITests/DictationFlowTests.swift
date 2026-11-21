@@ -54,7 +54,7 @@ import Testing
         #expect(service.phase == .writing)
         // Said while Whisper was loading, written as soon as it is there.
         try await waitUntil(90) { service.phase == .ready }
-        #expect(delivered.count == 1 && delivered.first?.lowercased().contains("atelier") == true)
+        #expect(delivered.count == 1 && delivered.first?.lowercased().contains("atelier") == true, "\(delivered)")
         #expect(service.whisperLoaded)
 
         // A second one, Whisper loaded: the words come while the sound plays, and the text follows the key closely.
@@ -66,7 +66,7 @@ import Testing
         press(service)
         try await waitUntil(5) { service.phase == .ready }
         #expect(Date().timeIntervalSince(pressed) < 3)
-        #expect(delivered.count == 2 && delivered.last?.lowercased().contains("photos") == true)
+        #expect(delivered.count == 2 && delivered.last?.lowercased().contains("photos") == true, "\(delivered)")
         try await waitUntil(2) { library.history.count == 2 }
 
         // A sentence with pauses, as a real voice has (21/11: 0.64.0 dropped its work at each pause, and the words
@@ -88,6 +88,26 @@ import Testing
             #expect(last.end == "collé" && last.updates >= 3, "\(last.line)")
             #expect((last.firstWords ?? 9_999) < 3_000 && (last.final ?? 9_999) < 3_000 && (last.microphone ?? 9_999) < 1_000, "\(last.line)")
             #expect(lines.count == 3)
+        }
+
+        // A long dictation, 84 s (21/11, Paul: « c'est trop lent… limite pas fonctionnel »; his 100 s took 16,7 s after
+        // the press): it is kept piece by piece while it is said, and the text follows the key as closely as a short one.
+        if let long = environment["HUB_DICTEE_LONG"], let seconds = Double(environment["HUB_DICTEE_LONG_SECONDS"] ?? "") {
+            service.testSource = long
+            let count = delivered.count
+            press(service)
+            try await waitUntil(2) { service.micOpen }
+            try await Task.sleep(for: .seconds(seconds + 0.7))
+            let pressed = Date()
+            press(service)
+            try await waitUntil(10) { service.phase == .ready }
+            #expect(Date().timeIntervalSince(pressed) < 3)
+            service.testSource = clip
+            let text = try #require(delivered.count == count + 1 ? delivered.last : nil, "\(delivered)")
+            // From its first words to its last, nothing lost at the cuts.
+            // Several sentences keep their final period; a paragraph after the long pauses.
+            #expect(text.hasPrefix("Dans Claude Code") && text.contains("Camille") && text.contains("Colin") && text.contains("\n\n")
+                    && text.trimmingCharacters(in: .whitespaces).hasSuffix("on les appelle."), "\(text)")
         }
 
         // Given up with Échap: nothing is written, and the next press starts again.

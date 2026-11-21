@@ -29,6 +29,93 @@ import Testing
         #expect(DictationPrompt.make((1...200).map { "Mot\($0)" }, limit: 60).count <= 60)
         #expect(DictationPrompt.make([], limit: 60).isEmpty)
     }
+
+    /// 21/11, 11 h, mesuré sur le Mac de Paul avec l'aide installée : une consigne de 487 caractères doublait chaque
+    /// passage de Whisper (premiers mots à 2,4 s au lieu de 1,4 s, texte 2,1 à 2,5 s après l'appui au lieu de 1 s), et
+    /// WhisperKit n'en garde que la fin, si bien que les mots de Paul, en tête, sautaient. Elle tient en 100 caractères.
+    @Test func thePromptStaysShortAndKeepsPaulsWordsFirst() {
+        #expect(DictationPrompt.limit == 100)
+        let words = ["Atelier Exemple", "hub", "Vigie", "Colin", "Meet", "Claude Code"] + (1...80).map { "Projet numéro \($0)" }
+        let prompt = DictationPrompt.make(words)
+        #expect(prompt.count <= 100)
+        #expect(prompt.hasPrefix("Atelier Exemple, hub, Vigie, Colin, Meet, Claude Code, Projet numéro 1"))
+    }
+}
+
+/// 21/11 (Paul : « c'est trop lent… limite pas fonctionnel ») : une longue dictée s'écrit pendant qu'il parle, par
+/// morceaux coupés à ses pauses ; à l'appui, il ne reste que la fin à écrire.
+@Suite struct DictationChunksTests {
+    static let second = 16_000
+
+    @Test func aPassAtAPauseKeepsWhatItWroteOnceItIsLongEnough() {
+        var chunks = DictationChunks()
+        #expect(DictationChunks.length == 10 * Self.second)
+        let short = chunks.offer("Bonjour.", from: 0, to: 5 * Self.second, atPause: true)
+        let talking = chunks.offer("Bonjour à tous", from: 0, to: 12 * Self.second, atPause: false)
+        let kept = chunks.offer(" Bonjour à tous. ", from: 0, to: 12 * Self.second, atPause: true)
+        #expect(!short && !talking && kept)
+        #expect(chunks.base == 12 * Self.second && chunks.texts == ["Bonjour à tous."])
+        // A pass that started before the cut is never kept twice.
+        let twice = chunks.offer("Bonjour à tous.", from: 0, to: 13 * Self.second, atPause: true, always: true)
+        // At the press, a pass that heard everything since the cut is kept, however short.
+        let last = chunks.offer("Merci.", from: 12 * Self.second, to: 14 * Self.second, atPause: false, always: true)
+        let empty = chunks.offer("", from: 14 * Self.second, to: 15 * Self.second, atPause: true, always: true)
+        #expect(!twice && last && !empty && chunks.base == 14 * Self.second)
+    }
+
+    @Test func theScreenShowsWhatIsKeptThenTheLatestWords() {
+        var chunks = DictationChunks()
+        #expect(chunks.screen(with: "Bonjour") == "Bonjour")
+        chunks.offer("Bonjour à tous.", from: 0, to: 11 * Self.second, atPause: true)
+        #expect(chunks.screen(with: nil) == "Bonjour à tous.")
+        #expect(chunks.screen(with: "Ensuite") == "Bonjour à tous. Ensuite")
+    }
+
+    /// A voice, then a silence, then a voice: the cut falls in the silence.
+    static func sound(silence: Double) -> [Float] {
+        let voice = (0..<(11 * second)).map { Float(sin(Double($0) * 0.05)) * 0.3 }
+        return voice + [Float](repeating: 0, count: Int(silence * Double(second))) + voice
+    }
+
+    @Test func aCutInALongPauseStartsAParagraph() {
+        var chunks = DictationChunks()
+        chunks.offer("Premier sujet.", from: 0, to: 11 * Self.second + Self.second / 2, atPause: true)
+        let long = Self.sound(silence: 4)
+        #expect(chunks.text(tail: "Deuxième sujet.", samples: long, paragraphPause: 3) == "Premier sujet.\n\nDeuxième sujet.")
+        #expect(chunks.text(tail: "Deuxième sujet.", samples: long, paragraphPause: nil) == "Premier sujet. Deuxième sujet.")
+        #expect(chunks.text(tail: "Deuxième sujet.", samples: Self.sound(silence: 1), paragraphPause: 3) == "Premier sujet. Deuxième sujet.")
+        #expect(chunks.text(tail: nil, samples: long, paragraphPause: 3) == "Premier sujet.")
+        #expect(DictationChunks().text(tail: "Seul.", samples: long, paragraphPause: 3) == "Seul.")
+    }
+
+    /// The cut falls in the last real pause, never in a word, and leaves at least ten seconds before it.
+    @Test func theCutFallsInTheLastPauseAfterTenSeconds() throws {
+        let voice = (0..<(5 * Self.second)).map { Float(sin(Double($0) * 0.05)) * 0.3 }
+        func gap(_ seconds: Double) -> [Float] { [Float](repeating: 0, count: Int(seconds * Double(Self.second))) }
+        // 5 s of voice, 0,5 s of silence (too early), 5 s, 0,5 s (from 10,5 s), 5 s, 0,1 s (too short), 2 s.
+        let sound = voice + gap(0.5) + voice + gap(0.5) + voice + gap(0.1) + Array(voice.prefix(2 * Self.second))
+        let cut = try #require(DictationChunks.cut(sound, from: 0))
+        #expect(abs(Double(cut) / Double(Self.second) - 10.75) < 0.1)
+        #expect(DictationChunks.cut(Array(sound.prefix(10 * Self.second)), from: 0) == nil)
+        #expect(DictationChunks.cut(sound, from: 4 * Self.second) == nil)
+        #expect(DictationChunks.cut(voice + voice + voice, from: 0) == nil)
+    }
+
+    /// Whisper starts each piece with a capital letter: a sentence cut at a short pause keeps its small one.
+    @Test func aSentenceCutInTheMiddleKeepsItsSmallLetter() {
+        #expect(DictationChunks.joined("Je pense que", "On devrait partir.") == "Je pense que on devrait partir.")
+        #expect(DictationChunks.joined("Je pense,", "C'est mieux.") == "Je pense, c'est mieux.")
+        #expect(DictationChunks.joined("C'est fini.", "On devrait partir.") == "C'est fini. On devrait partir.")
+        #expect(DictationChunks.joined("Tu as vu", "Camille hier ?") == "Tu as vu Camille hier ?")
+        #expect(DictationChunks.joined("Voilà", "Et puis", separator: "\n\n") == "Voilà\n\nEt puis")
+    }
+
+    @Test func theSilenceAroundAMomentIsMeasuredInTheSound() {
+        let sound = Self.sound(silence: 4)
+        #expect(abs(DictationParagraphs.silence(around: 13, in: sound) - 4) < 0.1)
+        #expect(DictationParagraphs.silence(around: 5, in: sound) == 0)
+        #expect(DictationParagraphs.silence(around: 13, in: []) == 0)
+    }
 }
 
 @Suite struct KeyGestureTests {

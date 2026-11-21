@@ -3,6 +3,20 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.67.1 — 21 novembre 2026
+
+**La Dictée bien plus rapide, surtout pour les longues dictées.**
+
+- **Le texte arrive environ 1 s après l'appui, quelle que soit la longueur de ta dictée.** Une longue dictée s'écrit
+  pendant que tu parles, par morceaux coupés à tes pauses. À l'appui, il ne reste que la fin à écrire. Mesuré sur ce
+  Mac avec une dictée de 84 s : 1,2 s au lieu de 5,6 s. Ce matin, ta dictée de 100 s avait mis 16,7 s.
+- **Les premiers mots s'affichent plus tôt et changent plus souvent** : vers 1,8 s au lieu de 2,4 s, puis toutes les
+  secondes au lieu de toutes les 2 s, du début à la fin.
+- **Whisper lit une consigne courte** : tes mots de la Mémoire d'abord, puis ceux de hub et quelques projets, en
+  100 caractères au plus. La liste entière de tes projets et contacts doublait chaque passage. Comme WhisperKit n'en
+  garde que la fin, tes propres mots, placés en tête, sautaient.
+- Les longues dictées sont aussi plus justes : moins de phrases inventées, plus de dernière phrase perdue.
+
 ## 0.67.0 — 21 novembre 2026
 
 **Les Réglages rangés : une recherche, tes add-ons, et trois pages pour hub.**

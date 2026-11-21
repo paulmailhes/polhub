@@ -100,7 +100,9 @@ public final class WhisperEngine: TranscribingEngine, @unchecked Sendable {
         var tokens: [Int]?
         if !prompt.isEmpty, let tokenizer = kit.tokenizer {
             let begin = tokenizer.specialTokens.specialTokenBegin
-            tokens = Array(tokenizer.encode(text: " " + prompt).filter { $0 < begin }.prefix(200))
+            // WhisperKit keeps the last 111 pieces of a prompt (half its context, less one): the first ones are kept
+            // here, Paul's own words (21/11).
+            tokens = Array(tokenizer.encode(text: " " + prompt).filter { $0 < begin }.prefix(Constants.maxTokenContext / 2 - 1))
         }
         let options = DecodingOptions(
             language: language,

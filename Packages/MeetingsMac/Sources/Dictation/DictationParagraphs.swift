@@ -23,15 +23,9 @@ public enum DictationParagraphs {
     /// The middle of each silence longer than `minimum` between two moments of voice, in seconds. A silence is quieter
     /// than an eighth of the voice (its loud slices), and than a floor for a silent recording.
     public static func pauses(_ samples: [Float], rate: Double = 16_000, longerThan minimum: Double) -> [Double] {
-        let size = Int(rate * frame)
-        guard size > 0, samples.count >= size * 2 else { return [] }
-        let energies: [Float] = stride(from: 0, through: samples.count - size, by: size).map { start in
-            var sum: Float = 0
-            for index in start..<(start + size) { sum += samples[index] * samples[index] }
-            return (sum / Float(size)).squareRoot()
-        }
-        let loud = energies.sorted()[Int(Double(energies.count - 1) * 0.9)]
-        let threshold = max(0.004, loud * 0.12)
+        let energies = energies(samples, rate: rate)
+        guard energies.count >= 2 else { return [] }
+        let threshold = threshold(energies)
         var pauses: [Double] = []
         var quietSince: Int?
         var heardVoice = false
@@ -47,6 +41,37 @@ public enum DictationParagraphs {
             heardVoice = true
         }
         return pauses
+    }
+
+    /// How long the silence around a moment lasts, in seconds; 0 when a voice is heard then (21/11: where a long
+    /// dictation was cut, a paragraph when the pause there was long).
+    public static func silence(around time: Double, in samples: [Float], rate: Double = 16_000) -> Double {
+        let energies = energies(samples, rate: rate)
+        guard !energies.isEmpty else { return 0 }
+        let threshold = threshold(energies)
+        let index = min(energies.count - 1, max(0, Int(time / frame)))
+        guard energies[index] < threshold else { return 0 }
+        var first = index, last = index
+        while first > 0, energies[first - 1] < threshold { first -= 1 }
+        while last < energies.count - 1, energies[last + 1] < threshold { last += 1 }
+        return Double(last - first + 1) * frame
+    }
+
+    /// The loudness of each slice.
+    static func energies(_ samples: [Float], rate: Double) -> [Float] {
+        let size = Int(rate * frame)
+        guard size > 0, samples.count >= size else { return [] }
+        return stride(from: 0, through: samples.count - size, by: size).map { start in
+            var sum: Float = 0
+            for index in start..<(start + size) { sum += samples[index] * samples[index] }
+            return (sum / Float(size)).squareRoot()
+        }
+    }
+
+    /// Quieter than this is a silence: an eighth of the voice (its loud slices), and a floor for a silent recording.
+    static func threshold(_ energies: [Float]) -> Float {
+        let loud = energies.sorted()[Int(Double(energies.count - 1) * 0.9)]
+        return max(0.004, loud * 0.12)
     }
 
     /// The pieces, a paragraph starting at the first piece whose middle comes after each pause.
