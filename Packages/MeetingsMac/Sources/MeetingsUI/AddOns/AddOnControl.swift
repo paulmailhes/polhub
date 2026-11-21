@@ -14,6 +14,20 @@ import Foundation
     @Published public var progress: Double?
     /// Whether this Mac has Claude Code, which Colin needs: set by the app at launch.
     @Published public var claudeFound = true
+    /// The guide « ce qu'il leur faut » (21/11): open, and for which add-ons — those just installed, after the relaunch.
+    @Published public var showsGuide = false
+    @Published public private(set) var guide: [AddOn] = []
+    /// The guide is the Bienvenue's last step.
+    @Published public private(set) var guideIsWelcome = false
+    /// The Bienvenue: at the first launch, and when Paul asks to see it again.
+    @Published public var showsWelcome = false
+
+    /// What the Mac has, read by the app each time a tile asks.
+    public var facts: () -> AddOnFacts = { AddOnFacts() }
+    /// A need's button: the app does it.
+    public var perform: (AddOnAction) -> Void = { _ in }
+    /// « Ses réglages » on a tile.
+    public var openSettings: (AddOn) -> Void = { _ in }
 
     let store: AddOnStore
     let isBusy: () async -> Bool
@@ -52,21 +66,70 @@ import Foundation
     }
 
     public func install(_ addOn: AddOn) async {
+        await install([addOn])
+    }
+
+    /// Several at once, with what they need (the Bienvenue): one relaunch. After it, the guide opens on what was
+    /// installed and still needs something.
+    public func install(_ chosen: [AddOn], welcome: Bool = false) async {
         guard working == nil else { return }
         guard !(await isBusy()) else { problem = AddOnTexts.busy; return }
+        var after = installed
+        for addOn in chosen { after = AddOns.installing(addOn, into: after) }
+        let added = AddOn.allCases.filter { after.contains($0) && !installed.contains($0) }
+        guard let first = chosen.first, !added.isEmpty else { return }
         problem = nil
-        working = addOn
+        working = first
         defer { working = nil; progress = nil }
-        for next in AddOns.added(by: addOn, to: installed) + [addOn] {
+        for next in added {
             if let reason = await prepare(next) {
                 problem = reason
                 return
             }
         }
-        let after = AddOns.installing(addOn, into: installed)
         store.save(after)
+        store.setPendingGuide(added, welcome: welcome)
         installed = after
         relaunch()
+    }
+
+    // MARK: - Ce qu'il leur faut
+
+    public func needs(_ addOn: AddOn) -> [AddOnNeed] {
+        AddOnNeeds.list(addOn, facts())
+    }
+
+    public func state(_ addOn: AddOn) -> AddOnState {
+        AddOnNeeds.state(installed: installed.contains(addOn), needs: needs(addOn))
+    }
+
+    /// A need's button. One that leads to another page closes the guide and the Bienvenue first.
+    public func settle(_ need: AddOnNeed) {
+        guard let action = need.action else { return }
+        if action.leavesThePage {
+            showsGuide = false
+            showsWelcome = false
+        }
+        perform(action)
+    }
+
+    /// After a relaunch: the guide for what was just installed and still needs something; always after the Bienvenue,
+    /// whose last step it is.
+    public func openPendingGuide() {
+        let pending = store.takePendingGuide()
+        let waiting = pending.addOns.filter { installed.contains($0) && needs($0).contains { !$0.done } }
+        guard pending.welcome || !waiting.isEmpty else { return }
+        guide = waiting
+        guideIsWelcome = pending.welcome
+        showsGuide = true
+    }
+
+    /// The Bienvenue's last step without a relaunch (nothing new was installed): what is installed and needs something.
+    public func openGuideForInstalled() {
+        guide = AddOn.allCases.filter { installed.contains($0) && needs($0).contains { !$0.done } }
+        guideIsWelcome = true
+        showsWelcome = false
+        showsGuide = true
     }
 
     public func uninstall(_ addOn: AddOn) async {

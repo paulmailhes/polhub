@@ -98,6 +98,25 @@ public struct AddOnStore: @unchecked Sendable {
         defaults.set(AddOn.allCases.filter(set.contains).map(\.rawValue), forKey: Self.key)
     }
 
+    /// The add-ons just installed, whose guide opens after the relaunch (21/11): « ce qu'il leur faut ». `welcome`: the
+    /// installation came from the Bienvenue, whose last step the guide is.
+    public func setPendingGuide(_ addOns: [AddOn], welcome: Bool) {
+        defaults.set(addOns.map(\.rawValue), forKey: Self.guideKey)
+        defaults.set(welcome, forKey: Self.guideWelcomeKey)
+    }
+
+    /// The guide to open, once: reading it forgets it.
+    public func takePendingGuide() -> (addOns: [AddOn], welcome: Bool) {
+        let names = defaults.stringArray(forKey: Self.guideKey) ?? []
+        let welcome = defaults.bool(forKey: Self.guideWelcomeKey)
+        defaults.removeObject(forKey: Self.guideKey)
+        defaults.removeObject(forKey: Self.guideWelcomeKey)
+        return (names.compactMap(AddOn.init(rawValue:)), welcome)
+    }
+
+    static let guideKey = "addOns.guide"
+    static let guideWelcomeKey = "addOns.guideBienvenue"
+
     /// Once, at the first launch that knows the add-ons: a base already there has them all, a new one none.
     public func settle(baseExists: Bool) {
         guard defaults.object(forKey: Self.key) == nil else { return }

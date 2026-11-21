@@ -278,6 +278,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
         installed = control
         models.control = control
         control.claudeFound = ClaudeBinary.find() != nil
+        // The tiles of Réglages › Add-ons (21/11): what this Mac has, and what a need's button does.
+        control.facts = { [weak self, weak control] in
+            guard let self else { return AddOnFacts() }
+            return AddOnWiring.facts(agenda: self.agenda, mails: self.mails, phone: self.phone, claudeFound: control?.claudeFound ?? true,
+                                     meetingsChecked: UserDefaults.standard.bool(forKey: Self.checklistDoneKey))
+        }
+        control.perform = { [weak self] action in
+            guard let self else { return }
+            AddOnWiring.perform(action, agenda: self.agenda, dictation: self.dictationService, router: self.router)
+        }
+        control.openSettings = { [weak self] addOn in
+            guard let self else { return }
+            AddOnWiring.openSettings(of: addOn, router: self.router)
+        }
         addOnControl = control
         let store: MeetingStore
         do {
@@ -319,11 +333,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             dictationService = service
             coupDoeil.dictation = library
         }
-        // Nothing installed yet (a new Mac): the window opens on Réglages › Add-ons, « Choisis tes add-ons ».
+        // Nothing installed yet (a new Mac): the window opens on Réglages › Add-ons, under the Bienvenue (21/11).
         if addOns.isEmpty {
             router.section = .settings
             router.settingsPane = .addOns
+            control.showsWelcome = true
             DispatchQueue.main.async { [weak self] in self?.showMainWindow() }
+        }
+        // After an installation's relaunch: the guide of what the new add-ons need, over Réglages › Add-ons. A moment
+        // after the launch: the Google accounts are read from the base by then.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self, weak control] in
+            guard let self, let control else { return }
+            control.openPendingGuide()
+            guard control.showsGuide else { return }
+            self.router.openSettings(.addOns)
+            self.showMainWindow()
         }
         if addOns.contains(.inspiration) { startInspiration(database: store.database) }
         // Before the diagnostic, which may open the window: the window takes the update service as it is
@@ -1005,7 +1029,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
         let current = VersionPair.current()
         let last = defaults.data(forKey: Self.lastVersionsKey).flatMap { try? JSONDecoder().decode(VersionPair.self, from: $0) }
-        if !defaults.bool(forKey: Self.checklistDoneKey) {
+        // Réunions' own list: it opens the window only when Réunions is installed (21/11 — a new Mac opened on it
+        // instead of the add-ons, and it came back at every launch for who has no Réunions).
+        if addOns.contains(.meetings), !defaults.bool(forKey: Self.checklistDoneKey) {
             showDiagnostic()
         } else if DiagnosticTrigger.shouldReplay(last: last, current: current) {
             Task {

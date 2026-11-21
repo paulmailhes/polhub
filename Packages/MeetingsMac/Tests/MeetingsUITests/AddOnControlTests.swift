@@ -51,6 +51,42 @@ import Testing
         #expect(calls.cleaned == [.calendar, .mails, .colin] && calls.relaunched == 1)
     }
 
+    /// 21/11 : la Bienvenue installe plusieurs add-ons d'un coup, avec ce qu'il leur faut ; après la relance, le guide
+    /// s'ouvre une fois, sur ceux à qui il manque quelque chose.
+    @Test func severalAreInstalledAtOnceThenTheGuideOpensOnce() async throws {
+        let (control, store, calls) = try control([.projects])
+        await control.install([.dictation, .mails], welcome: true)
+        #expect(store.installed == [.projects, .dictation, .calendar, .mails] && calls.relaunched == 1)
+        #expect(calls.prepared == [.dictation, .calendar, .mails])
+        // After the relaunch. No Google account yet: Calendrier and Mails wait; the Dictée has all it needs.
+        let after = AddOnControl(store: store, isBusy: { false }, relaunch: {})
+        after.openPendingGuide()
+        #expect(after.showsGuide && after.guideIsWelcome && after.guide == [.calendar, .mails])
+        let again = AddOnControl(store: store, isBusy: { false }, relaunch: {})
+        again.openPendingGuide()
+        #expect(!again.showsGuide)
+    }
+
+    @Test func anAddOnWithAllItNeedsOpensNoGuide() async throws {
+        let (control, store, _) = try control([])
+        await control.install(.projects)
+        let after = AddOnControl(store: store, isBusy: { false }, relaunch: {})
+        after.openPendingGuide()
+        #expect(!after.showsGuide)
+    }
+
+    @Test func aButtonThatLeavesThePageClosesTheGuide() throws {
+        let (control, _, _) = try control(Set(AddOn.allCases))
+        var done: [AddOnAction] = []
+        control.perform = { done.append($0) }
+        control.showsGuide = true
+        control.settle(AddOnNeed("google", "Un compte Google", done: false, action: .connectGoogle, button: "Connecter un compte"))
+        #expect(control.showsGuide && done == [.connectGoogle])
+        control.settle(AddOnNeed("relie", "Un iPhone relié", done: false, action: .openPhone, button: "Relier un iPhone"))
+        #expect(!control.showsGuide && done == [.connectGoogle, .openPhone])
+        #expect(control.state(.projects) == .ready && control.state(.calendar) == .missing(1))
+    }
+
     @Test func theConfirmationsSayWhoComesAndGoes() throws {
         let (empty, _, _) = try control([])
         #expect(empty.confirmation(installing: .colin) == "Colin a besoin de Mails et de Calendrier : ils s'installent aussi.")

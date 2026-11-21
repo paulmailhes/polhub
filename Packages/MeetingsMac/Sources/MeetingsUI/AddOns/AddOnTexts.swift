@@ -31,6 +31,31 @@ public enum AddOnTexts {
         }
     }
 
+    /// What it does, in two lines, on its tile (21/11, Paul: « des tuiles où on les explique »).
+    public static func pitch(_ addOn: AddOn) -> String {
+        switch addOn {
+        case .projects: "Tes projets en kanban, chacun avec sa page : la tâche du moment, l'échéance, les actions."
+        case .meetings: "Tes Meet enregistrés, transcrits et résumés tout seuls, sans rien envoyer hors de ton Mac."
+        case .dictation: "Appuie sur une touche et parle : tes mots s'écrivent là où est ton curseur, dans toutes tes apps."
+        case .calendar: "Ton agenda Google dans hub, l'Accueil de ta journée, et « Rejoindre » en un clic."
+        case .mails: "Tes boîtes Gmail dans hub : lire, écrire, et ranger chaque fil dans son projet."
+        case .inspiration: "Les sites, le branding et les mock-ups que tu gardes, collectés et rangés pour toi."
+        case .colin: "L'agent de l'Accueil : il lit tes mails et ton agenda, et tient tes projets à jour."
+        case .iphone: "hub dans ta poche : tes mails, ton agenda et tes projets, même Mac éteint."
+        }
+    }
+
+    public static let needsTitle = "Ce qu'il lui faut"
+    public static let nothingNeeded = "Rien à régler : il marche dès l'installation."
+    public static let welcomeAgain = "Revoir la bienvenue"
+    public static let welcomeTitle = "Bienvenue dans hub"
+    public static let welcomeText = "Ton travail au même endroit : tes projets, tes réunions, tes mails, ta voix. Tout reste sur ton Mac."
+    public static let welcomeChoose = "Choisis tes outils"
+    public static let welcomeChooseHelp = "hub ne montre et ne fait que ce que tu installes. Tu pourras en ajouter ou en retirer dans Réglages › Add-ons."
+    public static let guideTitle = "Ce qu'il leur faut"
+    public static let guideAllSet = "Tout est réglé : rien d'autre à faire."
+    public static let guideLater = "Ce qui reste se règle quand tu veux, sur la tuile de chaque add-on."
+
     /// What it asks for when it is installed; nil when nothing.
     public static func needs(_ addOn: AddOn) -> String? {
         switch addOn {

@@ -3,6 +3,21 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.65.0 — 21 novembre 2026
+
+**Les add-ons en tuiles, un guide pour ce qu'il leur faut, et la Bienvenue.**
+
+- **Réglages › Add-ons en tuiles.** Chaque outil a son icône, deux lignes qui disent ce qu'il fait, et ce qu'il lui
+  faut, coché ou non : un compte Google, le micro, l'Accessibilité, un iPhone relié… Le bouton de la tuile règle ce
+  qui manque.
+- **Un guide après chaque installation.** hub se relance, puis montre ce qu'il faut au nouvel add-on : une ligne et
+  un bouton par chose.
+- **La Bienvenue, en trois temps** : hub en une phrase, tes outils à choisir, puis ce qu'il leur faut. Elle s'ouvre
+  au premier lancement ; « Revoir la bienvenue » la rouvre depuis Réglages › Add-ons. Revue ainsi, elle ne retire
+  rien : elle ne fait qu'ajouter.
+- Réparé : sur un Mac neuf, hub s'ouvrait sur le Diagnostic de Réunions au lieu des add-ons, et y revenait à chaque
+  lancement chez qui n'a pas Réunions.
+
 ## 0.64.0 — 21 novembre 2026
 
 **Dictée : elle répond dès l'appui, tu vois tes mots, et elle va deux à trois fois plus vite.**
