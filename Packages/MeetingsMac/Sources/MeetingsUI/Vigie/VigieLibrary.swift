@@ -219,6 +219,83 @@ import VigieKit
         }
     }
 
+    // MARK: - A conversation
+
+    /// The conversation open in its page, in detail; `nil` while it loads.
+    @Published public private(set) var detail: VigieConversationDetail?
+    /// The engine keeps no detail past 48 hours.
+    @Published public private(set) var detailGone = false
+    private(set) var detailID: String?
+    private var detailLoop: Task<Void, Never>?
+    private var detailRead: Date?
+
+    /// The page of a conversation is on screen: its detail read now, again as soon as it moves (every 4 s), else
+    /// every 30 s — it weighs hundreds of kilobytes.
+    public func watch(conversation id: String) {
+        guard detailID != id || detailLoop == nil else { return }
+        detailLoop?.cancel()
+        if detailID != id {
+            detail = nil
+            detailGone = false
+            detailRead = nil
+        }
+        detailID = id
+        detailLoop = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.readDetail()
+                try? await Task.sleep(for: .seconds(4))
+            }
+        }
+    }
+
+    public func stopWatching() {
+        detailLoop?.cancel()
+        detailLoop = nil
+    }
+
+    func readDetail(force: Bool = false) async {
+        guard let id = detailID else { return }
+        let moved = overview.conversations.first { $0.id == id }?.lastActivity != detail?.summary.lastActivity
+        let stale = detailRead.map { Date().timeIntervalSince($0) > 30 } ?? true
+        guard force || detail == nil || moved || stale else { return }
+        do {
+            let fresh = try await client.conversation(id)
+            guard detailID == id else { return }
+            detailRead = Date()
+            detailGone = false
+            if fresh != detail { detail = fresh }
+        } catch VigieFailure.refused(404, _) {
+            detailGone = true
+        } catch {
+            // Said by the « Vue d'ensemble »'s link.
+        }
+    }
+
+    /// Moves a conversation to another account: at the end of its turn, or `now` — it is interrupted, and Paul writes
+    /// to it to go on.
+    public func switchAccount(_ conversation: String, to account: String, now: Bool) async {
+        var changes: [String: Any] = ["accountId": account]
+        if now { changes["now"] = true }
+        let body = SendableBox(changes)
+        await send("compte:" + conversation) {
+            let answer = try await self.client.conversationSettings(conversation, body.value)
+            if let message = answer?.message, !message.isEmpty { self.info = message }
+        }
+        await readDetail(force: true)
+    }
+
+    /// A conversation's own auto-accept: always, never, or as the general setting (`nil`).
+    public func setAutoAccept(_ conversation: String, to value: Bool?) async {
+        let body = SendableBox(["autoAccept": value.map { $0 as Any } ?? NSNull()])
+        await send("auto:" + conversation) { _ = try await self.client.conversationSettings(conversation, body.value) }
+        await readDetail(force: true)
+    }
+
+    /// The accounts a conversation can go on to: another one, its session not full, its week not full.
+    public func freeAccounts(excluding id: String?) -> [VigieAccount] {
+        overview.accounts.filter { $0.id != id && ($0.session?.percent ?? 0) < 95 && ($0.week?.percent ?? 0) < 100 }
+    }
+
     // MARK: - Settings
 
     public func setAutoAccept(_ on: Bool) async { await setting(["autoAccept": on]) { $0.autoAccept = on } }

@@ -3,6 +3,25 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.71.0 — 21 novembre 2026
+
+**Vigie dans hub, quatrième étape : la page d'une conversation, et changer de compte.**
+
+- **Un clic sur une conversation ouvre sa page** dans hub, plus VS Code. Elle montre :
+  - où elle en est : son dernier compte rendu, son plan et l'étape en cours ;
+  - ce qui attend ta décision ;
+  - ta demande ;
+  - ses derniers messages, avec ce qu'elle te demande et ce qu'elle te laisse (« À toi ») ;
+  - ses agents et workflows au travail ;
+  - ses tests (une étape rouge voulue ne compte pas comme un échec) ;
+  - ses fichiers, à montrer dans le Finder ;
+  - ses pages publiées ;
+  - ce que Vigie a décidé pour elle.
+- **Changer de compte** : depuis sa page, ou depuis « Passer sur… » quand une limite tombe. Le changement se fait à la
+  fin de son tour, ou tout de suite si elle doit s'interrompre.
+- **L'auto-accept de cette conversation seule** : comme le réglage général, toujours, ou jamais.
+- ‹ et Échap reviennent à la vue d'ensemble. Une notification de Vigie ouvre la page de sa conversation.
+
 ## 0.70.0 — 21 novembre 2026
 
 **Vigie dans hub, troisième étape : hub notifie à la place de l'app Vigie.**

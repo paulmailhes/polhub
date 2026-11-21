@@ -9,6 +9,8 @@ import VigieKit
 /// answer, Terminal, restart the engine, and Auto-accept in the toolbar.
 struct VigiePage: View {
     @ObservedObject var library: VigieLibrary
+    /// Opens a conversation's page (21/11); none in a capture.
+    var openConversation: ((String) -> Void)? = nil
     @State private var answering: VigieReview?
     @State private var changing: VigieReview?
 
@@ -140,6 +142,19 @@ struct VigiePage: View {
                     }
                 } trailing: {
                     let busy = library.sending.contains(review.id)
+                    // A limit fell: the conversation goes on with another account, at the end of its turn.
+                    if review.kind == .limit, let conversation = review.conversationID {
+                        let free = library.freeAccounts(excluding: review.accountID)
+                        if !free.isEmpty {
+                            Menu("Passer sur…") {
+                                ForEach(free) { account in
+                                    Button(account.label) { Task { await library.switchAccount(conversation, to: account.id, now: false) } }
+                                }
+                            }
+                            .fixedSize()
+                            .disabled(library.sending.contains("compte:" + conversation))
+                        }
+                    }
                     if review.command != nil, review.id.hasPrefix("b:") {
                         Button("Lancer dans Terminal") { Task { await library.runInTerminal(review) } }
                             .buttonStyle(.secondary).disabled(library.sending.contains("terminal:" + review.id))
@@ -160,12 +175,12 @@ struct VigiePage: View {
             } else {
                 ForEach(library.openConversations) { conversation in
                     Button {
-                        Task { await library.open(conversation: conversation.id) }
+                        if let openConversation { openConversation(conversation.id) } else { Task { await library.open(conversation: conversation.id) } }
                     } label: {
                         VigieConversationRow(conversation: conversation, account: library.overview.accountLabel(conversation.accountID))
                     }
                     .buttonStyle(.row(radius: Radius.control, inset: Space.s))
-                    .help("Ouvrir cette conversation dans VS Code")
+                    .help(openConversation == nil ? "Ouvrir cette conversation dans VS Code" : "Voir où en est cette conversation")
                     .overlay(alignment: .bottom) { Rectangle().fill(Surface.stroke).frame(height: 1) }
                 }
             }

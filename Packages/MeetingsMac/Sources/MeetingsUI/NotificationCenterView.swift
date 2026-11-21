@@ -33,8 +33,9 @@ extension WindowRouter {
             // A thread left open over the Accueil would hide the draft that waits.
             homeMail = nil
             section = .home
-        case .vigie:
+        case .vigie(let conversation):
             section = .vigie
+            vigieConversation = conversation
         }
         return true
     }

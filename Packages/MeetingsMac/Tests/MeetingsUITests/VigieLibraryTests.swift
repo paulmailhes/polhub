@@ -191,3 +191,97 @@ import VigieKit
                                      size: NSSize(width: 900, height: 320), wait: .milliseconds(800))
     }
 }
+
+/// 21/11, the migration's « page d'une conversation »: what it does, its request, its messages, its agents, its tests,
+/// its files, Vigie's decisions; its account and its auto-accept changed from hub. Données inventées.
+@MainActor @Suite struct VigieConversationTests {
+    static let detail = """
+    { "summary": { "id": "b1b9", "title": "Refaire le site", "project": "atelier", "status": "working", "accountId": "travail1",
+                   "autoAccept": true, "autoAcceptOverride": null, "branch": "v2", "lastActivity": "2026-10-20T00:25:31Z" },
+      "current": { "prompt": "Refais la page d'accueil en trois blocs.", "brief": "La page d'accueil est en place, il reste le pied de page.",
+                   "agents": 2, "files": 4, "testsOk": 40, "testsFailed": 1, "commits": 3 },
+      "messages": [ { "kind": "live", "text": "Premier message.", "ts": "2026-10-20T00:10:00Z" },
+                    { "kind": "live", "text": "J'ai fini l'en-tête.", "toYou": "relire la maquette", "ts": "2026-10-20T00:20:00Z" } ],
+      "now": { "text": "Le pied de page.", "tasks": [], "plan": { "title": "Plan v2", "done": 3, "total": 5, "current": "L4",
+               "steps": [ { "id": "L3", "text": "En-tête", "status": "done" }, { "id": "L4", "text": "Pied de page", "status": "doing" } ] } },
+      "chapters": [ { "prompt": "Refais la page d'accueil en trois blocs.", "outcome": "En cours." } ],
+      "accepted": [ { "ts": "2026-10-20T00:21:00Z", "kind": "command", "title": "Lancer les tests", "detail": "npm test", "decision": "auto" } ],
+      "agents": { "running": [ { "id": "a1", "title": "faire:L4", "workflow": "v2", "phase": "Faire", "lastAction": "Modifie Footer.tsx",
+                                 "durationMs": 120000, "status": "running" } ], "done": [ { "id": "a0", "title": "faire:L3", "status": "done" } ] },
+      "workflows": [ { "name": "v2", "status": "running", "agents": 2 } ],
+      "artifacts": [ { "title": "Maquette", "url": "https://claude.ai/artifact/exemple" }, { "title": "Local", "url": "file:///etc/passwd" } ],
+      "files": [ { "path": "/Users/alex/Code/atelier/Footer.tsx", "name": "Footer.tsx", "created": true, "writes": 2, "by": "faire:L4" } ],
+      "tests": [ { "title": "vitest", "ok": false, "passed": 39, "failed": 1 }, { "title": "étape rouge", "ok": false, "expectedFail": true },
+                 { "title": "tsc", "ok": true, "passed": 1 } ] }
+    """
+
+    @Test func theDetailIsReadWithWhatTheEngineGives() throws {
+        let detail = try JSONDecoder().decode(VigieConversationDetail.self, from: Data(Self.detail.utf8))
+        #expect(detail.summary.title == "Refaire le site" && detail.autoAccept && detail.autoAcceptOverride == nil && detail.branch == "v2")
+        #expect(detail.request == "Refais la page d'accueil en trois blocs." && detail.current?.testsFailed == 1)
+        #expect(detail.messages.count == 2 && detail.messages[1].toYou == "relire la maquette")
+        #expect(detail.now?.plan?.done == 3 && detail.now?.plan?.total == 5)
+        #expect(VigieWords.currentStep(try #require(detail.now?.plan)) == "L4 Pied de page")
+        #expect(detail.running.map(\.title) == ["faire:L4"] && detail.agents.count == 2 && detail.running[0].duration == 120)
+        // A red step wanted is not a failure.
+        #expect(detail.failing.map(\.title) == ["vitest"] && VigieWords.testCounts(detail.failing[0]) == "39 réussis · 1 en échec")
+        #expect(VigieWords.decision(detail.accepted[0].decision) == "accepté seul")
+        // Only an address of the web opens.
+        #expect(detail.artifacts.compactMap { VigieWords.webAddress($0.url) }.map(\.absoluteString) == ["https://claude.ai/artifact/exemple"])
+        #expect(VigieWords.webAddress("javascript:alert(1)") == nil && VigieWords.autoAccept(detail) == "Auto-accept : oui")
+    }
+
+    @Test func itsAccountAndItsAutoAcceptChangeFromHub() async throws {
+        let tests = VigieLibraryTests()
+        let (library, engine) = try tests.library()
+        let overview = """
+        { "conversations": [ { "id": "b1b9", "title": "Refaire le site", "status": "working", "accountId": "travail1" } ],
+          "accounts": [ { "id": "travail1", "label": "Travail 1", "usage": { "session": { "pct": 100 } } },
+                        { "id": "perso", "label": "Perso", "usage": { "session": { "pct": 20 }, "week": { "pct": 40 } } },
+                        { "id": "plein", "label": "Plein", "usage": { "week": { "pct": 100 } } } ] }
+        """
+        engine.answer(overview)
+        await library.refresh()
+        #expect(library.freeAccounts(excluding: "travail1").map(\.id) == ["perso"])
+        engine.next([(Self.detail, 200)])
+        library.watch(conversation: "b1b9")
+        for _ in 0..<50 where library.detail == nil { try await Task.sleep(for: .milliseconds(20)) }
+        library.stopWatching()
+        #expect(library.detail?.summary.id == "b1b9")
+        engine.next([(#"{"ok":true,"switch":{"state":"pending","message":"Elle passera sur Perso à la fin de son tour."}}"#, 200), (Self.detail, 200)])
+        await library.switchAccount("b1b9", to: "perso", now: false)
+        #expect(library.info == "Elle passera sur Perso à la fin de son tour.")
+        engine.next([(#"{"ok":true}"#, 200), (Self.detail, 200)])
+        await library.setAutoAccept("b1b9", to: nil)
+        let posts = engine.requests.filter { $0.httpMethod == "POST" }
+        #expect(posts.map { $0.url?.path() ?? "" } == ["/api/v2/conversation/b1b9/settings", "/api/v2/conversation/b1b9/settings"])
+        let bodies = posts.map { (try? JSONSerialization.jsonObject(with: $0.httpBody ?? Data())) as? NSDictionary ?? [:] }
+        #expect(bodies[0] == ["accountId": "perso"] as NSDictionary)
+        #expect(bodies[1] == ["autoAccept": NSNull()] as NSDictionary)
+        #expect(engine.requests.contains { $0.url?.path() == "/api/v2/conversation/b1b9" && $0.httpMethod == "GET" })
+    }
+
+    /// A conversation opens over the « Vue d'ensemble »; ‹ and Échap come back to it.
+    @Test func aConversationClosesBackToTheOverview() {
+        let router = WindowRouter()
+        router.section = .vigie
+        router.settle()
+        router.vigieConversation = "b1b9"
+        router.settle()
+        #expect(router.close() && router.vigieConversation == nil && router.section == .vigie)
+    }
+
+    /// `HUB_LIVE=1 HUB_SNAPSHOTS=<dossier> swift test --filter VigieConversationTests`.
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["HUB_LIVE"] == "1")) func thePageInCapture() async throws {
+        let folder = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"]), isDirectory: true)
+        let tests = VigieLibraryTests()
+        let (library, engine) = try tests.library()
+        engine.next([(VigieLibraryTests.overview, 200), (Self.detail, 200)])
+        await library.refresh()
+        let router = WindowRouter()
+        router.section = .vigie
+        router.vigieConversation = "b1b9"
+        try await LiveWindow.capture(VigieConversationPage(library: library, router: router, id: "b1b9"),
+                                     to: folder.appending(path: "vigie-conversation.png"), size: NSSize(width: 900, height: 1_500), wait: .milliseconds(1_500))
+    }
+}

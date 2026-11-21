@@ -148,6 +148,28 @@ public struct VigieClient: Sendable {
         return (try? JSONDecoder().decode(Opening.self, from: data)) ?? Opening()
     }
 
+    /// A conversation in detail; the engine keeps none past 48 hours (refused, 404).
+    public func conversation(_ id: String) async throws -> VigieConversationDetail {
+        let data = try await send("GET", "api/v2/conversation/\(Self.segment(id))", body: nil)
+        guard let detail = try? JSONDecoder().decode(VigieConversationDetail.self, from: data) else { throw VigieFailure.unreadable }
+        return detail
+    }
+
+    /// What the engine says of an account switch: done, or pending until the end of the turn.
+    public struct Switch: Decodable, Equatable, Sendable {
+        public var state: String?
+        public var message: String?
+    }
+
+    /// A conversation's own settings: its account (`accountId`, `now` to interrupt it), its auto-accept (`autoAccept`,
+    /// `NSNull` for the general setting), its account's MCP (`connectors`).
+    @discardableResult
+    public func conversationSettings(_ id: String, _ changes: [String: Any]) async throws -> Switch? {
+        let data = try await send("POST", "api/v2/conversation/\(Self.segment(id))/settings", body: changes)
+        struct Answer: Decodable { let `switch`: Switch? }
+        return (try? JSONDecoder().decode(Answer.self, from: data))?.switch
+    }
+
     /// Changes general settings: only the keys given; `guard` takes its own keys (`enabled`, `waitMin`, `rules`).
     @discardableResult
     public func settings(_ changes: [String: Any]) async throws -> VigieSettings? {

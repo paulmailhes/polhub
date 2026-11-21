@@ -271,6 +271,8 @@ public final class WindowRouter: ObservableObject {
     @Published public var mailSelection: String? { didSet { moved() } }
     /// The thread open over the Accueil (18/11: « Relire », « Ouvrir »): its own, the one of Mails stays as it is.
     @Published public var homeMail: String? { didSet { moved() } }
+    /// The conversation of Claude Code open in Vigie (21/11); `nil` for its « Vue d'ensemble ».
+    @Published public var vigieConversation: String? { didSet { moved() } }
     /// A new event asked for (« Coup d'œil », Calendrier's « + »): Calendrier opens its editor, then clears it. A new
     /// value per request, so that two requests in a row open two editors.
     @Published public var newEventRequest: UUID?
@@ -388,6 +390,7 @@ public final class WindowRouter: ObservableObject {
         var inspirationPage: InspirationKind
         var inspirationItem: UUID?
         var homeMail: String?
+        var vigieConversation: String?
     }
 
     /// The steps kept behind: a long morning of clicks.
@@ -410,7 +413,8 @@ public final class WindowRouter: ObservableObject {
 
     var location: Location {
         Location(section: section, meeting: selection, mail: mailSelection, mailFolder: mailFolder, settingsPane: settingsPane,
-                 contact: contactSelection, project: project, inspirationPage: inspirationPage, inspirationItem: inspirationItem, homeMail: homeMail)
+                 contact: contactSelection, project: project, inspirationPage: inspirationPage, inspirationItem: inspirationItem, homeMail: homeMail,
+                 vigieConversation: vigieConversation)
     }
 
     /// Projets opened a project, or went back to the grid.
@@ -486,7 +490,7 @@ public final class WindowRouter: ObservableObject {
 
     /// What is open over a section's root, the one thing « Fermer » closes there.
     enum Opened: Equatable {
-        case homeMail, mail, project, inspirationItem, settingsPane
+        case homeMail, mail, project, inspirationItem, settingsPane, vigieConversation
     }
 
     static func opened(_ place: Location) -> Opened? {
@@ -496,7 +500,8 @@ public final class WindowRouter: ObservableObject {
         case .projects: place.project != nil ? .project : nil
         case .inspiration: place.inspirationItem != nil ? .inspirationItem : nil
         case .settings: place.settingsPane != nil ? .settingsPane : nil
-        case .meetings, .calendar, .contacts, .dictation, .vigie: nil
+        case .vigie: place.vigieConversation != nil ? .vigieConversation : nil
+        case .meetings, .calendar, .contacts, .dictation: nil
         }
     }
 
@@ -538,6 +543,7 @@ public final class WindowRouter: ObservableObject {
             restoreProject?(nil)
         case .inspirationItem?: inspirationItem = nil
         case .settingsPane?: settingsPane = nil
+        case .vigieConversation?: vigieConversation = nil
         case nil: break
         }
         restoring = false
@@ -563,6 +569,7 @@ public final class WindowRouter: ObservableObject {
         selection = place.meeting
         mailSelection = place.mail
         homeMail = place.homeMail
+        vigieConversation = place.vigieConversation
         settingsPane = place.settingsPane
         contactSelection = place.contact
         inspirationPage = place.inspirationPage
@@ -800,7 +807,14 @@ public struct MainWindowView<Diagnostic: View>: View {
             case .dictation:
                 if let dictation { DictationPage(library: dictation, service: dictationService) }
             case .vigie:
-                if let vigie { VigiePage(library: vigie) }
+                if let vigie {
+                    // A conversation open over the « Vue d'ensemble » (21/11): ‹ and Échap come back to it.
+                    if let id = router.vigieConversation {
+                        VigieConversationPage(library: vigie, router: router, id: id)
+                    } else {
+                        VigiePage(library: vigie) { router.vigieConversation = $0 }
+                    }
+                }
             case .projects:
                 if let projects {
                     ProjectsView(library: projects)
