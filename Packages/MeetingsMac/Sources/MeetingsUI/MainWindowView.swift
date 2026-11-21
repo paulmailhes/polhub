@@ -273,6 +273,8 @@ public final class WindowRouter: ObservableObject {
     @Published public var homeMail: String? { didSet { moved() } }
     /// The conversation of Claude Code open in Vigie (21/11); `nil` for its « Vue d'ensemble ».
     @Published public var vigieConversation: String? { didSet { moved() } }
+    /// The page of Vigie shown, as the app Vigie names them (Paul, 21/11: « les mêmes que dans Vigie »).
+    @Published public var vigiePage: VigieSubpage = .overview { didSet { moved() } }
     /// A new event asked for (« Coup d'œil », Calendrier's « + »): Calendrier opens its editor, then clears it. A new
     /// value per request, so that two requests in a row open two editors.
     @Published public var newEventRequest: UUID?
@@ -391,6 +393,7 @@ public final class WindowRouter: ObservableObject {
         var inspirationItem: UUID?
         var homeMail: String?
         var vigieConversation: String?
+        var vigiePage: VigieSubpage = .overview
     }
 
     /// The steps kept behind: a long morning of clicks.
@@ -414,7 +417,7 @@ public final class WindowRouter: ObservableObject {
     var location: Location {
         Location(section: section, meeting: selection, mail: mailSelection, mailFolder: mailFolder, settingsPane: settingsPane,
                  contact: contactSelection, project: project, inspirationPage: inspirationPage, inspirationItem: inspirationItem, homeMail: homeMail,
-                 vigieConversation: vigieConversation)
+                 vigieConversation: vigieConversation, vigiePage: vigiePage)
     }
 
     /// Projets opened a project, or went back to the grid.
@@ -570,6 +573,7 @@ public final class WindowRouter: ObservableObject {
         mailSelection = place.mail
         homeMail = place.homeMail
         vigieConversation = place.vigieConversation
+        vigiePage = place.vigiePage
         settingsPane = place.settingsPane
         contactSelection = place.contact
         inspirationPage = place.inspirationPage
@@ -812,7 +816,10 @@ public struct MainWindowView<Diagnostic: View>: View {
                     if let id = router.vigieConversation {
                         VigieConversationPage(library: vigie, router: router, id: id)
                     } else {
-                        VigiePage(library: vigie) { router.vigieConversation = $0 }
+                        switch router.vigiePage {
+                        case .overview: VigiePage(library: vigie, router: router) { router.vigieConversation = $0 }
+                        case .accounts: VigieAccountsPage(library: vigie, router: router)
+                        }
                     }
                 }
             case .projects:

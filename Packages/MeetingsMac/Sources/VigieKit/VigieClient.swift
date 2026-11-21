@@ -170,6 +170,22 @@ public struct VigieClient: Sendable {
         return (try? JSONDecoder().decode(Answer.self, from: data))?.switch
     }
 
+    /// The Claude accounts, in detail.
+    public func accounts() async throws -> VigieAccounts {
+        let data = try await send("GET", "api/v2/accounts", body: nil)
+        guard let accounts = try? JSONDecoder().decode(VigieAccounts.self, from: data) else { throw VigieFailure.unreadable }
+        return accounts
+    }
+
+    /// A gesture on the accounts (`action`: setDefault, connect, refresh, create, rename, remove, wrapper); the engine's
+    /// sentence when it has one. Connecting opens Terminal or the browser: the engine waits for it.
+    @discardableResult
+    public func accounts(_ body: [String: Any]) async throws -> String? {
+        let data = try await send("POST", "api/v2/accounts", body: body, patience: .long)
+        struct Answer: Decodable { let message: String? }
+        return (try? JSONDecoder().decode(Answer.self, from: data))?.message
+    }
+
     /// Changes general settings: only the keys given; `guard` takes its own keys (`enabled`, `waitMin`, `rules`).
     @discardableResult
     public func settings(_ changes: [String: Any]) async throws -> VigieSettings? {

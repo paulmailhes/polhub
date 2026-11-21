@@ -324,6 +324,64 @@ import VigieKit
         overview.accounts.filter { $0.id != id && ($0.session?.percent ?? 0) < 95 && ($0.week?.percent ?? 0) < 100 }
     }
 
+    // MARK: - The accounts
+
+    /// The accounts' page, in detail, while it is on screen (every 4 s).
+    @Published public private(set) var accounts: VigieAccounts?
+    private var accountsLoop: Task<Void, Never>?
+
+    public func watchAccounts() {
+        guard accountsLoop == nil else { return }
+        accountsLoop = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.readAccounts()
+                try? await Task.sleep(for: .seconds(4))
+            }
+        }
+    }
+
+    public func stopWatchingAccounts() {
+        accountsLoop?.cancel()
+        accountsLoop = nil
+    }
+
+    func readAccounts() async {
+        guard let fresh = try? await client.accounts() else { return }
+        if fresh != accounts { accounts = fresh }
+    }
+
+    /// The account of new conversations.
+    public func setDefaultAccount(_ id: String) async { await account(["action": "setDefault", "id": id], id: "défaut:" + id) }
+    /// Connects or reconnects: the engine opens Terminal or the browser.
+    public func connectAccount(_ id: String) async { await account(["action": "connect", "id": id], id: "connexion:" + id) }
+    /// Reads the usage again by a small real request to the model: on Paul's click only, never by itself.
+    public func refreshUsage(_ id: String) async { await account(["action": "refresh", "id": id], id: "relevé:" + id) }
+    public func removeAccount(_ id: String) async { await account(["action": "remove", "id": id], id: "retrait:" + id) }
+    /// VS Code's launcher, which runs each conversation on its account.
+    public func setLauncher(_ on: Bool) async { await account(["action": "wrapper", "enable": on], id: "lanceur") }
+
+    /// A new account: named, its address if Paul gives one, then connected.
+    public func createAccount(label: String, email: String?) async {
+        var body: [String: Any] = ["action": "create", "label": label]
+        if let email, !email.isEmpty { body["email"] = email }
+        let box = SendableBox(body)
+        var created: String?
+        await send("nouveau-compte") {
+            _ = try await self.client.accounts(box.value)
+            await self.readAccounts()
+            created = self.accounts?.accounts.first { $0.label == label }?.id
+        }
+        if let created { await connectAccount(created) }
+    }
+
+    private func account(_ body: [String: Any], id: String) async {
+        let box = SendableBox(body)
+        await send(id) {
+            if let message = try await self.client.accounts(box.value), !message.isEmpty { self.info = message }
+        }
+        await readAccounts()
+    }
+
     // MARK: - Settings
 
     public func setAutoAccept(_ on: Bool) async { await setting(["autoAccept": on]) { $0.autoAccept = on } }

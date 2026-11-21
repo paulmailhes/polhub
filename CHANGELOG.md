@@ -3,6 +3,23 @@
 Chaque version publiée a sa section ; `scripts/release.sh` la reprend pour la page de la version sur
 GitHub, et l'app la montre dans Réglages › Mises à jour.
 
+## 0.73.0 — 21 novembre 2026
+
+**Vigie dans hub, cinquième étape : la page « Comptes ».**
+
+- **En haut de la page Vigie, deux pages, comme dans l'app** : « Vue d'ensemble » et « Comptes ».
+- **Chaque compte Claude** avec :
+  - sa session de 5 h et sa semaine (et la semaine de son modèle), avec leur remise à zéro ;
+  - quand la semaine sera pleine, au rythme actuel ;
+  - s'il est à reconnecter, connecté avec une autre adresse, ou en double.
+- **Ses gestes** :
+  - Connecter ou Reconnecter ;
+  - Actualiser : une petite requête au modèle, seulement quand tu cliques ;
+  - en faire le compte des nouvelles conversations ;
+  - le retirer, avec confirmation.
+- **Ajouter un compte** : son nom, son adresse si tu la connais, puis la connexion dans le navigateur.
+- **Le lanceur de comptes de VS Code** : s'il n'est pas actif, la page le dit, avec « Activer ».
+
 ## 0.72.0 — 21 novembre 2026
 
 **L'app Vigie est retirée : hub prend tout le relais.**

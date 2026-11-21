@@ -589,6 +589,21 @@ public struct VigieAccount: Decodable, Equatable, Sendable, Identifiable {
     /// Its 5-hour session and its week; nil when the reading is old (the engine never gives a stale one).
     public var session: Window?
     public var week: Window?
+    /// The week of one model (« Fable »), from real sessions only.
+    public var weekModel: Window?
+    public var weekModelLabel: String?
+    /// How old the reading is.
+    public var observedAt: Date?
+    public var email: String?
+    /// Connected with another address than the one planned for it.
+    public var wrongAccount: Bool
+    public var connected: Bool
+    /// What the vault saw of its connection: ok, restored, restoring, lost, dead, logged-out, unknown.
+    public var loginState: String?
+    /// The account of new conversations.
+    public var isDefault: Bool
+    /// Other accounts of Vigie connected to the same account of claude.ai.
+    public var sameAs: [String]
 
     public struct Window: Decodable, Equatable, Sendable {
         public var percent: Double
@@ -616,20 +631,39 @@ public struct VigieAccount: Decodable, Equatable, Sendable, Identifiable {
 
     public var isCodex: Bool { kind == "codex" }
 
-    public init(id: String, label: String, kind: String? = nil, session: Window? = nil, week: Window? = nil) {
+    public init(id: String, label: String, kind: String? = nil, session: Window? = nil, week: Window? = nil, weekModel: Window? = nil,
+                weekModelLabel: String? = nil, observedAt: Date? = nil, email: String? = nil, wrongAccount: Bool = false, connected: Bool = true,
+                loginState: String? = nil, isDefault: Bool = false, sameAs: [String] = []) {
         self.id = id
         self.label = label
         self.kind = kind
         self.session = session
         self.week = week
+        self.weekModel = weekModel
+        self.weekModelLabel = weekModelLabel
+        self.observedAt = observedAt
+        self.email = email
+        self.wrongAccount = wrongAccount
+        self.connected = connected
+        self.loginState = loginState
+        self.isDefault = isDefault
+        self.sameAs = sameAs
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, label, kind, usage
+        case id, label, kind, usage, email, wrongAccount, connected, login, isDefault, sameAs
     }
 
     enum UsageKeys: String, CodingKey {
-        case session, week
+        case session, week, weekModel, observedAt
+    }
+
+    enum LoginKeys: String, CodingKey {
+        case state
+    }
+
+    enum ModelKeys: String, CodingKey {
+        case label
     }
 
     public init(from decoder: Decoder) throws {
@@ -640,6 +674,53 @@ public struct VigieAccount: Decodable, Equatable, Sendable, Identifiable {
         let usage = try? values.nestedContainer(keyedBy: UsageKeys.self, forKey: .usage)
         session = try? usage?.decodeIfPresent(Window.self, forKey: .session)
         week = try? usage?.decodeIfPresent(Window.self, forKey: .week)
+        weekModel = try? usage?.decodeIfPresent(Window.self, forKey: .weekModel)
+        weekModelLabel = (try? usage?.nestedContainer(keyedBy: ModelKeys.self, forKey: .weekModel))
+            .flatMap { try? $0.decodeIfPresent(String.self, forKey: .label) }
+        observedAt = usage.flatMap { VigieDate.read($0, .observedAt) }
+        email = try? values.decodeIfPresent(String.self, forKey: .email)
+        wrongAccount = (try? values.decodeIfPresent(Bool.self, forKey: .wrongAccount)) ?? false
+        connected = (try? values.decodeIfPresent(Bool.self, forKey: .connected)) ?? true
+        loginState = (try? values.nestedContainer(keyedBy: LoginKeys.self, forKey: .login)).flatMap { try? $0.decodeIfPresent(String.self, forKey: .state) }
+        isDefault = (try? values.decodeIfPresent(Bool.self, forKey: .isDefault)) ?? false
+        sameAs = (try? values.decodeIfPresent([String].self, forKey: .sameAs)) ?? []
+    }
+
+    /// To connect again: its connection is lost, refused, or it is not connected.
+    public var needsConnecting: Bool {
+        !connected || ["lost", "dead", "logged-out"].contains(loginState ?? "")
+    }
+}
+
+/// The accounts' page (`GET /api/v2/accounts`): every Claude account, the one of new conversations, and VS Code's
+/// launcher that runs each conversation on its account.
+public struct VigieAccounts: Decodable, Equatable, Sendable {
+    public var accounts: [VigieAccount]
+    public var defaultForNew: String?
+    /// VS Code runs its conversations through Vigie's launcher: without it, a conversation's account is not kept.
+    public var launcherActive: Bool
+
+    public init(accounts: [VigieAccount] = [], defaultForNew: String? = nil, launcherActive: Bool = true) {
+        self.accounts = accounts
+        self.defaultForNew = defaultForNew
+        self.launcherActive = launcherActive
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case accounts, defaultForNew, wrapper
+    }
+
+    enum WrapperKeys: String, CodingKey {
+        case active
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        accounts = (((try? values.decodeIfPresent([Lenient<VigieAccount>].self, forKey: .accounts)) ?? [])?.compactMap(\.value) ?? [])
+            .filter { !$0.isCodex }
+        defaultForNew = try? values.decodeIfPresent(String.self, forKey: .defaultForNew)
+        launcherActive = (try? values.nestedContainer(keyedBy: WrapperKeys.self, forKey: .wrapper))
+            .flatMap { try? $0.decodeIfPresent(Bool.self, forKey: .active) } ?? true
     }
 }
 

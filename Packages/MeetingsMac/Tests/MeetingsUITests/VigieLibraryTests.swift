@@ -308,3 +308,66 @@ import VigieKit
                                      to: folder.appending(path: "vigie-conversation.png"), size: NSSize(width: 900, height: 1_500), wait: .milliseconds(1_500))
     }
 }
+
+/// 21/11, the migration's « Comptes »: each account's session and week, its connection, the account of new
+/// conversations; its gestures sent as the engine expects them. Données inventées.
+@MainActor @Suite struct VigieAccountsTests {
+    static let accounts = """
+    { "accounts": [
+        { "id": "travail1", "label": "Travail 1", "email": "alex@studio-exemple.fr", "connected": true, "isDefault": true,
+          "login": { "state": "ok" },
+          "usage": { "session": { "pct": 42, "resetsAt": "2026-11-18T15:00:00.000Z" },
+                     "week": { "pct": 91, "resetsAt": "2026-11-24T19:00:00.000Z", "fullAt": "2026-11-23T10:00:00.000Z" },
+                     "weekModel": { "label": "Fable", "pct": 55 }, "observedAt": "2026-11-18T12:05:00.000Z", "source": "session" } },
+        { "id": "perso", "label": "Perso", "connected": true, "login": { "state": "lost" }, "wrongAccount": false, "usage": null },
+        { "id": "codex", "label": "Codex", "kind": "codex" } ],
+      "defaultForNew": "travail1", "wrapper": { "active": false } }
+    """
+
+    @Test func theAccountsAreReadAndSaidPlainly() throws {
+        let page = try JSONDecoder().decode(VigieAccounts.self, from: Data(Self.accounts.utf8))
+        #expect(page.accounts.map(\.id) == ["travail1", "perso"] && page.defaultForNew == "travail1" && !page.launcherActive)
+        let work = page.accounts[0]
+        #expect(work.email == "alex@studio-exemple.fr" && work.isDefault && !work.needsConnecting)
+        #expect(work.week?.percent == 91 && work.weekModel?.percent == 55 && work.weekModelLabel == "Fable" && work.observedAt != nil)
+        #expect(VigieAccountsText.isTight(work.week) && !VigieAccountsText.isTight(work.session))
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-11-18T12:00:00Z"))
+        #expect(VigieAccountsText.line(work.week, now: now, fullAt: true).contains("pleine vers"))
+        #expect(VigieAccountsText.line(nil, now: now, fullAt: true) == "Pas de relevé récent : « Actualiser » le relit.")
+        // A lost connection is to connect again; an old reading is no reading.
+        #expect(page.accounts[1].needsConnecting && page.accounts[1].session == nil)
+    }
+
+    @Test func itsGesturesAreSentAsTheEngineExpects() async throws {
+        let tests = VigieLibraryTests()
+        let (library, engine) = try tests.library()
+        engine.answer(Self.accounts)
+        await library.readAccounts()
+        #expect(library.accounts?.accounts.count == 2)
+        engine.next([(#"{"ok":true,"message":"Travail 1 sert aux nouvelles conversations."}"#, 200), (Self.accounts, 200)])
+        await library.setDefaultAccount("perso")
+        #expect(library.info == "Travail 1 sert aux nouvelles conversations.")
+        engine.next([(#"{"ok":true}"#, 200), (Self.accounts, 200)])
+        await library.refreshUsage("travail1")
+        await library.setLauncher(true)
+        let posts = engine.requests.filter { $0.httpMethod == "POST" }
+        let bodies = posts.map { (try? JSONSerialization.jsonObject(with: $0.httpBody ?? Data())) as? NSDictionary ?? [:] }
+        #expect(posts.allSatisfy { $0.url?.path() == "/api/v2/accounts" && $0.timeoutInterval == 90 })
+        #expect(bodies == [["action": "setDefault", "id": "perso"], ["action": "refresh", "id": "travail1"], ["action": "wrapper", "enable": true]]
+            as [NSDictionary])
+    }
+
+    /// `HUB_LIVE=1 HUB_SNAPSHOTS=<dossier> swift test --filter VigieAccountsTests`.
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["HUB_LIVE"] == "1")) func thePageInCapture() async throws {
+        let folder = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["HUB_SNAPSHOTS"]), isDirectory: true)
+        let tests = VigieLibraryTests()
+        let (library, engine) = try tests.library()
+        engine.answer(Self.accounts)
+        await library.readAccounts()
+        let router = WindowRouter()
+        router.section = .vigie
+        router.vigiePage = .accounts
+        try await LiveWindow.capture(VigieAccountsPage(library: library, router: router), to: folder.appending(path: "vigie-comptes.png"),
+                                     size: NSSize(width: 900, height: 900), wait: .milliseconds(1_200))
+    }
+}

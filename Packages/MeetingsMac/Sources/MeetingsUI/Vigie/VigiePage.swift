@@ -9,6 +9,8 @@ import VigieKit
 /// answer, Terminal, restart the engine, and Auto-accept in the toolbar.
 struct VigiePage: View {
     @ObservedObject var library: VigieLibrary
+    /// The window's router, for the pages of Vigie in the toolbar; none in a capture.
+    var router: WindowRouter? = nil
     /// Opens a conversation's page (21/11); none in a capture.
     var openConversation: ((String) -> Void)? = nil
     @State private var answering: VigieReview?
@@ -28,6 +30,9 @@ struct VigiePage: View {
         }
         .belowToolbar()
         .toolbar {
+            if let router {
+                ToolbarItem(placement: .principal) { VigiePagePicker(router: router) }
+            }
             if let settings = library.settings {
                 ToolbarItem(placement: .primaryAction) {
                     // Its name beside it: a switch alone in a toolbar says nothing.
